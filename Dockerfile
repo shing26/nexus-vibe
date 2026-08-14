@@ -3,7 +3,8 @@
 # ============================================================
 
 # ---- Stage 1: Build ----
-FROM maven:3.9-eclipse-temurin-18 AS builder
+# JDK 21 can compile with --release 18; the 18-based Maven image tag no longer exists.
+FROM maven:3.9-eclipse-temurin-21 AS builder
 
 WORKDIR /build
 
