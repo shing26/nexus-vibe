@@ -1,5 +1,6 @@
 package com.nexus.campus.agent;
 
+import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.entity.VibeComment;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -213,7 +214,7 @@ public class AiReviewService {
         try {
             VibePost post = new VibePost();
             post.setId(postId);
-            post.setAiReviewed(1);
+            post.setAiReviewed(AiReviewStatus.REVIEWED.getCode());
             post.setAiReviewScore(result.score);
             vibePostMapper.updateById(post);
             log.info("AI review score {} written back to vibe_post {}", result.score, postId);

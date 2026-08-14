@@ -34,11 +34,26 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(400, "Validation failed: " + message);
     }
 
-    @ExceptionHandler(RuntimeException.class)
+    /**
+     * Expected business errors (validation, permission, state) carry a safe,
+     * user-facing message and map to HTTP 400.
+     */
+    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
     @ResponseStatus(HttpStatus.BAD_REQUEST)
-    public ApiResponse<Void> handleRuntime(RuntimeException e) {
-        log.error("Runtime exception: {}", e.getMessage());
+    public ApiResponse<Void> handleBusinessError(RuntimeException e) {
+        log.warn("Business exception: {}", e.getMessage());
         return ApiResponse.error(400, e.getMessage());
+    }
+
+    /**
+     * Unknown runtime exceptions must not leak internal details (messages,
+     * stack traces, SQL fragments) to the client. Log the full stack server-side.
+     */
+    @ExceptionHandler(RuntimeException.class)
+    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
+    public ApiResponse<Void> handleRuntime(RuntimeException e) {
+        log.error("Unexpected runtime exception", e);
+        return ApiResponse.error(500, "Internal server error.");
     }
 
     @ExceptionHandler(Exception.class)

@@ -1,5 +1,6 @@
 package com.nexus.campus.agent;
 
+import com.nexus.campus.enums.PostStatus;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
 import lombok.extern.slf4j.Slf4j;
@@ -32,9 +33,6 @@ public class AiSafetyCheckListener {
             "Respond with ONLY the category name, nothing else.";
 
     // Status constants matching vibe_post.status column
-    private static final int STATUS_ACTIVE = 1;
-    private static final int STATUS_PENDING_REVIEW = 2;
-    private static final int STATUS_REJECTED = 3;
 
     @Autowired
     private LlmClient llmClient;
@@ -48,7 +46,7 @@ public class AiSafetyCheckListener {
     @Autowired
     private SysMessageService sysMessageService;
 
-    @Value("${campus.ai.review.enabled:true}")
+    @Value("${campus.ai.safety.enabled:true}")
     private boolean safetyEnabled;
 
     @Async
@@ -87,6 +85,9 @@ public class AiSafetyCheckListener {
                 case "Spam":
                     handleSpam(postId, llmResponse);
                     break;
+                case "Unclear":
+                    handleUnclear(postId, llmResponse);
+                    break;
                 case "Safe":
                     handleSafe(postId, llmResponse);
                     break;
@@ -103,7 +104,7 @@ public class AiSafetyCheckListener {
     }
 
     /**
-     * Normalises the LLM response to one of the four known category strings.
+     * Normalises the LLM response to one of the known category strings.
      * Accepts partial and case-insensitive matches, defaulting to {@code "Safe"}.
      */
     static String classifyResponse(String llmResponse) {
@@ -112,16 +113,43 @@ public class AiSafetyCheckListener {
         }
         String trimmed = llmResponse.trim().toLowerCase();
 
-        if (trimmed.contains("prompt injection") || trimmed.contains("prompt_injection")) {
+        // The LLM prompt asks for exactly one category word. If the model hedged
+        // with a negation, a naive contains() match would misclassify the post
+        // (e.g. "not harmful" would hit the "harmful" branch). Handle those
+        // explicitly before the positive contains() checks below.
+        boolean notSafe = trimmed.contains("not safe") || trimmed.contains("no safe")
+                || trimmed.contains("unsafe");
+        boolean notHarmful = trimmed.contains("not harmful") || trimmed.contains("no harmful");
+        boolean notSpam = trimmed.contains("not spam") || trimmed.contains("no spam");
+        boolean notPromptInjection = trimmed.contains("not prompt injection")
+                || trimmed.contains("no prompt injection");
+
+        boolean promptInjection = !notPromptInjection
+                && (trimmed.contains("prompt injection") || trimmed.contains("prompt_injection"));
+        boolean harmful = !notHarmful && trimmed.contains("harmful");
+        boolean spam = !notSpam && trimmed.contains("spam");
+        boolean safe = !notSafe && trimmed.contains("safe");
+
+        if (promptInjection) {
             return "Prompt injection";
         }
-        if (trimmed.contains("harmful")) {
+        if (harmful) {
             return "Harmful content";
         }
-        if (trimmed.contains("spam")) {
+        if (spam) {
             return "Spam";
         }
-        if (trimmed.contains("safe")) {
+        if (safe) {
+            return "Safe";
+        }
+        if (notSafe) {
+            log.warn("LLM safety response signals risk but no category '{}', routing to review queue",
+                    llmResponse.trim());
+            return "Unclear";
+        }
+        if (notHarmful || notSpam || notPromptInjection) {
+            log.warn("LLM safety response contains a negation '{}', defaulting to Safe",
+                    llmResponse.trim());
             return "Safe";
         }
         // If response doesn't match any known category, default to Safe
@@ -133,13 +161,13 @@ public class AiSafetyCheckListener {
 
     private void handlePromptInjection(Long postId, String rawResponse) {
         log.warn("Prompt injection detected in post {}, setting to PENDING_REVIEW", postId);
-        updatePostStatus(postId, STATUS_PENDING_REVIEW);
+        updatePostStatus(postId, PostStatus.PENDING_REVIEW.getCode());
         saveReviewLog(postId, rawResponse, "critical", 0);
     }
 
     private void handleHarmfulContent(Long postId, Long authorId, String rawResponse) {
         log.warn("Harmful content detected in post {}, rejecting and notifying author", postId);
-        updatePostStatus(postId, STATUS_REJECTED);
+        updatePostStatus(postId, PostStatus.REJECTED.getCode());
 
         // Send system notification to author
         try {
@@ -160,8 +188,14 @@ public class AiSafetyCheckListener {
 
     private void handleSpam(Long postId, String rawResponse) {
         log.info("Spam detected in post {}, rejecting silently", postId);
-        updatePostStatus(postId, STATUS_REJECTED);
+        updatePostStatus(postId, PostStatus.REJECTED.getCode());
         saveReviewLog(postId, rawResponse, "low", 0);
+    }
+
+    private void handleUnclear(Long postId, String rawResponse) {
+        log.warn("Unclear safety classification for post {}, routing to review queue", postId);
+        updatePostStatus(postId, PostStatus.PENDING_REVIEW.getCode());
+        saveReviewLog(postId, rawResponse, "medium", 0);
     }
 
     private void handleSafe(Long postId, String rawResponse) {

@@ -1,5 +1,6 @@
 package com.nexus.campus.agent;
 
+import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.mapper.VibePostMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -43,7 +44,7 @@ public class AiReviewEventListener {
         try {
             VibePost post = vibePostMapper.selectById(postId);
             if (post != null) {
-                post.setAiReviewed(2);
+                post.setAiReviewed(AiReviewStatus.REVIEWING.getCode());
                 vibePostMapper.updateById(post);
             }
         } catch (Exception e) {
@@ -57,7 +58,7 @@ public class AiReviewEventListener {
             // Mark as complete (1 = reviewed, approved/pending); keep the score AiReviewService persisted
             VibePost post = vibePostMapper.selectById(postId);
             if (post != null) {
-                post.setAiReviewed(1);
+                post.setAiReviewed(AiReviewStatus.REVIEWED.getCode());
                 vibePostMapper.updateById(post);
             }
             log.info("AI review completed for post {}", postId);
@@ -69,7 +70,7 @@ public class AiReviewEventListener {
             try {
                 VibePost post = vibePostMapper.selectById(postId);
                 if (post != null) {
-                    post.setAiReviewed(0);
+                    post.setAiReviewed(AiReviewStatus.NOT_REVIEWED.getCode());
                     vibePostMapper.updateById(post);
                 }
             } catch (Exception ex) {

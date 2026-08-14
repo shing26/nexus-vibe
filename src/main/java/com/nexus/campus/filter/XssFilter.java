@@ -13,8 +13,9 @@ import java.util.List;
 
 /**
  * Servlet {@link Filter} that wraps every {@link HttpServletRequest} inside an
- * {@link XssHttpServletRequestWrapper} so that URL parameters, headers, and
- * request bodies are HTML-escaped <em>before</em> the application code sees them.
+ * {@link XssHttpServletRequestWrapper} so that URL parameters and headers are
+ * HTML-escaped and JSON request bodies are whitelist-sanitized (jsoup)
+ * <em>before</em> the application code sees them.
  *
  * <p>Paths listed in the {@code exclude-path} init-parameter are skipped
  * (static resources, H2 console, etc.).</p>
