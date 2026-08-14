@@ -14,10 +14,6 @@ server:
 spring:
   application:
     name: nexus-vibe
-  autoconfigure:
-    exclude:
-      # JDK 18's ProcessorMetrics crashes on GitHub Actions runners without cgroup info.
-      - org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration
   task:
     execution:
       pool:
