@@ -1,13 +1,13 @@
 package com.nexus.campus.service;
 
 import com.nexus.campus.dto.CommentCreateRequest;
+import com.nexus.campus.dto.PostAuditResult;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.mapper.*;
 import com.nexus.campus.service.impl.VibeCommentServiceImpl;
-import com.nexus.campus.util.DfaFilter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -40,7 +40,7 @@ class CommentServiceTest {
     private SysMessageMapper sysMessageMapper;
 
     @Mock
-    private DfaFilter dfaFilter;
+    private SensitiveWordService sensitiveWordService;
 
     @InjectMocks
     private VibeCommentServiceImpl commentService;
@@ -78,7 +78,7 @@ class CommentServiceTest {
         request.setParentId(0L);
         request.setTargetId(0L);
 
-        when(dfaFilter.containsSensitiveWord("Great post!")).thenReturn(false);
+        when(sensitiveWordService.checkText("Great post!")).thenReturn(PostAuditResult.pass("Great post!"));
         when(vibePostMapper.selectById(postId)).thenReturn(post);
         when(sysUserMapper.selectById(userId)).thenReturn(user);
 
@@ -118,7 +118,7 @@ class CommentServiceTest {
         request.setParentId(0L);
         request.setTargetId(0L);
 
-        when(dfaFilter.containsSensitiveWord("My own post comment")).thenReturn(false);
+        when(sensitiveWordService.checkText("My own post comment")).thenReturn(PostAuditResult.pass("My own post comment"));
         when(vibePostMapper.selectById(postId)).thenReturn(post);
         when(sysUserMapper.selectById(userId)).thenReturn(user);
 
@@ -140,7 +140,8 @@ class CommentServiceTest {
         request.setParentId(0L);
         request.setTargetId(0L);
 
-        when(dfaFilter.containsSensitiveWord("This is a shit comment")).thenReturn(true);
+        when(sensitiveWordService.checkText("This is a shit comment"))
+                .thenReturn(PostAuditResult.pendingAudit("This is a shit comment", 1, List.of("shit")));
         when(vibePostMapper.selectById(postId)).thenReturn(post);
         when(sysUserMapper.selectById(userId)).thenReturn(user);
 
@@ -161,7 +162,8 @@ class CommentServiceTest {
         request.setContent("Comment with null IDs");
         // parentId and targetId are null
 
-        when(dfaFilter.containsSensitiveWord("Comment with null IDs")).thenReturn(false);
+        when(sensitiveWordService.checkText("Comment with null IDs"))
+                .thenReturn(PostAuditResult.pass("Comment with null IDs"));
         when(vibePostMapper.selectById(postId)).thenReturn(post);
         when(sysUserMapper.selectById(userId)).thenReturn(user);
 
@@ -223,20 +225,40 @@ class CommentServiceTest {
     @Test
     @DisplayName("deleteComment() should return true when deletion succeeds")
     void deleteCommentSuccess() {
+        VibeComment comment = new VibeComment();
+        comment.setId(1L);
+        comment.setPostId(postId);
+        comment.setUserId(userId);
+        when(vibeCommentMapper.selectById(1L)).thenReturn(comment);
         when(vibeCommentMapper.deleteById(1L)).thenReturn(1);
 
-        boolean result = commentService.deleteComment(1L);
+        boolean result = commentService.deleteComment(1L, userId, "USER");
 
         assertTrue(result);
+        verify(vibePostMapper).decrementCommentCount(postId);
     }
 
     @Test
     @DisplayName("deleteComment() should return false when comment does not exist")
     void deleteCommentNotFound() {
-        when(vibeCommentMapper.deleteById(999L)).thenReturn(0);
+        when(vibeCommentMapper.selectById(999L)).thenReturn(null);
 
-        boolean result = commentService.deleteComment(999L);
+        boolean result = commentService.deleteComment(999L, userId, "USER");
 
         assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("deleteComment() should reject non-author, non-admin users")
+    void deleteCommentForbidden() {
+        VibeComment comment = new VibeComment();
+        comment.setId(1L);
+        comment.setPostId(postId);
+        comment.setUserId(authorUserId);
+        when(vibeCommentMapper.selectById(1L)).thenReturn(comment);
+
+        assertThrows(IllegalStateException.class,
+                () -> commentService.deleteComment(1L, userId, "USER"));
+        verify(vibeCommentMapper, never()).deleteById(anyLong());
     }
 }

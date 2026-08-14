@@ -102,7 +102,7 @@ public class VibePostServiceImpl implements VibePostService {
         post.setPostType(request.getPostType() != null ? request.getPostType() : "post");
         post.setPromptMetadata(request.getPromptMetadata());
 
-        // 钬犫€斺€� DFA audit (SensitiveWordService) 钬犫€斺€斺€斺€斺€斺€斺€斺€斺€斺€斺€斺€斺€斺€
+        // DFA audit (SensitiveWordService)
         PostAuditResult titleAudit   = sensitiveWordService.checkText(request.getTitle());
         PostAuditResult contentAudit = sensitiveWordService.checkText(request.getContent());
         boolean anyCritical  = titleAudit.isContainsCritical() || contentAudit.isContainsCritical();
@@ -445,7 +445,7 @@ public class VibePostServiceImpl implements VibePostService {
     @Override
     public PostPageVo getPostDetail(Long id) {
         VibePost post = vibePostMapper.selectPostWithDetails(id);
-        if (post == null) return null;
+        if (post == null || post.getStatus() == null || post.getStatus() != 1) return null;
         return convertToPageVo(post);
     }
 
@@ -496,6 +496,7 @@ public class VibePostServiceImpl implements VibePostService {
                 new Page<>(page, size),
                 new LambdaQueryWrapper<VibePost>()
                         .eq(VibePost::getUserId, userId)
+                        .eq(VibePost::getStatus, 1)
                         .orderByDesc(VibePost::getCreateTime)
         );
         List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());

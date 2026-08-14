@@ -3,7 +3,6 @@ package com.nexus.campus.service;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexus.campus.dto.PostAuditResult;
-import com.nexus.campus.util.DfaFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -21,7 +20,7 @@ import java.util.*;
  * <p>Two separate trie structures are maintained internally:</p>
  * <ul>
  *   <li><b>Regular sensitive words</b> &mdash; profanity, insults, etc. Matches are
- *       replaced with {@code [鏁版嵁鎿﹂櫎]} and the result status is {@code PASS}.</li>
+ *       replaced with {@code [敏感词]} and the result status is {@code PASS}.</li>
  *   <li><b>Critical / political keywords</b> &mdash; triggers a {@code PENDING_AUDIT}
  *       verdict so the content is routed to the admin moderation queue.</li>
  * </ul>
@@ -35,43 +34,33 @@ public class SensitiveWordService implements MessageListener {
 
     private static final Logger log = LoggerFactory.getLogger(SensitiveWordService.class);
 
-    private static final String REPLACEMENT = "[鏁版嵁鎿﹂櫎]";
+    private static final String REPLACEMENT = "[敏感词]";
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
 
-    // 鈹€鈹€ Trie roots 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    // ===== Trie roots =====
     private final TrieNode regularRoot = new TrieNode(WordTier.REGULAR);
     private final TrieNode criticalRoot = new TrieNode(WordTier.CRITICAL);
 
-    // 鈹€鈹€ DfaFilter for hot-reload support 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-    private final DfaFilter dfaFilter;
-
-    // 鈹€鈹€ Config injection 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-
+    // ===== Config injection =====
     @Value("${campus.security.sensitive-words:}")
     private List<String> configuredSensitiveWords;
 
     @Value("${campus.security.critical-words:}")
     private List<String> configuredCriticalWords;
 
-    public SensitiveWordService(DfaFilter dfaFilter) {
-        this.dfaFilter = dfaFilter;
-    }
-
-    // 鈹€鈹€ Lifecycle 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-
+    // ===== Lifecycle =====
     @PostConstruct
     public void init() {
         loadWords(configuredSensitiveWords, regularRoot);
         loadWords(configuredCriticalWords, criticalRoot);
         loadWords(systemCriticalKeywords(), criticalRoot);
 
-        log.info("[NEXUS-DFA] Regular word trie  鈫?{} entries", regularRoot.size());
-        log.info("[NEXUS-DFA] Critical word trie 鈫?{} entries", criticalRoot.size());
+        log.info("[NEXUS-DFA] Regular word trie: {} entries", regularRoot.size());
+        log.info("[NEXUS-DFA] Critical word trie: {} entries", criticalRoot.size());
     }
 
-    // 鈹€鈹€ Public API 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-
+    // ===== Public API =====
     public PostAuditResult checkText(String text) {
         if (text == null || text.isEmpty()) {
             return PostAuditResult.pass(text);
@@ -112,20 +101,19 @@ public class SensitiveWordService implements MessageListener {
         String filteredContent = result.toString();
 
         if (hasCritical) {
-            log.warn("[NEXUS-DFA] CRITICAL keywords detected: {} 鈥?content routed to audit queue.",
+            log.warn("[NEXUS-DFA] CRITICAL keywords detected: {} - content routed to audit queue.",
                     matchedKeywords);
             return PostAuditResult.pendingAudit(filteredContent, matchedKeywords.size(), matchedKeywords);
         }
         if (hasRegular) {
-            log.debug("[NEXUS-DFA] Regular sensitive words detected: {} 鈥?content filtered.",
+            log.debug("[NEXUS-DFA] Regular sensitive words detected: {} - content filtered.",
                     matchedKeywords);
             return PostAuditResult.sensitiveOnly(filteredContent, matchedKeywords.size(), matchedKeywords);
         }
         return PostAuditResult.pass(filteredContent);
     }
 
-    // 鈹€鈹€ Trie helpers 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-
+    // ===== Trie helpers =====
     private MatchResult findLongestMatch(String text, int start, TrieNode root) {
         TrieNode node = root;
         MatchResult best = null;
@@ -150,8 +138,7 @@ public class SensitiveWordService implements MessageListener {
         return (a.length > b.length) ? a : b;
     }
 
-    // 鈹€鈹€ Redis Pub/Sub listener 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-
+    // ===== Redis Pub/Sub listener =====
     @Override
     public void onMessage(Message message, byte[] pattern) {
         try {
@@ -159,15 +146,24 @@ public class SensitiveWordService implements MessageListener {
             log.info("[NEXUS-DFA] Received sensitive-word update: {}", body);
 
             List<String> newWords = objectMapper.readValue(body, new TypeReference<List<String>>() {});
-            dfaFilter.reloadTrieTree(newWords);
+            reloadSensitiveWords(newWords);
             log.info("[NEXUS-DFA] DFA trie reloaded with {} word(s) from Redis Pub/Sub", newWords.size());
         } catch (Exception e) {
             log.error("[NEXUS-DFA] Failed to process Redis Pub/Sub message: {}", e.getMessage(), e);
         }
     }
 
-    // 鈹€鈹€ Word-list loading 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
+    /**
+     * Atomically replace the regular sensitive-word trie with a new word list.
+     */
+    public void reloadSensitiveWords(List<String> newWords) {
+        synchronized (regularRoot) {
+            regularRoot.children.clear();
+            loadWords(newWords, regularRoot);
+        }
+    }
 
+    // ===== Word-list loading =====
     private void loadWords(List<String> words, TrieNode root) {
         if (words == null) return;
         for (String raw : words) {
@@ -188,22 +184,23 @@ public class SensitiveWordService implements MessageListener {
         root.incrementSize();
     }
 
-    // 鈹€鈹€ System-level critical keywords 鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€鈹€
-
+    // ===== System-level critical keywords =====
     private static List<String> systemCriticalKeywords() {
         return Arrays.asList(
-                "鏆村姏鍒嗚",
-                "棰犺鍥藉",
-                "閭暀缁勭粐",
-                "鎭愭€栦富涔?",
-                "鏋佺瀹楁暀"
+                "赌博",
+                "毒品",
+                "暴力",
+                "色情",
+                "诈骗",
+                "枪支",
+                "恐怖主义",
+                "违禁品"
         );
     }
 
-    // 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
+    // ===== =====
     //  Inner types
-    // 鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲鈺愨晲
-
+    // ===== =====
     private enum WordTier { REGULAR, CRITICAL }
 
     private static class MatchResult {

@@ -80,7 +80,7 @@ public class LikeCounterService {
         if (redisAvailable) {
             return executeLikeToggle(postId, userId);
         }
-        return likeViaMysql(postId);
+        return likeViaMysql(postId, userId);
     }
 
     /**
@@ -91,7 +91,7 @@ public class LikeCounterService {
      */
     public long unlikePost(Long postId, Long userId) {
         if (!redisAvailable) {
-            return unlikeViaMysql(postId);
+            return unlikeViaMysql(postId, userId);
         }
         return executeLikeToggle(postId, userId);
     }
@@ -100,7 +100,9 @@ public class LikeCounterService {
      * Check whether {@code userId} has already liked {@code postId}.
      */
     public boolean isLiked(Long postId, Long userId) {
-        if (!redisAvailable) return false;
+        if (!redisAvailable) {
+            return vibePostMapper.countPostLike(postId, userId) > 0;
+        }
         try {
             String key = LIKE_SET_PREFIX + postId;
             Boolean member = stringRedisTemplate.opsForSet().isMember(key, userId.toString());
@@ -135,7 +137,7 @@ public class LikeCounterService {
 
     private long executeLikeToggle(Long postId, Long userId) {
         if (stringRedisTemplate == null || likeToggleScript == null) {
-            return likeViaMysql(postId);
+            return likeViaMysql(postId, userId);
         }
         try {
             List<String> keys = Arrays.asList(
@@ -155,7 +157,7 @@ public class LikeCounterService {
         } catch (DataAccessException e) {
             log.warn("[NEXUS-LIKE] Lua script execution failed for post {}: {}", postId, e.getMessage());
             // Degrade gracefully
-            return likeViaMysql(postId);
+            return likeViaMysql(postId, userId);
         }
     }
 
@@ -163,16 +165,27 @@ public class LikeCounterService {
     //  Fallback: direct MySQL
     // =================================================
 
-    private long likeViaMysql(Long postId) {
-        vibePostMapper.incrementLikeCount(postId);
+    private long likeViaMysql(Long postId, Long userId) {
+        int inserted = 0;
+        try {
+            inserted = vibePostMapper.insertPostLike(postId, userId);
+        } catch (DataAccessException e) {
+            log.debug("[NEXUS-LIKE] User {} already liked post {}, keeping count stable.", userId, postId);
+        }
+        if (inserted > 0) {
+            vibePostMapper.updateLikeCountDelta(postId, 1);
+        }
         VibePost post = vibePostMapper.selectById(postId);
         long count = (post != null) ? post.getLikeCount() : 0;
         log.debug("[NEXUS-LIKE] Direct MySQL like on post {} (count={})", postId, count);
         return count;
     }
 
-    private long unlikeViaMysql(Long postId) {
-        vibePostMapper.updateLikeCountDelta(postId, -1);
+    private long unlikeViaMysql(Long postId, Long userId) {
+        int deleted = vibePostMapper.deletePostLike(postId, userId);
+        if (deleted > 0) {
+            vibePostMapper.updateLikeCountDelta(postId, -1);
+        }
         VibePost post = vibePostMapper.selectById(postId);
         long count = (post != null) ? Math.max(post.getLikeCount(), 0) : 0;
         log.debug("[NEXUS-LIKE] Direct MySQL unlike on post {} (count={})", postId, count);

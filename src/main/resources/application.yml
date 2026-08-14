@@ -14,6 +14,10 @@ server:
 spring:
   application:
     name: nexus-vibe
+  autoconfigure:
+    exclude:
+      # JDK 18's ProcessorMetrics crashes on GitHub Actions runners without cgroup info.
+      - org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration
   task:
     execution:
       pool:
@@ -22,19 +26,11 @@ spring:
         queue-capacity: 100
     thread-name-prefix: nexus-async-
 
-
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
-      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
-
   sql:
     init:
       mode: always
       schema-locations: classpath:schema.sql
       data-locations: classpath:data.sql
-
-  # JSP View Resolver
 
   # H2 Database (dev mode - switch to MySQL for production)
   datasource:
@@ -48,23 +44,23 @@ spring:
       enabled: true
       path: /h2-console
 
-  # Redis Configuration
-  redis:
-    enabled: true
-    host: localhost
-    port: 6379
-    timeout: 3000
-    lettuce:
-      pool:
-        max-active: 8
-        max-idle: 8
-        min-idle: 0
-
-  # JPA / Hibernate
-  jpa:
-    hibernate:
-      ddl-auto: none
-    show-sql: true
+  # Redis Configuration (Boot 3.x namespace)
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      timeout: 3000
+      connect-timeout: 2000
+      lettuce:
+        pool:
+          max-active: 8
+          max-idle: 8
+          min-idle: 0
+  cache:
+    type: simple
+    redis:
+      time-to-live: 1h
+      cache-null-values: false
 
   # File upload
   servlet:
@@ -88,19 +84,28 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 # JWT Configuration
+# Dev-only fallback; production requires JWT_SECRET to be set explicitly.
 jwt:
-  secret: OExHRjA3QjlGRjI0NUI0Q0E1RTdDRjI2MDA3QTUxMjhDOTdBNkY4RjI0NUI0Q0E1RTdDRjI2MDdCOTg2RjA3Qg==
+  secret: ${JWT_SECRET:OExHRjA3QjlGRjI0NUI0Q0E1RTdDRjI2MDA3QTUxMjhDOTdBNkY4RjI0NUI0Q0E1RTdDRjI2MDdCOTg2RjA3Qg==}
   expiration: 86400000
 
 # DFA Sensitive Words
 campus:
+  # Dev default keeps Redis off so the app runs without external services.
+  # Enable via REDIS_ENABLED=true in production (see application-prod.yml).
   redis:
     enabled: false
+  cache:
+    ttl: 1h
+  demo:
+    password: ${DEMO_PASSWORD:123456}
   upload:
     dir: src/main/resources/static/uploads
+  es:
+    uri: ${ES_URI:http://localhost:9200}
   security:
     sensitive-words: fuck,shit,damn,asshole,bitch
-    critical-words: 闂備礁鎼Λ娆忣焽濞嗘劖鍙忛煫鍥ㄧ☉缁€鍡涙煕閳╁啫鍤俊?濠碘槅鍋呮竟鍡樻叏妤ｅ啨鈧懘顢曢敃鈧悙濠囨煢濡警妯堥柛鐔插亾,闂傚倷绶￠崣搴㈢濠靛姹查柍褜鍓涚槐鎾存媴缁嬫浼€缂?闂備浇顕栭崢浠嬪礉閺嶎厼鐒垫い鎺嶈兌婢а囨倵闂堟稒婀扮紒?闂備礁鎼鍕嚄閸洦鏁傛い鎺戝€甸崑鎾舵喆閸曞灚鐣烽梺鍝勬閸?闂備礁鎲＄敮鎺懳涘鍩跺宕堕埡鍌氭疁闂侀€炲苯澧伴柟?闂備礁鎲￠悷銉х矓鐎涙ɑ鍙忛柍鍝勫€婚埞宥夋煃閳轰礁鏆曠紒?
+    critical-words: 赌博,毒品,色情,诈骗,暴力,枪支,恐怖主义,违禁品
     audit-required-level: 2
 
   ai:

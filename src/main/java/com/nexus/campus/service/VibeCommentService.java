@@ -13,5 +13,5 @@ public interface VibeCommentService {
 
     int countCommentsByPostId(Long postId);
 
-    boolean deleteComment(Long commentId);
+    boolean deleteComment(Long commentId, Long userId, String role);
 }

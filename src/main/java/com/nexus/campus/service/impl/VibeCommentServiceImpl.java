@@ -1,10 +1,11 @@
 package com.nexus.campus.service.impl;
 
 import com.nexus.campus.dto.CommentCreateRequest;
+import com.nexus.campus.dto.PostAuditResult;
 import com.nexus.campus.entity.*;
 import com.nexus.campus.mapper.*;
+import com.nexus.campus.service.SensitiveWordService;
 import com.nexus.campus.service.VibeCommentService;
-import com.nexus.campus.util.DfaFilter;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -27,7 +28,7 @@ public class VibeCommentServiceImpl implements VibeCommentService {
     private SysMessageMapper sysMessageMapper;
 
     @Autowired
-    private DfaFilter dfaFilter;
+    private SensitiveWordService sensitiveWordService;
 
     @Override
     @Transactional
@@ -39,12 +40,10 @@ public class VibeCommentServiceImpl implements VibeCommentService {
         comment.setTargetId(request.getTargetId() != null ? request.getTargetId() : 0L);
         comment.setContent(request.getContent());
 
-        // DFA check
-        if (dfaFilter.containsSensitiveWord(request.getContent())) {
-            comment.setStatus(2);
-        } else {
-            comment.setStatus(1);
-        }
+        // DFA check: filter regular sensitive words, queue critical content for audit.
+        PostAuditResult audit = sensitiveWordService.checkText(request.getContent());
+        comment.setContent(audit.getFilteredContent());
+        comment.setStatus(audit.isContainsCritical() ? 2 : 1);
 
         vibeCommentMapper.insert(comment);
 
@@ -87,7 +86,19 @@ public class VibeCommentServiceImpl implements VibeCommentService {
     }
 
     @Override
-    public boolean deleteComment(Long commentId) {
-        return vibeCommentMapper.deleteById(commentId) > 0;
+    public boolean deleteComment(Long commentId, Long userId, String role) {
+        VibeComment comment = vibeCommentMapper.selectById(commentId);
+        if (comment == null) {
+            return false;
+        }
+        boolean isAdmin = "ADMIN".equals(role);
+        if (!isAdmin && !comment.getUserId().equals(userId)) {
+            throw new IllegalStateException("Only the author or an admin can delete this comment.");
+        }
+        boolean deleted = vibeCommentMapper.deleteById(commentId) > 0;
+        if (deleted && comment.getPostId() != null) {
+            vibePostMapper.decrementCommentCount(comment.getPostId());
+        }
+        return deleted;
     }
 }

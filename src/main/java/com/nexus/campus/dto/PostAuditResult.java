@@ -21,7 +21,7 @@ public class PostAuditResult implements Serializable {
     /** Audit verdict. */
     private AuditStatus status;
 
-    /** The input text with every matched keyword replaced by {@code [数据擦除]}. */
+    /** The input text with every matched keyword replaced by {@code [敏感词]}. */
     private String filteredContent;
 
     /** Whether at least one regular sensitive word was matched. */

@@ -68,12 +68,14 @@ class LikeCounterServiceTest {
         VibePost post = new VibePost();
         post.setId(postId);
         post.setLikeCount(10);
+        when(vibePostMapper.insertPostLike(postId, userId)).thenReturn(1);
         when(vibePostMapper.selectById(postId)).thenReturn(post);
 
         long count = likeCounterService.likePost(postId, userId);
 
         assertEquals(10, count);
-        verify(vibePostMapper).incrementLikeCount(postId);
+        verify(vibePostMapper).insertPostLike(postId, userId);
+        verify(vibePostMapper).updateLikeCountDelta(postId, 1);
     }
 
     @Test
@@ -83,11 +85,13 @@ class LikeCounterServiceTest {
         VibePost post = new VibePost();
         post.setId(postId);
         post.setLikeCount(9);
+        when(vibePostMapper.deletePostLike(postId, userId)).thenReturn(1);
         when(vibePostMapper.selectById(postId)).thenReturn(post);
 
         long count = likeCounterService.unlikePost(postId, userId);
 
         assertEquals(9, count);
+        verify(vibePostMapper).deletePostLike(postId, userId);
         verify(vibePostMapper).updateLikeCountDelta(postId, -1);
     }
 
@@ -95,10 +99,22 @@ class LikeCounterServiceTest {
     @DisplayName("isLiked() should return false when Redis is unavailable")
     void isLikedRedisUnavailable() {
         ReflectionTestUtils.setField(likeCounterService, "redisAvailable", false);
+        when(vibePostMapper.countPostLike(postId, userId)).thenReturn(0);
 
         boolean result = likeCounterService.isLiked(postId, userId);
 
         assertFalse(result);
+    }
+
+    @Test
+    @DisplayName("isLiked() should read the like table when Redis is unavailable")
+    void isLikedFallbackToLikeTable() {
+        ReflectionTestUtils.setField(likeCounterService, "redisAvailable", false);
+        when(vibePostMapper.countPostLike(postId, userId)).thenReturn(1);
+
+        boolean result = likeCounterService.isLiked(postId, userId);
+
+        assertTrue(result);
     }
 
     @Test

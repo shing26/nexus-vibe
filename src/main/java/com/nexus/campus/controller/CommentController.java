@@ -31,8 +31,14 @@ public class CommentController {
     }
 
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> deleteComment(@PathVariable Long id) {
-        vibeCommentService.deleteComment(id);
+    public ApiResponse<Void> deleteComment(
+            @PathVariable Long id,
+            @RequestAttribute("currentUserId") Long userId,
+            @RequestAttribute("currentRole") String role) {
+        boolean deleted = vibeCommentService.deleteComment(id, userId, role);
+        if (!deleted) {
+            return ApiResponse.notFound("Comment not found.");
+        }
         return ApiResponse.successMessage("Comment deleted.");
     }
 }

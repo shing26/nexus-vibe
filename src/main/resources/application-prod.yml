@@ -13,20 +13,34 @@ spring:
   sql:
     init:
       mode: never
-  redis:
-    host: ${REDIS_HOST:localhost}
-    port: ${REDIS_PORT:6379}
-    timeout: 3000
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 3000
+      connect-timeout: 2000
+  cache:
+    type: redis
+    redis:
+      time-to-live: 1h
+      cache-null-values: false
 
 jwt:
-  secret: ${JWT_SECRET:OExHRjA3QjlGRjI0NUI0Q0E1RTdDRjI2MDA3QTUxMjhDOTdBNkY4RjI0NUI0Q0E1RTdDRjI2MDdCOTg2RjA3Qg==}
+  secret: ${JWT_SECRET}
   expiration: ${JWT_EXPIRATION:86400000}
 
 campus:
   redis:
     enabled: ${REDIS_ENABLED:true}
+  cache:
+    ttl: ${CACHE_TTL:1h}
+  # Required at startup: DataPreloader fails fast when DEMO_PASSWORD is blank.
+  demo:
+    password: ${DEMO_PASSWORD:}
   upload:
     dir: ${UPLOAD_DIR:/app/uploads}
+  es:
+    uri: ${ES_URI:http://localhost:9200}
   ai:
     review:
       enabled: ${AI_REVIEW_ENABLED:true}

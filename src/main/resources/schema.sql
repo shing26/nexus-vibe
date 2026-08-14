@@ -61,6 +61,17 @@ CREATE TABLE IF NOT EXISTS `vibe_post_tag` (
   `tag_id` int NOT NULL
 );
 
+-- 5b. Post Like Table (unique per user, keeps MySQL fallback idempotent)
+CREATE TABLE IF NOT EXISTS `vibe_post_like` (
+  `id` bigint NOT NULL AUTO_INCREMENT PRIMARY KEY,
+  `post_id` bigint NOT NULL,
+  `user_id` bigint NOT NULL,
+  `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT `uk_post_user` UNIQUE (`post_id`, `user_id`)
+);
+CREATE INDEX IF NOT EXISTS `idx_like_post_id` ON `vibe_post_like`(`post_id`);
+CREATE INDEX IF NOT EXISTS `idx_like_user_id` ON `vibe_post_like`(`user_id`);
+
 -- 6. Neuron Comment Table
 CREATE TABLE IF NOT EXISTS `vibe_comment` (
   `id` bigint NOT NULL PRIMARY KEY,

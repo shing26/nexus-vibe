@@ -8,6 +8,7 @@ import com.nexus.campus.mapper.SysUserMapper;
 import com.nexus.campus.service.SysUserService;
 import com.nexus.campus.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.security.MessageDigest;
@@ -24,6 +25,9 @@ public class SysUserServiceImpl implements SysUserService {
     @Autowired
     private JwtUtil jwtUtil;
 
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
     @Override
     public JwtResponse login(LoginRequest request) {
         SysUser user = sysUserMapper.selectOne(
@@ -31,12 +35,18 @@ public class SysUserServiceImpl implements SysUserService {
                         .eq(SysUser::getUsername, request.getUsername())
         );
 
-        if (user == null || !user.getPassword().equals(encryptPassword(request.getPassword()))) {
+        if (user == null || !verifyPassword(request.getPassword(), user.getPassword())) {
             throw new RuntimeException("Invalid username or password.");
         }
 
         if (user.getStatus() == 0) {
             throw new RuntimeException("Account has been deactivated.");
+        }
+
+        // Upgrade legacy SHA-256 hashes to BCrypt on successful login.
+        if (isLegacySha256(user.getPassword())) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
+            sysUserMapper.updateById(user);
         }
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
@@ -57,7 +67,7 @@ public class SysUserServiceImpl implements SysUserService {
 
         SysUser user = new SysUser();
         user.setUsername(request.getUsername());
-        user.setPassword(encryptPassword(request.getPassword()));
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setNickname(request.getNickname());
         user.setRole("USER");
         user.setCorePower(0);
@@ -118,5 +128,19 @@ public class SysUserServiceImpl implements SysUserService {
         } catch (NoSuchAlgorithmException e) {
             throw new RuntimeException("SHA-256 not available", e);
         }
+    }
+
+    /**
+     * Verifies a password against either the current BCrypt hash or a legacy
+     * unsalted SHA-256 hash stored by older versions of the app.
+     */
+    public boolean verifyPassword(String rawPassword, String storedHash) {
+        if (rawPassword == null || storedHash == null) return false;
+        if (passwordEncoder.matches(rawPassword, storedHash)) return true;
+        return isLegacySha256(storedHash) && storedHash.equalsIgnoreCase(encryptPassword(rawPassword));
+    }
+
+    public static boolean isLegacySha256(String storedHash) {
+        return storedHash != null && storedHash.matches("[0-9a-fA-F]{64}");
     }
 }

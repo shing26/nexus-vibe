@@ -9,9 +9,11 @@ import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.mapper.SysUserMapper;
 import com.nexus.campus.service.SysUserService;
 import com.nexus.campus.service.UserProfileSummaryService;
+import com.nexus.campus.service.impl.SysUserServiceImpl;
 import jakarta.validation.Valid;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,6 +31,9 @@ public class UserController {
 
     @Autowired
     private UserProfileSummaryService userProfileSummaryService;
+
+    @Autowired
+    private PasswordEncoder passwordEncoder;
 
     @GetMapping("/search")
     public ApiResponse<List<UserPublicVo>> searchUsers(@RequestParam String keyword) {
@@ -104,11 +109,15 @@ public class UserController {
         if (user == null) {
             return ApiResponse.notFound("User not found.");
         }
-        String oldEncrypted = com.nexus.campus.service.impl.SysUserServiceImpl.encryptPassword(request.getOldPassword());
-        if (!user.getPassword().equals(oldEncrypted)) {
+        boolean oldPasswordOk = passwordEncoder.matches(request.getOldPassword(), user.getPassword());
+        if (!oldPasswordOk && SysUserServiceImpl.isLegacySha256(user.getPassword())) {
+            oldPasswordOk = user.getPassword()
+                    .equalsIgnoreCase(SysUserServiceImpl.encryptPassword(request.getOldPassword()));
+        }
+        if (!oldPasswordOk) {
             return ApiResponse.error(400, "Old password is incorrect.");
         }
-        user.setPassword(com.nexus.campus.service.impl.SysUserServiceImpl.encryptPassword(request.getNewPassword()));
+        user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         sysUserService.updateUser(user);
         return ApiResponse.successMessage("Password changed successfully.");
     }

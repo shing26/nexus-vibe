@@ -330,4 +330,114 @@ class PostControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(403)));
     }
+
+    @Test
+    @DisplayName("POST /api/v1/admin/search/reindex should rebuild the ES index for admin")
+    void reindexSearch_admin_shouldReturnCounts() throws Exception {
+        String adminToken = jwtUtil.generateToken(1L, "admin", "ADMIN");
+
+        mockMvc.perform(post("/api/v1/admin/search/reindex")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data.reindexed", notNullValue()))
+                .andExpect(jsonPath("$.data.esAvailable", notNullValue()));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/admin/search/reindex should reject non-admin users")
+    void reindexSearch_nonAdmin_shouldReturn403() throws Exception {
+        mockMvc.perform(post("/api/v1/admin/search/reindex")
+                        .header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(403)));
+    }
+
+    @Test
+    @DisplayName("Pin/unpin requires ADMIN; a regular user gets 403")
+    void pinPost_requiresAdminRole() throws Exception {
+        String adminToken = jwtUtil.generateToken(1L, "admin", "ADMIN");
+
+        MvcResult createResult = mockMvc.perform(post(POSTS_URL)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createCleanPostRequest("Pinnable Post"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andReturn();
+        String postId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("postId").asText();
+
+        mockMvc.perform(post(POSTS_URL + "/" + postId + "/pin")
+                        .header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(403)));
+
+        mockMvc.perform(post(POSTS_URL + "/" + postId + "/pin")
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)));
+    }
+
+    @Test
+    @DisplayName("Pending-audit posts are hidden from detail and user post list")
+    void pendingAuditPost_shouldBeHidden() throws Exception {
+        PostCreateRequest request = new PostCreateRequest();
+        request.setTitle("Hidden Pending Post " + System.currentTimeMillis());
+        request.setContent("该内容包含赌博关键词，应进入审核队列。");
+        request.setCategoryId(2);
+
+        MvcResult createResult = mockMvc.perform(post(POSTS_URL)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data.status", is(2)))
+                .andReturn();
+        String postId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("postId").asText();
+
+        mockMvc.perform(get(POSTS_URL + "/" + postId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(404)));
+
+        mockMvc.perform(get(POSTS_URL).param("userId", "2"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.list[?(@.title == '" + request.getTitle() + "')]")
+                        .doesNotExist());
+    }
+
+    @Test
+    @DisplayName("DELETE /api/v1/posts/{id} should allow an admin to delete another user's post")
+    void deletePost_admin_shouldSucceed() throws Exception {
+        String adminToken = jwtUtil.generateToken(1L, "admin", "ADMIN");
+        MvcResult createResult = mockMvc.perform(post(POSTS_URL)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createCleanPostRequest("Admin Deletable Post"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andReturn();
+        String postId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("postId").asText();
+
+        mockMvc.perform(delete(POSTS_URL + "/" + postId)
+                        .header("Authorization", "Bearer " + adminToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)));
+
+        mockMvc.perform(get(POSTS_URL + "/" + postId))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(404)));
+    }
+
+    private PostCreateRequest createCleanPostRequest(String title) {
+        PostCreateRequest request = new PostCreateRequest();
+        request.setTitle(title);
+        request.setContent("Clean content for permission integration tests.");
+        request.setCategoryId(2);
+        request.setTags(null);
+        return request;
+    }
 }

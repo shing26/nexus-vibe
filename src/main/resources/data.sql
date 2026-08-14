@@ -9,13 +9,6 @@ DELETE FROM vibe_tag;
 DELETE FROM vibe_channel;
 DELETE FROM sys_user;
 
--- Users (password: 123456, SHA-256)
-INSERT INTO sys_user (id, username, password, nickname, avatar, role, core_power, level, status, create_time, update_time) VALUES
-(1, 'admin', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'System Admin', 'default_avatar.png', 'ADMIN', 99999, 8, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(2, 'shing', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'shing', 'default_avatar.png', 'USER', 2280, 5, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(3, 'alice', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'Alice', 'default_avatar.png', 'USER', 1560, 4, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(4, 'bob', '8d969eef6ecad3c29a3a629280e686cf0c3f5d5a86aff3ca12020c923adc6c92', 'Bob', 'default_avatar.png', 'USER', 920, 3, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);
-
 -- Channels (AI Community Channels with slugs)
 INSERT INTO vibe_channel (id, name, description, slug, sort_order, status, create_time) VALUES
 (1, '社区公告', '系统公告、更新日志（管理员只读）', 'announcements', 1, 1, CURRENT_TIMESTAMP),
@@ -131,9 +124,3 @@ INSERT INTO ai_review_log (id, post_id, reviewer, result_json, severity, is_appr
 UPDATE vibe_post SET ai_reviewed = 1, ai_review_score = 9 WHERE id = 100;
 UPDATE vibe_post SET ai_reviewed = 1, ai_review_score = 7 WHERE id = 101;
 UPDATE vibe_post SET ai_reviewed = 1, ai_review_score = 5 WHERE id = 2;
-
--- AI Agent System Account (id=999, non-login placeholder)
-INSERT INTO sys_user (id, username, password, nickname, avatar, role, core_power, level, status, create_time, update_time)
-VALUES
-(5, 'testuser', 'ecd71870d1963316a97e3ac3408c9835ad8cf0f3c1bc703527c30265534f75ae', 'Test User', 'default_avatar.png', 'USER', 50, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP),
-(999, 'AiAgent', 'NOLOGIN_AI_AGENT_ACCOUNT', 'AI 助手', 'robot_avatar.png', 'AI_AGENT', 0, 1, 1, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);

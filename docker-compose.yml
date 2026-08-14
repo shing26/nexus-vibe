@@ -85,6 +85,8 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      elasticsearch:
+        condition: service_started
     env_file: .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -94,6 +96,7 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:-root}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
+      ES_URI: ${ES_URI:-http://elasticsearch:9200}
       TZ: Asia/Shanghai
     expose:
       - "8080"

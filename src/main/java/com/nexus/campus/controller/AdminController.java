@@ -7,6 +7,7 @@ import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.service.VibePostService;
+import com.nexus.campus.service.PostSearchService;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.mapper.VibeCommentMapper;
 import com.nexus.campus.mapper.SysUserMapper;
@@ -33,6 +34,9 @@ public class AdminController {
 
     @Autowired
     private VibeCommentMapper vibeCommentMapper;
+
+    @Autowired
+    private PostSearchService postSearchService;
 
     @GetMapping("/pending-posts")
     public ApiResponse<List<PostPageVo>> getPendingPosts(@RequestAttribute("currentRole") String role) {
@@ -112,6 +116,17 @@ public class AdminController {
         vibePostService.rejectPost(id);
        return ApiResponse.successMessage("Post rejected.");
    }
+
+    @PostMapping("/search/reindex")
+    public ApiResponse<Map<String, Object>> reindexSearch(@RequestAttribute("currentRole") String role) {
+        ApiResponse check = checkAdmin(role);
+        if (check != null) return check;
+        List<VibePost> posts = vibePostMapper.selectActivePostsOrdered();
+        Map<String, Object> data = new HashMap<>();
+        data.put("reindexed", postSearchService.rebuildIndex(posts));
+        data.put("esAvailable", postSearchService.isAvailable());
+        return ApiResponse.success(data);
+    }
 
     private ApiResponse checkAdmin(String role) {
         if (!"ADMIN".equals(role)) {

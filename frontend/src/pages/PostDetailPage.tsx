@@ -4,14 +4,13 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 import { Heart, Share2, MessageCircle, Eye, Copy, Check, GitFork, History, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import Avatar from '../components/Avatar';
+import CodeBlock from '../components/CodeBlock';
 import { AiReviewTerminal } from '../components/AiReviewTerminal';
  import { DecryptedText } from '../components/ui/DecryptedText';
  import EmptyState from '../components/EmptyState';
@@ -348,7 +347,7 @@ export default function PostDetailPage() {
                   return (
                     <div className="relative group my-4 -mx-4 sm:-mx-6">
                       <CopyButton code={codeStr} />
-                      <SyntaxHighlighter style={oneDark} language={match[1]} PreTag="div" customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.8rem' }}>{codeStr}</SyntaxHighlighter>
+                      <CodeBlock language={match[1]} code={codeStr} />
                     </div>
                   );
                 }

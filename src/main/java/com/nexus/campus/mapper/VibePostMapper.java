@@ -3,6 +3,8 @@ package com.nexus.campus.mapper;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.nexus.campus.entity.VibePost;
+import org.apache.ibatis.annotations.Delete;
+import org.apache.ibatis.annotations.Insert;
 import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
@@ -124,15 +126,27 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
             "FROM vibe_post p " +
             "LEFT JOIN sys_user u ON p.user_id = u.id " +
             "LEFT JOIN vibe_channel c ON p.category_id = c.id " +
-            "WHERE p.status != 1 " +
+            "WHERE p.status = 2 " +
             "ORDER BY p.create_time DESC")
     List<VibePost> selectPendingAuditPosts();
 
     @Update("UPDATE vibe_post SET like_count = #{count} WHERE id = #{id}")
     int updateLikeCount(@Param("id") Long id, @Param("count") Integer count);
 
-    @Update("UPDATE vibe_post SET like_count = like_count + #{delta} WHERE id = #{postId}")
+    @Update("UPDATE vibe_post SET like_count = GREATEST(like_count + #{delta}, 0) WHERE id = #{postId}")
     int updateLikeCountDelta(@Param("postId") Long postId, @Param("delta") int delta);
+
+    @Update("UPDATE vibe_post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = #{postId}")
+    int decrementCommentCount(@Param("postId") Long postId);
+
+    @Insert("INSERT INTO vibe_post_like (post_id, user_id) VALUES (#{postId}, #{userId})")
+    int insertPostLike(@Param("postId") Long postId, @Param("userId") Long userId);
+
+    @Delete("DELETE FROM vibe_post_like WHERE post_id = #{postId} AND user_id = #{userId}")
+    int deletePostLike(@Param("postId") Long postId, @Param("userId") Long userId);
+
+    @Select("SELECT COUNT(*) FROM vibe_post_like WHERE post_id = #{postId} AND user_id = #{userId}")
+    int countPostLike(@Param("postId") Long postId, @Param("userId") Long userId);
 
     @Select("SELECT p.*, u.nickname as authorName, c.name as categoryName " +
             "FROM vibe_post p " +

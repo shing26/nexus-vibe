@@ -34,7 +34,11 @@ public class PostController {
     private LikeCounterService likeCounterService;
  
     @PostMapping("/{id}/pin")
-    public ApiResponse<Void> pinPost(@PathVariable Long id) {
+    public ApiResponse<Void> pinPost(@PathVariable Long id,
+                                     @RequestAttribute("currentRole") String role) {
+        if (!"ADMIN".equals(role)) {
+            return ApiResponse.forbidden("Access denied. Admin privileges required.");
+        }
         boolean success = vibePostService.pinPost(id);
         if (!success) {
             return ApiResponse.notFound("Post not found or cannot be pinned.");
@@ -43,7 +47,11 @@ public class PostController {
     }
  
     @PostMapping("/{id}/unpin")
-    public ApiResponse<Void> unpinPost(@PathVariable Long id) {
+    public ApiResponse<Void> unpinPost(@PathVariable Long id,
+                                       @RequestAttribute("currentRole") String role) {
+        if (!"ADMIN".equals(role)) {
+            return ApiResponse.forbidden("Access denied. Admin privileges required.");
+        }
         boolean success = vibePostService.unpinPost(id);
         if (!success) {
             return ApiResponse.notFound("Post not found.");

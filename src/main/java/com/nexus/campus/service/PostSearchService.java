@@ -8,9 +8,9 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
-import java.io.StringWriter;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -30,7 +30,9 @@ public class PostSearchService {
 
     private static final Logger log = LoggerFactory.getLogger(PostSearchService.class);
     private static final String INDEX_NAME = "nexus_posts";
-    private static final String ES_BASE = "http://localhost:9200";
+
+    @Value("${campus.es.uri:http://localhost:9200}")
+    private String esBase;
 
     private final HttpClient httpClient;
     private final ObjectMapper objectMapper;
@@ -48,7 +50,7 @@ public class PostSearchService {
     void init() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(ES_BASE + "/"))
+                    .uri(URI.create(esBase + "/"))
                     .timeout(Duration.ofSeconds(2))
                     .GET()
                     .build();
@@ -56,20 +58,20 @@ public class PostSearchService {
             if (resp.statusCode() == 200) {
                 esAvailable = true;
                 createIndexIfNotExists();
-                log.info("[NEXUS-ES] Elasticsearch connection established at {}", ES_BASE);
+                log.info("[NEXUS-ES] Elasticsearch connection established at {}", esBase);
             } else {
                 log.warn("[NEXUS-ES] Elasticsearch returned status {}, search degraded to MySQL.", resp.statusCode());
             }
         } catch (Exception e) {
             esAvailable = false;
-            log.warn("[NEXUS-ES] Elasticsearch not available at {} - search degraded to MySQL. Cause: {}", ES_BASE, e.getMessage());
+            log.warn("[NEXUS-ES] Elasticsearch not available at {} - search degraded to MySQL. Cause: {}", esBase, e.getMessage());
         }
     }
 
     private void createIndexIfNotExists() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(ES_BASE + "/" + INDEX_NAME))
+                    .uri(URI.create(esBase + "/" + INDEX_NAME))
                     .timeout(Duration.ofSeconds(2))
                     .GET()
                     .build();
@@ -81,8 +83,7 @@ public class PostSearchService {
                         "    \"analysis\": {" +
                         "      \"analyzer\": {" +
                         "        \"nexus_analyzer\": {" +
-                        "          \"type\": \"standard\"," +
-                        "          \"stopwords\": \"_english_\"" +
+                        "          \"type\": \"cjk\"" +
                         "        }" +
                         "      }" +
                         "    }" +
@@ -102,7 +103,7 @@ public class PostSearchService {
                         "  }" +
                         "}";
                 HttpRequest createReq = HttpRequest.newBuilder()
-                        .uri(URI.create(ES_BASE + "/" + INDEX_NAME))
+                        .uri(URI.create(esBase + "/" + INDEX_NAME))
                         .timeout(Duration.ofSeconds(5))
                         .header("Content-Type", "application/json")
                         .PUT(HttpRequest.BodyPublishers.ofString(mapping))
@@ -133,7 +134,7 @@ public class PostSearchService {
         try {
             String docJson = buildPostDocument(post);
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(ES_BASE + "/" + INDEX_NAME + "/_doc/" + post.getId()))
+                    .uri(URI.create(esBase + "/" + INDEX_NAME + "/_doc/" + post.getId()))
                     .timeout(Duration.ofSeconds(3))
                     .header("Content-Type", "application/json")
                     .PUT(HttpRequest.BodyPublishers.ofString(docJson))
@@ -180,7 +181,7 @@ public class PostSearchService {
                     "}";
 
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(ES_BASE + "/" + INDEX_NAME + "/_search"))
+                    .uri(URI.create(esBase + "/" + INDEX_NAME + "/_search"))
                     .timeout(Duration.ofSeconds(3))
                     .header("Content-Type", "application/json")
                     .POST(HttpRequest.BodyPublishers.ofString(queryJson))
@@ -225,7 +226,7 @@ public class PostSearchService {
         if (!esAvailable) return;
         try {
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(ES_BASE + "/" + INDEX_NAME + "/_doc/" + postId))
+                    .uri(URI.create(esBase + "/" + INDEX_NAME + "/_doc/" + postId))
                     .timeout(Duration.ofSeconds(3))
                     .DELETE()
                     .build();
@@ -249,7 +250,7 @@ public class PostSearchService {
             }
 
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(ES_BASE + "/_bulk"))
+                    .uri(URI.create(esBase + "/_bulk"))
                     .timeout(Duration.ofSeconds(10))
                     .header("Content-Type", "application/x-ndjson")
                     .POST(HttpRequest.BodyPublishers.ofString(bulkBody.toString()))
@@ -262,6 +263,39 @@ public class PostSearchService {
             }
         } catch (Exception e) {
             log.warn("[NEXUS-ES] Bulk index failed: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * Recreate the index and bulk-index every provided post.
+     *
+     * @return number of posts handed to the reindex operation, or 0 when ES is unavailable
+     */
+    public int rebuildIndex(List<VibePost> posts) {
+        if (!esAvailable) return 0;
+        deleteIndex();
+        createIndexIfNotExists();
+        if (posts != null && !posts.isEmpty()) {
+            bulkIndex(posts);
+        }
+        return posts == null ? 0 : posts.size();
+    }
+
+    private void deleteIndex() {
+        try {
+            HttpRequest req = HttpRequest.newBuilder()
+                    .uri(URI.create(esBase + "/" + INDEX_NAME))
+                    .timeout(Duration.ofSeconds(5))
+                    .DELETE()
+                    .build();
+            HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
+            if (resp.statusCode() == 200 || resp.statusCode() == 404) {
+                log.info("[NEXUS-ES] Index '{}' deleted (or absent).", INDEX_NAME);
+            } else {
+                log.warn("[NEXUS-ES] Delete index returned {}: {}", resp.statusCode(), resp.body());
+            }
+        } catch (Exception e) {
+            log.warn("[NEXUS-ES] Failed to delete index: {}", e.getMessage());
         }
     }
 

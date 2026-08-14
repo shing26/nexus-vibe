@@ -20,7 +20,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @SpringBootTest
 @AutoConfigureMockMvc
 @Transactional
-@Sql("/data.sql")
+@Sql({"/data.sql", "/test-users.sql"})
 class UserProfileSummaryIntegrationTest {
 
     @Autowired
