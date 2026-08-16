@@ -13,6 +13,8 @@ volumes:
   db-data:
   redis-data:
   es-data:
+  app-uploads:
+  ollama-data:
 
 services:
 
@@ -21,14 +23,12 @@ services:
     container_name: nexus-db
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:-root}
+      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       MYSQL_DATABASE: nexus_campus
       TZ: Asia/Shanghai
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
-    ports:
-      - "3306:3306"
     volumes:
       - db-data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql
@@ -45,8 +45,6 @@ services:
     image: redis:7-alpine
     container_name: nexus-redis
     restart: unless-stopped
-    ports:
-      - "6379:6379"
     volumes:
       - redis-data:/data
     networks:
@@ -66,13 +64,31 @@ services:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - TZ=Asia/Shanghai
-    ports:
-      - "9200:9200"
-      - "9300:9300"
     volumes:
       - es-data:/usr/share/elasticsearch/data
     networks:
       - nexus-net
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200 >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+  ollama:
+    image: ollama/ollama:latest
+    container_name: nexus-ollama
+    restart: unless-stopped
+    volumes:
+      - ollama-data:/root/.ollama
+    networks:
+      - nexus-net
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   app:
     build:
@@ -87,17 +103,21 @@ services:
         condition: service_healthy
       elasticsearch:
         condition: service_started
+      ollama:
+        condition: service_started
     env_file: .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 8080
-      DB_URL: jdbc:mysql://db:3306/nexus_campus?useUnicode=true&characterEncoding=utf8mb4&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
+      DB_URL: jdbc:mysql://db:3306/nexus_campus?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
       DB_USERNAME: root
-      DB_PASSWORD: ${DB_PASSWORD:-root}
+      DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       ES_URI: ${ES_URI:-http://elasticsearch:9200}
       TZ: Asia/Shanghai
+    volumes:
+      - app-uploads:/app/uploads
     expose:
       - "8080"
     networks:
@@ -112,6 +132,6 @@ services:
     depends_on:
       - app
     ports:
-      - "8080:80"
+      - "${WEB_PORT:-8080}:80"
     networks:
       - nexus-net

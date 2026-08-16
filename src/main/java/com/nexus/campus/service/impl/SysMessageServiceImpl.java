@@ -25,11 +25,12 @@ public class SysMessageServiceImpl implements SysMessageService {
     public SysMessage sendMessage(Long fromUserId, Long toUserId, String content, Integer type) {
         // 发布异步 MessageEvent，由 MessageEventListener 处理 DB 写入和 Redis 未读数
         String msgType;
-        if (type != null && type == 1) {
-            msgType = "like";
-        } else {
-            msgType = "comment";
-        }
+        msgType = switch (type == null ? 2 : type) {
+            case 1 -> "like";
+            case 3 -> "system";
+            case 4 -> "ai_review";
+            default -> "comment";
+        };
         eventPublisher.publishEvent(new MessageEvent(this, fromUserId, toUserId, msgType, content, null));
 
         // 返回空 SysMessage 对象以保持方法签名兼容
@@ -53,9 +54,9 @@ public class SysMessageServiceImpl implements SysMessageService {
     }
 
     @Override
-    public boolean markAsRead(Long messageId) {
+    public boolean markAsRead(Long messageId, Long userId) {
         SysMessage msg = sysMessageMapper.selectById(messageId);
-        if (msg == null) return false;
+        if (msg == null || !msg.getToUserId().equals(userId)) return false;
         msg.setIsRead(1);
         return sysMessageMapper.updateById(msg) > 0;
     }

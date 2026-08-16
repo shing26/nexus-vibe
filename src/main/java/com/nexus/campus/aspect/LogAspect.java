@@ -7,9 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+import com.nexus.campus.dto.ApiResponse;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.util.Arrays;
 
 @Aspect
 @Component
@@ -30,12 +30,15 @@ public class LogAspect {
         log.info("[NEXUS] URL: {} {}", request.getMethod(), request.getRequestURL());
         log.info("[NEXUS] IP: {}", request.getRemoteAddr());
         log.info("[NEXUS] Method: {}", joinPoint.getSignature().getDeclaringTypeName() + "." + joinPoint.getSignature().getName());
-        log.info("[NEXUS] Args: {}", Arrays.toString(joinPoint.getArgs()));
     }
 
     @AfterReturning(pointcut = "controllerPointcut()", returning = "result")
     public void afterReturning(JoinPoint joinPoint, Object result) {
-        log.info("[NEXUS] ==== Response ==== {}", result);
+        if (result instanceof ApiResponse<?> response) {
+            log.info("[NEXUS] ==== Response ==== code={} message={}", response.getCode(), response.getMessage());
+        } else {
+            log.info("[NEXUS] ==== Response ==== {}", result == null ? "null" : result.getClass().getSimpleName());
+        }
     }
 
     @AfterThrowing(pointcut = "controllerPointcut()", throwing = "e")

@@ -143,8 +143,12 @@ class AiReviewServiceTest {
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(aiReviewLogMapper).insert((AiReviewLog) logCaptor.capture());
         assertEquals("code-review-agent", logCaptor.getValue().getReviewer());
+        assertEquals("unavailable", logCaptor.getValue().getSeverity());
         verify(vibeCommentMapper, never()).insert(any(VibeComment.class));
-        verify(vibePostMapper, never()).updateById(any(VibePost.class));
+        ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
+        verify(vibePostMapper).updateById(postCaptor.capture());
+        assertEquals(1L, postCaptor.getValue().getId());
+        assertEquals(1, postCaptor.getValue().getAiReviewed());
     }
 
     @Test

@@ -3,13 +3,13 @@ import { Terminal, Palette, Cpu, Zap, Bug, BookOpen, Megaphone, FileText, Activi
 import { useAuthStore } from '../stores/authStore';
 
 const channels = [
-  { slug: 'announcements', label: 'Announcements', icon: Megaphone, count: 3, desc: '平台公告与更新' },
-  { slug: 'prompts', label: 'Prompt 工坊', icon: Terminal, count: 128, desc: 'System Prompt 设计、CoT' },
-  { slug: 'showcase', label: '作品展示', icon: Palette, count: 64, desc: 'Vibe Coding 成品展示' },
-  { slug: 'agents', label: 'Agent 实战', icon: Cpu, count: 48, desc: 'Agent 架构与案例' },
-  { slug: 'vibe-coding', label: 'Vibe Coding', icon: Zap, count: 72, desc: 'AI Coding 经验分享' },
-  { slug: 'debug', label: '代码急诊室', icon: Bug, count: 36, desc: 'Bug 诊断与修复讨论' },
-  { slug: 'resources', label: '资源聚合', icon: BookOpen, count: 24, desc: '学习资源与工具收集' },
+  { slug: 'announcements', label: 'Announcements', icon: Megaphone, desc: '平台公告与更新' },
+  { slug: 'prompts', label: 'Prompt 工坊', icon: Terminal, desc: 'System Prompt 设计、CoT' },
+  { slug: 'showcase', label: '作品展示', icon: Palette, desc: 'Vibe Coding 成品展示' },
+  { slug: 'agents', label: 'Agent 实战', icon: Cpu, desc: 'Agent 架构与案例' },
+  { slug: 'vibe-coding', label: 'Vibe Coding', icon: Zap, desc: 'AI Coding 经验分享' },
+  { slug: 'debug', label: '代码急诊室', icon: Bug, desc: 'Bug 诊断与修复讨论' },
+  { slug: 'resources', label: '资源聚合', icon: BookOpen, desc: '学习资源与工具收集' },
 ];
 
 export default function Sidebar({ className = '' }: { className?: string }) {
@@ -37,7 +37,6 @@ export default function Sidebar({ className = '' }: { className?: string }) {
               <Icon className="w-4 h-4" />
               <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">
                 {ch.label}
-                <span className="ml-1.5 text-vibe-cyan/70">{ch.count}</span>
               </span>
             </Link>
           );
@@ -51,15 +50,7 @@ export default function Sidebar({ className = '' }: { className?: string }) {
           className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
         >
           <FileText className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">My Drafts <span className="text-slate-500">3</span></span>
-        </Link>
-        <Link
-          to="/agent-logs"
-          title="Agent Logs"
-          className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
-        >
-          <Activity className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Agent Logs <span className="text-slate-500">12</span></span>
+          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">My Drafts</span>
         </Link>
         <Link
           to="/tags"
@@ -107,6 +98,14 @@ export default function Sidebar({ className = '' }: { className?: string }) {
             >
               <LayoutDashboard className="w-4 h-4" />
               <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Dashboard</span>
+            </Link>
+            <Link
+              to="/agent-logs"
+              title="Agent Logs"
+              className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-amber-400/80 hover:bg-vibe-card hover:text-amber-300 transition-all active:scale-[0.92]"
+            >
+              <Activity className="w-4 h-4" />
+              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Agent Logs</span>
             </Link>
           </>
         )}

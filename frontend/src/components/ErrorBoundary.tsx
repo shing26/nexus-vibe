@@ -15,9 +15,21 @@ export default class ErrorBoundary extends React.Component<Props, State> {
           <AlertTriangle className="w-16 h-16 text-red-400/50 mx-auto mb-4" />
           <h1 className="text-xl font-mono font-bold text-slate-100 mb-2">Something went wrong</h1>
           <p className="text-xs font-mono text-slate-500 mb-2 max-w-md mx-auto">{this.state.error?.message}</p>
-          <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors" onClick={() => this.setState({ hasError: false })}>
-            ← Back to Home
-          </Link>
+          <div className="flex items-center justify-center gap-3">
+            <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors" onClick={() => this.setState({ hasError: false })}>
+              ← Back to Home
+            </Link>
+            <button
+              type="button"
+              onClick={() => {
+                this.setState({ hasError: false });
+                window.location.reload();
+              }}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-vibe-border text-slate-300 text-xs font-mono hover:border-vibe-cyan/40 hover:text-vibe-cyan transition-colors"
+            >
+              ↻ Retry
+            </button>
+          </div>
         </div>
       );
     }

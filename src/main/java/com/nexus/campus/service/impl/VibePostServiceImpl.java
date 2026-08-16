@@ -38,11 +38,16 @@ public class VibePostServiceImpl implements VibePostService {
     private static final String DEFAULT_BRANCH = "main";
 
     private void applyTypeFilter(LambdaQueryWrapper<VibePost> queryWrapper, String type) {
-        if (type != null && !"all".equals(type)) {
+        if (type != null && !"all".equals(type) && !type.isBlank()) {
             queryWrapper.eq(VibePost::getPostType, type);
-        } else if (type == null) {
-            queryWrapper.eq(VibePost::getPostType, "post"); // default: only regular posts
         }
+    }
+
+    private String normalizePostType(String type) {
+        if (type == null || type.isBlank() || "all".equals(type)) {
+            return null;
+        }
+        return type;
     }
 
     @Autowired
@@ -186,6 +191,9 @@ public class VibePostServiceImpl implements VibePostService {
             Channel channel = channelMapper.selectById(request.getCategoryId());
             if (channel == null) {
                 throw new IllegalArgumentException("Channel not found.");
+            }
+            if ("announcements".equals(channel.getSlug()) && !isAdmin) {
+                throw new IllegalArgumentException("只有管理员才能在公告频道发帖");
             }
             post.setCategoryId(request.getCategoryId());
         }
@@ -376,7 +384,7 @@ public class VibePostServiceImpl implements VibePostService {
         Page<VibePost> mpPage = vibePostMapper.selectPostPage(
                 new Page<>(page, size),
                 null,
-                "all".equals(type) ? null : (type == null || type.isBlank() ? "post" : type)
+                normalizePostType(type)
         );
         List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());
         return PageResult.of(page, size, mpPage.getTotal(), vos);
@@ -394,7 +402,7 @@ public class VibePostServiceImpl implements VibePostService {
         Page<VibePost> mpPage = vibePostMapper.selectPostPage(
                 new Page<>(page, size),
                 categoryId,
-                "all".equals(type) ? null : (type == null || type.isBlank() ? "post" : type)
+                normalizePostType(type)
         );
         List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());
         return PageResult.of(page, size, mpPage.getTotal(), vos);
@@ -422,7 +430,7 @@ public class VibePostServiceImpl implements VibePostService {
     @Override
     public PageResult<PostPageVo> filterPosts(int page, int size, String keyword, Integer categoryId,
                                               String language, Integer aiScoreMin, String type, String sort) {
-        String normalizedType = "all".equals(type) ? null : (type == null || type.isBlank() ? "post" : type);
+        String normalizedType = normalizePostType(type);
         String normalizedSort = sort == null || sort.isBlank() || "latest".equals(sort) ? "latest" : sort;
         Page<VibePost> mpPage = vibePostMapper.selectFilteredPage(
                 new Page<>(page, size),

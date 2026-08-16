@@ -1,6 +1,26 @@
+@import '@fontsource/inter/400.css';
+@import '@fontsource/inter/500.css';
+@import '@fontsource/inter/600.css';
+@import '@fontsource/inter/700.css';
+@import '@fontsource/jetbrains-mono/400.css';
+@import '@fontsource/jetbrains-mono/500.css';
+
  @tailwind base;
  @tailwind components;
  @tailwind utilities;
+
+ /* Readability floor: keep terminal density but avoid 9-11px body text. */
+ @layer utilities {
+   .text-\[9px\] {
+     font-size: 11px !important;
+   }
+   .text-\[10px\] {
+     font-size: 12px !important;
+   }
+   .text-\[11px\] {
+     font-size: 13px !important;
+   }
+ }
  
  @layer base {
    body {

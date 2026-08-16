@@ -12,5 +12,6 @@ public class AiLogVo {
     private String reviewer;
     private String severity;
     private Integer isApproved;
+    private String status;
     private LocalDateTime createdAt;
 }

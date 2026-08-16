@@ -64,9 +64,16 @@
    postId: string;
    postTitle: string;
    reviewer: string;
-   severity: string;
+   severity: string | null;
    isApproved: number;
+   status?: 'completed' | 'unavailable';
    createdAt: string;
+ }
+
+ export interface ChannelStats {
+   id: number;
+   slug: string;
+   postCount: number;
  }
 
  export interface AiLogStats {

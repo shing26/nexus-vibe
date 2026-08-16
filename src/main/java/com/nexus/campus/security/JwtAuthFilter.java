@@ -16,10 +16,6 @@ public class JwtAuthFilter implements Filter {
             "/api/v1/auth/login",
             "/api/v1/auth/register",
             "/api/v1/auth/refresh",
-            "/api/v1/categories",
-            "/api/v1/channels",
-            "/api/v1/users",
-            "/api/v1/tags",
             "/api/demo/",
             "/uploads/",
             "/static/",
@@ -40,19 +36,15 @@ public class JwtAuthFilter implements Filter {
         HttpServletResponse response = (HttpServletResponse) servletResponse;
         String path = request.getRequestURI();
 
-        if (isExcluded(path) || !path.startsWith("/api/")) {
+        if (!path.startsWith("/api/") || isExcluded(path)) {
             chain.doFilter(request, response);
             return;
         }
 
-            if (("GET".equalsIgnoreCase(request.getMethod()))
-                    && (path.startsWith("/api/v1/posts")
-                        || path.startsWith("/api/v1/comments")
-                        || path.startsWith("/api/v1/agent-logs")
-                        || path.startsWith("/api/v1/channels"))) {
-                chain.doFilter(request, response);
-                return;
-            }
+        if ("GET".equalsIgnoreCase(request.getMethod()) && isPublicGet(path)) {
+            chain.doFilter(request, response);
+            return;
+        }
 
         String token = extractToken(request);
         if (token == null || !jwtUtil.validateToken(token)) {
@@ -72,6 +64,24 @@ public class JwtAuthFilter implements Filter {
     private boolean isExcluded(String uri) {
         if ("/".equals(uri) || "/index".equals(uri)) return true;
         return EXCLUDED_PREFIXES.stream().anyMatch(uri::startsWith);
+    }
+
+    private boolean isPublicGet(String uri) {
+        if (uri.startsWith("/api/v1/posts")
+                || uri.startsWith("/api/v1/comments")
+                || uri.startsWith("/api/v1/channels")
+                || uri.startsWith("/api/v1/categories")
+                || uri.startsWith("/api/v1/tags")) {
+            return true;
+        }
+        if (uri.equals("/api/v1/users")
+                || (uri.startsWith("/api/v1/users/")
+                    && !uri.startsWith("/api/v1/users/profile")
+                    && !uri.startsWith("/api/v1/users/password"))) {
+            return true;
+        }
+        return uri.startsWith("/api/v1/agent-logs/post/")
+                || uri.equals("/api/v1/agent-logs/ticker");
     }
 
     private String extractToken(HttpServletRequest request) {

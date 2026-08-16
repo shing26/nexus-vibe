@@ -4,7 +4,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Heart, Share2, MessageCircle, Eye, Copy, Check, GitFork, History, Pencil, Trash2, Loader2 } from 'lucide-react';
+import { Heart, Share2, MessageCircle, Eye, Copy, Check, ChevronDown, ChevronUp, GitFork, History, Pencil, Trash2, Loader2 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
@@ -190,23 +190,25 @@ export default function PostDetailPage() {
   useEffect(() => {
     setVarValues((prev) => {
       const next: Record<string, string> = {};
-      variables.forEach((v) => { next[v] = prev[v] ?? ''; });
+      varsKey.split(',').filter(Boolean).forEach((v) => { next[v] = prev[v] ?? ''; });
       return next;
     });
   }, [varsKey]);
 
   const renderedPrompt = useMemo(() => {
     let text = post?.content ?? '';
-    variables.forEach((v) => {
+    const vars = varsKey.split(',').filter(Boolean);
+    vars.forEach((v) => {
       text = text.replace(new RegExp('\\{\\{' + v + '\\}\\}', 'g'), varValues[v] || '{{' + v + '}}');
     });
     return text;
-  }, [post?.content, variables, varValues]);
+  }, [post?.content, varsKey, varValues]);
 
   const playgroundTokens = useMemo(() => estimateTokens(renderedPrompt), [renderedPrompt]);
 
   const [playgroundCopied, setPlaygroundCopied] = useState(false);
   const [showVersions, setShowVersions] = useState(false);
+  const [playgroundOpen, setPlaygroundOpen] = useState(true);
   const [forking, setForking] = useState(false);
   const handleCopyRendered = async () => {
     await navigator.clipboard.writeText(renderedPrompt);
@@ -254,7 +256,7 @@ export default function PostDetailPage() {
   }
 
   const comments = commentsData ?? [];
-  const totalComments = post.commentCount;
+  const totalComments = comments.length > 0 ? comments.length : post.commentCount;
   const aiPending = hasCodeBlock && post.aiReviewed !== 1;
 
    return (
@@ -263,7 +265,7 @@ export default function PostDetailPage() {
       <div className="flex items-start gap-3 mb-6">
         <Avatar name={post.authorName} size="md" />
         <div className="flex-1 min-w-0">
-          <h1 className="text-base font-semibold font-mono text-slate-100 leading-snug">{post.title}</h1>
+          <h1 className="text-xl font-bold font-mono text-slate-100 leading-snug">{post.title}</h1>
           <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 mt-0.5">
             <span>{post.authorName}</span>
             <span className="text-slate-700">·</span>
@@ -398,43 +400,55 @@ export default function PostDetailPage() {
       {post.postType === 'prompt' && promptMeta && variables.length > 0 && (
         <div className="max-w-3xl mx-auto mb-8">
           <TerminalWindow title="prompt_playground — Template Variables">
-            <div className="p-4 space-y-4">
-              {/* Variable Inputs */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {variables.map((v) => (
-                  <div key={v} className="space-y-1.5">
-                    <label className="text-xs font-mono text-slate-400">{v}</label>
-                    <input
-                      value={varValues[v] ?? ''}
-                      onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
-                      placeholder={'Enter ' + v + '...'}
-                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
-                    />
-                  </div>
-                ))}
-              </div>
-
-              {/* Live Preview */}
-              <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-[11px] font-mono text-slate-500">// Live Preview</span>
-                  <span className="text-[10px] font-mono text-slate-600">~{playgroundTokens} tokens</span>
+            <button
+              onClick={() => setPlaygroundOpen((v) => !v)}
+              className="w-full flex items-center gap-2 px-4 py-2.5 bg-vibe-card/50 border-b border-vibe-border text-left hover:bg-vibe-card transition-colors"
+              aria-expanded={playgroundOpen}
+            >
+              <span className="text-[11px] font-mono font-semibold text-slate-300 uppercase tracking-wider">
+                Template Variables
+              </span>
+              <span className="text-[10px] font-mono text-slate-500">~{playgroundTokens} tokens</span>
+              <span className="ml-auto text-vibe-cyan">
+                {playgroundOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </span>
+            </button>
+            {playgroundOpen && (
+              <div className="p-4 space-y-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {variables.map((v) => (
+                    <div key={v} className="space-y-1.5">
+                      <label className="text-xs font-mono text-slate-400">{v}</label>
+                      <input
+                        value={varValues[v] ?? ''}
+                        onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
+                        placeholder={'Enter ' + v + '...'}
+                        className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+                      />
+                    </div>
+                  ))}
                 </div>
-                <pre className="w-full max-h-48 overflow-y-auto p-3 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
-                  {renderedPrompt || <span className="text-slate-600">// Fill in variables above to preview...</span>}
-                </pre>
-              </div>
 
-              {/* Copy Button */}
-              <div className="flex justify-end">
-                <button
-                  onClick={handleCopyRendered}
-                 className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors active:scale-[0.97]"
-                >
-                  {playgroundCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Prompt</>}
-                </button>
+                <div>
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-mono text-slate-500">// Live Preview</span>
+                    <span className="text-[10px] font-mono text-slate-600">~{playgroundTokens} tokens</span>
+                  </div>
+                  <pre className="w-full max-h-48 overflow-y-auto p-3 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
+                    {renderedPrompt || <span className="text-slate-600">// Fill in variables above to preview...</span>}
+                  </pre>
+                </div>
+
+                <div className="flex justify-end">
+                  <button
+                    onClick={handleCopyRendered}
+                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors active:scale-[0.97]"
+                  >
+                    {playgroundCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Prompt</>}
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </TerminalWindow>
         </div>
       )}

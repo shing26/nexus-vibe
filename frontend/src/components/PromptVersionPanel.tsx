@@ -29,7 +29,7 @@ const timeAgo = (dateStr: string) => {
 export default function PromptVersionPanel({ postId, open, onClose, canRestore, onRestored }: PromptVersionPanelProps) {
   const queryClient = useQueryClient();
   const addToast = useToastStore((s) => s.addToast);
-  const [restoreNote, setRestoreNote] = useState('');
+  const [notes, setNotes] = useState<Record<number, string>>({});
 
   const { data: versions, isLoading } = useQuery({
     queryKey: ['versions', postId],
@@ -46,7 +46,11 @@ export default function PromptVersionPanel({ postId, open, onClose, canRestore, 
       await apiClient.post('/posts/' + postId + '/versions/' + version + '/restore', { changeNote: note });
     },
     onSuccess: (_data, variables) => {
-      setRestoreNote('');
+      setNotes((prev) => {
+        const next = { ...prev };
+        delete next[variables.version];
+        return next;
+      });
       addToast('Version v' + variables.version + ' restored', 'success');
       queryClient.invalidateQueries({ queryKey: ['versions', postId] });
       queryClient.invalidateQueries({ queryKey: ['post', postId] });
@@ -126,13 +130,13 @@ export default function PromptVersionPanel({ postId, open, onClose, canRestore, 
                     {canRestore && !isLatest && (
                       <div className="mt-2.5 flex items-center gap-2">
                         <input
-                          value={restoreNote}
-                          onChange={(e) => setRestoreNote(e.target.value)}
+                          value={notes[v.version] ?? ''}
+                          onChange={(e) => setNotes((prev) => ({ ...prev, [v.version]: e.target.value }))}
                           placeholder="Restore note (optional)"
                           className="flex-1 px-2.5 py-1.5 bg-vibe-card border border-vibe-border rounded-md text-[11px] font-mono text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-purple/50"
                         />
                         <button
-                          onClick={() => restoreMutation.mutate({ version: v.version, note: restoreNote })}
+                          onClick={() => restoreMutation.mutate({ version: v.version, note: notes[v.version] ?? '' })}
                           disabled={restoreMutation.isPending}
                           className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md bg-vibe-purple/20 border border-vibe-purple/30 text-vibe-purple text-[11px] font-mono hover:bg-vibe-purple/30 transition-colors disabled:opacity-50"
                         >

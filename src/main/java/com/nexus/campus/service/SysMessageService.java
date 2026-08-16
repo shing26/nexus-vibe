@@ -12,7 +12,7 @@ public interface SysMessageService {
 
     int countUnreadMessages(Long userId);
 
-    boolean markAsRead(Long messageId);
+    boolean markAsRead(Long messageId, Long userId);
 
     boolean markAllAsRead(Long userId);
 }

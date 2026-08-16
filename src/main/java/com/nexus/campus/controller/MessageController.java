@@ -30,8 +30,13 @@ public class MessageController {
     }
 
     @PostMapping("/{id}/read")
-    public ApiResponse<Void> markAsRead(@PathVariable Long id) {
-        sysMessageService.markAsRead(id);
+    public ApiResponse<Void> markAsRead(
+            @PathVariable Long id,
+            @RequestAttribute("currentUserId") Long userId) {
+        boolean marked = sysMessageService.markAsRead(id, userId);
+        if (!marked) {
+            return ApiResponse.notFound("Message not found.");
+        }
         return ApiResponse.successMessage("Message marked as read.");
     }
 

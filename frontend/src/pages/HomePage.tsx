@@ -5,7 +5,8 @@ import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import PostCard from '../components/PostCard';
 import EmptyState from '../components/EmptyState';
-import { Terminal, Palette, Cpu, Zap, Bug, GitFork, ArrowRight } from 'lucide-react';
+import { Terminal, Palette, Cpu, Zap, Bug, GitFork, ArrowRight, Megaphone, FolderOpen } from 'lucide-react';
+import type { ChannelStats } from '../types/post';
 
 type Tab = 'hot' | 'latest' | 'ai-verified' | 'debug' | 'prompts';
 
@@ -18,12 +19,47 @@ const tabs: { key: Tab; label: string }[] = [
 ];
 
 const channelGrid = [
-  { slug: 'prompts', label: 'Prompt 工坊', icon: Terminal, count: 128, desc: 'System Prompt 设计、CoT' },
-  { slug: 'showcase', label: '作品展示', icon: Palette, count: 64, desc: 'Vibe Coding 成品展示' },
-  { slug: 'agents', label: 'Agent 实战', icon: Cpu, count: 48, desc: 'Agent 架构与案例' },
-  { slug: 'vibe-coding', label: 'Vibe Coding', icon: Zap, count: 72, desc: 'AI Coding 经验分享' },
-  { slug: 'debug', label: '代码急诊室', icon: Bug, count: 36, desc: 'Bug 诊断与修复讨论' },
+  { slug: 'announcements', label: '社区公告', icon: Megaphone, desc: '系统公告与更新日志' },
+  { slug: 'prompts', label: 'Prompt 工坊', icon: Terminal, desc: 'System Prompt 设计、CoT' },
+  { slug: 'showcase', label: '作品展示', icon: Palette, desc: 'Vibe Coding 成品展示' },
+  { slug: 'agents', label: 'Agent 实战', icon: Cpu, desc: 'Agent 架构与案例' },
+  { slug: 'vibe-coding', label: 'Vibe Coding', icon: Zap, desc: 'AI Coding 经验分享' },
+  { slug: 'debug', label: '代码急诊室', icon: Bug, desc: 'Bug 诊断与修复讨论' },
+  { slug: 'resources', label: '资源聚合', icon: FolderOpen, desc: '工具链与教程推荐' },
 ];
+
+const emptyCopy: Record<Tab, { title: string; desc: string; action: string; actionLabel: string }> = {
+  debug: {
+    title: '急诊室空转中',
+    desc: '贴上报错上下文，AI Agent 与社区会一起定位问题。',
+    action: '/post/new?template=debug',
+    actionLabel: '提交第一个报错',
+  },
+  prompts: {
+    title: '终端就绪，等待第一个 Prompt 入库',
+    desc: '发布一个 System Prompt 模板，AI Agent 会自动审查并回帖。',
+    action: '/post/new?template=prompt',
+    actionLabel: '一键填充示例 Prompt',
+  },
+  'ai-verified': {
+    title: '还没有 AI 验证过的帖子',
+    desc: '发布带代码块的帖子，AI Agent 会自动评分。',
+    action: '/post/new',
+    actionLabel: '发布第一个帖子',
+  },
+  hot: {
+    title: '还没有热帖',
+    desc: '发布第一篇内容，成为社区热度的起点。',
+    action: '/post/new',
+    actionLabel: '发布第一个帖子',
+  },
+  latest: {
+    title: '还没有新帖',
+    desc: '这里会展示社区最新的讨论。',
+    action: '/post/new',
+    actionLabel: '发布第一个帖子',
+  },
+};
 
 const missions = [
   {
@@ -85,8 +121,8 @@ export default function HomePage() {
       }
       if (activeTab === 'debug') {
         params.channelSlug = 'debug';
-      }
-      if (activeTab === 'prompts') {
+        params.type = 'all';
+      } else if (activeTab === 'prompts') {
         params.type = 'prompt';
       } else {
         params.type = 'post';
@@ -100,12 +136,21 @@ export default function HomePage() {
   const postList = posts?.list ?? posts ?? [];
   const isEmpty = !isLoading && postList.length === 0;
 
+  const { data: channelStats } = useQuery<ChannelStats[]>({
+    queryKey: ['channels', 'stats'],
+    queryFn: async () => (await apiClient.get('/channels/stats')).data.data,
+    staleTime: 1000 * 60 * 5,
+  });
+
+  const statBySlug = new Map((channelStats ?? []).map((s) => [s.slug, s.postCount]));
+
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-6 space-y-6">
+      <h1 className="sr-only">Nexus-Vibe Terminal</h1>
       {/* Mission Control — first-screen task entrances */}
       <div className="border border-vibe-border rounded-xl overflow-hidden bg-vibe-surface/40">
         <div className="flex items-center justify-between px-4 py-2.5 bg-vibe-card/70 border-b border-vibe-border">
-          <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Mission Control</span>
+          <h2 className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Mission Control</h2>
           <span className="hidden sm:inline text-[10px] font-mono text-vibe-cyan/70">Pick a mission to start</span>
         </div>
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-3">
@@ -136,7 +181,7 @@ export default function HomePage() {
       </div>
 
       {/* Channel Grid — full-width, no sidebar */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
         {channelGrid.map((ch) => {
           const Icon = ch.icon;
           return (
@@ -153,7 +198,9 @@ export default function HomePage() {
               </div>
               <div className="flex items-center justify-between pl-[42px]">
                 <span className="text-[10px] font-mono text-slate-500 truncate">{ch.desc}</span>
-                <span className="text-[11px] font-mono text-vibe-cyan/80 font-semibold shrink-0">{ch.count}</span>
+                <span className="text-[11px] font-mono text-vibe-cyan/80 font-semibold shrink-0">
+                  {statBySlug.get(ch.slug) ?? 0}
+                </span>
               </div>
             </Link>
           );
@@ -182,10 +229,10 @@ export default function HomePage() {
       {isEmpty && (
         <EmptyState
           preset="noPosts"
-          title="终端就绪，等待第一个 Vibe 帖子"
-          desc="发一篇 Prompt、Debug 或成品展示，AI Agent 会自动加入审查。"
-          action="/post/new?template=prompt"
-          actionLabel="一键填充示例 Prompt"
+          title={emptyCopy[activeTab].title}
+          desc={emptyCopy[activeTab].desc}
+          action={emptyCopy[activeTab].action}
+          actionLabel={emptyCopy[activeTab].actionLabel}
         />
       )}
 

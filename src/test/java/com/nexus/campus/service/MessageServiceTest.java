@@ -121,7 +121,7 @@ class MessageServiceTest {
         when(sysMessageMapper.selectById(1L)).thenReturn(sampleMessage);
         when(sysMessageMapper.updateById(any(SysMessage.class))).thenReturn(1);
 
-        boolean result = messageService.markAsRead(1L);
+        boolean result = messageService.markAsRead(1L, toUserId);
 
         assertTrue(result);
         assertEquals(1, sampleMessage.getIsRead());
@@ -129,11 +129,22 @@ class MessageServiceTest {
     }
 
     @Test
+    @DisplayName("markAsRead() should reject a message owned by another user")
+    void markAsReadRejectsOtherOwner() {
+        when(sysMessageMapper.selectById(1L)).thenReturn(sampleMessage);
+
+        boolean result = messageService.markAsRead(1L, 999L);
+
+        assertFalse(result);
+        verify(sysMessageMapper, never()).updateById(any(SysMessage.class));
+    }
+
+    @Test
     @DisplayName("markAsRead() should return false when message does not exist")
     void markAsReadNotFound() {
         when(sysMessageMapper.selectById(999L)).thenReturn(null);
 
-        boolean result = messageService.markAsRead(999L);
+        boolean result = messageService.markAsRead(999L, toUserId);
 
         assertFalse(result);
         verify(sysMessageMapper, never()).updateById(any(SysMessage.class));

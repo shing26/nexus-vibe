@@ -27,8 +27,13 @@
          msg.setFromUserId(event.getSenderId());
          msg.setToUserId(event.getReceiverId());
          msg.setContent(event.getContent());
-         // map msgType to Integer type; default to type 2 (comment/system) if not "like"
-         msg.setType("like".equals(event.getMsgType()) ? 1 : 2);
+        // map msgType to Integer type; default to type 2 (comment) when unknown
+        msg.setType(switch (event.getMsgType()) {
+            case "like" -> 1;
+            case "system" -> 3;
+            case "ai_review" -> 4;
+            default -> 2;
+        });
          msg.setIsRead(0);
          sysMessageMapper.insert(msg);
  

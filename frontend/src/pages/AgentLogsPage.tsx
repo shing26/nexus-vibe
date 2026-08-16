@@ -69,6 +69,7 @@ const severityStyles: Record<string, string> = {
   medium: 'bg-yellow-900/30 text-yellow-400 ring-yellow-500/40',
   low: 'bg-vibe-emerald/10 text-vibe-emerald ring-vibe-emerald/30',
   unknown: 'bg-slate-800/60 text-slate-400 ring-slate-600/50',
+  unavailable: 'bg-slate-900/40 text-slate-500 ring-slate-700/40',
 };
 
 function MacDots() {
@@ -81,8 +82,8 @@ function MacDots() {
   );
 }
 
-function SeverityBadge({ severity }: { severity: string }) {
-  const normalized = severity.toLowerCase();
+function SeverityBadge({ severity }: { severity: string | null | undefined }) {
+  const normalized = (severity || 'unavailable').toLowerCase();
   const className = severityStyles[normalized] || severityStyles.unknown;
 
   return (
@@ -92,19 +93,23 @@ function SeverityBadge({ severity }: { severity: string }) {
   );
 }
 
-function StatusBadge({ isApproved }: { isApproved: number }) {
-  const approved = isApproved === 1;
+function StatusBadge({ log }: { log: AiLog }) {
+  const approved = log.isApproved === 1;
+  const unavailable = log.status === 'unavailable';
+  const label = unavailable ? 'UNAVAILABLE' : approved ? 'APPROVED' : 'FLAGGED';
 
   return (
     <span
       className={
         'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono font-semibold ring-1 ring-inset ' +
-        (approved
+        (unavailable
+          ? 'bg-slate-900/40 text-slate-500 ring-slate-700/40'
+          : approved
           ? 'bg-vibe-emerald/10 text-vibe-emerald ring-vibe-emerald/30'
           : 'bg-amber-900/30 text-amber-400 ring-amber-500/40')
       }
     >
-      {approved ? 'APPROVED' : 'FLAGGED'}
+      {label}
     </span>
   );
 }
@@ -136,7 +141,7 @@ function TerminalLogRow({ log }: { log: AiLog }) {
           <SeverityBadge severity={log.severity} />
           <span className="text-slate-700">|</span>
           <span>Status:</span>
-          <StatusBadge isApproved={log.isApproved} />
+          <StatusBadge log={log} />
         </div>
         <div className="text-slate-500">
           <span className="text-slate-600">Timestamp:</span> {formatTimestamp(log.createdAt)}
@@ -226,7 +231,7 @@ export default function AgentLogsPage() {
           <Terminal className="w-4 h-4 text-vibe-cyan" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-base font-semibold font-mono text-slate-100">
+          <h1 className="text-xl font-bold font-mono text-slate-100">
             <span className="text-vibe-cyan">$</span> agent_logs — AI Agent Operations Console
           </h1>
           <p className="text-[11px] font-mono text-slate-500 mt-0.5">

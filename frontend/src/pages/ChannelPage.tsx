@@ -65,10 +65,10 @@ export default function ChannelPage() {
   const emptyGuide = channel ? emptyGuides[channel.slug] : undefined;
 
   const { data: postsData, isLoading } = useQuery({
-    queryKey: ['posts', 'channel', slug, page],
+    queryKey: ['posts', 'channel', slug, page, slug === 'prompts' ? 'prompt' : 'all'],
     queryFn: async () => {
       const res = await apiClient.get('/posts', {
-        params: { channelSlug: slug, page, size: 10 },
+        params: { channelSlug: slug, page, size: 10, type: slug === 'prompts' ? 'prompt' : 'all' },
       });
       return res.data.data;
     },
@@ -102,7 +102,7 @@ export default function ChannelPage() {
         </div>
         <div className="flex-1 min-w-0">
           {channel && (
-            <h1 className="text-lg font-bold font-mono text-slate-100 pb-3 border-b border-vibe-border mb-6">
+            <h1 className="text-xl font-bold font-mono text-slate-100 pb-3 border-b border-vibe-border mb-6">
               # {channel.name}
             </h1>
           )}

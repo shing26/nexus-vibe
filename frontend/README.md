@@ -1,32 +1,27 @@
-# React + TypeScript + Vite
+# Nexus-Vibe Frontend
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+React 19 + Vite + TypeScript + Tailwind CSS 单页应用，负责 Nexus-Vibe 社区的全部用户界面。
 
-Currently, two official plugins are available:
+## Scripts
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
-
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```bash
+npm install
+npm run dev        # 开发服务器，/api 代理到 http://localhost:8081
+npm run build      # 类型检查 + 生产构建
+npm run lint       # oxlint
+npm run preview    # 预览生产构建
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+## Structure
+
+```text
+src/
+├── api/           # Axios 客户端与 TanStack Query hooks
+├── components/    # 通用 UI、布局、AI 终端等组件
+├── pages/         # 路由页面
+├── stores/        # Zustand（认证、主题、Toast）
+└── types/         # 与后端 DTO 对应的 TypeScript 类型
+```
+
+认证路由（发帖、编辑、设置、消息、草稿）由 `AuthGuard` 保护；管理页面由
+`AdminRouteGuard` 保护。后端接口必须通过登录后的 JWT。

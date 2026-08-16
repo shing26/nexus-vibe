@@ -197,7 +197,15 @@ public class AiReviewService {
 
         if (resultJson == null) {
             log.warn("LLM returned null for post {}; AI review skipped", postId);
-            saveReviewLog(postId, null, null, 0);
+            saveReviewLog(postId, null, "unavailable", 0);
+            try {
+                VibePost post = new VibePost();
+                post.setId(postId);
+                post.setAiReviewed(AiReviewStatus.REVIEWED.getCode());
+                vibePostMapper.updateById(post);
+            } catch (Exception e) {
+                log.warn("Failed to mark post {} as reviewed after LLM outage: {}", postId, e.getMessage());
+            }
             return;
         }
 

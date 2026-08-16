@@ -104,4 +104,32 @@ class AuthControllerIntegrationTest {
                 .andExpect(jsonPath("$.code", is(401)))
                 .andExpect(jsonPath("$.message", containsString("Authentication required")));
     }
+
+    @Test
+    @DisplayName("GET /api/v1/users/profile without token should return 401")
+    void getUserProfileWithoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(get("/api/v1/users/profile"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code", is(401)));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/users/profile without token should return 401")
+    void updateUserProfileWithoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(put("/api/v1/users/profile")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code", is(401)));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/users/password without token should return 401")
+    void changePasswordWithoutToken_shouldReturn401() throws Exception {
+        mockMvc.perform(put("/api/v1/users/password")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{}"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code", is(401)));
+    }
 }

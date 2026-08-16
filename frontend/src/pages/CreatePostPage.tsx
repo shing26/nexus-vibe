@@ -186,6 +186,11 @@ export default function CreatePostPage() {
     return isAdmin ? channels : channels.filter((ch: Channel) => ch.slug !== "announcements");
   }, [channels, isAdmin]);
 
+  const generalChannels = useMemo(
+    () => displayChannels.filter((ch: Channel) => ch.slug !== "prompts"),
+    [displayChannels]
+  );
+
   const tokens = useMemo(() => estimateTokens(content), [content]);
 
   useEffect(() => {
@@ -265,16 +270,33 @@ export default function CreatePostPage() {
     if (displayChannels.length > 0) {
       const selectedIsAnnouncements =
         channels?.find((ch: Channel) => ch.id === categoryId)?.slug === "announcements";
-      if (!template && (categoryId === null || (!isAdmin && selectedIsAnnouncements))) {
-        setCategoryId(displayChannels[0].id);
+      if (categoryId === null || (!isAdmin && selectedIsAnnouncements)) {
+        setCategoryId(generalChannels[0]?.id ?? displayChannels[0].id);
       }
     }
-  }, [displayChannels, channels, categoryId, isAdmin, template]);
+  }, [displayChannels, generalChannels, channels, categoryId, isAdmin]);
+
+  const handlePostTypeChange = (type: "post" | "prompt") => {
+    const selected = channels?.find((ch: Channel) => ch.id === categoryId);
+    if (type === "post" && selected?.slug === "prompts") {
+      setCategoryId(generalChannels[0]?.id ?? selected.id);
+    } else if (type === "prompt" && selected?.slug !== "prompts") {
+      const prompts = channels?.find((ch: Channel) => ch.slug === "prompts");
+      if (prompts && (isAdmin || prompts.slug !== "announcements")) {
+        setCategoryId(prompts.id);
+      }
+    }
+    setPostType(type);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) {
       setError("// Error: Title and content are required");
+      return;
+    }
+    if (title.trim().length > 150) {
+      setError("// Error: Title must not exceed 150 characters");
       return;
     }
     if (!isAuthenticated) { navigate("/login"); return; }
@@ -296,7 +318,12 @@ export default function CreatePostPage() {
         );
       }
       addToast("Post published!", "success");
-      navigate("/post/" + res.data.data.postId);
+      if (res.data.data.status === 2) {
+        addToast("内容含敏感词，已提交审核", "success");
+        navigate(isAdmin ? "/admin/audit" : "/", { replace: true });
+      } else {
+        navigate("/post/" + res.data.data.postId);
+      }
     } catch (err: any) {
       setError("// Error: " + (err.response?.data?.message || "Failed to create post"));
       addToast('Failed to publish', 'error');
@@ -386,14 +413,14 @@ export default function CreatePostPage() {
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={() => setPostType("post")}
+            onClick={() => handlePostTypeChange("post")}
             className={"px-3 py-1.5 rounded-lg text-xs font-mono transition-colors " + (postType === "post" ? "bg-vibe-cyan/20 text-vibe-cyan border border-vibe-cyan/40" : "bg-vibe-card text-slate-400 border border-vibe-border")}
           >
             📝 Post
           </button>
           <button
             type="button"
-            onClick={() => setPostType("prompt")}
+            onClick={() => handlePostTypeChange("prompt")}
             className={"px-3 py-1.5 rounded-lg text-xs font-mono transition-colors " + (postType === "prompt" ? "bg-vibe-purple/20 text-vibe-purple border border-vibe-purple/40" : "bg-vibe-card text-slate-400 border border-vibe-border")}
           >
             🤖 Prompt Template
@@ -409,6 +436,7 @@ export default function CreatePostPage() {
                   type="text"
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
+                  maxLength={150}
                   placeholder="# Post title..."
                   className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-sm font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
                 />

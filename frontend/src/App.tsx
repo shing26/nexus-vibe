@@ -8,6 +8,7 @@ import { apiClient } from './api/client';
 import MainLayout from './components/layout/MainLayout';
 import AdminLayout from './components/layout/AdminLayout';
 import AdminRouteGuard from './components/AdminRouteGuard';
+import AuthGuard from './components/AuthGuard';
 import ErrorBoundary from './components/ErrorBoundary';
 import ToastContainer from './components/ToastContainer';
 
@@ -80,17 +81,19 @@ export default function App() {
                 <Route path="/" element={<HomePage />} />
                 <Route path="/channel/:slug" element={<ChannelPage />} />
                 <Route path="/post/:id" element={<PostDetailPage />} />
-                <Route path="/post/new" element={<CreatePostPage />} />
-                <Route path="/post/:id/edit" element={<EditPostPage />} />
                 <Route path="/search" element={<SearchPage />} />
                 <Route path="/login" element={<LoginPage />} />
                 <Route path="/register" element={<RegisterPage />} />
                 <Route path="/user/:id" element={<UserProfilePage />} />
-                <Route path="/user/settings" element={<SettingsPage />} />
-                <Route path="/user/messages" element={<MessagesPage />} />
-                <Route path="/drafts" element={<DraftsPage />} />
                 <Route path="/tags" element={<TagsPage />} />
                 <Route path="*" element={<NotFoundPage />} />
+                <Route element={<AuthGuard />}>
+                  <Route path="/post/new" element={<CreatePostPage />} />
+                  <Route path="/post/:id/edit" element={<EditPostPage />} />
+                  <Route path="/user/settings" element={<SettingsPage />} />
+                  <Route path="/user/messages" element={<MessagesPage />} />
+                  <Route path="/drafts" element={<DraftsPage />} />
+                </Route>
               </Route>
               <Route element={<AdminLayout />}>
                 <Route element={<AdminRouteGuard />}>

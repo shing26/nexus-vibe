@@ -6,6 +6,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -160,6 +161,57 @@ class RateLimitInterceptorTest {
 
         boolean result = interceptor.preHandle(request2, response, null);
         assertTrue(result, "Different IP should not be rate-limited");
+    }
+
+    @Test
+    @DisplayName("X-Real-IP set by nginx wins over a spoofed X-Forwarded-For")
+    void xRealIpWinsOverSpoofedXForwardedFor() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/v1/posts");
+        when(request.getHeader("X-Real-IP")).thenReturn("192.168.1.100");
+        when(request.getHeader("X-Forwarded-For")).thenReturn("6.6.6.6, 7.7.7.7");
+
+        ArgumentCaptor<List<String>> keyCaptor = ArgumentCaptor.forClass((Class) List.class);
+        when(redisTemplate.execute(any(RedisScript.class), keyCaptor.capture(), anyString(), anyString(), anyString()))
+                .thenReturn(1L);
+
+        boolean result = interceptor.preHandle(request, response, null);
+
+        assertTrue(result);
+        assertEquals("rate:limit:ip:192.168.1.100:/api/v1/posts", keyCaptor.getValue().get(0));
+    }
+
+    @Test
+    @DisplayName("Without X-Real-IP the right-most X-Forwarded-For segment is used")
+    void rightmostXForwardedForSegmentWins() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/v1/posts");
+        when(request.getHeader("X-Real-IP")).thenReturn(null);
+        when(request.getHeader("X-Forwarded-For")).thenReturn("6.6.6.6, 192.168.1.100");
+
+        ArgumentCaptor<List<String>> keyCaptor = ArgumentCaptor.forClass((Class) List.class);
+        when(redisTemplate.execute(any(RedisScript.class), keyCaptor.capture(), anyString(), anyString(), anyString()))
+                .thenReturn(1L);
+
+        boolean result = interceptor.preHandle(request, response, null);
+
+        assertTrue(result);
+        assertEquals("rate:limit:ip:192.168.1.100:/api/v1/posts", keyCaptor.getValue().get(0));
+    }
+
+    @Test
+    @DisplayName("Login and register POST requests are rate-limited")
+    void authPathsAreRateLimited() throws Exception {
+        when(request.getRequestURI()).thenReturn("/api/v1/auth/login");
+        when(request.getHeader("X-Real-IP")).thenReturn(null);
+        when(request.getHeader("X-Forwarded-For")).thenReturn(null);
+
+        ArgumentCaptor<List<String>> keyCaptor = ArgumentCaptor.forClass((Class) List.class);
+        when(redisTemplate.execute(any(RedisScript.class), keyCaptor.capture(), anyString(), anyString(), anyString()))
+                .thenReturn(1L);
+
+        boolean result = interceptor.preHandle(request, response, null);
+
+        assertTrue(result);
+        assertEquals("rate:limit:ip:192.168.1.100:/api/v1/auth/login", keyCaptor.getValue().get(0));
     }
 
     @Test

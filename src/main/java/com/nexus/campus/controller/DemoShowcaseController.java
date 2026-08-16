@@ -14,6 +14,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.context.annotation.Profile;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
@@ -23,6 +24,7 @@ import java.util.*;
 @RequestMapping("/api/demo")
 @RequiredArgsConstructor
 @Slf4j
+@Profile("!prod")
 public class DemoShowcaseController {
 
     private final VibePostMapper vibePostMapper;

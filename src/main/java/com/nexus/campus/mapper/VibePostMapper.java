@@ -108,6 +108,9 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     @Select("SELECT COUNT(*) FROM vibe_post WHERE status = 1 AND create_time >= CURDATE()")
     int countTodayPosts();
 
+    @Select("SELECT COUNT(*) FROM vibe_post WHERE status = 1 AND category_id = #{categoryId}")
+    long countActivePostsByCategory(@Param("categoryId") Integer categoryId);
+
     @Update("UPDATE vibe_post SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(@Param("id") Long id);
 

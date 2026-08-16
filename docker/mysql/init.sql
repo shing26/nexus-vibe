@@ -3,6 +3,8 @@
 -- Mirrors src/main/resources/schema.sql + data.sql for MySQL 8.0.
 -- =============================================================================
 
+SET NAMES utf8mb4;
+
 CREATE DATABASE IF NOT EXISTS `nexus_campus`
     DEFAULT CHARACTER SET utf8mb4
     DEFAULT COLLATE utf8mb4_unicode_ci;
@@ -137,7 +139,9 @@ CREATE TABLE IF NOT EXISTS `vibe_prompt_version` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- -----------------------------------------------------------------------------
--- Seed Data (all demo passwords are 123456)
+-- Seed Data
+-- Users are created by DataPreloader at app startup; passwords come from
+-- DEMO_PASSWORD only when demo seeding is enabled.
 -- -----------------------------------------------------------------------------
 
 DELETE FROM `ai_review_log`;
@@ -149,7 +153,6 @@ DELETE FROM `vibe_post_like`;
 DELETE FROM `vibe_post`;
 DELETE FROM `vibe_tag`;
 DELETE FROM `vibe_channel`;
-DELETE FROM `sys_user`;
 
 INSERT INTO `vibe_channel` (`id`, `name`, `description`, `slug`, `sort_order`, `status`, `create_time`) VALUES
 (1, '社区公告', '系统公告、更新日志（管理员只读）', 'announcements', 1, 1, NOW()),
@@ -172,30 +175,30 @@ INSERT INTO `vibe_tag` (`id`, `name`, `status`, `create_time`) VALUES
 INSERT INTO `vibe_post` (`id`, `title`, `content`, `user_id`, `category_id`, `status`, `like_count`, `comment_count`, `view_count`, `is_pinned`, `post_type`, `create_time`) VALUES
 (1, 'Building a RAG pipeline with LangChain and Claude 3',
  'A step-by-step guide to building a production-ready RAG pipeline: document chunking strategies, embedding selection, vector store optimization with pgvector, and prompt templates for Claude 3. Includes benchmark comparisons across different chunk sizes.',
- 2, 4, 1, 85, 24, 320, 0, 'post', DATE_SUB(NOW(), INTERVAL 2 HOUR)),
+ 2, 4, 1, 85, 2, 320, 0, 'post', DATE_SUB(NOW(), INTERVAL 2 HOUR)),
 (2, 'Fine-tuning Llama 3 on domain-specific code: lessons learned',
  'Deep dive into fine-tuning Llama 3 8B on a custom Python code dataset. Covers LoRA rank selection, dataset preparation, QLoRA vs full fine-tuning tradeoffs, and evaluation benchmarks vs GPT-3.5.',
- 3, 5, 1, 150, 45, 890, 0, 'post', DATE_SUB(NOW(), INTERVAL 1 DAY)),
+ 3, 5, 1, 150, 1, 890, 0, 'post', DATE_SUB(NOW(), INTERVAL 1 DAY)),
 (3, 'Claude Computer Use: building autonomous browser agents',
  'Exploring Anthropic computer use capabilities: how to build agents that can browse, fill forms, extract data, and navigate complex web UIs autonomously. Includes safety guardrails and rate limiting strategies.',
- 1, 4, 1, 620, 180, 4500, 0, 'post', DATE_SUB(NOW(), INTERVAL 7 DAY)),
+ 1, 4, 1, 620, 0, 4500, 0, 'post', DATE_SUB(NOW(), INTERVAL 7 DAY)),
 (4, 'Prompt patterns for reliable structured output from LLMs',
  'A collection of battle-tested prompt patterns for getting consistent JSON output: role-locked formatting, chain-of-thought with schema enforcement, XML-tagged responses, and few-shot template design. Benchmarked across GPT-4, Claude 3.5, and Gemini.',
- 4, 1, 1, 230, 67, 1200, 0, 'post', DATE_SUB(NOW(), INTERVAL 3 HOUR)),
+ 4, 1, 1, 230, 0, 1200, 0, 'post', DATE_SUB(NOW(), INTERVAL 3 HOUR)),
 (5, '[Pending Audit] AI-generated music with Stable Audio and Suno: a comparison',
  'Comparing AI music generation platforms: prompt engineering for music, genre adherence, audio quality, and commercial usage rights. Includes sample outputs and production workflow recommendations.',
  3, 7, 2, 0, 0, 10, 0, 'post', NOW());
 
 INSERT INTO `vibe_post` (`id`, `title`, `content`, `user_id`, `category_id`, `status`, `like_count`, `comment_count`, `view_count`, `is_pinned`, `post_type`, `prompt_metadata`, `forked_from_id`, `create_time`) VALUES
 (100, 'React Component Generator',
- 'Create a React component that follows best practices. Define the component name, props interface, and any specific features you need. The component should be type-safe with TypeScript, include proper JSDoc comments, and handle loading/error/empty states.',
- 1, 2, 1, 42, 8, 560, 0, 'prompt', '{"role":"You are a senior React developer specializing in component architecture. Generate clean, composable, and well-documented React components with TypeScript. Follow SOLID principles and React best practices.","recommendedModel":"gpt-4o","temperature":0.7,"variables":["componentName","features"]}', NULL, DATE_SUB(NOW(), INTERVAL 3 DAY)),
+ 'Create a React component named {{componentName}} that follows best practices. Define the props interface and include these features: {{features}}. The component should be type-safe with TypeScript, include proper JSDoc comments, and handle loading/error/empty states.',
+ 1, 2, 1, 42, 0, 560, 0, 'prompt', '{"role":"You are a senior React developer specializing in component architecture. Generate clean, composable, and well-documented React components with TypeScript. Follow SOLID principles and React best practices.","recommendedModel":"gpt-4o","temperature":0.7,"variables":["componentName","features"]}', NULL, DATE_SUB(NOW(), INTERVAL 3 DAY)),
 (101, 'Tailwind UI Prompt Architect',
- 'Design a responsive layout using Tailwind CSS. Specify the layout structure, color scheme preferences, and any specific UI patterns you want to include. The generated code should be production-ready with proper responsive breakpoints and accessibility attributes.',
- 2, 2, 1, 35, 5, 420, 0, 'prompt', '{"role":"You are a Tailwind CSS expert and UI designer. Create beautiful, responsive, and accessible layouts using Tailwind CSS utility classes. Prioritize mobile-first design and adhere to WCAG 2.1 AA standards.","recommendedModel":"gpt-4o","temperature":0.5,"variables":["layout","colorScheme"]}', NULL, DATE_SUB(NOW(), INTERVAL 1 DAY)),
+ 'Design a responsive {{layout}} using Tailwind CSS with a {{colorScheme}} color scheme. Specify the layout structure and any specific UI patterns you want to include. The generated code should be production-ready with proper responsive breakpoints and accessibility attributes.',
+ 2, 2, 1, 35, 0, 420, 0, 'prompt', '{"role":"You are a Tailwind CSS expert and UI designer. Create beautiful, responsive, and accessible layouts using Tailwind CSS utility classes. Prioritize mobile-first design and adhere to WCAG 2.1 AA standards.","recommendedModel":"gpt-4o","temperature":0.5,"variables":["layout","colorScheme"]}', NULL, DATE_SUB(NOW(), INTERVAL 1 DAY)),
 (102, 'React Component Generator',
- 'Create a React component that follows best practices. Forked from the React Component Generator template with an extra focus on keyboard accessibility and reduced motion support.',
- 3, 2, 1, 9, 2, 140, 0, 'prompt', '{"role":"You are a senior React developer specializing in accessible component architecture. Generate clean, composable, and well-documented React components with TypeScript. Follow WCAG 2.1 AA standards and React best practices.","recommendedModel":"gpt-4o","temperature":0.6,"variables":["componentName","features","accessibilityLevel"]}', 100, DATE_SUB(NOW(), INTERVAL 8 HOUR));
+ 'Create a React component named {{componentName}} that follows best practices, with features {{features}} and {{accessibilityLevel}} accessibility. Forked from the React Component Generator template with an extra focus on keyboard accessibility and reduced motion support.',
+ 3, 2, 1, 9, 0, 140, 0, 'prompt', '{"role":"You are a senior React developer specializing in accessible component architecture. Generate clean, composable, and well-documented React components with TypeScript. Follow WCAG 2.1 AA standards and React best practices.","recommendedModel":"gpt-4o","temperature":0.6,"variables":["componentName","features","accessibilityLevel"]}', 100, DATE_SUB(NOW(), INTERVAL 8 HOUR));
 
 INSERT INTO `vibe_post_tag` (`id`, `post_id`, `tag_id`) VALUES
 (1, 1, 2), (2, 1, 4),
@@ -207,19 +210,19 @@ INSERT INTO `vibe_post_tag` (`id`, `post_id`, `tag_id`) VALUES
 
 INSERT INTO `vibe_prompt_version` (`id`, `post_id`, `version`, `branch`, `title`, `content`, `prompt_metadata`, `change_note`, `created_by`, `create_time`) VALUES
 (8001, 100, 1, 'main', 'React Component Generator',
- 'Create a React component that follows best practices. Define the component name, props interface, and any specific features you need.',
+ 'Create a React component named {{componentName}} that follows best practices. Define the props interface and include these features: {{features}}.',
  '{"role":"You are a senior React developer specializing in component architecture. Generate clean, composable, and well-documented React components with TypeScript.","recommendedModel":"gpt-4o","temperature":0.7,"variables":["componentName","features"]}', 'Initial version', 1, DATE_SUB(NOW(), INTERVAL 5 DAY)),
 (8002, 100, 2, 'main', 'React Component Generator',
- 'Create a React component that follows best practices. Define the component name, props interface, and any specific features you need. The component should be type-safe with TypeScript.',
+ 'Create a React component named {{componentName}} that follows best practices. Define the props interface and include these features: {{features}}. The component should be type-safe with TypeScript.',
  '{"role":"You are a senior React developer specializing in component architecture. Generate clean, composable, and well-documented React components with TypeScript. Follow SOLID principles.","recommendedModel":"gpt-4o","temperature":0.7,"variables":["componentName","features"]}', 'Add TypeScript safety guidance', 1, DATE_SUB(NOW(), INTERVAL 4 DAY)),
 (8003, 100, 3, 'main', 'React Component Generator',
- 'Create a React component that follows best practices. Define the component name, props interface, and any specific features you need. The component should be type-safe with TypeScript, include proper JSDoc comments, and handle loading/error/empty states.',
+ 'Create a React component named {{componentName}} that follows best practices. Define the props interface and include these features: {{features}}. The component should be type-safe with TypeScript, include proper JSDoc comments, and handle loading/error/empty states.',
  '{"role":"You are a senior React developer specializing in component architecture. Generate clean, composable, and well-documented React components with TypeScript. Follow SOLID principles and React best practices.","recommendedModel":"gpt-4o","temperature":0.7,"variables":["componentName","features"]}', 'Add JSDoc and state handling', 1, DATE_SUB(NOW(), INTERVAL 3 DAY)),
 (8004, 101, 1, 'main', 'Tailwind UI Prompt Architect',
- 'Design a responsive layout using Tailwind CSS. Specify the layout structure, color scheme preferences, and any specific UI patterns you want to include.',
+ 'Design a responsive {{layout}} using Tailwind CSS with a {{colorScheme}} color scheme. Specify the layout structure and any specific UI patterns you want to include.',
  '{"role":"You are a Tailwind CSS expert and UI designer. Create beautiful, responsive, and accessible layouts using Tailwind CSS utility classes.","recommendedModel":"gpt-4o","temperature":0.5,"variables":["layout","colorScheme"]}', 'Initial version', 2, DATE_SUB(NOW(), INTERVAL 2 DAY)),
 (8005, 102, 1, 'main', 'React Component Generator',
- 'Create a React component that follows best practices. Forked from the React Component Generator template with an extra focus on keyboard accessibility and reduced motion support.',
+ 'Create a React component named {{componentName}} that follows best practices, with features {{features}} and {{accessibilityLevel}} accessibility. Forked from the React Component Generator template with an extra focus on keyboard accessibility and reduced motion support.',
  '{"role":"You are a senior React developer specializing in accessible component architecture. Generate clean, composable, and well-documented React components with TypeScript.","recommendedModel":"gpt-4o","temperature":0.6,"variables":["componentName","features","accessibilityLevel"]}', 'Forked from post 100', 3, DATE_SUB(NOW(), INTERVAL 8 HOUR));
 
 INSERT INTO `vibe_comment` (`id`, `post_id`, `user_id`, `parent_id`, `target_id`, `content`, `status`, `create_time`) VALUES

@@ -34,12 +34,14 @@ public class LlmClient {
         ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
                 .withConnectTimeout(timeout)
                 .withReadTimeout(timeout);
-        this.restClient = RestClient.builder()
+        RestClient.Builder builder = RestClient.builder()
                 .baseUrl(endpoint)
-                .defaultHeader("Authorization", "Bearer " + apiKey)
                 .defaultHeader("Content-Type", "application/json")
-                .requestFactory(ClientHttpRequestFactories.get(settings))
-                .build();
+                .requestFactory(ClientHttpRequestFactories.get(settings));
+        if (apiKey != null && !apiKey.isBlank()) {
+            builder.defaultHeader("Authorization", "Bearer " + apiKey);
+        }
+        this.restClient = builder.build();
     }
 
     /**

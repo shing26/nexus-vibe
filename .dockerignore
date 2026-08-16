@@ -3,3 +3,9 @@
 .idea/
 *.log
 node_modules/
+.env
+.env.*
+!.env.example
+frontend/node_modules/
+frontend/dist/
+docs/

@@ -111,20 +111,20 @@ function LoadingTerminal() {
 }
 
 export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, errorMessage, onRetry }) => {
+  if (state === 'unavailable' || (state === 'data' && !detail) || detail?.severity === 'unavailable') {
+    return (
+      <div role="status" className="flex items-center gap-2 p-3 text-slate-500">
+        <AlertCircle className="h-3.5 w-3.5" />
+        AI review data unavailable.
+      </div>
+    );
+  }
+
   if (state === 'pending') {
     return (
       <div role="status" aria-live="polite" className="flex items-center gap-2 p-3 text-vibe-neon">
         <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
         AI Agent reviewing...
-      </div>
-    );
-  }
-
-  if (state === 'unavailable' || (state === 'data' && !detail)) {
-    return (
-      <div role="status" className="flex items-center gap-2 p-3 text-slate-500">
-        <AlertCircle className="h-3.5 w-3.5" />
-        AI review data unavailable.
       </div>
     );
   }

@@ -15,12 +15,14 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
 @Transactional
+@Sql({"/data.sql", "/test-users.sql"})
 class VibePostServiceImplTest {
 
     @Autowired
@@ -140,7 +142,7 @@ class VibePostServiceImplTest {
 
         assertTrue(restored);
         VibePost post = VibePostMapper.selectById(101L);
-        assertTrue(post.getContent().contains("Design a responsive layout"));
+        assertTrue(post.getContent().contains("Design a responsive {{layout}}"));
         assertEquals(2L, promptVersionMapper.selectVersionCount(101L));
     }
 

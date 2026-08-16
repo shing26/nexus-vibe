@@ -45,6 +45,9 @@ public class DataPreloader implements CommandLineRunner {
     @Value("${campus.demo.password:123456}")
     private String demoPassword;
 
+    @Value("${campus.demo.seed-enabled:true}")
+    private boolean demoSeedEnabled;
+
     public DataPreloader(PostRankingService postRankingService) {
         this.postRankingService = postRankingService;
     }
@@ -59,8 +62,11 @@ public class DataPreloader implements CommandLineRunner {
 
         preheatHotRanking();
         seedSensitiveWords();
+        ensureAiAgent();
         ensureDemoUsers();
-        printCredentials();
+        if (demoSeedEnabled) {
+            printCredentials();
+        }
 
         log.info("============================================================");
         log.info("  Nexus Campus is fully operational.");
@@ -104,11 +110,20 @@ public class DataPreloader implements CommandLineRunner {
     }
 
     private void ensureDemoUsers() {
-        if (demoPassword == null || demoPassword.isBlank()) {
-            throw new IllegalStateException(
-                    "DEMO_PASSWORD must be set for production bootstrap; refusing to seed a blank demo password.");
+        String encoded;
+        if (demoSeedEnabled) {
+            if (demoPassword == null || demoPassword.isBlank()) {
+                throw new IllegalStateException(
+                        "DEMO_PASSWORD must be set when demo user seeding is enabled; refusing to seed a blank password.");
+            }
+            encoded = passwordEncoder.encode(demoPassword);
+            log.info("[PREHEAT] Demo accounts ensured (insert-only, password source: DEMO_PASSWORD).");
+        } else {
+            // Keep the seed users for sample content, but give them random,
+            // unrecoverable passwords so they cannot be used to log in.
+            encoded = passwordEncoder.encode(UUID.randomUUID().toString());
+            log.info("[PREHEAT] Demo accounts ensured with random passwords (demo seeding disabled).");
         }
-        String encoded = passwordEncoder.encode(demoPassword);
         ensureDemoUser(1L, "admin", encoded, "System Admin", "default_avatar.png", "ADMIN", 99999, 8);
         ensureDemoUser(2L, "shing", encoded, "shing", "default_avatar.png", "USER", 2280, 5);
         ensureDemoUser(3L, "alice", encoded, "Alice", "default_avatar.png", "USER", 1560, 4);
@@ -116,10 +131,24 @@ public class DataPreloader implements CommandLineRunner {
         ensureDemoUser(5L, "testuser", encoded, "Test User", "default_avatar.png", "USER", 50, 1);
         ensureDemoUser(6L, "eve", encoded, "Eve", "default_avatar.png", "USER", 640, 3);
         ensureDemoUser(7L, "charlie", encoded, "Charlie", "default_avatar.png", "USER", 120, 2);
-        ensureDemoUser(999L, "AiAgent",
-                passwordEncoder.encode(UUID.randomUUID().toString()),
-                "AI 助手", "robot_avatar.png", "AI_AGENT", 0, 1);
-        log.info("[PREHEAT] Demo accounts ensured (insert-only, password source: DEMO_PASSWORD).");
+    }
+
+    private void ensureAiAgent() {
+        if (sysUserMapper.selectById(999L) != null) {
+            return;
+        }
+        SysUser agent = new SysUser();
+        agent.setId(999L);
+        agent.setUsername("AiAgent");
+        agent.setPassword(passwordEncoder.encode(UUID.randomUUID().toString()));
+        agent.setNickname("AI 助手");
+        agent.setAvatar("robot_avatar.png");
+        agent.setRole("AI_AGENT");
+        agent.setCorePower(0);
+        agent.setLevel(1);
+        agent.setStatus(1);
+        sysUserMapper.insert(agent);
+        log.info("[PREHEAT] AiAgent account ensured.");
     }
 
     /**

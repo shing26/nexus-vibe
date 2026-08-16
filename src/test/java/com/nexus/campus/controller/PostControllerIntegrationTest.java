@@ -14,6 +14,8 @@ import org.springframework.http.MediaType;
 
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
+import org.springframework.test.context.jdbc.Sql;
+import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -27,6 +29,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  */
 @SpringBootTest
 @AutoConfigureMockMvc
+@Transactional
+@Sql({"/data.sql", "/test-users.sql"})
 class PostControllerIntegrationTest {
 
     @Autowired
@@ -174,7 +178,72 @@ class PostControllerIntegrationTest {
                         .param("channelSlug", "prompts"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(200)))
-                .andExpect(jsonPath("$.data.list", notNullValue()));
+                .andExpect(jsonPath("$.data.list", notNullValue()))
+                .andExpect(jsonPath("$.data.list[*].postType", everyItem(is("prompt"))));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/posts?channelSlug=prompts&type=prompt should return only prompt templates")
+    void getPosts_promptsChannelWithPromptType_shouldReturnOnlyPrompts() throws Exception {
+        mockMvc.perform(get(POSTS_URL)
+                        .param("channelSlug", "prompts")
+                        .param("type", "prompt")
+                        .param("size", "20"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data.list[*].postType", everyItem(is("prompt"))));
+    }
+
+    @Test
+    @DisplayName("PUT /api/v1/posts/{id} should reject moving a post to announcements for a regular user")
+    void updatePost_regularUserMovingToAnnouncements_shouldReturn400() throws Exception {
+        MvcResult createResult = mockMvc.perform(post(POSTS_URL)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(createCleanPostRequest("Announcement Guard Post"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andReturn();
+        String postId = objectMapper.readTree(createResult.getResponse().getContentAsString())
+                .path("data").path("postId").asText();
+
+        PostUpdateRequest updateRequest = new PostUpdateRequest();
+        updateRequest.setTitle("Announcement Guard Post");
+        updateRequest.setContent("Still clean content.");
+        updateRequest.setCategoryId(1);
+
+        mockMvc.perform(put(POSTS_URL + "/" + postId)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is(400)))
+                .andExpect(jsonPath("$.message", containsString("只有管理员才能在公告频道发帖")));
+    }
+
+    @Test
+    @DisplayName("POST /api/v1/posts should reject titles longer than 150 characters")
+    void createPost_titleTooLong_shouldReturn400() throws Exception {
+        PostCreateRequest request = createCleanPostRequest("T".repeat(151));
+
+        mockMvc.perform(post(POSTS_URL)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code", is(400)))
+                .andExpect(jsonPath("$.message", containsString("Title must not exceed 150 characters")));
+    }
+
+    @Test
+    @DisplayName("GET /api/v1/channels/stats should return a post count for every active channel")
+    void getChannelStats_shouldReturnCounts() throws Exception {
+        mockMvc.perform(get(CHANNELS_URL + "/stats"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.data", hasSize(7)))
+                .andExpect(jsonPath("$.data[0].slug", is("announcements")))
+                .andExpect(jsonPath("$.data[0].postCount", notNullValue()));
     }
 
     @Test

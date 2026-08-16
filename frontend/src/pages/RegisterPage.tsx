@@ -23,8 +23,14 @@ export default function RegisterPage() {
     e.preventDefault();
     setError("");
     if (!username.trim() || username.trim().length < 3) { setError("Username needs 3+ chars"); return; }
+    if (username.trim().length > 50) { setError("Username must not exceed 50 characters"); return; }
     if (!nickname.trim()) { setError("Nickname is required"); return; }
-    if (!password || password.length < 6) { setError("Password needs 6+ chars"); return; }
+    if (nickname.trim().length > 50) { setError("Nickname must not exceed 50 characters"); return; }
+    if (!password || password.length < 8 || password.length > 20) { setError("Password must be 8-20 characters"); return; }
+    if (!/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)/.test(password)) {
+      setError("Password must contain uppercase, lowercase and a number");
+      return;
+    }
     if (password !== confirmPassword) { setError("Passwords don't match"); return; }
     setLoading(true);
     try {

@@ -26,7 +26,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private static final List<String> RATE_LIMITED_PATHS = List.of(
             "/api/v1/posts",
-            "/api/v1/comments"
+            "/api/v1/comments",
+            "/api/v1/auth/login",
+            "/api/v1/auth/register"
     );
 
     private static final List<String> EXEMPT_PREFIXES = List.of(
@@ -115,15 +117,24 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
+        // X-Real-IP is written by the trusted nginx proxy, so it wins over any
+        // client-supplied X-Forwarded-For value.
+        String ip = request.getHeader("X-Real-IP");
         if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            ip = request.getHeader("X-Real-IP");
+            String forwarded = request.getHeader("X-Forwarded-For");
+            if (forwarded != null && !forwarded.isBlank()) {
+                String[] parts = forwarded.split(",");
+                for (int i = parts.length - 1; i >= 0; i--) {
+                    String candidate = parts[i].trim();
+                    if (!candidate.isEmpty() && !"unknown".equalsIgnoreCase(candidate)) {
+                        ip = candidate;
+                        break;
+                    }
+                }
+            }
         }
         if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getRemoteAddr();
-        }
-        if (ip != null && ip.contains(",")) {
-            ip = ip.split(",")[0].trim();
         }
         return (ip != null) ? ip : "unknown";
     }

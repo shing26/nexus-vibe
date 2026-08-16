@@ -18,6 +18,7 @@ export default function EditPostPage() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const user = useAuthStore((s) => s.user);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const [title, setTitle] = useState('');
@@ -33,6 +34,19 @@ export default function EditPostPage() {
 
   const tokens = useMemo(() => estimateTokens(content), [content]);
 
+  const displayChannels = useMemo(() => {
+    if (!channels) return [];
+    if (user?.role === 'ADMIN') return channels;
+    const filtered = channels.filter((ch: Channel) => ch.slug !== 'announcements');
+    const currentIsAnnouncement = categoryId !== null &&
+      channels.some((ch: Channel) => ch.id === categoryId && ch.slug === 'announcements');
+    if (currentIsAnnouncement && !filtered.some((ch: Channel) => ch.id === categoryId)) {
+      const announcement = channels.find((ch: Channel) => ch.id === categoryId);
+      if (announcement) filtered.push(announcement);
+    }
+    return filtered;
+  }, [channels, user?.role, categoryId]);
+
   useEffect(() => {
     if (!id) return;
     (async () => {
@@ -44,7 +58,7 @@ export default function EditPostPage() {
         setContent(post.content || '');
         setPostType(post.postType || 'post');
         setPromptMetadata(post.promptMetadata || '');
-      } catch (err: any) {
+      } catch {
         setError('Failed to load post.');
       } finally {
         setLoading(false);
@@ -80,6 +94,10 @@ export default function EditPostPage() {
     e.preventDefault();
     if (!title.trim() || !content.trim()) {
       setError('Title and content are required.');
+      return;
+    }
+    if (title.trim().length > 150) {
+      setError('Title must not exceed 150 characters.');
       return;
     }
     if (!isAuthenticated) {
@@ -135,6 +153,7 @@ export default function EditPostPage() {
               type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
+              maxLength={150}
               placeholder="Post title..."
               className="w-full px-4 py-3 border border-vibe-border rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 focus:border-transparent"
             />
@@ -148,7 +167,7 @@ export default function EditPostPage() {
             {channelsLoading ? (
                 <option value="">Loading channels...</option>
               ) : (
-                channels?.map((ch: Channel) => (
+                displayChannels.map((ch: Channel) => (
                   <option key={ch.id} value={ch.id}>
                     {ch.name}
                   </option>
