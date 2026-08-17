@@ -6,15 +6,27 @@ export default {
      extend: {
        colors: {
          vibe: {
-           bg: '#0A0D14',
-           surface: '#111622',
-           card: '#161C2A',
-           border: '#232D42',
-           cyan: '#10B981',
-           neon: '#06B6D4',
-           purple: '#A855F7',
-           emerald: '#059669',
-         }
+           bg: 'rgb(var(--vibe-bg) / <alpha-value>)',
+           surface: 'rgb(var(--vibe-surface) / <alpha-value>)',
+           card: 'rgb(var(--vibe-card) / <alpha-value>)',
+           border: 'rgb(var(--vibe-border) / <alpha-value>)',
+           cyan: 'rgb(var(--vibe-cyan) / <alpha-value>)',
+           neon: 'rgb(var(--vibe-neon) / <alpha-value>)',
+           purple: 'rgb(var(--vibe-purple) / <alpha-value>)',
+           emerald: 'rgb(var(--vibe-emerald) / <alpha-value>)',
+         },
+         slate: {
+           100: 'rgb(var(--slate-100) / <alpha-value>)',
+           200: 'rgb(var(--slate-200) / <alpha-value>)',
+           300: 'rgb(var(--slate-300) / <alpha-value>)',
+           400: 'rgb(var(--slate-400) / <alpha-value>)',
+           500: 'rgb(var(--slate-500) / <alpha-value>)',
+           600: 'rgb(var(--slate-600) / <alpha-value>)',
+           700: 'rgb(var(--slate-700) / <alpha-value>)',
+           800: 'rgb(var(--slate-800) / <alpha-value>)',
+           900: 'rgb(var(--slate-900) / <alpha-value>)',
+           950: 'rgb(var(--slate-950) / <alpha-value>)',
+         },
        },
        animation: {
          'border-beam': 'border-beam calc(var(--duration, 8) * 1s) infinite linear',

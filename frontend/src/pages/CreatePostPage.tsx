@@ -317,11 +317,11 @@ export default function CreatePostPage() {
           JSON.stringify(drafts.filter((d: any) => String(d.id) !== draftId))
         );
       }
-      addToast("Post published!", "success");
       if (res.data.data.status === 2) {
         addToast("内容含敏感词，已提交审核", "success");
         navigate(isAdmin ? "/admin/audit" : "/", { replace: true });
       } else {
+        addToast("Post published!", "success");
         navigate("/post/" + res.data.data.postId);
       }
     } catch (err: any) {

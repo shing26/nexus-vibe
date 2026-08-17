@@ -104,7 +104,7 @@ export default function PostCard({ post }: PostCardProps) {
   };
 
   return (
-    <div className="relative">
+    <div className="relative overflow-hidden">
       {post.aiReviewed === 1 && <BorderBeam size={150} duration={6} />}
       <div className="active:scale-[0.99] transition-transform">
         <SpotlightCard className="group/card">
@@ -176,7 +176,7 @@ export default function PostCard({ post }: PostCardProps) {
             )}
           </Link>
           {/* Metadata row — compact */}
-          <div className="mt-2.5 flex items-center gap-3 text-[11px] font-mono">
+          <div className="mt-2.5 flex flex-wrap items-center gap-3 text-[11px] font-mono">
             <span className="bg-vibe-cyan/10 border border-vibe-cyan/30 text-vibe-cyan rounded-md px-2 py-0.5">
               {post.categoryName}
             </span>

@@ -140,7 +140,7 @@ export default function DashboardPage() {
                 {pendingPosts.slice(0, 5).map((post) => (
                   <li key={post.id}>
                     <Link
-                      to={'/post/' + post.id}
+                      to="/admin/audit"
                       className="flex items-start gap-3 px-2 py-2 rounded-md hover:bg-vibe-card/60 transition-colors"
                     >
                       <Clock className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
