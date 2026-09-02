@@ -6,6 +6,8 @@ import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.mapper.VibeCommentMapper;
 import com.nexus.campus.mapper.VibePostMapper;
+import com.nexus.campus.service.SysMessageService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -13,12 +15,14 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
@@ -26,8 +30,9 @@ import static org.mockito.Mockito.*;
  * Unit tests for the AI code-review pipeline.
  *
  * <p>Covers code-block detection, structured-output parsing (including
- * clamping and missing-field defaults), and the full reviewPost flow with a
- * mocked {@link LlmClient}.</p>
+ * clamping and missing-field defaults), semantic validation of review
+ * results, the one-retry-then-degrade policy for invalid output, and the
+ * full reviewPost flow with a mocked {@link LlmClient}.</p>
  */
 @ExtendWith(MockitoExtension.class)
 class AiReviewServiceTest {
@@ -42,9 +47,25 @@ class AiReviewServiceTest {
     private AiReviewLogMapper aiReviewLogMapper;
     @Mock
     private VibeCommentMapper vibeCommentMapper;
+    @Mock
+    private SysMessageService sysMessageService;
 
     @InjectMocks
     private AiReviewService aiReviewService;
+
+    @BeforeEach
+    void configureContextBudget() {
+        // @Value fields are not populated under Mockito; set the budget explicitly.
+        ReflectionTestUtils.setField(aiReviewService, "maxContextTokens", 12000);
+    }
+
+    private JsonNode validReview() throws Exception {
+        return objectMapper.readTree(
+                "{\"score\":8,\"severity\":\"low\","
+                        + "\"codeQuality\":\"Clean structure and readable naming throughout the implementation\","
+                        + "\"securityConcerns\":\"No SQL injection or unsafe casts detected\","
+                        + "\"optimizationSuggestions\":\"Extract the division logic into a helper and add unit tests\"}");
+    }
 
     // ── detectCodeBlocks ─────────────────────────────────────────────────
 
@@ -121,46 +142,102 @@ class AiReviewServiceTest {
         assertTrue(result.isApproved());
     }
 
+    // ── isValidReviewResult ─────────────────────────────────────────────
+
+    @Test
+    @DisplayName("isValidReviewResult rejects placeholder uppercase fields and empty suggestions")
+    void isValidReviewResultShouldRejectPlaceholders() throws Exception {
+        // Regression: a weak local model returned {"codeQuality":"EVALUATE","optimizationSuggestions":""}
+        JsonNode garbage = objectMapper.readTree(
+                "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
+                        + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
+        AiReviewService.ReviewResult result = aiReviewService.parseStructuredResponse(garbage);
+        assertFalse(aiReviewService.isValidReviewResult(result));
+    }
+
+    @Test
+    @DisplayName("isValidReviewResult rejects unknown severity and too-short fields")
+    void isValidReviewResultShouldRejectUnknownSeverityAndShortFields() {
+        AiReviewService.ReviewResult unknownSeverity = reviewWithSeverity("unknown");
+        assertFalse(aiReviewService.isValidReviewResult(unknownSeverity));
+
+        AiReviewService.ReviewResult shortQuality = validResult();
+        shortQuality.quality = "Solid code";
+        assertFalse(aiReviewService.isValidReviewResult(shortQuality));
+
+        AiReviewService.ReviewResult blankSuggestions = validResult();
+        blankSuggestions.suggestions = "   ";
+        assertFalse(aiReviewService.isValidReviewResult(blankSuggestions));
+    }
+
+    @Test
+    @DisplayName("isValidReviewResult accepts substantive prose with a known severity")
+    void isValidReviewResultShouldAcceptSubstantiveResult() throws Exception {
+        AiReviewService.ReviewResult result = aiReviewService.parseStructuredResponse(validReview());
+        assertTrue(aiReviewService.isValidReviewResult(result));
+    }
+
+    private AiReviewService.ReviewResult validResult() {
+        AiReviewService.ReviewResult result = new AiReviewService.ReviewResult();
+        result.score = 7;
+        result.severity = "low";
+        result.quality = "Clean structure and readable naming throughout the implementation";
+        result.security = "No SQL injection or unsafe casts detected";
+        result.suggestions = "Extract the division logic into a helper and add unit tests";
+        return result;
+    }
+
+    private AiReviewService.ReviewResult reviewWithSeverity(String severity) {
+        AiReviewService.ReviewResult result = validResult();
+        result.severity = severity;
+        return result;
+    }
+
     // ── reviewPost flow ──────────────────────────────────────────────────
 
     @Test
     @DisplayName("reviewPost skips LLM call when post has no code blocks")
     void reviewPostShouldSkipWithoutCodeBlocks() {
-        aiReviewService.reviewPost(1L, "no code here");
+        aiReviewService.reviewPost(1L, "Some title", "no code here", 99L, false);
 
-        verify(llmClient, never()).chatCompletionStructured(anyString(), anyString(), anyString(), any());
+        verify(llmClient, never()).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
         verifyNoInteractions(aiReviewLogMapper, vibeCommentMapper);
     }
 
     @Test
-    @DisplayName("reviewPost logs a null result and does not comment")
+    @DisplayName("reviewPost marks the post FAILED and logs unavailable when LLM is down")
     void reviewPostShouldHandleNullLlmResult() {
-        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any()))
+        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(null);
 
-        aiReviewService.reviewPost(1L, "```java\nint x = 1;\n```");
+        aiReviewService.reviewPost(1L, "Some title", "```java\nint x = 1;\n```", 99L, false);
+
+        // one initial call + one retry
+        verify(llmClient, times(2)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
 
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(aiReviewLogMapper).insert((AiReviewLog) logCaptor.capture());
         assertEquals("code-review-agent", logCaptor.getValue().getReviewer());
         assertEquals("unavailable", logCaptor.getValue().getSeverity());
         verify(vibeCommentMapper, never()).insert(any(VibeComment.class));
+        // author is informed that the review failed and will be retried
+        verify(sysMessageService).sendMessage(eq(0L), eq(99L), contains("自动重试"), eq(3));
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
         verify(vibePostMapper).updateById(postCaptor.capture());
         assertEquals(1L, postCaptor.getValue().getId());
-        assertEquals(1, postCaptor.getValue().getAiReviewed());
+        assertEquals(3, postCaptor.getValue().getAiReviewed());
     }
 
     @Test
     @DisplayName("reviewPost persists score, logs result and posts AI comment")
     void reviewPostShouldRunFullPipeline() throws Exception {
-        JsonNode result = objectMapper.readTree(
-                "{\"score\":8,\"severity\":\"low\",\"codeQuality\":\"solid\","
-                        + "\"securityConcerns\":\"minor\",\"optimizationSuggestions\":\"extract methods\"}");
-        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any()))
-                .thenReturn(result);
+        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(validReview());
 
-        aiReviewService.reviewPost(42L, "```java\npublic void run() {}\n```");
+        aiReviewService.reviewPost(42L, "Calculator", "```java\npublic void run() {}\n```", 42L, false);
+
+        // a single LLM call — valid results are not retried
+        verify(llmClient, times(1)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
 
         // review log saved with parsed severity and approval
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
@@ -179,7 +256,7 @@ class AiReviewServiceTest {
         assertEquals(42L, comment.getPostId());
         assertEquals(999L, comment.getUserId());
         assertTrue(comment.getContent().contains("8/10"));
-        assertTrue(comment.getContent().contains("extract methods"));
+        assertTrue(comment.getContent().contains("add unit tests"));
 
         // score written back to the post
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
@@ -187,25 +264,60 @@ class AiReviewServiceTest {
         assertEquals(42L, postCaptor.getValue().getId());
         assertEquals(8, postCaptor.getValue().getAiReviewScore());
         assertEquals(1, postCaptor.getValue().getAiReviewed());
+
+        // a successful review does not ping the author
+        verify(sysMessageService, never()).sendMessage(any(), any(), any(), any());
     }
 
     @Test
-    @DisplayName("reviewPost still works when LLM structured call fails and falls back")
-    void reviewPostShouldHandleStructuredFallback() throws Exception {
-        // The service is exercised end-to-end; the fallback path lives in LlmClient
-        // and is covered by integration, so here we just verify a rejected review
-        // is logged as not approved.
-        JsonNode result = objectMapper.readTree(
-                "{\"score\":3,\"severity\":\"high\",\"codeQuality\":\"messy\","
-                        + "\"securityConcerns\":\"sqli\",\"optimizationSuggestions\":\"rewrite\"}");
-        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any()))
-                .thenReturn(result);
+    @DisplayName("reviewPost retries an invalid result with the reinforced prompt, then succeeds")
+    void reviewPostShouldRetryInvalidResultOnce() throws Exception {
+        JsonNode garbage = objectMapper.readTree(
+                "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
+                        + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
+        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(garbage)
+                .thenReturn(validReview());
 
-        aiReviewService.reviewPost(7L, "```sql\nSELECT * FROM users WHERE id = 1\n```");
+        aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
 
+        // invalid first result → exactly one retry with the reinforced prompt
+        verify(llmClient, times(2)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
+        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
+        verify(llmClient, times(2)).chatCompletionStructured(
+                systemCaptor.capture(), anyString(), anyString(), any(), any());
+        assertTrue(systemCaptor.getAllValues().get(1).contains("STRICT OUTPUT REQUIREMENTS"));
+
+        // second result is valid: comment posted, score written back
+        verify(vibeCommentMapper).insert(any(VibeComment.class));
+        ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
+        verify(vibePostMapper).updateById(postCaptor.capture());
+        assertEquals(8, postCaptor.getValue().getAiReviewScore());
+    }
+
+    @Test
+    @DisplayName("reviewPost degrades silently when both results fail validation")
+    void reviewPostShouldDegradeAfterSecondInvalidResult() throws Exception {
+        JsonNode garbage = objectMapper.readTree(
+                "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
+                        + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
+        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(garbage);
+
+        aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
+
+        // initial call + one retry, then no further LLM work
+        verify(llmClient, times(2)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
+
+        // logged as unknown, no score, no comment, post FAILED for reconciliation
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(aiReviewLogMapper).insert((AiReviewLog) logCaptor.capture());
-        assertEquals("high", logCaptor.getValue().getSeverity());
-        assertEquals(0, logCaptor.getValue().getIsApproved());
+        assertEquals("unknown", logCaptor.getValue().getSeverity());
+        verify(vibeCommentMapper, never()).insert(any(VibeComment.class));
+        verify(sysMessageService).sendMessage(eq(0L), eq(7L), contains("自动重试"), eq(3));
+        ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
+        verify(vibePostMapper).updateById(postCaptor.capture());
+        assertEquals(3, postCaptor.getValue().getAiReviewed());
+        assertNull(postCaptor.getValue().getAiReviewScore());
     }
 }

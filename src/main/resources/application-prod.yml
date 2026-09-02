@@ -44,6 +44,7 @@ campus:
     password: ${DEMO_PASSWORD:}
     # Demo accounts are opt-in for production; set DEMO_SEED_ENABLED=true for a public demo.
     seed-enabled: ${DEMO_SEED_ENABLED:false}
+    endpoints-enabled: ${DEMO_ENDPOINTS_ENABLED:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:https://nexus-vibe.shing26.is-a.dev}
   upload:
@@ -51,13 +52,19 @@ campus:
   es:
     uri: ${ES_URI:http://localhost:9200}
   ai:
+    reconcile:
+      stale-minutes: ${AI_RECONCILE_STALE_MINUTES:10}
     review:
       enabled: ${AI_REVIEW_ENABLED:true}
+      max-context-tokens: ${AI_MAX_CONTEXT_TOKENS:12000}
     llm:
       endpoint: ${LLM_ENDPOINT:https://api.openai.com/v1}
       api-key: ${LLM_API_KEY:}
       model: ${LLM_MODEL:gpt-4o}
       timeout: ${LLM_TIMEOUT:30s}
+      breaker:
+        failure-threshold: ${AI_BREAKER_FAILURE_THRESHOLD:3}
+        open-seconds: ${AI_BREAKER_OPEN_SECONDS:60}
 
 logging:
   level:

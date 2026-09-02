@@ -128,6 +128,7 @@ class SysUserServiceTest {
     void registerNewUser() {
         RegisterRequest request = new RegisterRequest();
         request.setUsername("newuser");
+        request.setEmail("newuser@example.com");
         request.setPassword(rawPassword);
         request.setNickname("New User");
 
@@ -152,6 +153,54 @@ class SysUserServiceTest {
         assertEquals(0, inserted.getCorePower());
         assertEquals(1, inserted.getLevel());
         assertEquals(1, inserted.getStatus());
+        assertEquals("newuser@example.com", inserted.getEmail());
+    }
+
+    @Test
+    @DisplayName("register() with an existing email should throw RuntimeException")
+    void registerDuplicateEmail() {
+        RegisterRequest request = new RegisterRequest();
+        request.setUsername("anotheruser");
+        request.setEmail("taken@example.com");
+        request.setPassword(rawPassword);
+        request.setNickname("Another");
+
+        when(sysUserMapper.selectOne(any())).thenReturn(null).thenReturn(seedUser);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> sysUserService.register(request));
+        assertTrue(ex.getMessage().contains("Email already exists"));
+        verify(sysUserMapper, never()).insert(any(SysUser.class));
+    }
+
+    @Test
+    @DisplayName("resetPassword() replaces the password and returns a working temp password")
+    void resetPasswordReturnsTempPassword() {
+        when(sysUserMapper.selectOne(any())).thenReturn(seedUser);
+        when(passwordEncoder.encode(anyString())).thenReturn("encoded-temp");
+        when(sysUserMapper.updateById(any(SysUser.class))).thenReturn(1);
+
+        String temp = sysUserService.resetPassword("testuser");
+
+        assertNotNull(temp);
+        assertEquals(12, temp.length());
+        assertTrue(temp.chars().anyMatch(Character::isUpperCase));
+        assertTrue(temp.chars().anyMatch(Character::isLowerCase));
+        assertTrue(temp.chars().anyMatch(Character::isDigit));
+        ArgumentCaptor<SysUser> captor = ArgumentCaptor.forClass(SysUser.class);
+        verify(sysUserMapper).updateById((SysUser) captor.capture());
+        assertEquals("encoded-temp", captor.getValue().getPassword());
+    }
+
+    @Test
+    @DisplayName("resetPassword() throws for an unknown username")
+    void resetPasswordUnknownUserThrows() {
+        when(sysUserMapper.selectOne(any())).thenReturn(null);
+
+        RuntimeException ex = assertThrows(RuntimeException.class,
+                () -> sysUserService.resetPassword("ghost"));
+        assertTrue(ex.getMessage().contains("User not found"));
+        verify(sysUserMapper, never()).updateById(any(SysUser.class));
     }
 
     @Test
@@ -159,6 +208,7 @@ class SysUserServiceTest {
     void registerDuplicateUsername() {
         RegisterRequest request = new RegisterRequest();
         request.setUsername("testuser");
+        request.setEmail("testuser@example.com");
         request.setPassword(rawPassword);
         request.setNickname("Duplicate");
 

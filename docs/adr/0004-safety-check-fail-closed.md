@@ -1,0 +1,5 @@
+﻿# 0004 — Safety check fails closed when the LLM is unavailable
+
+When the LLM backend is unreachable, times out, or returns a response that cannot be parsed into a valid classification, the Safety Check Agent previously defaulted to "Safe" (fail-open). We changed this to fail-closed: the post enters the human audit queue (PENDING_REVIEW) with a "pending-llm" marker in ai_review_log, and the reconciliation task re-runs the check once the LLM is healthy again — restoring the post to visible if the re-check is Safe.
+
+The old fail-open behavior meant an LLM outage silently disabled content moderation: every post published during the outage was auto-classified Safe without any check. Fail-closed trades availability for safety — during an outage posts do not appear publicly until either the LLM recovers or an admin approves them manually, which is the correct trade-off for a platform whose moderation story is a headline feature. The check itself also moved from string-matching free-text responses to structured output (enum classification + confidence + reason), eliminating the hand-written negation-patching heuristics.

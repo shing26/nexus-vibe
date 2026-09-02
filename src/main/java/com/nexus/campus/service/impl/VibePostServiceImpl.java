@@ -18,6 +18,7 @@ import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.service.PostSearchService;
 import com.nexus.campus.service.PostRankingService;
 import com.nexus.campus.service.SensitiveWordService;
+import com.nexus.campus.service.SysMessageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -52,6 +53,9 @@ public class VibePostServiceImpl implements VibePostService {
 
     @Autowired
     private PostSearchService postSearchService;
+
+    @Autowired
+    private SysMessageService sysMessageService;
 
     @Autowired
     private PostRankingService postRankingService;
@@ -160,12 +164,12 @@ public class VibePostServiceImpl implements VibePostService {
 
         // Publish AI review event if enabled
         if (aiReviewEnabled) {
-            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getContent()));
+            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
         }
 
         // Publish AI safety check event if enabled (only for posts that passed DFA)
         if (aiReviewEnabled && post.getStatus() == 1) {
-            eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getContent(), userId));
+            eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
         }
 
         return post;
@@ -556,6 +560,7 @@ public class VibePostServiceImpl implements VibePostService {
             if (fullPost != null) {
                 postSearchService.indexPost(fullPost);
             }
+            notifyAuthor(post, "你的帖子《" + post.getTitle() + "》已通过人工审核并发布。");
         }
         return updated;
     }
@@ -566,7 +571,24 @@ public class VibePostServiceImpl implements VibePostService {
         VibePost post = vibePostMapper.selectById(postId);
         if (post == null) return false;
         post.setStatus(3); // 3 = Rejected
-        return vibePostMapper.updateById(post) > 0;
+        boolean updated = vibePostMapper.updateById(post) > 0;
+        if (updated) {
+            notifyAuthor(post, "你的帖子《" + post.getTitle() + "》未通过人工审核，已被下架。如有疑问请联系管理员。");
+        }
+        return updated;
+    }
+
+    /**
+     * Best-effort author notification for audit-state changes; never blocks
+     * the audit action itself.
+     */
+    private void notifyAuthor(VibePost post, String content) {
+        try {
+            sysMessageService.sendMessage(SysMessage.FROM_SYSTEM, post.getUserId(), content, SysMessage.TYPE_SYSTEM);
+        } catch (Exception e) {
+            log.warn("Failed to notify author {} for post {}: {}",
+                     post.getUserId(), post.getId(), e.getMessage());
+        }
     }
 
     @Cacheable(value = "posts", key = "'active'")

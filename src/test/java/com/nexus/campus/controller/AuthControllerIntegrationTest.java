@@ -37,6 +37,7 @@ class AuthControllerIntegrationTest {
     void registerNewUser_shouldReturn200() throws Exception {
         RegisterRequest request = new RegisterRequest();
         request.setUsername("freshuser_" + System.currentTimeMillis());
+        request.setEmail("fresh_" + System.currentTimeMillis() + "@example.com");
         request.setPassword("testPass123");
         request.setNickname("Fresh User");
 
@@ -55,6 +56,7 @@ class AuthControllerIntegrationTest {
     void registerDuplicateUser_shouldReturn400() throws Exception {
         RegisterRequest request = new RegisterRequest();
         request.setUsername("admin"); // admin exists in seed data so registration should fail
+        request.setEmail("admin@example.com");
         request.setPassword("testPass123");
         request.setNickname("Duplicate");
 

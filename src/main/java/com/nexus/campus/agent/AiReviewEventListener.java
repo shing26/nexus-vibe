@@ -52,29 +52,22 @@ public class AiReviewEventListener {
         }
 
         try {
-            // Run the review
-            aiReviewService.reviewPost(postId, content);
-
-            // Mark as complete (1 = reviewed, approved/pending); keep the score AiReviewService persisted
-            VibePost post = vibePostMapper.selectById(postId);
-            if (post != null) {
-                post.setAiReviewed(AiReviewStatus.REVIEWED.getCode());
-                vibePostMapper.updateById(post);
-            }
+            // Run the review; reviewPost owns the terminal state
+            // (REVIEWED with score, or FAILED for reconciliation)
+            aiReviewService.reviewPost(postId, event.getTitle(), content, event.getAuthorId(), event.isRetried());
             log.info("AI review completed for post {}", postId);
 
         } catch (Exception e) {
             log.warn("AI review failed for post {}: {}", postId, e.getMessage());
 
-            // Mark as failed (0 = not reviewed, will retry)
+            // Mark as failed (3) so the reconciliation task retries
             try {
-                VibePost post = vibePostMapper.selectById(postId);
-                if (post != null) {
-                    post.setAiReviewed(AiReviewStatus.NOT_REVIEWED.getCode());
-                    vibePostMapper.updateById(post);
-                }
+                VibePost post = new VibePost();
+                post.setId(postId);
+                post.setAiReviewed(AiReviewStatus.FAILED.getCode());
+                vibePostMapper.updateById(post);
             } catch (Exception ex) {
-                log.warn("Failed to reset ai_reviewed status for post {}: {}", postId, ex.getMessage());
+                log.warn("Failed to mark post {} as FAILED: {}", postId, ex.getMessage());
             }
         }
     }

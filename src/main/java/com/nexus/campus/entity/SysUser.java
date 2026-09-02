@@ -18,6 +18,8 @@ public class SysUser implements Serializable {
     @TableField(condition = SqlCondition.EQUAL)
     private String username;
 
+    private String email;
+
     private String password;
 
     private String nickname;

@@ -2,6 +2,7 @@ package com.nexus.campus.dto;
 
 import lombok.Data;
 
+import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
@@ -15,6 +16,16 @@ public class RegisterRequest implements Serializable {
     @NotBlank(message = "Username is required")
     @Size(min = 3, max = 50, message = "Username must be 3-50 characters")
     private String username;
+
+    /**
+     * Collected at registration as the account-recovery anchor. The platform
+     * does not send mail yet; password resets go through an admin, so the
+     * address must be real and unique.
+     */
+    @NotBlank(message = "Email is required")
+    @Email(message = "Email format is invalid")
+    @Size(max = 100, message = "Email must not exceed 100 characters")
+    private String email;
 
     @NotBlank(message = "Password is required")
     @Size(min = 8, max = 20, message = "Password must be 8-20 characters")

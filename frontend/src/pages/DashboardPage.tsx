@@ -1,6 +1,7 @@
+import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
-import { Clock, Inbox, PieChart } from 'lucide-react';
+import { Clock, Inbox, KeyRound, PieChart } from 'lucide-react';
 import { apiClient } from '../api/client';
 import type { PostPageVo } from '../types/post';
 
@@ -61,6 +62,27 @@ export default function DashboardPage() {
     queryKey: ['channels', 'stats'],
     queryFn: () => apiClient.get('/channels/stats').then((r) => r.data),
   });
+
+  // Admin password recovery stopgap: no mail delivery yet, so the generated
+  // temporary password is shown here for the admin to hand over out-of-band.
+  const [resetUsername, setResetUsername] = useState('');
+  const [resetResult, setResetResult] = useState<{ username: string; tempPassword: string } | null>(null);
+  const [resetError, setResetError] = useState('');
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetPassword = async () => {
+    setResetError('');
+    setResetResult(null);
+    if (!resetUsername.trim()) { setResetError('Enter a username'); return; }
+    setResetting(true);
+    try {
+      const res = await apiClient.post('/admin/users/reset-password', { username: resetUsername.trim() });
+      setResetResult(res.data.data);
+      setResetUsername('');
+    } catch (err: any) {
+      setResetError(err?.response?.data?.message || 'Reset failed');
+    } finally { setResetting(false); }
+  };
 
   if (isLoading) {
     return (
@@ -187,6 +209,47 @@ export default function DashboardPage() {
           </div>
         </section>
       </div>
+
+      <section className="bg-vibe-surface border border-vibe-border rounded-lg overflow-hidden mt-8">
+        <div className="flex items-center gap-2 px-4 py-3 bg-vibe-card/50 border-b border-vibe-border">
+          <KeyRound className="w-4 h-4 text-vibe-emerald" />
+          <h2 className="text-xs font-mono font-semibold text-slate-300 uppercase tracking-wider">
+            Account Recovery
+          </h2>
+          <span className="ml-auto text-[10px] font-mono text-slate-600">admin-only · temp password</span>
+        </div>
+        <div className="p-4 space-y-3">
+          <p className="text-[11px] font-mono text-slate-500">
+            邮件通道尚未开通：为忘记密码的用户生成临时密码，线下转交，并提醒用户登录后立即修改。
+          </p>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={resetUsername}
+              onChange={(e) => setResetUsername(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleResetPassword(); }}
+              placeholder="username"
+              className="flex-1 max-w-xs px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-emerald/50 focus:border-vibe-emerald/50"
+            />
+            <button
+              onClick={handleResetPassword}
+              disabled={resetting}
+              className="px-4 py-2 rounded-lg bg-vibe-emerald/20 border border-vibe-emerald/30 text-vibe-emerald text-xs font-mono hover:bg-vibe-emerald/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            >
+              {resetting ? 'Generating...' : 'Generate temp password'}
+            </button>
+          </div>
+          {resetError && (
+            <p className="text-[11px] font-mono text-red-400">! {resetError}</p>
+          )}
+          {resetResult && (
+            <div className="bg-vibe-bg border border-vibe-border rounded-lg px-3 py-2 font-mono text-xs">
+              <span className="text-slate-500">{resetResult.username} 的临时密码：</span>
+              <span className="text-vibe-emerald select-all">{resetResult.tempPassword}</span>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

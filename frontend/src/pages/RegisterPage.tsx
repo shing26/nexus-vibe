@@ -13,6 +13,7 @@ export default function RegisterPage() {
   const addToast = useToastStore((s) => s.addToast);
   const { dark, toggle } = useThemeStore();
   const [username, setUsername] = useState("");
+  const [email, setEmail] = useState("");
   const [nickname, setNickname] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -24,6 +25,8 @@ export default function RegisterPage() {
     setError("");
     if (!username.trim() || username.trim().length < 3) { setError("Username needs 3+ chars"); return; }
     if (username.trim().length > 50) { setError("Username must not exceed 50 characters"); return; }
+    if (!email.trim()) { setError("Email is required for account recovery"); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) { setError("Email format is invalid"); return; }
     if (!nickname.trim()) { setError("Nickname is required"); return; }
     if (nickname.trim().length > 50) { setError("Nickname must not exceed 50 characters"); return; }
     if (!password || password.length < 8 || password.length > 20) { setError("Password must be 8-20 characters"); return; }
@@ -35,7 +38,7 @@ export default function RegisterPage() {
     setLoading(true);
     try {
       const res = await apiClient.post("/auth/register", {
-        username: username.trim(), nickname: nickname.trim(), password,
+        username: username.trim(), email: email.trim(), nickname: nickname.trim(), password,
       });
       const d = res.data.data;
       setAuth(d.token, {
@@ -83,6 +86,10 @@ export default function RegisterPage() {
 
               <input type="text" value={username} onChange={(e) => setUsername(e.target.value)}
                 placeholder="username" autoComplete="username"
+                className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+              />
+              <input type="email" value={email} onChange={(e) => setEmail(e.target.value)}
+                placeholder="email (for account recovery)" autoComplete="email"
                 className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
               />
               <input type="text" value={nickname} onChange={(e) => setNickname(e.target.value)}

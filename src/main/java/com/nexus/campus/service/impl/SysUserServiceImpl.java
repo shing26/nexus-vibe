@@ -64,9 +64,17 @@ public class SysUserServiceImpl implements SysUserService {
         if (existing != null) {
             throw new RuntimeException("Username already exists.");
         }
+        SysUser existingEmail = sysUserMapper.selectOne(
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
+                        .eq(SysUser::getEmail, request.getEmail())
+        );
+        if (existingEmail != null) {
+            throw new RuntimeException("Email already exists.");
+        }
 
         SysUser user = new SysUser();
         user.setUsername(request.getUsername());
+        user.setEmail(request.getEmail());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
         user.setNickname(request.getNickname());
         user.setRole("USER");
@@ -107,6 +115,40 @@ public class SysUserServiceImpl implements SysUserService {
         user.setCorePower(user.getCorePower() + points);
         user.setLevel(calculateLevel(user.getCorePower()));
         return sysUserMapper.updateById(user) > 0;
+    }
+
+    @Override
+    public String resetPassword(String username) {
+        SysUser user = getUserByUsername(username);
+        if (user == null) {
+            throw new RuntimeException("User not found.");
+        }
+        String tempPassword = generateTempPassword();
+        user.setPassword(passwordEncoder.encode(tempPassword));
+        if (sysUserMapper.updateById(user) <= 0) {
+            throw new RuntimeException("Failed to reset password.");
+        }
+        return tempPassword;
+    }
+
+    /**
+     * 12-char password satisfying the same complexity rule as registration:
+     * upper, lower, digit. Prefix guarantees at least one of each class.
+     */
+    private String generateTempPassword() {
+        String upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+        String lower = "abcdefghijkmnpqrstuvwxyz";
+        String digits = "23456789";
+        String all = upper + lower + digits + upper + lower + digits;
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder();
+        sb.append(upper.charAt(random.nextInt(upper.length())));
+        sb.append(lower.charAt(random.nextInt(lower.length())));
+        sb.append(digits.charAt(random.nextInt(digits.length())));
+        for (int i = 0; i < 9; i++) {
+            sb.append(all.charAt(random.nextInt(all.length())));
+        }
+        return sb.toString();
     }
 
     private int calculateLevel(int corePower) {

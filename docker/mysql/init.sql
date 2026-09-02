@@ -18,6 +18,7 @@ USE `nexus_campus`;
 CREATE TABLE IF NOT EXISTS `sys_user` (
   `id` bigint NOT NULL PRIMARY KEY,
   `username` varchar(50) NOT NULL UNIQUE,
+  `email` varchar(100) DEFAULT NULL UNIQUE,
   `password` varchar(100) NOT NULL,
   `nickname` varchar(50) NOT NULL,
   `avatar` varchar(255) DEFAULT 'default_avatar.png',

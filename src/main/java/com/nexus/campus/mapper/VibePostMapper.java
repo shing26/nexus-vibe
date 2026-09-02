@@ -10,6 +10,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 import org.apache.ibatis.annotations.Update;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -226,4 +227,29 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     int unpinPost(@Param("id") Long id);
     @Update("UPDATE vibe_post SET status = #{status} WHERE id = #{id}")
     int updatePostStatus(@Param("id") Long id, @Param("status") Integer status);
+
+    // Stale = in a retryable ai_reviewed state, older than the stale window,
+    // AND with no review attempt logged inside that window (ai_review_log is
+    // written on every attempt). Without the NOT EXISTS guard a post whose
+    // create_time predates the window would be re-triggered every cycle
+    // forever, because create_time never advances.
+    @Select("SELECT p.* FROM vibe_post p " +
+            "WHERE p.ai_reviewed = #{status} AND p.create_time < #{before} " +
+            "AND NOT EXISTS (SELECT 1 FROM ai_review_log l " +
+            "WHERE l.post_id = p.id AND l.reviewer = 'code-review-agent' " +
+            "AND l.created_at >= #{before}) " +
+            "ORDER BY p.create_time LIMIT #{limit}")
+    List<VibePost> selectStaleAiReviewPosts(@Param("status") int status,
+                                            @Param("before") LocalDateTime before,
+                                            @Param("limit") int limit);
+
+    @Select("SELECT p.* FROM vibe_post p " +
+            "WHERE p.status = 2 AND EXISTS (SELECT 1 FROM ai_review_log l " +
+            "WHERE l.post_id = p.id AND l.reviewer = 'safety-check-agent' " +
+            "AND l.severity = 'pending-llm' AND l.created_at < #{before} " +
+            "AND l.id = (SELECT MAX(l2.id) FROM ai_review_log l2 " +
+            "WHERE l2.post_id = p.id AND l2.reviewer = 'safety-check-agent')) " +
+            "ORDER BY p.create_time LIMIT #{limit}")
+    List<VibePost> selectPostsPendingSafetyRecheck(@Param("before") LocalDateTime before,
+                                                   @Param("limit") int limit);
 }

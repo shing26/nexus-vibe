@@ -98,6 +98,8 @@ campus:
   demo:
     password: ${DEMO_PASSWORD:123456}
     seed-enabled: true
+    # Feature-demo endpoints (/api/demo/*) are anonymous; off by default.
+    endpoints-enabled: ${DEMO_ENDPOINTS_ENABLED:false}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
   upload:
@@ -112,13 +114,24 @@ campus:
   ai:
     review:
       enabled: true
+      # Context budget for code blocks sent to the LLM. Keep within the
+      # model's context window (local 7B models are typically 8k-32k).
+      max-context-tokens: 12000
     safety:
       enabled: true
+    reconcile:
+      # Posts younger than this are not yet considered lost/stale
+      stale-minutes: 10
     llm:
       endpoint: ${LLM_ENDPOINT:http://localhost:11434/v1}
       api-key: ${LLM_API_KEY:}
       model: ${LLM_MODEL:qwen2.5:7b}
       timeout: ${LLM_TIMEOUT:30s}
+      breaker:
+        # Consecutive failed calls before the circuit opens
+        failure-threshold: 3
+        # Seconds the circuit stays open, failing fast
+        open-seconds: 60
 
 # Logging
 logging:

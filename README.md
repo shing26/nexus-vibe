@@ -212,8 +212,29 @@ ollama serve
 
 No API key is needed for local Ollama. To use a hosted OpenAI-compatible API
 instead (for example in production), set `LLM_ENDPOINT`, `LLM_MODEL`, and
-`LLM_API_KEY` in `.env`. If the endpoint is unreachable, agents log a warning
-and skip LLM calls; the rest of the platform still works normally.
+`LLM_API_KEY` in `.env`.
+
+**Model quality bar**: the review agent validates LLM output semantically —
+schema-valid but empty/placeholder responses (common from local 7B/3B models)
+are retried once with a reinforced prompt, then degrade silently: the review is
+logged as `unknown`, no score is written back, and no AI comment is posted.
+Local `qwen2.5:7b`/`3b` are fine for exercising the pipeline, but for reviews
+you can actually use, run a hosted model (e.g. `gpt-4o`) or a local model of
+14B or larger in production.
+
+**Fail-closed safety check**: when the LLM is unreachable, new posts enter the
+admin audit queue (`PENDING_REVIEW`) instead of being published unchecked; a
+reconciliation task re-runs the check when the LLM recovers and restores the
+post if it is Safe. Stuck/failed reviews are likewise retried automatically.
+
+**Account recovery**: registration collects a unique email as the recovery
+anchor. Mail delivery is not built yet, so password resets are admin-assisted:
+`POST /api/v1/admin/users/reset-password` (or the "Account Recovery" card on
+the admin dashboard) generates a temporary password for out-of-band handover.
+
+**Author notifications**: authors are messaged in-app when their post is held
+for audit, when the AI review fails (auto-retry follows), and when an admin
+approves or rejects the post. Spam rejections stay silent by design.
 
 ### Public Deployment (Docker Compose + Cloudflare Tunnel)
 

@@ -22,6 +22,26 @@ _Avoid_: ReviewTask, AuditEvent
 系统内置的 AI 机器人角色，有实体账号（role=AI_AGENT），可自动回帖、执行 Code Review、进行语义安全检测。
 _Avoid_: Bot, AutoReviewer
 
+**Code Review Agent**:
+对带 CodeSnippet 的 VibePost 执行异步 LLM 评审的 Agent，产出结构化评分与建议并自动回帖。评审结果必须通过语义校验才算有效。
+_Avoid_: ReviewBot
+
+**Safety Check Agent**:
+对已发布 VibePost 做语义安全分类（safe / prompt_injection / harmful / spam）的 Agent。
+_Avoid_: ContentFilter, Moderator
+
+**Review Validity（评审结果有效性）**:
+Code Review Agent 的结构化结果必须通过语义校验——severity 合法、quality/suggestions 内容充实且非占位词——才写入评分；无效结果用强化提示词重试一次，仍无效则标记 FAILED 静默降级。
+_Avoid_: Format Check, Output Validation
+
+**Fail-closed**:
+Safety Check Agent 在 LLM 不可用或输出无法解析时的保守策略：帖子进入人工审核队列（PENDING_REVIEW）并记录 pending-llm 标记，LLM 恢复后由对账任务自动重跑。
+_Avoid_: Fail-safe, Fallback
+
+**Reconciliation（对账任务）**:
+每 5 分钟扫描卡在 REVIEWING、FAILED 或 pending-llm 状态的帖子并重新触发 Agent 事件的定时任务；重跑前先用轻量探针确认 LLM 健康。
+_Avoid_: Retry Job, Cleanup Task
+
 **CodeSnippet**:
 VibePost 中提取出的可执行或可审查的代码片段（以 ` 标记提取），以 JSON 数组形式存储在 ibe_post.code_snippets 字段。
 _Avoid_: CodeBlock, Attachment
@@ -77,3 +97,5 @@ _Avoid_: BbsComment, Reply
 | 不当内容 | 自动隐藏（status=3），系统消息通知作者 |
 | 垃圾广告 | 自动隐藏（status=3），不通知 |
 | 安全 | 仅写入 ai_review_log |
+
+LLM 不可用或输出无法解析时 fail-closed：帖子入审核队列并标记 pending-llm，由对账任务在 LLM 恢复后自动重跑；重跑结果为安全时帖子恢复可见。

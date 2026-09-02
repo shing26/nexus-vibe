@@ -9,9 +9,13 @@ import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
@@ -24,12 +28,21 @@ public class LlmClient {
     private final String model;
     private final ObjectMapper objectMapper;
 
+    private final int breakerFailureThreshold;
+    private final long breakerOpenMillis;
+    private final AtomicInteger consecutiveFailures = new AtomicInteger();
+    private final AtomicLong circuitOpenUntil = new AtomicLong();
+
     public LlmClient(
             @Value("${campus.ai.llm.endpoint}") String endpoint,
             @Value("${campus.ai.llm.api-key:}") String apiKey,
             @Value("${campus.ai.llm.model}") String model,
-            @Value("${campus.ai.llm.timeout}") Duration timeout) {
+            @Value("${campus.ai.llm.timeout}") Duration timeout,
+            @Value("${campus.ai.llm.breaker.failure-threshold:3}") int breakerFailureThreshold,
+            @Value("${campus.ai.llm.breaker.open-seconds:60}") long breakerOpenSeconds) {
         this.model = model;
+        this.breakerFailureThreshold = breakerFailureThreshold;
+        this.breakerOpenMillis = breakerOpenSeconds * 1000;
         this.objectMapper = new ObjectMapper();
         ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
                 .withConnectTimeout(timeout)
@@ -53,8 +66,15 @@ public class LlmClient {
      * @return the assistant's response text, or null on failure
      */
     public String chatCompletion(String systemPrompt, String userContent) {
+        return chatCompletion(systemPrompt, userContent, null);
+    }
+
+    public String chatCompletion(String systemPrompt, String userContent, Double temperature) {
         ObjectNode requestBody = objectMapper.createObjectNode();
         requestBody.put("model", model);
+        if (temperature != null) {
+            requestBody.put("temperature", temperature);
+        }
         ArrayNode messages = requestBody.putArray("messages");
         messages.addObject().put("role", "system").put("content", systemPrompt);
         messages.addObject().put("role", "user").put("content", userContent);
@@ -78,8 +98,16 @@ public class LlmClient {
      */
     public JsonNode chatCompletionStructured(String systemPrompt, String userContent,
                                               String schemaName, JsonNode jsonSchema) {
+        return chatCompletionStructured(systemPrompt, userContent, schemaName, jsonSchema, null);
+    }
+
+    public JsonNode chatCompletionStructured(String systemPrompt, String userContent,
+                                              String schemaName, JsonNode jsonSchema, Double temperature) {
         ObjectNode requestBody = objectMapper.createObjectNode();
         requestBody.put("model", model);
+        if (temperature != null) {
+            requestBody.put("temperature", temperature);
+        }
 
         // Add response_format for structured outputs
         ObjectNode responseFormat = requestBody.putObject("response_format");
@@ -96,7 +124,7 @@ public class LlmClient {
         String contentJson = withRetry(() -> postChatCompletion(requestBody), "structured completion");
         if (contentJson == null) {
             log.warn("LLM structured completion failed, falling back to plain completion");
-            return parseFallback(chatCompletion(systemPrompt, userContent));
+            return parseFallback(chatCompletion(systemPrompt, userContent, temperature));
         }
 
         try {
@@ -104,7 +132,7 @@ public class LlmClient {
             return objectMapper.readTree(contentJson);
         } catch (Exception e) {
             log.warn("Failed to parse structured JSON response: {}", e.getMessage());
-            return parseFallback(chatCompletion(systemPrompt, userContent));
+            return parseFallback(chatCompletion(systemPrompt, userContent, temperature));
         }
     }
 
@@ -163,24 +191,74 @@ public class LlmClient {
      * Runs a fallible LLM call up to {@link #MAX_ATTEMPTS} times with
      * exponential backoff (500ms, 1s, ...). Returns null once attempts are
      * exhausted, matching the fail-open contract of the AI agents.
+     *
+     * <p>Only transient failures are retried: 429, 5xx, timeouts and I/O errors.
+     * Permanent 4xx rejections (bad key, malformed request) fail immediately.
+     * When the circuit breaker is open, the call fails fast with null.</p>
      */
     private <T> T withRetry(CheckedSupplier<T> action, String operation) {
+        if (isCircuitOpen()) {
+            log.warn("LLM circuit breaker open, failing fast for {}", operation);
+            return null;
+        }
         for (int attempt = 1; ; attempt++) {
             try {
-                return action.get();
+                T result = action.get();
+                recordSuccess();
+                return result;
+            } catch (RestClientResponseException e) {
+                if (e.getStatusCode().is4xxClientError()
+                        && e.getStatusCode().value() != 429) {
+                    log.warn("LLM {} rejected ({}), not retrying: {}", operation, e.getStatusCode(), e.getMessage());
+                    recordFailure();
+                    return null;
+                }
+                log.warn("LLM {} failed (attempt {}/{}): {}", operation, attempt, MAX_ATTEMPTS, e.getMessage());
             } catch (Exception e) {
                 log.warn("LLM {} failed (attempt {}/{}): {}", operation, attempt, MAX_ATTEMPTS, e.getMessage());
-                if (attempt >= MAX_ATTEMPTS) {
-                    return null;
-                }
-                try {
-                    Thread.sleep(INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1)));
-                } catch (InterruptedException ie) {
-                    Thread.currentThread().interrupt();
-                    return null;
-                }
+            }
+            if (attempt >= MAX_ATTEMPTS || isCircuitOpen()) {
+                recordFailure();
+                return null;
+            }
+            try {
+                Thread.sleep(INITIAL_RETRY_DELAY_MS * (1L << (attempt - 1)));
+            } catch (InterruptedException ie) {
+                Thread.currentThread().interrupt();
+                recordFailure();
+                return null;
             }
         }
+    }
+
+    private boolean isCircuitOpen() {
+        return circuitOpenUntil.get() > System.currentTimeMillis();
+    }
+
+    private void recordSuccess() {
+        consecutiveFailures.set(0);
+    }
+
+    private void recordFailure() {
+        int failures = consecutiveFailures.incrementAndGet();
+        if (failures >= breakerFailureThreshold) {
+            long until = System.currentTimeMillis() + breakerOpenMillis;
+            circuitOpenUntil.set(until);
+            consecutiveFailures.set(0);
+            log.warn("LLM circuit breaker opened for {}s after {} consecutive failed calls",
+                     breakerOpenMillis / 1000, failures);
+        }
+    }
+
+    /**
+     * Lightweight health probe used by the reconciliation task: a minimal
+     * chat completion that is cheap for any OpenAI-compatible backend.
+     *
+     * @return true when the LLM answered; false when unavailable or breaker open
+     */
+    public boolean isHealthy() {
+        String reply = chatCompletion("You are a health probe.", "Reply with exactly: OK", 0.0);
+        return reply != null;
     }
 
     @FunctionalInterface

@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **Account Recovery (P0)**
+  - Registration now collects a unique email as the recovery anchor (frontend + backend validation)
+  - Admin endpoint `POST /api/v1/admin/users/reset-password` generates a 12-char temporary password for out-of-band handover
+  - "Account Recovery" card on the admin dashboard
+
+- **Author Notifications (P0)**
+  - Authors are now notified when: their post is held for safety audit (fail-closed or prompt injection), their AI review fails and is queued for retry, and when an admin approves or rejects their post
+  - Spam remains silent by design (no abuser feedback, per ADR-0003)
+
+### Changed
+
+- `/api/demo/*` showcase endpoints are now gated behind `campus.demo.endpoints-enabled` and **off by default** (`DEMO_ENDPOINTS_ENABLED`); previously they were anonymous on any non-prod profile
+
 ## [1.0.0-CYBERPUNK] - 2026-07-17
 
 ### Added

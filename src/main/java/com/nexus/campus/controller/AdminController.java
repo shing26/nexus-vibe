@@ -3,11 +3,13 @@ package com.nexus.campus.controller;
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.AuditRequest;
 import com.nexus.campus.dto.PostPageVo;
+import com.nexus.campus.dto.ResetPasswordRequest;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.service.VibePostService;
 import com.nexus.campus.service.PostSearchService;
+import com.nexus.campus.service.SysUserService;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.mapper.VibeCommentMapper;
 import com.nexus.campus.mapper.SysUserMapper;
@@ -37,6 +39,34 @@ public class AdminController {
 
     @Autowired
     private PostSearchService postSearchService;
+
+    @Autowired
+    private SysUserService sysUserService;
+
+    /**
+     * Stopgap password recovery while the platform has no mail delivery:
+     * generates a random temporary password and returns it to the admin, who
+     * hands it to the user out-of-band. The user should change it after login.
+     */
+    @PostMapping("/users/reset-password")
+    public ApiResponse<Map<String, Object>> resetPassword(
+            @RequestBody ResetPasswordRequest request,
+            @RequestAttribute("currentRole") String role) {
+        ApiResponse check = checkAdmin(role);
+        if (check != null) return check;
+        if (request == null || request.getUsername() == null || request.getUsername().isBlank()) {
+            return ApiResponse.error(400, "Missing 'username' field.");
+        }
+        try {
+            String tempPassword = sysUserService.resetPassword(request.getUsername().trim());
+            Map<String, Object> data = new HashMap<>();
+            data.put("username", request.getUsername().trim());
+            data.put("tempPassword", tempPassword);
+            return ApiResponse.success("Temporary password generated. Deliver it to the user out-of-band and ask them to change it after login.", data);
+        } catch (RuntimeException e) {
+            return ApiResponse.error(404, e.getMessage());
+        }
+    }
 
     @GetMapping("/pending-posts")
     public ApiResponse<List<PostPageVo>> getPendingPosts(@RequestAttribute("currentRole") String role) {

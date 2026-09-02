@@ -18,4 +18,13 @@ public interface SysUserService {
     boolean updateUser(SysUser user);
 
     boolean addCorePower(Long userId, int points);
+
+    /**
+     * Stopgap password recovery until mail delivery exists: generates a random
+     * temporary password, replaces the user's password with it and returns the
+     * plaintext to the caller (the admin), who hands it to the user out-of-band.
+     *
+     * @return the generated temporary password
+     */
+    String resetPassword(String username);
 }

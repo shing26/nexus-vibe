@@ -14,17 +14,23 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.context.annotation.Profile;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.*;
 
+/**
+ * Feature-demo endpoints (seed hot posts, burst likes, trigger syncs).
+ * Disabled by default — the like-burst and seed endpoints are anonymous and
+ * would let anyone poison the hot ranking. Opt in explicitly for demos via
+ * {@code campus.demo.endpoints-enabled=true} (DEMO_ENDPOINTS_ENABLED in .env).
+ */
 @RestController
 @RequestMapping("/api/demo")
 @RequiredArgsConstructor
 @Slf4j
-@Profile("!prod")
+@ConditionalOnProperty(name = "campus.demo.endpoints-enabled", havingValue = "true", matchIfMissing = false)
 public class DemoShowcaseController {
 
     private final VibePostMapper vibePostMapper;

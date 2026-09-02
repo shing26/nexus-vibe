@@ -7,7 +7,8 @@ public enum AiReviewStatus {
 
     NOT_REVIEWED(0, "Not reviewed"),
     REVIEWED(1, "Reviewed"),
-    REVIEWING(2, "Review in progress");
+    REVIEWING(2, "Review in progress"),
+    FAILED(3, "Review failed, awaiting retry");
 
     private final int code;
     private final String label;

@@ -99,7 +99,8 @@ export default function PostDetailPage() {
     staleTime: 1000 * 60,
     refetchInterval: (query) => {
       const data = query.state.data as PostPageVo | undefined;
-      return data && data.aiReviewed !== 1 ? 5000 : false;
+      // Stop polling once reviewed (1) or failed (3, backend retries it)
+      return data && data.aiReviewed !== 1 && data.aiReviewed !== 3 ? 5000 : false;
     },
   });
 
@@ -257,7 +258,8 @@ export default function PostDetailPage() {
 
   const comments = commentsData ?? [];
   const totalComments = comments.length > 0 ? comments.length : post.commentCount;
-  const aiPending = hasCodeBlock && post.aiReviewed !== 1;
+  // 2 = REVIEWING; FAILED (3) posts stay quiet until the backend retries them
+  const aiPending = hasCodeBlock && post.aiReviewed === 2;
 
    return (
      <div className="max-w-[1400px] mx-auto px-4 py-8">
