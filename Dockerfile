@@ -37,4 +37,8 @@ ENV SERVER_PORT=8080
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 CMD curl -fsS http://localhost:${SERVER_PORT:-8080}/actuator/health || exit 1
 
-ENTRYPOINT ["java", "-jar", "nexus-campus.jar"]
+# JVM tuning arrives via JAVA_OPTS (set in docker-compose / runtime env):
+# heap percentage, GC choice, GC log rotation. Empty by default.
+ENV JAVA_OPTS=""
+
+ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar nexus-campus.jar"]

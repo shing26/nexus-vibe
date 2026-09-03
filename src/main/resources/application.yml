@@ -21,6 +21,11 @@ spring:
         max-size: 10
         queue-capacity: 100
     thread-name-prefix: nexus-async-
+    # @Scheduled tasks (like-sync, hot-ranking, AI reconcile) share this pool;
+    # sized > 1 so a slow reconcile probe can't delay the like flush.
+    scheduling:
+      pool:
+        size: 2
 
   sql:
     init:

@@ -116,6 +116,13 @@ services:
       REDIS_PORT: "6379"
       ES_URI: ${ES_URI:-http://elasticsearch:9200}
       TZ: Asia/Shanghai
+      # Heap = 75% of the 768m container limit (~576m); G1 + rotating GC log
+      # under /tmp for post-load analysis (see docs/research/).
+      JAVA_OPTS: >-
+        -XX:MaxRAMPercentage=75.0
+        -XX:+UseG1GC
+        -Xlog:gc*:file=/tmp/gc.log:time,uptime,level,tags:filecount=5,filesize=10m
+    mem_limit: 768m
     volumes:
       - app-uploads:/app/uploads
     expose:

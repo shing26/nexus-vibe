@@ -251,14 +251,32 @@ public class LlmClient {
     }
 
     /**
-     * Lightweight health probe used by the reconciliation task: a minimal
-     * chat completion that is cheap for any OpenAI-compatible backend.
+     * Health probe used by the reconciliation task: a minimal chat completion
+     * with a single attempt — no retries, no backoff — so a dead endpoint
+     * costs one connect timeout (~{@code campus.ai.llm.timeout}) instead of
+     * the full retry ladder, which would stall the shared scheduler thread.
+     * Breaker state is left untouched: probing must not open or reset the
+     * circuit.
      *
      * @return true when the LLM answered; false when unavailable or breaker open
      */
     public boolean isHealthy() {
-        String reply = chatCompletion("You are a health probe.", "Reply with exactly: OK", 0.0);
-        return reply != null;
+        if (isCircuitOpen()) {
+            return false;
+        }
+        try {
+            ObjectNode requestBody = objectMapper.createObjectNode();
+            requestBody.put("model", model);
+            requestBody.put("temperature", 0.0);
+            ArrayNode messages = requestBody.putArray("messages");
+            messages.addObject().put("role", "system").put("content", "You are a health probe.");
+            messages.addObject().put("role", "user").put("content", "Reply with exactly: OK");
+            String reply = postChatCompletion(requestBody);
+            return reply != null;
+        } catch (Exception e) {
+            log.debug("LLM health probe failed: {}", e.getMessage());
+            return false;
+        }
     }
 
     @FunctionalInterface

@@ -119,6 +119,9 @@ ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `token_count` int NOT NULL DEFA
 ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `post_type` varchar(10) NOT NULL DEFAULT 'post';
 ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `prompt_metadata` text;
 ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `forked_from_id` bigint;
+-- Covers the AI-curated listing: WHERE status=1 ORDER BY ai_reviewed DESC, ai_review_score DESC
+-- (placed after the ALTERs: the ai_* columns are appended to vibe_post here)
+CREATE INDEX IF NOT EXISTS `idx_post_ai_sort` ON `vibe_post`(`status`, `ai_reviewed`, `ai_review_score`);
 
 -- 10. Prompt template version history
 CREATE TABLE IF NOT EXISTS `vibe_prompt_version` (

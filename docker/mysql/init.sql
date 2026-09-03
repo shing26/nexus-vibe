@@ -70,7 +70,8 @@ CREATE TABLE IF NOT EXISTS `vibe_post` (
   `forked_from_id` bigint,
   INDEX `idx_post_user_id` (`user_id`),
   INDEX `idx_post_category_id` (`category_id`),
-  INDEX `idx_post_status` (`status`)
+  INDEX `idx_post_status` (`status`),
+  INDEX `idx_post_ai_sort` (`status`, `ai_reviewed`, `ai_review_score`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `vibe_post_tag` (
