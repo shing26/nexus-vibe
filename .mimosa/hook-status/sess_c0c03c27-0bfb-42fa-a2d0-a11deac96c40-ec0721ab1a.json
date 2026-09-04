@@ -1,14 +1,14 @@
 {
   "schemaVersion": "mimosa-hook-status/v1",
-  "recordedAt": "2026-09-04T20:19:21.896Z",
+  "recordedAt": "2026-09-04T21:47:31.963Z",
   "sessionId": "sess_c0c03c27-0bfb-42fa-a2d0-a11deac96c40",
   "event": "PostToolUse",
   "toolName": "Write",
-  "file": "src/test/java/com/nexus/campus/agent/AiReviewEventListenerTest.java",
+  "file": "docs/adr/0005-lease-based-review-claim.md",
   "outcome": "clear",
   "coverage": "complete",
   "findingCount": 0,
-  "durationMs": 16,
+  "durationMs": 4,
   "hostState": "hook_complete",
   "reportHint": ".mimosa/reports/"
 }

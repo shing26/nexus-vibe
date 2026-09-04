@@ -42,6 +42,14 @@ _Avoid_: Fail-safe, Fallback
 每 5 分钟扫描卡在 REVIEWING、FAILED 或 pending-llm 状态的帖子并重新触发 Agent 事件的定时任务；重跑前先用轻量探针确认 LLM 健康。
 _Avoid_: Retry Job, Cleanup Task
 
+**Review Lease（评审租约）**:
+帖子领取评审任务的原子凭据（review_lock_until/owner/attempts 列）。领取即一次条件 UPDATE，锁存续期内其他实例或重复事件不可二次处理；attempts 耗尽进入终态并通知作者。
+_Avoid_: Distributed Lock, Mutex
+
+**Drift Reconciliation（点赞漂移对账）**:
+比对 Redis 点赞集合与 MySQL like_count 的定时抽样校验。只有"DB 远大于 Redis"的丢失形态才触发以 vibe_post_like 表为真相源的重放重建；正常的写后滞留（Redis 领先 DB）不处理。
+_Avoid_: Cache Sync, Count Fix
+
 **CodeSnippet**:
 VibePost 中提取出的可执行或可审查的代码片段（以 ` 标记提取），以 JSON 数组形式存储在 ibe_post.code_snippets 字段。
 _Avoid_: CodeBlock, Attachment

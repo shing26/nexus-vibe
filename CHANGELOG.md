@@ -11,6 +11,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Review lease + attempt budget (ADR-0005)**: AI review attempts claim the post with an atomic
+  conditional UPDATE (review_lock_until/owner/attempts) — no double-processing across instances or
+  re-published events; after 5 failed attempts the author is notified once and re-dispatch stops
+- **Agent pool isolation**: a dedicated agentLlmExecutor (core2/max4/queue50) hosts the two
+  LLM-bound listeners; long model calls can no longer starve message/notification work on
+  nexus-async
+- **Like-count drift reconciliation**: hourly rotating-cursor sweep detects Redis-LOSS-shaped gaps
+  (DB far above the Redis set) and rebuilds from vibe_post_like, including the hot-ranking ZSET;
+  LikeSyncTask now consumes the dirty set via SPOP batches (100) with requeue-on-failure
+- **LLM JSON repair + self-correction**: raw structured output is repair-parsed (fences, trailing
+  commas, max-token truncation via bracket-stack completion) before validation; unparseable output
+  retries once with the model's own broken output plus the parser error (temperature 0.1)
+
+### Added
+
+- Deep-pagination study: late row lookup measured as a REGRESSION on MySQL 8 with a covering
+  index (optimizer already does index-ordered top-N) — rewrite reverted, measurements and
+  benchmark scripts kept in docs/research/late-row-lookup-deep-pagination.md
+
+### Changed
+
 - **AI review explainability**
   - The review prompt now anchors scoring with an explicit 0-10 rubric (consistency across reviews)
   - AI review comments end with the score guide; the post-page score badge shows it on hover
