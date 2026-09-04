@@ -15,6 +15,7 @@ import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.service.VibePostService;
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.enums.AiReviewStatus;
+import com.nexus.campus.enums.PostStatus;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.service.PostSearchService;
 import com.nexus.campus.service.PostRankingService;
@@ -163,14 +164,16 @@ public class VibePostServiceImpl implements VibePostService {
             sysUserMapper.updateById(user);
         }
 
-        // Publish AI review event if enabled
+        // Publish AI review event if enabled. A saturated async pool throws
+        // RejectedExecutionException synchronously in this (the publisher's)
+        // thread; degrade to a terminal state instead of failing the request.
         if (aiReviewEnabled) {
-            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
+            publishReviewEventSafely(post, userId);
         }
 
         // Publish AI safety check event if enabled (only for posts that passed DFA)
         if (aiReviewEnabled && post.getStatus() == 1) {
-            eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
+            publishSafetyEventSafely(post, userId);
         }
 
         return post;
@@ -245,7 +248,7 @@ public class VibePostServiceImpl implements VibePostService {
                 && !"prompt".equals(post.getPostType())) {
             post.setAiReviewed(AiReviewStatus.REVIEWING.getCode());
             vibePostMapper.updateById(post);
-            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
+            publishReviewEventSafely(post, userId);
         }
         return post;
     }
@@ -590,6 +593,57 @@ public class VibePostServiceImpl implements VibePostService {
             notifyAuthor(post, "你的帖子《" + post.getTitle() + "》未通过人工审核，已被下架。如有疑问请联系管理员。");
         }
         return updated;
+    }
+
+    /**
+     * Publishes the review event, degrading gracefully when the async pool is
+     * saturated: @Async submission happens in this (the publisher's) thread,
+     * so a RejectedExecutionException surfaces here and would otherwise turn
+     * the successful post into a 500. The post lands in FAILED(3) and the
+     * reconciliation task re-queues it once the pool drains.
+     * (Catches RejectedExecutionException; Spring's TaskRejectedException
+     * extends it.)
+     */
+    void publishReviewEventSafely(VibePost post, Long userId) {
+        try {
+            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            log.warn("AI review queue saturated, post {} marked FAILED for reconciliation", post.getId());
+            try {
+                VibePost failed = new VibePost();
+                failed.setId(post.getId());
+                failed.setAiReviewed(AiReviewStatus.FAILED.getCode());
+                vibePostMapper.updateById(failed);
+            } catch (Exception ex) {
+                log.warn("Failed to mark post {} FAILED after rejection: {}", post.getId(), ex.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Publishes the safety event; on pool saturation the check never runs, so
+     * fail closed immediately (PENDING_REVIEW + pending-llm marker) exactly
+     * like the listener would on an LLM outage.
+     */
+    void publishSafetyEventSafely(VibePost post, Long userId) {
+        try {
+            eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
+        } catch (java.util.concurrent.RejectedExecutionException e) {
+            log.warn("Safety check queue saturated, post {} failed closed to PENDING_REVIEW", post.getId());
+            try {
+                vibePostMapper.updatePostStatus(post.getId(), PostStatus.PENDING_REVIEW.getCode());
+                AiReviewLog marker = new AiReviewLog();
+                marker.setPostId(post.getId());
+                marker.setReviewer("safety-check-agent");
+                marker.setResultJson("pipeline saturated at enqueue");
+                marker.setSeverity("pending-llm");
+                marker.setIsApproved(0);
+                marker.setCreatedAt(java.time.LocalDateTime.now());
+                aiReviewLogMapper.insert(marker);
+            } catch (Exception ex) {
+                log.warn("Failed to fail-closed post {} after rejection: {}", post.getId(), ex.getMessage());
+            }
+        }
     }
 
     /**

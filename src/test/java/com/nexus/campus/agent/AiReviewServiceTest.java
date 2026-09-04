@@ -267,6 +267,11 @@ class AiReviewServiceTest {
 
         // a successful review does not ping the author
         verify(sysMessageService, never()).sendMessage(any(), any(), any(), any());
+
+        // NOTE: stale-comment supersede runs behind MyBatis-Plus wrapper
+        // machinery that a plain Mockito test can't initialize, so it degrades
+        // to a logged no-op here; the behavior is covered by the Spring test
+        // that exercises the full pipeline (see AiReviewService integration).
     }
 
     @Test

@@ -388,7 +388,10 @@ export default function PostDetailPage() {
           </button>
         </div>
         {post.aiReviewed === 1 && post.aiReviewScore > 0 && (
-          <span className="text-[11px] font-mono text-vibe-emerald">AI Score: {Math.round(post.aiReviewScore * 10)}/100</span>
+          <span
+            className="text-[11px] font-mono text-vibe-emerald cursor-help"
+            title="Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically."
+          >AI Score: {Math.round(post.aiReviewScore * 10)}/100</span>
         )}
         {aiPending && (
           <span className="flex items-center gap-1.5 text-[11px] font-mono text-vibe-cyan animate-pulse motion-reduce:animate-none">

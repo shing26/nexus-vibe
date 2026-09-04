@@ -9,6 +9,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+
+- **AI review explainability**
+  - The review prompt now anchors scoring with an explicit 0-10 rubric (consistency across reviews)
+  - AI review comments end with the score guide; the post-page score badge shows it on hover
+- **Re-review supersede**: editing a post hides the previous AI review comment (status=0) so the
+  thread never shows contradictory scores; full history remains in ai_review_log / agent logs
+- **Pool-saturation degradation**: agent events rejected by a saturated async pool no longer fail
+  the post request with a 500 — review posts land in FAILED(3) for the reconciliation task, and
+  safety checks fail closed (PENDING_REVIEW + pending-llm marker) exactly like an LLM outage
+
 ### Added
 
 - **Account Recovery (P0)**

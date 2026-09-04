@@ -1,5 +1,6 @@
 package com.nexus.campus.agent;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.entity.VibeComment;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,6 +44,11 @@ public class AiReviewService {
     private static final Set<String> VALID_SEVERITIES = Set.of("low", "medium", "high", "critical");
 
     private static final double REVIEW_TEMPERATURE = 0.2;
+
+    /** AiAgent system account that posts review comments. */
+    private static final long AI_AGENT_USER_ID = 999L;
+    /** First line of every AI review comment — used to find stale ones. */
+    private static final String REVIEW_COMMENT_MARKER = "## AI Code Review";
 
     private static final int CONTEXT_EXCERPT_CHARS = 200;
 
@@ -284,6 +290,11 @@ public class AiReviewService {
         // Save review log
         saveReviewLog(postId, resultJson.toString(), result.severity, result.isApproved ? 1 : 0);
 
+        // A new review supersedes the previous one: hide stale AI comments so
+        // the thread never shows contradictory scores (full history stays in
+        // ai_review_log and the agent-logs dashboard).
+        supersedePreviousReviewComments(postId);
+
         // Post AI comment on the post
         createReviewComment(postId, result);
 
@@ -371,13 +382,30 @@ public class AiReviewService {
     }
 
     /**
+     * Hides earlier AI review comments for the post (status=0 removes them
+     * from the thread; the comment list filters on status=1). Best-effort.
+     */
+    private void supersedePreviousReviewComments(Long postId) {
+        try {
+            vibeCommentMapper.update(null, new LambdaUpdateWrapper<VibeComment>()
+                    .eq(VibeComment::getPostId, postId)
+                    .eq(VibeComment::getUserId, AI_AGENT_USER_ID)
+                    .like(VibeComment::getContent, REVIEW_COMMENT_MARKER)
+                    .eq(VibeComment::getStatus, 1)
+                    .set(VibeComment::getStatus, 0));
+        } catch (Exception e) {
+            log.warn("Failed to supersede previous AI comments for post {}: {}", postId, e.getMessage());
+        }
+    }
+
+    /**
      * Creates a comment on the post as the AiAgent system user (id=999).
      */
     public void createReviewComment(Long postId, ReviewResult result) {
         try {
             VibeComment comment = new VibeComment();
             comment.setPostId(postId);
-            comment.setUserId(999L); // AiAgent system account
+            comment.setUserId(AI_AGENT_USER_ID);
             comment.setParentId(0L);
             comment.setTargetId(0L);
             comment.setContent(formatReviewComment(result));
@@ -422,6 +450,9 @@ public class AiReviewService {
         if (!result.suggestions.isBlank()) {
             sb.append("### Suggestions\n").append(result.suggestions).append("\n");
         }
+        sb.append("\n---\n*Score guide: 9-10 production-ready · 7-8 solid, minor issues · "
+                + "5-6 functional with notable gaps · 3-4 significant problems · 0-2 broken/unsafe. "
+                + "Edited posts are re-reviewed automatically; the latest score wins.*\n");
         return sb.toString();
     }
 
