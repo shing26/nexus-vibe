@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -23,6 +24,15 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     private static final long WINDOW_MS = 60_000;
     private static final long MAX_REQUESTS = 10;
+
+    /**
+     * Forwarded headers are only honored when a trusted reverse proxy (nginx
+     * sets X-Real-IP) sits in front of the app. With the flag off — e.g. the
+     * app exposed directly — client-supplied X-Forwarded-For is ignored so
+     * the per-IP limiter can't be bypassed by header rotation.
+     */
+    @Value("${campus.security.trust-forwarded-headers:false}")
+    private boolean trustForwardedHeaders;
 
     private static final List<String> RATE_LIMITED_PATHS = List.of(
             "/api/v1/posts",
@@ -117,6 +127,12 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     }
 
     private String getClientIp(HttpServletRequest request) {
+        if (!trustForwardedHeaders) {
+            // No trusted proxy configured: the socket address is the only
+            // identifier an attacker can't spoof.
+            String remote = request.getRemoteAddr();
+            return (remote != null && !remote.isBlank()) ? remote : "unknown";
+        }
         // X-Real-IP is written by the trusted nginx proxy, so it wins over any
         // client-supplied X-Forwarded-For value.
         String ip = request.getHeader("X-Real-IP");

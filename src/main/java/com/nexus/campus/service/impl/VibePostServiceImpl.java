@@ -14,6 +14,7 @@ import com.nexus.campus.agent.AiReviewLog;
 import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.service.VibePostService;
 import com.nexus.campus.agent.AiReviewEvent;
+import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.service.PostSearchService;
 import com.nexus.campus.service.PostRankingService;
@@ -188,6 +189,7 @@ public class VibePostServiceImpl implements VibePostService {
         if (!isAdmin && !post.getUserId().equals(userId)) {
             throw new IllegalStateException("Only the author can edit this post.");
         }
+        String previousContent = post.getContent();
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
             post.setTitle(request.getTitle().trim());
         }
@@ -232,6 +234,18 @@ public class VibePostServiceImpl implements VibePostService {
         VibePost fullPost = vibePostMapper.selectPostWithDetails(postId);
         if (fullPost != null) {
             postSearchService.indexPost(fullPost);
+        }
+
+        // A content edit invalidates the previous AI review: re-run it so the
+        // score reflects the current text (the score column is reset by the
+        // pipeline when the new review completes).
+        boolean contentChanged = request.getContent() != null
+                && !request.getContent().equals(previousContent);
+        if (contentChanged && aiReviewEnabled && post.getStatus() == 1
+                && !"prompt".equals(post.getPostType())) {
+            post.setAiReviewed(AiReviewStatus.REVIEWING.getCode());
+            vibePostMapper.updateById(post);
+            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
         }
         return post;
     }

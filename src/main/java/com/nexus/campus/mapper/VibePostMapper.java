@@ -71,7 +71,9 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
             "</if>",
             "<choose>",
             "<when test='sort == \"hot\"'> ORDER BY p.is_pinned DESC, p.like_count DESC, p.create_time DESC </when>",
-            "<when test='sort == \"ai\"'> ORDER BY p.ai_reviewed DESC, p.ai_review_score DESC, p.create_time DESC </when>",
+            // AI-curated tab: only reviewed posts; the equality also enables the
+            // idx_post_ai_sort fast path (docs/research/mysql-ai-sort-index-explain.md)
+            "<when test='sort == \"ai\"'> AND p.ai_reviewed = 1 ORDER BY p.ai_reviewed DESC, p.ai_review_score DESC, p.create_time DESC </when>",
             "<otherwise> ORDER BY p.is_pinned DESC, p.create_time DESC </otherwise>",
             "</choose>",
             "</script>"})

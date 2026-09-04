@@ -48,7 +48,7 @@ export default function RegisterPage() {
         role: d.role,
         avatar: d.avatar,
         avatarUrl: d.avatar,
-      });
+      }, d.refreshToken);
       addToast('Account created!', 'success');
       const from = (location.state as any)?.from || "/";
       navigate(from, { replace: true });

@@ -33,7 +33,7 @@ export default function LoginPage() {
         role: d.role,
         avatar: d.avatar,
         avatarUrl: d.avatar,
-      });
+      }, d.refreshToken);
       addToast('Welcome back!', 'success');
       const from = (location.state as any)?.from || "/";
       navigate(from, { replace: true });

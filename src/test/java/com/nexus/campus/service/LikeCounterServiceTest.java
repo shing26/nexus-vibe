@@ -96,6 +96,45 @@ class LikeCounterServiceTest {
     }
 
     @Test
+    @DisplayName("likePost() degraded path toggles: second POST from same user retracts")
+    void likePostDegradedPathTogglesOff() {
+        ReflectionTestUtils.setField(likeCounterService, "redisAvailable", false);
+        VibePost post = new VibePost();
+        post.setId(postId);
+        post.setLikeCount(1);
+        // user already liked -> toggle goes to unlike
+        when(vibePostMapper.countPostLike(postId, userId)).thenReturn(1);
+        when(vibePostMapper.deletePostLike(postId, userId)).thenReturn(1);
+        when(vibePostMapper.selectById(postId)).thenReturn(post);
+
+        long count = likeCounterService.likePost(postId, userId);
+
+        assertEquals(1, count);
+        verify(vibePostMapper).deletePostLike(postId, userId);
+        verify(vibePostMapper, never()).insertPostLike(postId, userId);
+    }
+
+    @Test
+    @DisplayName("likePost() degraded path still inserts when not yet liked")
+    void likePostDegradedPathInsertsWhenNew() {
+        ReflectionTestUtils.setField(likeCounterService, "redisAvailable", false);
+        VibePost post = new VibePost();
+        post.setId(postId);
+        post.setLikeCount(5);
+        when(vibePostMapper.countPostLike(postId, userId)).thenReturn(0);
+        when(vibePostMapper.insertPostLike(postId, userId)).thenReturn(1);
+        when(vibePostMapper.selectById(postId)).thenReturn(post);
+
+        long count = likeCounterService.likePost(postId, userId);
+
+        // count comes from the re-read row (stubbed at 5); the +1 delta is asserted separately
+        assertEquals(5, count);
+        verify(vibePostMapper).insertPostLike(postId, userId);
+        verify(vibePostMapper).updateLikeCountDelta(postId, 1);
+        verify(vibePostMapper, never()).deletePostLike(postId, userId);
+    }
+
+    @Test
     @DisplayName("isLiked() should return false when Redis is unavailable")
     void isLikedRedisUnavailable() {
         ReflectionTestUtils.setField(likeCounterService, "redisAvailable", false);

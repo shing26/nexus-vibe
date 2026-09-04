@@ -80,6 +80,11 @@ public class LikeCounterService {
         if (redisAvailable) {
             return executeLikeToggle(postId, userId);
         }
+        // Degraded (no-Redis) path mirrors the Lua toggle semantics: a second
+        // POST from the same user retracts the like, so both modes agree.
+        if (isLiked(postId, userId)) {
+            return unlikeViaMysql(postId, userId);
+        }
         return likeViaMysql(postId, userId);
     }
 
