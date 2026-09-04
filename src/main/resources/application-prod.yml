@@ -55,6 +55,11 @@ campus:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:https://nexus-vibe.shing26.is-a.dev}
   upload:
     dir: ${UPLOAD_DIR:/app/uploads}
+  like:
+    drift-enabled: ${LIKE_DRIFT_ENABLED:true}
+    drift-ratio: ${LIKE_DRIFT_RATIO:0.5}
+    drift-abs: ${LIKE_DRIFT_ABS:100}
+    sample-size: ${LIKE_SAMPLE_SIZE:200}
   security:
     # nginx (compose web service) sets X-Real-IP before proxying to :8080
     trust-forwarded-headers: ${TRUST_FORWARDED_HEADERS:true}

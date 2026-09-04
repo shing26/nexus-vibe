@@ -111,6 +111,13 @@ campus:
     dir: src/main/resources/static/uploads
   es:
     uri: ${ES_URI:http://localhost:9200}
+  like:
+    # Like-set vs MySQL like_count drift repair (write-behind drift is normal;
+    # only Redis-LOSS-shaped gaps trigger a rebuild from vibe_post_like).
+    drift-enabled: true
+    drift-ratio: 0.5
+    drift-abs: 100
+    sample-size: 200
   security:
     sensitive-words: fuck,shit,damn,asshole,bitch
     critical-words: 赌博,毒品,色情,诈骗,暴力,枪支,恐怖主义,违禁品

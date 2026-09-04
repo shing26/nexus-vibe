@@ -8,6 +8,8 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
 
 /**
@@ -25,6 +27,9 @@ public class LikeSyncTask {
     private static final String LIKE_SET_PREFIX = "post:like:";
     private static final String DIRTY_SET_KEY   = "post:like:dirty";
 
+    /** SPOP batch size: atomic dequeue, bounded work per cycle. */
+    static final int BATCH_SIZE = 100;
+
     @Autowired(required = false)
     private RedisTemplate<String, Object> redisTemplate;
 
@@ -41,8 +46,10 @@ public class LikeSyncTask {
             return;
         }
 
-        Set<Object> dirtyPosts = redisTemplate.opsForSet().members(DIRTY_SET_KEY);
-        if (dirtyPosts == null || dirtyPosts.isEmpty()) {
+        // SPOP atomically dequeues the batch (no full-set SMEMBERS scan and no
+        // double-processing across instances); failures are re-added below.
+        List<Object> batch = redisTemplate.opsForSet().pop(DIRTY_SET_KEY, BATCH_SIZE);
+        if (batch == null || batch.isEmpty()) {
             log.debug("[LIKE-SYNC] No dirty posts to sync.");
             return;
         }
@@ -50,7 +57,7 @@ public class LikeSyncTask {
         int synced = 0;
         int failed = 0;
 
-        for (Object postIdObj : dirtyPosts) {
+        for (Object postIdObj : batch) {
             String postIdStr = postIdObj.toString();
             try {
                 Long postId = Long.parseLong(postIdStr);
@@ -61,17 +68,19 @@ public class LikeSyncTask {
                     vibePostMapper.updateLikeCount(postId, redisCount.intValue());
                 }
 
-                redisTemplate.opsForSet().remove(DIRTY_SET_KEY, postIdStr);
                 synced++;
 
             } catch (Exception e) {
                 failed++;
+                // re-queue for the next cycle so the change is not lost
+                redisTemplate.opsForSet().add(DIRTY_SET_KEY, postIdStr);
                 log.error("[LIKE-SYNC] Failed to sync post {}: {}", postIdStr, e.getMessage());
             }
         }
 
         if (synced > 0 || failed > 0) {
-            log.info("[LIKE-SYNC] Batch sync complete - {} synced, {} failed", synced, failed);
+            log.info("[LIKE-SYNC] Batch sync complete - {} synced, {} failed, {} left in queue",
+                     synced, failed, batch.size() - synced);
         }
     }
 }

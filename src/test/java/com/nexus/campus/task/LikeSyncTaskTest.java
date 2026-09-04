@@ -14,7 +14,7 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.data.redis.core.SetOperations;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.Set;
+import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -50,20 +50,19 @@ class LikeSyncTaskTest {
     // -- No dirty posts --
 
     @Test
-    @DisplayName("syncLikes() should skip when dirty set is empty")
+    @DisplayName("syncLikes() should skip when the SPOP batch is empty")
     void syncLikesNoDirtyPosts() {
-        when(setOperations.members(dirtyKey)).thenReturn(Set.of());
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of());
 
         likeSyncTask.syncLikes();
 
-        verify(setOperations).members(dirtyKey);
         verify(vibePostMapper, never()).updateLikeCount(anyLong(), anyInt());
     }
 
     @Test
-    @DisplayName("syncLikes() should skip when dirty set is null")
+    @DisplayName("syncLikes() should skip when the SPOP batch is null")
     void syncLikesDirtySetNull() {
-        when(setOperations.members(dirtyKey)).thenReturn(null);
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(null);
 
         likeSyncTask.syncLikes();
 
@@ -85,38 +84,36 @@ class LikeSyncTaskTest {
     // -- Happy path --
 
     @Test
-    @DisplayName("syncLikes() should sync multiple dirty posts to MySQL")
+    @DisplayName("syncLikes() should sync the popped batch to MySQL (no SREM: pop removed them)")
     void syncLikesHappyPath() {
-        when(setOperations.members(dirtyKey)).thenReturn(Set.of("10", "20"));
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of("10", "20"));
         when(setOperations.size(likeKey1)).thenReturn(5L);
         when(setOperations.size(likeKey2)).thenReturn(3L);
 
         likeSyncTask.syncLikes();
 
-        verify(setOperations).members(dirtyKey);
+        verify(setOperations).pop(dirtyKey, LikeSyncTask.BATCH_SIZE);
         verify(vibePostMapper).updateLikeCount(postId1, 5);
         verify(vibePostMapper).updateLikeCount(postId2, 3);
-        verify(setOperations).remove(dirtyKey, "10");
-        verify(setOperations).remove(dirtyKey, "20");
+        // SPOP already dequeued — no explicit removal
+        verify(setOperations, never()).remove(eq(dirtyKey), anyString());
     }
 
     @Test
     @DisplayName("syncLikes() should handle null SCARD gracefully")
     void syncLikesNullScard() {
-        when(setOperations.members(dirtyKey)).thenReturn(Set.of("10"));
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of("10"));
         when(setOperations.size(likeKey1)).thenReturn(null);
 
         likeSyncTask.syncLikes();
 
-        verify(setOperations).members(dirtyKey);
         verify(vibePostMapper, never()).updateLikeCount(anyLong(), anyInt());
-        verify(setOperations).remove(dirtyKey, "10");
     }
 
     @Test
-    @DisplayName("syncLikes() should continue processing remaining posts when one fails")
+    @DisplayName("syncLikes() should re-queue a failed post and continue the batch")
     void syncLikesPartialFailure() {
-        when(setOperations.members(dirtyKey)).thenReturn(Set.of("10", "20"));
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of("10", "20"));
         when(setOperations.size(likeKey1)).thenThrow(new RuntimeException("Redis error"));
         when(setOperations.size(likeKey2)).thenReturn(3L);
 
@@ -124,7 +121,20 @@ class LikeSyncTaskTest {
 
         verify(vibePostMapper).updateLikeCount(postId2, 3);
         verify(vibePostMapper, never()).updateLikeCount(eq(postId1), anyInt());
-        verify(setOperations).remove(dirtyKey, "20");
+        // the failed post goes back into the dirty set for the next cycle
+        verify(setOperations).add(dirtyKey, "10");
+    }
+
+    @Test
+    @DisplayName("syncLikes() should re-queue a MySQL write failure too")
+    void syncLikesMysqlFailureRequeues() {
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of("10"));
+        when(setOperations.size(likeKey1)).thenReturn(5L);
+        when(vibePostMapper.updateLikeCount(postId1, 5))
+                .thenThrow(new RuntimeException("deadlock detected"));
+
+        likeSyncTask.syncLikes();
+
+        verify(setOperations).add(dirtyKey, "10");
     }
 }
-

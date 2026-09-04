@@ -16,7 +16,7 @@ import java.util.List;
 import java.util.Arrays;
 
 /**
- * Redis-backed like counter with atomic Lua toggle and scheduled delta flush.
+ * Redis-backed like counter with atomic Lua toggle and scheduled absolute-count flush.
  *
  * <p>Uses a Lua script ({@code lua/like_toggle.lua}) to atomically toggle
  * a user's like on a post, updating the membership Set, delta Hash, dirty
@@ -32,7 +32,6 @@ public class LikeCounterService {
     private static final Logger log = LoggerFactory.getLogger(LikeCounterService.class);
 
     private static final String LIKE_SET_PREFIX   = "post:like:";
-    private static final String LIKE_DELTA_PREFIX = "post:like:delta:";
     static final String DIRTY_SET_KEY     = "post:like:dirty";
     static final String RANKING_KEY       = "post:ranking:likes";
     private static final String DEFAULT_WEIGHT = "3";
@@ -147,7 +146,6 @@ public class LikeCounterService {
         try {
             List<String> keys = Arrays.asList(
                 LIKE_SET_PREFIX + postId,
-                LIKE_DELTA_PREFIX + postId,
                 DIRTY_SET_KEY,
                 RANKING_KEY
             );

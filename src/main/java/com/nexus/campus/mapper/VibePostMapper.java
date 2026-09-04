@@ -247,6 +247,12 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     @Select("SELECT review_attempts FROM vibe_post WHERE id = #{id}")
     Integer selectReviewAttempts(@Param("id") Long id);
 
+    @Select("SELECT p.* FROM vibe_post p WHERE p.id > #{cursor} ORDER BY p.id LIMIT #{limit}")
+    List<VibePost> selectPostWindow(@Param("cursor") long cursor, @Param("limit") int limit);
+
+    @Select("SELECT user_id FROM vibe_post_like WHERE post_id = #{postId}")
+    List<Long> selectUserIdsByPostId(@Param("postId") Long postId);
+
     // Stale = in a retryable ai_reviewed state, older than the stale window,
     // AND with no review attempt logged inside that window (ai_review_log is
     // written on every attempt). Without the NOT EXISTS guard a post whose
