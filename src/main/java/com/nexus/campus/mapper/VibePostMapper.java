@@ -230,6 +230,23 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     @Update("UPDATE vibe_post SET status = #{status} WHERE id = #{id}")
     int updatePostStatus(@Param("id") Long id, @Param("status") Integer status);
 
+    // Atomic lease claim (ADR-0005): wins iff no live lock exists and the
+    // attempt budget is not exhausted. Returns 1 row claimed, 0 otherwise.
+    @Update("UPDATE vibe_post " +
+            "SET review_lock_until = #{lockUntil}, review_owner = #{owner}, " +
+            "    review_attempts = review_attempts + 1 " +
+            "WHERE id = #{id} " +
+            "AND (review_lock_until IS NULL OR review_lock_until < #{now}) " +
+            "AND review_attempts < #{maxAttempts}")
+    int tryClaimReview(@Param("id") Long id,
+                       @Param("lockUntil") LocalDateTime lockUntil,
+                       @Param("owner") String owner,
+                       @Param("now") LocalDateTime now,
+                       @Param("maxAttempts") int maxAttempts);
+
+    @Select("SELECT review_attempts FROM vibe_post WHERE id = #{id}")
+    Integer selectReviewAttempts(@Param("id") Long id);
+
     // Stale = in a retryable ai_reviewed state, older than the stale window,
     // AND with no review attempt logged inside that window (ai_review_log is
     // written on every attempt). Without the NOT EXISTS guard a post whose
@@ -237,12 +254,14 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     // forever, because create_time never advances.
     @Select("SELECT p.* FROM vibe_post p " +
             "WHERE p.ai_reviewed = #{status} AND p.create_time < #{before} " +
+            "AND p.review_attempts < #{maxAttempts} " +
             "AND NOT EXISTS (SELECT 1 FROM ai_review_log l " +
             "WHERE l.post_id = p.id AND l.reviewer = 'code-review-agent' " +
             "AND l.created_at >= #{before}) " +
             "ORDER BY p.create_time LIMIT #{limit}")
     List<VibePost> selectStaleAiReviewPosts(@Param("status") int status,
                                             @Param("before") LocalDateTime before,
+                                            @Param("maxAttempts") int maxAttempts,
                                             @Param("limit") int limit);
 
     @Select("SELECT p.* FROM vibe_post p " +

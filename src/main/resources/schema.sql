@@ -119,6 +119,10 @@ ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `token_count` int NOT NULL DEFA
 ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `post_type` varchar(10) NOT NULL DEFAULT 'post';
 ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `prompt_metadata` text;
 ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `forked_from_id` bigint;
+-- Review lease: atomic claim columns for the AI review pipeline (ADR-0005).
+ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `review_lock_until` datetime;
+ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `review_owner` varchar(64);
+ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `review_attempts` int NOT NULL DEFAULT 0;
 -- Covers the AI-curated listing: WHERE status=1 ORDER BY ai_reviewed DESC, ai_review_score DESC
 -- (placed after the ALTERs: the ai_* columns are appended to vibe_post here)
 CREATE INDEX IF NOT EXISTS `idx_post_ai_sort` ON `vibe_post`(`status`, `ai_reviewed`, `ai_review_score`);

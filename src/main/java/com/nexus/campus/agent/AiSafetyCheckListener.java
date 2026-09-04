@@ -64,7 +64,7 @@ public class AiSafetyCheckListener {
     @Value("${campus.ai.safety.enabled:true}")
     private boolean safetyEnabled;
 
-    @Async
+    @Async("agentLlmExecutor")
     @EventListener
     public void handleSafetyCheck(AiSafetyCheckEvent event) {
         if (!safetyEnabled) {

@@ -70,6 +70,11 @@ public class VibePost implements Serializable {
 
     private Long forkedFromId;
 
+    /** Review-lease claim state for the AI pipeline (ADR-0005). */
+    private java.time.LocalDateTime reviewLockUntil;
+    private String reviewOwner;
+    private Integer reviewAttempts;
+
     @TableField(exist = false)
     private String categoryName;
 

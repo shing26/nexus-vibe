@@ -69,9 +69,9 @@ class AiReviewReconcileTaskTest {
     @DisplayName("Re-triggers stale REVIEWING and FAILED reviews")
     void shouldRetriggerStaleReviews() {
         when(llmClient.isHealthy()).thenReturn(true);
-        when(vibePostMapper.selectStaleAiReviewPosts(eq(AiReviewStatus.REVIEWING.getCode()), any(), anyInt()))
+        when(vibePostMapper.selectStaleAiReviewPosts(eq(AiReviewStatus.REVIEWING.getCode()), any(), anyInt(), anyInt()))
                 .thenReturn(List.of(post(1L)));
-        when(vibePostMapper.selectStaleAiReviewPosts(eq(AiReviewStatus.FAILED.getCode()), any(), anyInt()))
+        when(vibePostMapper.selectStaleAiReviewPosts(eq(AiReviewStatus.FAILED.getCode()), any(), anyInt(), anyInt()))
                 .thenReturn(List.of(post(2L)));
         when(vibePostMapper.selectPostsPendingSafetyRecheck(any(), anyInt()))
                 .thenReturn(List.of());
@@ -88,7 +88,7 @@ class AiReviewReconcileTaskTest {
     @DisplayName("Re-runs safety checks for posts marked pending-llm")
     void shouldReRunPendingSafetyChecks() {
         when(llmClient.isHealthy()).thenReturn(true);
-        when(vibePostMapper.selectStaleAiReviewPosts(anyInt(), any(), anyInt()))
+        when(vibePostMapper.selectStaleAiReviewPosts(anyInt(), any(), anyInt(), anyInt()))
                 .thenReturn(List.of());
         when(vibePostMapper.selectPostsPendingSafetyRecheck(any(), anyInt()))
                 .thenReturn(List.of(post(3L)));
@@ -106,7 +106,7 @@ class AiReviewReconcileTaskTest {
     @DisplayName("Caches the health probe so repeated cycles do not re-probe immediately")
     void shouldCacheHealthProbe() {
         when(llmClient.isHealthy()).thenReturn(true);
-        when(vibePostMapper.selectStaleAiReviewPosts(anyInt(), any(), anyInt()))
+        when(vibePostMapper.selectStaleAiReviewPosts(anyInt(), any(), anyInt(), anyInt()))
                 .thenReturn(List.of());
         when(vibePostMapper.selectPostsPendingSafetyRecheck(any(), anyInt()))
                 .thenReturn(List.of());

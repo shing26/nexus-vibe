@@ -48,6 +48,9 @@ public class AiReviewReconcileTask {
     @Value("${campus.ai.review.enabled:true}")
     private boolean reviewEnabled;
 
+    @Value("${campus.ai.review.max-attempts:5}")
+    private int maxAttempts;
+
     @Value("${campus.ai.safety.enabled:true}")
     private boolean safetyEnabled;
 
@@ -89,7 +92,7 @@ public class AiReviewReconcileTask {
 
     private int retriggerStaleReviews(AiReviewStatus status, LocalDateTime staleBefore) {
         List<VibePost> stalePosts = vibePostMapper.selectStaleAiReviewPosts(
-                status.getCode(), staleBefore, BATCH_LIMIT);
+                status.getCode(), staleBefore, maxAttempts, BATCH_LIMIT);
         for (VibePost post : stalePosts) {
             log.info("[AI-RECONCILE] Re-triggering {} review for post {}", status, post.getId());
             eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), post.getUserId(), true));

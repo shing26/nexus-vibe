@@ -119,6 +119,11 @@ campus:
   ai:
     review:
       enabled: true
+      # Lease-based claim (ADR-0005): how long a claimed review stays locked
+      # before the reconciliation task may re-dispatch it, and how many
+      # attempts before the post enters the terminal notified state.
+      lease-seconds: 30
+      max-attempts: 5
       # Context budget for code blocks sent to the LLM. Keep within the
       # model's context window (local 7B models are typically 8k-32k).
       max-context-tokens: 12000
