@@ -101,6 +101,31 @@ public class LlmClient {
         return chatCompletionStructured(systemPrompt, userContent, schemaName, jsonSchema, null);
     }
 
+    /**
+     * Sends a structured-output request and returns the RAW assistant text
+     * (JSON string as produced by the model, fences and truncation included).
+     * Callers that own their parsing (repair pipeline) use this; null on
+     * unavailability, same fail-soft contract as the other entry points.
+     */
+    public String sendStructuredRequest(String systemPrompt, String userContent,
+                                        String schemaName, JsonNode jsonSchema, Double temperature) {
+        ObjectNode requestBody = objectMapper.createObjectNode();
+        requestBody.put("model", model);
+        if (temperature != null) {
+            requestBody.put("temperature", temperature);
+        }
+        ObjectNode responseFormat = requestBody.putObject("response_format");
+        responseFormat.put("type", "json_schema");
+        ObjectNode jsonSchemaWrapper = responseFormat.putObject("json_schema");
+        jsonSchemaWrapper.put("name", schemaName);
+        jsonSchemaWrapper.put("strict", true);
+        jsonSchemaWrapper.set("schema", jsonSchema);
+        ArrayNode messages = requestBody.putArray("messages");
+        messages.addObject().put("role", "system").put("content", systemPrompt);
+        messages.addObject().put("role", "user").put("content", userContent);
+        return withRetry(() -> postChatCompletion(requestBody), "structured completion");
+    }
+
     public JsonNode chatCompletionStructured(String systemPrompt, String userContent,
                                               String schemaName, JsonNode jsonSchema, Double temperature) {
         ObjectNode requestBody = objectMapper.createObjectNode();

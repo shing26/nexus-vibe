@@ -200,20 +200,20 @@ class AiReviewServiceTest {
     void reviewPostShouldSkipWithoutCodeBlocks() {
         aiReviewService.reviewPost(1L, "Some title", "no code here", 99L, false);
 
-        verify(llmClient, never()).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
+        verify(llmClient, never()).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
         verifyNoInteractions(aiReviewLogMapper, vibeCommentMapper);
     }
 
     @Test
     @DisplayName("reviewPost marks the post FAILED and logs unavailable when LLM is down")
     void reviewPostShouldHandleNullLlmResult() {
-        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
+        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
                 .thenReturn(null);
 
         aiReviewService.reviewPost(1L, "Some title", "```java\nint x = 1;\n```", 99L, false);
 
         // one initial call + one retry
-        verify(llmClient, times(2)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
+        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
 
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(aiReviewLogMapper).insert((AiReviewLog) logCaptor.capture());
@@ -231,13 +231,13 @@ class AiReviewServiceTest {
     @Test
     @DisplayName("reviewPost persists score, logs result and posts AI comment")
     void reviewPostShouldRunFullPipeline() throws Exception {
-        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(validReview());
+        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(validReview().toString());
 
         aiReviewService.reviewPost(42L, "Calculator", "```java\npublic void run() {}\n```", 42L, false);
 
         // a single LLM call — valid results are not retried
-        verify(llmClient, times(1)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
+        verify(llmClient, times(1)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
 
         // review log saved with parsed severity and approval
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
@@ -275,21 +275,22 @@ class AiReviewServiceTest {
     }
 
     @Test
-    @DisplayName("reviewPost retries an invalid result with the reinforced prompt, then succeeds")
+    @DisplayName("reviewPost retries an invalid result with the self-correction prompt, then succeeds")
     void reviewPostShouldRetryInvalidResultOnce() throws Exception {
         JsonNode garbage = objectMapper.readTree(
                 "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
                         + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
-        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(garbage)
-                .thenReturn(validReview());
+        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(garbage.toString())
+                .thenReturn(validReview().toString());
 
         aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
 
-        // invalid first result → exactly one retry with the reinforced prompt
-        verify(llmClient, times(2)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
+        // invalid first result → exactly one retry; garbage is schema-valid but
+        // semantically empty, so it goes to the reinforced-prompt branch
+        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
         ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
-        verify(llmClient, times(2)).chatCompletionStructured(
+        verify(llmClient, times(2)).sendStructuredRequest(
                 systemCaptor.capture(), anyString(), anyString(), any(), any());
         assertTrue(systemCaptor.getAllValues().get(1).contains("STRICT OUTPUT REQUIREMENTS"));
 
@@ -301,18 +302,40 @@ class AiReviewServiceTest {
     }
 
     @Test
+    @DisplayName("reviewPost self-corrects an unparseable response with a repair prompt")
+    void reviewPostShouldSelfCorrectUnparseableOutput() throws Exception {
+        // structurally broken (missing colon between key and value): unrepairable locally
+        String broken = "{\"score\":5 \"severity\":\"low\"}";
+        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(broken)
+                .thenReturn(validReview().toString());
+
+        aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
+
+        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
+        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
+        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
+        verify(llmClient, times(2)).sendStructuredRequest(
+                systemCaptor.capture(), userCaptor.capture(), anyString(), any(), any());
+        assertTrue(systemCaptor.getAllValues().get(1).contains("You fix malformed JSON"));
+        assertTrue(userCaptor.getAllValues().get(1).contains("Parser error"));
+        // repaired review succeeds end to end
+        verify(vibeCommentMapper).insert(any(VibeComment.class));
+    }
+
+    @Test
     @DisplayName("reviewPost degrades silently when both results fail validation")
     void reviewPostShouldDegradeAfterSecondInvalidResult() throws Exception {
         JsonNode garbage = objectMapper.readTree(
                 "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
                         + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
-        when(llmClient.chatCompletionStructured(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(garbage);
+        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
+                .thenReturn(garbage.toString());
 
         aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
 
         // initial call + one retry, then no further LLM work
-        verify(llmClient, times(2)).chatCompletionStructured(anyString(), anyString(), anyString(), any(), any());
+        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
 
         // logged as unknown, no score, no comment, post FAILED for reconciliation
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
