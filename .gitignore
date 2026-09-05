@@ -1,4 +1,4 @@
-﻿# Compiled / build output
+# Compiled / build output
 target/
 *.class
 *.jar
@@ -45,3 +45,12 @@ secrets.*
 
 # Node (if any frontend assets land here)
 node_modules/
+
+# Tool session state (security scanner / agent harness)
+.mimosa/
+.workbuddy/
+.zcode/
+
+# JVM crash logs (belt & suspenders; *.log is already covered)
+hs_err_pid*.log
+replay_pid*.log

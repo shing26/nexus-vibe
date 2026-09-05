@@ -2,9 +2,25 @@
 
 **AI-Powered Vibe Coding & Developer Community**
 
-Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React, it runs as a Multi-Agent assistant platform: async AI code review, LLM-based content safety checks, explainable review panels on every reviewed post, and per-user activity workspaces, all wrapped in an IDE-station dark UI.
+![CI](https://github.com/shing26/nexus-vibe/actions/workflows/maven.yml/badge.svg)
+![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
+![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-226%20passing-brightgreen)
+![License](https://img.shields.io/badge/license-MIT-blue)
+
+Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
 
 技术博客：[给论坛接入 LLM 代码评审：结构化输出与注入防御实战](docs/blog/llm-code-review-structured-output-injection-defense.md)
+
+**Engineering notes**（设计决策与实测证据）：
+
+- [ADR-0004 · LLM 语义安全审查](docs/adr/0004-safety-check-fail-closed.md) — LLM 不可用时 fail-closed 入人工审核队列
+- [ADR-0005 · 租约式评审领取](docs/adr/0005-lease-based-review-claim.md) — 原子条件 UPDATE 互斥多实例
+- [研究 · AI 排序索引案例](docs/research/mysql-ai-sort-index-explain.md) — 10 万行 EXPLAIN：带过滤 3 倍提速、无过滤负优化
+- [研究 · 异步池压测](docs/research/async-pool-loadtest.md) — 20 万请求饱和实测：12.1 万次背压拒绝，零崩溃
+- [研究 · 容器 GC 分析](docs/research/jvm-container-gc-analysis.md) — 768m 容器压测：0 次 Full GC
+- [研究 · 深分页负优化](docs/research/late-row-lookup-deep-pagination.md) — 延迟关联实测退化 40%，回滚决策入档
 
 ## Tech Stack
 
@@ -14,108 +30,98 @@ Nexus-Vibe is a full-stack AI developer community platform — a modern replacem
 | **ORM** | MyBatis-Plus 3.5.9 |
 | **Frontend** | React 19 + Vite + TypeScript + Tailwind CSS |
 | **State** | TanStack Query + Zustand |
-| **Animation** | Motion (Framer Motion successor) |
-| **Font** | Inter + JetBrains Mono |
 | **Database** | H2 (dev) / MySQL 8 (prod) |
-| **Cache** | Redis (Lettuce) |
-| **Search** | Elasticsearch 7.17 REST API (MySQL fallback) |
-| **Auth** | JWT (jjwt 0.12.6) |
-| **Security** | XSS Filter + DFA Sensitive Word Filter + LLM semantic check |
-| **Build** | Maven 3.9+ (backend) + Vite (frontend) |
+| **Cache** | Redis 7 (Lettuce) — atomic Lua like toggle, rate limiting, hot ranking |
+| **Search** | Elasticsearch 7.17 (MySQL fallback) |
+| **LLM** | OpenAI-compatible API / local Ollama |
+| **Auth** | JWT (jjwt 0.12.6) + BCrypt |
+| **Build** | Maven 3.9+ + Vite, multi-stage Docker, GitHub Actions CI |
 
 ## Architecture
 
-### Backend (Spring Boot)
-
 ```
-Controller (REST API) → Service → Mapper (MyBatis-Plus) → DB
-                              ↓
-                        Redis Cache
-                              ↓
-                     Elasticsearch (full-text)
-                              ↓
-              AI Agent (async) — Code Review + Safety Check
-```
-
-- **REST API**: `/api/v1/*` endpoints for all CRUD + auth
-- **AI Agent Pipeline**: `AiReviewEvent` → `LlmClient` (OpenAI-compatible) → structured review log → auto-comment + explainable terminal
-- **LLM Safety Check**: DFA pass-through → async LLM classification (4 categories)
-- **Caching**: Redis-backed like toggle, gravity-decay hot ranking, sliding window rate limiting
-- **AI Review Explainability**: `GET /api/v1/agent-logs/post/{postId}/latest` returns the latest structured review (score, severity, verdict, quality, security, suggestions)
-- **User Profile Workspace**: `GET /api/v1/users/{id}/summary` aggregates post/comment/like/fork/version stats and a recent activity timeline
-
-### Frontend (React SPA)
-
-```
-frontend/
-├── src/
-│   ├── components/        # UI components (Navbar, Sidebar, PostCard, Avatar...)
-│   │   ├── ui/            # Animated components (SpotlightCard, BorderBeam, ShimmerButton...)
-│   │   └── layout/        # MainLayout, AdminLayout
-│   ├── pages/             # 12+ page components
-│   ├── api/               # Axios client + TanStack Query hooks
-│   ├── stores/            # Zustand stores (auth, theme)
-│   └── types/             # TypeScript interfaces
+React SPA (Vite) ── Nginx ── Spring Boot API
+                                  │
+        ┌─────────────────────────┼──────────────────────────┐
+        ▼                         ▼                          ▼
+   MySQL 8 (truth)          Redis 7 (hot state)      Elasticsearch (search)
+   posts/users/likes        Lua like toggle           CJK analyzer
+   audit queue              sliding-window limiter    MySQL fallback
+   review lease             hot-ranking ZSET
+        ▲                         │
+        │    write-behind flush   │
+        └─────────────────────────┘
+                    +
+        AI Agent Pipeline (agent-llm pool)
+        AiReviewEvent → LlmClient (OpenAI-compatible)
+        → repair-parse → semantic validation
+        → review log + auto-comment + score writeback
+        AiSafetyCheckEvent → 4-class fail-closed moderation
+        Reconciliation task → lease expiry / FAILED / pending-llm retry
 ```
 
-**Design**: 2-column IDE workstation layout — sidebar console + main workspace. Dark cyberpunk theme (`vibe-*` color palette), macOS terminal card patterns, motion animations throughout.
+**Resilience chain**（每条链路都实测过故障注入）：
+
+- **Lease-based claims**: an AI review starts with an atomic conditional UPDATE — concurrent instances or re-published events cannot double-process a post; after 5 failed attempts the author is notified once and re-dispatch stops
+- **Fail-closed moderation**: LLM unreachable → new posts enter the audit queue with a `pending-llm` marker; the reconciliation task re-checks them when the LLM recovers and restores Safe posts
+- **Semantic validation + self-correction**: schema-valid garbage (placeholder fields from small local models) retries with a reinforced prompt; *unparseable* output (fences, trailing commas, max-token truncation) is repair-parsed, then retried with the model's own output plus the parser error — total LLM calls per review stay ≤ 2
+- **Pool isolation**: LLM-bound listeners run on a dedicated small pool (core2/max4, Abort) so model latency can never starve message/notification work
+- **Count drift reconciliation**: hourly rotating-cursor sweep detects Redis-LOSS-shaped gaps and rebuilds from the durable `vibe_post_like` table, including the hot-ranking ZSET
+- **Graceful saturation**: agent events rejected by a saturated pool degrade the post to a retryable state instead of failing the request (verified under a 50-concurrent load: 121k rejections, zero crashes)
 
 ## Features
 
 ### Core
-- [x] User registration & login (JWT auth)
+- [x] User registration & login (JWT), unique email as the recovery anchor
 - [x] Post CRUD with Markdown editor + live preview
 - [x] Channel-based browsing with slug routing
 - [x] Full-text search (ES + MySQL fallback)
 - [x] Comments with thread-style layout
-- [x] Like/unlike with Redis atomic toggle
-- [x] Prompt template Fork with source attribution
+- [x] Like toggle — Lua-atomic in Redis, MySQL fallback with matching semantics
+- [x] Prompt template fork with source attribution
 - [x] Prompt template version history, change notes, and rollback
 - [x] User profile workspace with stats grid, recent activity timeline, and published posts
+- [x] Admin audit dashboard + assisted account recovery (temp-password flow)
 
 ### AI
-- [x] **AI Code Review Agent**: Asynchronous LLM-powered post review with structured output (score, quality, security, suggestions)
-- [x] **Structured Outputs**: JSON Schema-enforced review format via OpenAI API
-- [x] **Prompt Injection Guardrails**: Delimiter-based isolation, Chain of Thought analysis
-- [x] **LLM Safety Check**: 4-class classification (Prompt injection / Harmful / Spam / Safe) with per-class handling
-- [x] **Agent run logs dashboard**: severity stats, filters, and review history
-- [x] **AI Review Explainability**: structured review terminal (score, severity, verdict, findings) on post detail pages
+- [x] **AI Code Review Agent**: async LLM review with structured output (score, quality, security, suggestions) and a visible scoring rubric
+- [x] **JSON repair + self-correction**: fences/truncation/trailing-comma repair; unparseable output retried with the parser error
+- [x] **Prompt Injection Guardrails**: delimiter-based isolation, data-not-instructions framing
+- [x] **LLM Safety Check**: 4-class structured classification (safe / prompt_injection / harmful / spam), fail-closed on outage
+- [x] **Re-review on edit**: content edits re-trigger the review; the stale AI comment is superseded so scores never contradict
+- [x] **Agent run logs dashboard**: severity stats, filters, and full review history
 - [x] **Prompt Playground**: variable substitution + token estimate
 
 ### Design
 - [x] Dark cyberpunk theme with `vibe` color palette
-- [x] 2-column IDE layout (sidebar + workspace)
-- [x] macOS terminal card patterns
-- [x] Motion animations (page transitions, stagger lists, hover effects)
-- [x] Animated components: SpotlightCard, BorderBeam, DecryptedText, ShimmerButton
+- [x] 2-column IDE layout (sidebar + workspace), macOS terminal card patterns
+- [x] Motion animations; SpotlightCard, BorderBeam, DecryptedText, ShimmerButton
 - [x] Dark mode toggle with localStorage persistence
-- [x] Circular initial avatars with hash colors
 
 ### Infrastructure
-- [x] DFA sensitive word filtering (two-tier: sensitive + critical)
-- [x] Sliding window rate limiting (Redis + Lua)
-- [x] Gravity-decay hot ranking (hourly recalculation)
-- [x] Write-behind like counter sync (every 5 min)
-- [x] Admin audit dashboard
+- [x] DFA sensitive word filtering (two-tier: sensitive + critical) with Redis pub/sub hot reload
+- [x] Sliding window rate limiting (Redis + Lua), proxy-trust-aware client IP resolution
+- [x] Gravity-decay hot ranking (hourly recalculation + drift-triggered rebuild)
+- [x] Write-behind like counter sync (SPOP batches, requeue-on-failure) + drift reconciliation
+- [x] Lease-based review claims with attempt budget and terminal notification
+- [x] Dedicated agent-llm pool isolation; graceful pool-saturation degradation
 
 ## Quick Start
 
 ### Prerequisites
 
-- JDK 18+
-- Maven 3.9+
+- JDK 18+, Maven 3.9+
 - Node.js 18+
-- Redis (optional, can be disabled)
+- Redis (optional — everything degrades gracefully without it)
+- Ollama (optional — for local AI features)
 
 ### Run in Development Mode
 
 ```bash
-# Clone
 git clone https://github.com/shing26/nexus-vibe.git
 cd nexus-vibe
 
 # Backend (H2 in-memory DB, auto-creates schema + seed data)
-mvn clean package -DskipTests
 mvn spring-boot:run
 # → http://localhost:8081
 
@@ -126,6 +132,21 @@ npm run dev
 # → http://localhost:5173 (auto-proxies /api to :8081)
 ```
 
+For the AI agents, point the backend at a local Ollama (default) or any
+OpenAI-compatible API:
+
+```bash
+ollama pull qwen2.5:7b   # or qwen2.5:3b for a faster, lighter model
+ollama serve
+```
+
+**Model quality bar**: the review agent validates output semantically —
+schema-valid but empty/placeholder responses (common from local 7B/3B models)
+are retried once, then degrade silently (logged `unknown`, no score, no AI
+comment). Local 7B/3B models are fine for exercising the pipeline; for
+reviews you can actually use, run a hosted model (e.g. `gpt-4o`) or a local
+model of 14B+ in production.
+
 ### Default Accounts
 
 > 仅开发模式（H2 seed data）可用。生产环境 demo 账号默认关闭，详见下方安全说明。
@@ -135,24 +156,8 @@ npm run dev
 | `admin` | `123456` | ADMIN |
 | `shing` | `123456` | USER |
 | `alice` | `123456` | USER |
-| `bob` | `123456` | USER |
 
-### Run with MySQL (Production)
-
-```bash
-# local MySQL + Redis, env-driven config
-$env:SPRING_PROFILES_ACTIVE="prod"
-$env:DB_URL="jdbc:mysql://localhost:3306/nexus_campus?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true"
-$env:DB_USERNAME="root"
-$env:DB_PASSWORD="root"
-$env:REDIS_HOST="localhost"
-mvn spring-boot:run
-```
-
-> The MySQL schema and demo data live in `docker/mysql/init.sql`. The legacy
-> `mysql` profile is still available for local MySQL without env overrides.
-
-### Run with Docker Compose (recommended for handoff)
+### Run with Docker Compose (recommended)
 
 ```bash
 cp .env.example .env
@@ -165,7 +170,7 @@ Then open `http://localhost:8080`. The stack starts:
 | Service | Container | Port |
 |---------|-----------|------|
 | Nginx + React SPA | `nexus-web` | `${WEB_PORT:-8080}` |
-| Spring Boot API | `nexus-app` | internal 8080 |
+| Spring Boot API | `nexus-app` | internal 8080 (768m mem limit, G1, GC logs) |
 | MySQL 8 | `nexus-db` | internal only |
 | Redis 7 | `nexus-redis` | internal only |
 | Elasticsearch (optional) | `nexus-es` | internal only |
@@ -177,159 +182,70 @@ Ollama 模型需要手动拉取一次：
 docker compose exec ollama ollama pull qwen2.5:7b
 ```
 
-公开部署建议保持 `WEB_PORT=8080`，由 cloudflared 隧道反代；本机不需要公网 IP 或开放入站端口。若改用独立 VPS 并希望直接访问 80 端口，再把 `WEB_PORT=80` 写入服务器 `.env`。
-
 ### Environment Variables
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `WEB_PORT` | `8080` | 对外暴露的 web 端口 |
-| `SPRING_PROFILES_ACTIVE` | `prod` | Spring profile |
-| `SERVER_PORT` | `8080` | API port |
-| `DB_URL` | local MySQL | JDBC URL |
-| `DB_USERNAME` / `DB_PASSWORD` | `root` / empty | MySQL credentials (password required) |
-| `REDIS_ENABLED` | `true` | Redis features |
-| `REDIS_HOST` / `REDIS_PORT` | `redis` / `6379` | Redis connection |
-| `LLM_API_KEY` | empty | OpenAI-compatible API key (only needed for hosted APIs) |
-| `LLM_ENDPOINT` | `http://ollama:11434/v1` | Chat completions base URL (compose-internal Ollama) |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | compose-internal | MySQL connection (password required) |
+| `REDIS_ENABLED` | `true` | Redis features（关闭则点赞/限流/热榜走 MySQL 降级路径） |
+| `LLM_ENDPOINT` | `http://ollama:11434/v1` | Chat completions base URL |
 | `LLM_MODEL` | `qwen2.5:7b` | Default model（Windows CPU 建议 `qwen2.5:3b`） |
-| `JWT_SECRET` | empty | JWT signing secret (required in prod) |
-| `JWT_EXPIRATION` | `86400000` | Access token TTL (ms) |
+| `LLM_API_KEY` | empty | 仅托管 API 需要 |
+| `JWT_SECRET` | empty | JWT signing secret (required in prod, fail-fast) |
 | `DEMO_SEED_ENABLED` | `false` | Seed demo accounts with `DEMO_PASSWORD` |
-| `DEMO_PASSWORD` | empty | Password for demo accounts when seeding is enabled |
-| `CORS_ALLOWED_ORIGINS` | online domain | Allowed browser origins; include `http://localhost:8080` for local full-stack verification |
-| `UPLOAD_DIR` | `/app/uploads` | Upload storage path |
+| `CORS_ALLOWED_ORIGINS` | online domain | Allowed browser origins |
+| `AI_REVIEW_ENABLED` / `AI_LEASE_SECONDS` / `AI_MAX_ATTEMPTS` | `true` / `30` / `5` | Agent pipeline tuning |
+| `LIKE_DRIFT_ENABLED` / `LIKE_DRIFT_RATIO` / `LIKE_DRIFT_ABS` | `true` / `0.5` / `100` | Drift repair thresholds |
+| `DEMO_ENDPOINTS_ENABLED` | `false` | `/api/demo/*` showcase endpoints (keep off in prod) |
 
-### Local LLM (Ollama)
-
-The dev profile targets a local Ollama instance by default, so AI Review and
-Safety agents work out of the box once Ollama is running:
-
-```bash
-ollama pull qwen2.5:7b   # or qwen2.5:3b for a faster, lighter model
-ollama serve
-```
-
-No API key is needed for local Ollama. To use a hosted OpenAI-compatible API
-instead (for example in production), set `LLM_ENDPOINT`, `LLM_MODEL`, and
-`LLM_API_KEY` in `.env`.
-
-**Model quality bar**: the review agent validates LLM output semantically —
-schema-valid but empty/placeholder responses (common from local 7B/3B models)
-are retried once with a reinforced prompt, then degrade silently: the review is
-logged as `unknown`, no score is written back, and no AI comment is posted.
-Local `qwen2.5:7b`/`3b` are fine for exercising the pipeline, but for reviews
-you can actually use, run a hosted model (e.g. `gpt-4o`) or a local model of
-14B or larger in production.
-
-**Fail-closed safety check**: when the LLM is unreachable, new posts enter the
-admin audit queue (`PENDING_REVIEW`) instead of being published unchecked; a
-reconciliation task re-runs the check when the LLM recovers and restores the
-post if it is Safe. Stuck/failed reviews are likewise retried automatically.
-
-**Account recovery**: registration collects a unique email as the recovery
-anchor. Mail delivery is not built yet, so password resets are admin-assisted:
-`POST /api/v1/admin/users/reset-password` (or the "Account Recovery" card on
-the admin dashboard) generates a temporary password for out-of-band handover.
-
-**Author notifications**: authors are messaged in-app when their post is held
-for audit, when the AI review fails (auto-retry follows), and when an admin
-approves or rejects the post. Spam rejections stay silent by design.
+完整列表见 [.env.example](.env.example)。
 
 ### Public Deployment (Docker Compose + Cloudflare Tunnel)
 
-不依赖 Oracle/VPS。需要一台常开的 Windows 机器（Docker Desktop + cloudflared），
-本机无需公网 IP，也无需在路由器/防火墙开放端口。
+不依赖公网 VPS：一台常开的机器（Docker Desktop + cloudflared）即可，无需
+公网 IP 或入站端口。
 
-1. 启动 Docker Desktop，在项目根目录写入 `.env`（参考 `.env.example`）：强随机
-   `DB_PASSWORD`、`JWT_SECRET`；如需公开 demo 登录，再设置
-   `DEMO_SEED_ENABLED=true` 与 `DEMO_PASSWORD`。
-2. `docker compose up -d --build`，然后
-   `docker compose exec ollama ollama pull qwen2.5:3b`（CPU 机器更稳；算力足够可换
-   `qwen2.5:7b`）。
-3. 验证 `http://localhost:8080` 与 `GET /actuator/health`；MySQL/Redis/ES 不应监听宿主端口。
-4. `cloudflared tunnel login`（免费账号），再 `cloudflared tunnel create nexus-vibe` 记录
-   `TUNNEL_ID`。
-5. DNS 路由：
-   - 若 `nexus-vibe.shing26.is-a.dev` 的 DNS 已在用户自己的 Cloudflare zone，运行
-     `cloudflared tunnel route dns nexus-vibe nexus-vibe.shing26.is-a.dev`；
-   - 否则 Fork `is-a-dev/register`，为子域添加 CNAME：
-     `nexus-vibe -> <TUNNEL_ID>.cfargotunnel.com`，PR 合并后生效。
-6. 编写 `%USERPROFILE%\.cloudflared\config.yml`：ingress 指向 `http://localhost:8080`，
-   兜底 `service: http_status:404`；前台 `cloudflared tunnel run nexus-vibe` 验证，稳定后
-   `cloudflared service install` 设为 Windows 服务。
-7. HTTPS 生效后，把 GitHub 仓库 homepage 指向线上域名：
-   `gh repo edit shing26/nexus-vibe --homepage "https://nexus-vibe.shing26.is-a.dev"`。
+1. 根目录写入 `.env`（参考 `.env.example`）：强随机 `DB_PASSWORD`、`JWT_SECRET`。
+2. `docker compose up -d --build`，拉取模型 `docker compose exec ollama ollama pull qwen2.5:3b`。
+3. `cloudflared tunnel login` → `cloudflared tunnel create nexus-vibe` → DNS 路由
+   （自有 zone 用 `cloudflared tunnel route dns`，否则 Fork `is-a-dev/register` 加
+   CNAME `nexus-vibe -> <TUNNEL_ID>.cfargotunnel.com`）。
+4. `cloudflared service install` 注册为 Windows 服务；HTTPS 生效后把仓库
+   homepage 指向线上域名。
 
 ### Privacy & Security Notes
 
-- All demo accounts above are local dev seed data only. In production,
-  `DEMO_SEED_ENABLED=false`（默认）会为样例账号写入随机不可恢复密码；只有显式开启
-  demo seeding 时才会使用 `DEMO_PASSWORD`。
-- Never commit real credentials: `.env` is git-ignored, and `.env.example`
-  only ships placeholders. Set `JWT_SECRET` and `DB_PASSWORD`
-  via local environment variables or a local `.env` file.
-- The JWT secret in `application.yml` is a dev fallback; production must
-  override it through `JWT_SECRET`.
-- 上传只接受 JPG/PNG/GIF/WebP 魔数文件，扩展名由服务端生成，不信任客户端
-  `Content-Type` 与原始文件名。
-- CORS、限流、actuator 与 springdoc 均按生产配置收敛，`/api/demo/**` 在 prod 不可达。
-- This repository intentionally contains no personal data, API keys, or
-  private tokens. If you fork or redeploy, keep it that way.
-
-### Handoff QA Checklist
-
-Run this before handing the project over:
-
-- [ ] `mvn test` passes (188 tests, H2 in-memory)
-- [ ] `cd frontend && npm run build` passes
-- [ ] `cd frontend && npm run lint` passes
-- [ ] Dev: login as `admin/123456` and `shing/123456`
-- [ ] Create a prompt template, edit it, verify a new version appears
-- [ ] Fork a template and verify the fork badge links back to the source
-- [ ] Restore an older template version and verify content rolls back
-- [ ] Post a regular post, comment, like, and search
-- [ ] Open `/agent-logs` as admin and verify stats + filters
-- [ ] Open a reviewed post and verify the explainable AI terminal (score, severity, verdict, findings)
-- [ ] Open `/user/2` and verify the profile stats grid and recent activity timeline
-- [ ] Open `/admin/audit` and approve/reject a pending post
-- [ ] Upload a PNG and verify `/uploads/<uuid>.png` is reachable
-- [ ] Upload `x.html` with `Content-Type: image/png` and verify it is rejected
-- [ ] `docker compose up --build` and verify the full stack on `http://localhost:8080`
+- Demo 账号仅是本地种子数据。生产 `DEMO_SEED_ENABLED=false`（默认）会给样例账号写入随机不可恢复密码。
+- Never commit real credentials: `.env` is git-ignored; `.env.example` ships placeholders only.
+- 生产 `/api/demo/**` 默认不可达（`DEMO_ENDPOINTS_ENABLED=false`）。
+- 上传只接受 JPG/PNG/GIF/WebP 魔数，扩展名由服务端生成。
+- 转发头（X-Real-IP / X-Forwarded-For）仅在有可信反代时被信任（`TRUST_FORWARDED_HEADERS`，prod 默认 true 且 nginx 负责设置 X-Real-IP）。
+- This repository intentionally contains no personal data, API keys, or private tokens.
 
 ## Project Structure
 
 ```
 nexus-vibe/
 ├── frontend/                   # React SPA (Vite + TypeScript + Tailwind)
-│   ├── src/
-│   │   ├── components/         # Shared UI components
-│   │   │   └── ui/             # Animated micro-interaction components
-│   │   ├── pages/              # Page components
-│   │   ├── api/                # API client + hooks
-│   │   ├── stores/             # Zustand stores
-│   │   └── types/              # TypeScript types
-│   ├── package.json
-│   └── vite.config.ts
 ├── src/main/java/com/nexus/campus/
-│   ├── agent/                  # AI Agent (LlmClient, Review, Safety)
-│   ├── controller/             # REST controllers
-│   ├── service/                # Business logic
-│   ├── entity/                 # MyBatis-Plus entities
-│   ├── mapper/                 # Data access
-│   ├── dto/                    # Request/Response DTOs
-│   ├── config/                 # Spring configs
-│   ├── security/               # JWT auth filter
-│   └── util/                   # DFA filter, JWT util
-├── pom.xml
+│   ├── agent/                  # AI pipeline: LlmClient, JsonRepairUtil, Review, Safety
+│   ├── task/                   # LikeSync, DriftReconcile, AiReviewReconcile
+│   ├── controller/ service/    # REST + business logic
+│   ├── config/                 # Dual async pools, Redis, security
+│   └── security/ util/         # JWT filter, DFA filter
+├── docker/mysql/
+│   ├── init.sql                # Production schema + seed
+│   ├── migrate-*.sql           # One-shot migrations for existing volumes
+│   └── benchmark/              # 100k-row EXPLAIN/loadtest harness
+├── benchmark/jmeter/           # Async-pool load test scenario
+├── docs/
+│   ├── adr/                    # Architecture Decision Records
+│   ├── research/               # Measured case studies (EXPLAIN, load test, GC)
+│   ├── blog/                   # Technical write-ups
+│   └── archive/                # Legacy QA reports
 ├── CONTEXT.md                  # Domain glossary
-└── docs/
-    ├── adr/                    # Architecture Decision Records
-    ├── product/                # Product plans and prioritization
-    ├── design/                 # UI visual system and UX architecture
-    ├── research/               # Research documents
-    ├── tickets/                # Implementation tickets
-    └── ...
+└── CHANGELOG.md
 ```
 
 ## API Examples
@@ -340,13 +256,9 @@ curl -X POST http://localhost:8081/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"username":"admin","password":"123456"}'
 
-# Get channels
-curl http://localhost:8081/api/v1/channels
-
-# Create post (authenticated)
+# Create post (authenticated, code block → triggers AI review)
 curl -X POST http://localhost:8081/api/v1/posts \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
+  -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>" \
   -d '{"title":"My Vibe Coding Setup","content":"Using Cursor + Claude...","categoryId":2}'
 
 # Latest structured AI review for a post (public)
@@ -354,6 +266,14 @@ curl http://localhost:8081/api/v1/agent-logs/post/100/latest
 
 # User profile stats + recent activity (public)
 curl http://localhost:8081/api/v1/users/2/summary
+```
+
+## Testing
+
+```bash
+mvn test                      # 226 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
+cd frontend && npm run build  # tsc strict, zero @ts-ignore
+cd frontend && npm run lint   # oxlint
 ```
 
 ## License

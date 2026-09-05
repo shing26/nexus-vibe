@@ -18,7 +18,7 @@
 - 配置与镜像：`.env.example` 改为 Ollama 内网默认（`http://ollama:11434/v1` / `qwen2.5:7b`），明确 `DEMO_PASSWORD`、`JWT_SECRET` 生产必填；保留 prod fail-fast；Dockerfile 统一 `SPRING_PROFILES_ACTIVE=prod`、`LABEL version=1.0.0`。
 - 新增 Ollama 服务：compose 增加 `ollama/ollama` + 命名卷，不暴露宿主端口；App 通过 compose 内网调用，模型由 `docker compose exec ollama ollama pull qwen2.5:7b` 拉取。
 - 文档与曝光：README 改为 188 tests、生产密码来自 `DEMO_PASSWORD`、补 Cloudflare Tunnel 自托管部署步骤，并加线上链接；新增 `docs/blog/llm-code-review-structured-output-injection-defense.md`。
-- 体验报告修复：按 `Nexus-Campus-体验报告.md` 修复 H1-H3、M4-M10、L11-L15、D1-D10，并补充回归测试；同时修复本地浏览器验证发现的 CORS 403（`.env`/`.env.example` 允许源需含 `http://localhost:8080`）与 nginx CSP `font-src 'self' data:`。详见 `pre-deployment-checklist.md`。
+- 体验报告修复：按 `docs/archive/Nexus-Campus-体验报告.md` 修复 H1-H3、M4-M10、L11-L15、D1-D10，并补充回归测试；同时修复本地浏览器验证发现的 CORS 403（`.env`/`.env.example` 允许源需含 `http://localhost:8080`）与 nginx CSP `font-src 'self' data:`。详见 `pre-deployment-checklist.md`。
 
 ## Deployment Steps
 

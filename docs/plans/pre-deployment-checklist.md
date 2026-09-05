@@ -36,7 +36,7 @@
 - [x] 页脚 agent ticker 改用公开接口，401 不再触发全局登出噪音。
 - [x] 本地化字体替换 Google Fonts 外链，`lang` 改为中文并补 meta 描述。
 - [x] 图标按钮补 `aria-label`，修复 lint 警告。
-- [x] 按 `Nexus-Campus-体验报告.md` 修复 H1-H3、M4-M10、L11-L15、D1-D10（Prompt 工坊、Agent Logs 崩溃、公告越权、AI 降级文案、发帖默认频道、标题/密码校验、真实计数、敏感词审核提示、模板变量、移动端溢出、Dashboard 密度与 Playground 折叠等），并补充对应测试。
+- [x] 按 `docs/archive/Nexus-Campus-体验报告.md` 修复 H1-H3、M4-M10、L11-L15、D1-D10（Prompt 工坊、Agent Logs 崩溃、公告越权、AI 降级文案、发帖默认频道、标题/密码校验、真实计数、敏感词审核提示、模板变量、移动端溢出、Dashboard 密度与 Playground 折叠等），并补充对应测试。
 
 ## 文档与 CI
 
