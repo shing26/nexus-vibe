@@ -129,7 +129,11 @@ campus:
       # Lease-based claim (ADR-0005): how long a claimed review stays locked
       # before the reconciliation task may re-dispatch it, and how many
       # attempts before the post enters the terminal notified state.
-      lease-seconds: 30
+      # Must exceed the LLM worst case (~2 retry ladders x 3 attempts x 30s
+      # timeout + backoff ~ 183s, structured call + plain fallback), or the
+      # lease expires mid-review and the reconcile task re-dispatches a
+      # concurrent duplicate.
+      lease-seconds: 240
       max-attempts: 5
       # Context budget for code blocks sent to the LLM. Keep within the
       # model's context window (local 7B models are typically 8k-32k).

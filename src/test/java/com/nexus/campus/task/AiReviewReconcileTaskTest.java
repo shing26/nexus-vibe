@@ -3,6 +3,7 @@ package com.nexus.campus.task;
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmClient;
+import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.mapper.VibePostMapper;
@@ -44,6 +45,9 @@ class AiReviewReconcileTaskTest {
     void enableFeatures() {
         ReflectionTestUtils.setField(task, "reviewEnabled", true);
         ReflectionTestUtils.setField(task, "safetyEnabled", true);
+        // The task now consumes health through the shared cache; wire it to
+        // the mocked LlmClient so probe caching is exercised for real.
+        ReflectionTestUtils.setField(task, "llmHealthCache", new LlmHealthCache(llmClient));
     }
 
     private VibePost post(long id) {

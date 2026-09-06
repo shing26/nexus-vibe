@@ -1,6 +1,7 @@
 package com.nexus.campus.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexus.campus.agent.LlmClient;
 import com.nexus.campus.dto.PostCreateRequest;
 import com.nexus.campus.dto.PostUpdateRequest;
 import com.nexus.campus.util.JwtUtil;
@@ -10,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 
 import org.springframework.test.web.servlet.MockMvc;
@@ -42,6 +44,11 @@ class PostControllerIntegrationTest {
     @Autowired
     private JwtUtil jwtUtil;
 
+    // The publish-time safety gate fail-closes new posts when the LLM looks
+    // unhealthy; there is no live LLM in tests, so pin it healthy explicitly.
+    @MockBean
+    private LlmClient llmClient;
+
     private String authToken;
     private static final String POSTS_URL = "/api/v1/posts";
     private static final String CHANNELS_URL = "/api/v1/channels";
@@ -49,6 +56,7 @@ class PostControllerIntegrationTest {
     @BeforeEach
     void setUp() {
         authToken = jwtUtil.generateToken(2L, "testuser", "USER");
+        org.mockito.Mockito.when(llmClient.isHealthy()).thenReturn(true);
     }
 
     @Test

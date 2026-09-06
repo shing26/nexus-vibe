@@ -2,7 +2,7 @@ package com.nexus.campus.task;
 
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
-import com.nexus.campus.agent.LlmClient;
+import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.mapper.VibePostMapper;
@@ -31,7 +31,6 @@ import java.util.List;
 public class AiReviewReconcileTask {
 
     private static final int BATCH_LIMIT = 10;
-    private static final long HEALTH_CACHE_MILLIS = 5 * 60 * 1000;
 
     @Value("${campus.ai.reconcile.stale-minutes:10}")
     private long staleMinutes;
@@ -43,7 +42,7 @@ public class AiReviewReconcileTask {
     private ApplicationEventPublisher eventPublisher;
 
     @Autowired
-    private LlmClient llmClient;
+    private LlmHealthCache llmHealthCache;
 
     @Value("${campus.ai.review.enabled:true}")
     private boolean reviewEnabled;
@@ -54,9 +53,6 @@ public class AiReviewReconcileTask {
     @Value("${campus.ai.safety.enabled:true}")
     private boolean safetyEnabled;
 
-    private volatile long lastHealthCheckAt;
-    private volatile boolean lastHealthy;
-
     /**
      * Every 5 minutes, sweep stale AI review/safety states and re-trigger them.
      */
@@ -65,7 +61,7 @@ public class AiReviewReconcileTask {
         if (!reviewEnabled && !safetyEnabled) {
             return;
         }
-        if (!isLlmHealthy()) {
+        if (!llmHealthCache.isHealthy()) {
             log.debug("[AI-RECONCILE] LLM unhealthy, skipping cycle.");
             return;
         }
@@ -100,17 +96,4 @@ public class AiReviewReconcileTask {
         return stalePosts.size();
     }
 
-    /**
-     * Cached LLM health probe: at most one real call per cycle (shared by the
-     * review and safety sweeps). The probe itself retries like any LLM call
-     * and fails fast while the breaker is open.
-     */
-    private boolean isLlmHealthy() {
-        long now = System.currentTimeMillis();
-        if (now - lastHealthCheckAt > HEALTH_CACHE_MILLIS) {
-            lastHealthy = llmClient.isHealthy();
-            lastHealthCheckAt = now;
-        }
-        return lastHealthy;
-    }
 }

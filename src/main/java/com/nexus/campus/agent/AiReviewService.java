@@ -92,11 +92,13 @@ public class AiReviewService {
     }
 
     /**
-     * Builds the fixed system prompt for code review.
+     * Builds the system prompt for code review, declaring this request's
+     * nonce delimiters verbatim so the model knows the authoritative data
+     * boundaries (user content cannot predict them — see {@link PromptIsolation}).
      */
-    public String buildSystemPrompt() {
+    public String buildSystemPrompt(String beginMarker, String endMarker) {
         return "You are an expert AI code reviewer with deep knowledge of multiple programming languages. "
-               + "Analyze the code delimited by ---BEGIN CODE--- and ---END CODE--- markers.\n\n"
+               + "Analyze the code delimited by " + beginMarker + " and " + endMarker + " markers.\n\n"
                + "Step through the following analysis:\n"
                + "1. First, assess code correctness and logical soundness\n"
                + "2. Then, evaluate code quality and best practices\n"
@@ -131,8 +133,8 @@ public class AiReviewService {
      * schema-valid placeholders (single uppercase words, empty fields) fail
      * validation, so spell out the expectation explicitly.
      */
-    private String buildReinforcedSystemPrompt() {
-        return buildSystemPrompt() + "\n\n"
+    private String buildReinforcedSystemPrompt(String beginMarker, String endMarker) {
+        return buildSystemPrompt(beginMarker, endMarker) + "\n\n"
                + "STRICT OUTPUT REQUIREMENTS:\n"
                + "- codeQuality and optimizationSuggestions MUST each be a multi-sentence, "
                + "concrete analysis of the actual code (at least 2 full sentences each).\n"
@@ -190,9 +192,12 @@ public class AiReviewService {
 
     /**
      * Builds the user message content: post title and a short excerpt of the
-     * surrounding prose for context, then the delimiter-isolated code blocks.
+     * surrounding prose for context, then the nonce-delimiter-isolated code
+     * blocks. Each block is neutralized so delimiter-like lines inside it can
+     * never close the data region early.
      */
-    private String buildUserContent(String title, String content, List<String> codeBlocks) {
+    private String buildUserContent(String title, String content, List<String> codeBlocks,
+                                    String beginMarker, String endMarker) {
         StringBuilder sb = new StringBuilder();
         if (title != null && !title.isBlank()) {
             sb.append("Post title: ").append(title.trim()).append("\n");
@@ -203,9 +208,9 @@ public class AiReviewService {
         }
         sb.append("\n");
         for (String block : codeBlocks) {
-            sb.append("---BEGIN CODE---\n");
-            sb.append(block).append("\n");
-            sb.append("---END CODE---\n\n");
+            sb.append(beginMarker).append("\n");
+            sb.append(PromptIsolation.neutralize(block)).append("\n");
+            sb.append(endMarker).append("\n\n");
         }
         return sb.toString();
     }
@@ -239,7 +244,10 @@ public class AiReviewService {
     private List<String> filterCodeBlocks(List<String> codeBlocks) {
         List<String> filtered = new ArrayList<>();
         int totalTokens = 0;
-        int overheadEstimate = estimateTokens(buildSystemPrompt()) + 2000; // system + response budget
+        // Overhead estimate only — representative marker lengths, not the
+        // actual per-request nonces.
+        int overheadEstimate = estimateTokens(buildSystemPrompt("---BEGIN CODE 00000000---",
+                "---END CODE 00000000---")) + 2000; // system + response budget
         int budget = maxContextTokens - overheadEstimate;
 
         for (String block : codeBlocks) {
@@ -276,14 +284,20 @@ public class AiReviewService {
             return;
         }
 
-        String userContent = buildUserContent(title, content, filteredBlocks);
+        // Per-request nonce delimiters: the system prompt declares them, user
+        // content cannot predict or forge them (prompt injection defense).
+        PromptIsolation.Delimiters code = PromptIsolation.delimiters("CODE");
+        String beginMarker = code.begin();
+        String endMarker = code.end();
+        String userContent = buildUserContent(title, content, filteredBlocks, beginMarker, endMarker);
+        String systemPrompt = buildSystemPrompt(beginMarker, endMarker);
         JsonNode schema = buildReviewSchema();
         JsonNode resultJson = null;
 
         // First pass: raw text -> repair-parse. The repair pipeline fixes
         // fences, trailing commas, and max-token truncation before parsing.
         String raw = llmClient.sendStructuredRequest(
-                buildSystemPrompt(), userContent, "code_review", schema, REVIEW_TEMPERATURE);
+                systemPrompt, userContent, "code_review", schema, REVIEW_TEMPERATURE);
         JsonRepairUtil.ParseResult parsed = JsonRepairUtil.parse(raw);
         ReviewResult result = parsed.ok() ? parseStructuredResponse(parsed.node()) : null;
         resultJson = parsed.node();
@@ -297,7 +311,7 @@ public class AiReviewService {
             String retryUser;
             if (parsed.ok()) {
                 log.info("Review result for post {} failed validation, retrying with reinforced prompt", postId);
-                retryPrompt = buildReinforcedSystemPrompt();
+                retryPrompt = buildReinforcedSystemPrompt(beginMarker, endMarker);
                 retryUser = userContent;
             } else {
                 log.info("Review output for post {} unparseable ({}), retrying with self-correction", postId, parsed.error());

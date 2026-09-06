@@ -4,6 +4,7 @@ import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiReviewLog;
 import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
+import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.mapper.VibePostMapper;
@@ -23,7 +24,9 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 /**
  * Unit tests for graceful degradation when the async pool rejects agent
@@ -40,6 +43,8 @@ class VibePostAgentEventPublishTest {
     private VibePostMapper vibePostMapper;
     @Mock
     private AiReviewLogMapper aiReviewLogMapper;
+    @Mock
+    private LlmHealthCache llmHealthCache;
 
     @InjectMocks
     private VibePostServiceImpl service;
@@ -69,6 +74,7 @@ class VibePostAgentEventPublishTest {
     @Test
     @DisplayName("Rejected safety event fails closed with a pending-llm marker")
     void rejectedSafetyEventFailsClosed() {
+        when(llmHealthCache.isHealthy()).thenReturn(true);
         doThrow(new RejectedExecutionException("pool full"))
                 .when(eventPublisher).publishEvent(any(AiSafetyCheckEvent.class));
 
@@ -79,6 +85,22 @@ class VibePostAgentEventPublishTest {
         ArgumentCaptor<AiReviewLog> captor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(aiReviewLogMapper).insert(captor.capture());
         assertEquals("safety-check-agent", captor.getValue().getReviewer());
+        assertEquals("pending-llm", captor.getValue().getSeverity());
+    }
+
+    @Test
+    @DisplayName("Unhealthy LLM at enqueue fails closed before publishing: post never sits public unchecked")
+    void unhealthyLlmAtEnqueueFailsClosedWithoutPublishing() {
+        when(llmHealthCache.isHealthy()).thenReturn(false);
+
+        assertDoesNotThrow(() -> service.publishSafetyEventSafely(post(3L), 9L));
+
+        // ADR-0004: during an outage posts do not appear publicly — the event
+        // must not even enter the pipeline; the post lands in the audit queue.
+        verify(eventPublisher, never()).publishEvent(any(AiSafetyCheckEvent.class));
+        verify(vibePostMapper).updatePostStatus(3L, 2);
+        ArgumentCaptor<AiReviewLog> captor = ArgumentCaptor.forClass(AiReviewLog.class);
+        verify(aiReviewLogMapper).insert(captor.capture());
         assertEquals("pending-llm", captor.getValue().getSeverity());
     }
 }

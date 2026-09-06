@@ -17,6 +17,7 @@ import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.enums.PostStatus;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
+import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.service.PostSearchService;
 import com.nexus.campus.service.PostRankingService;
 import com.nexus.campus.service.SensitiveWordService;
@@ -85,6 +86,9 @@ public class VibePostServiceImpl implements VibePostService {
 
     @Autowired
     private AiReviewLogMapper aiReviewLogMapper;
+
+    @Autowired
+    private LlmHealthCache llmHealthCache;
 
     @Autowired
     private PromptVersionMapper promptVersionMapper;
@@ -621,28 +625,46 @@ public class VibePostServiceImpl implements VibePostService {
     }
 
     /**
-     * Publishes the safety event; on pool saturation the check never runs, so
-     * fail closed immediately (PENDING_REVIEW + pending-llm marker) exactly
-     * like the listener would on an LLM outage.
+     * Publishes the safety event. Fails closed up front when the (cached)
+     * LLM health verdict is unhealthy — otherwise a post would sit publicly
+     * visible for minutes during an LLM outage before the async check lands
+     * (ADR-0004: during an outage posts do not appear publicly). Also fails
+     * closed on pool saturation, when the check would never run at all.
+     * Both paths land in PENDING_REVIEW + a "pending-llm" marker, exactly
+     * like the listener would, so the reconciliation task re-queues them.
      */
     void publishSafetyEventSafely(VibePost post, Long userId) {
+        if (!llmHealthCache.isHealthy()) {
+            log.warn("LLM unhealthy at enqueue, post {} failed closed to PENDING_REVIEW", post.getId());
+            failClosedAtEnqueue(post, "LLM unhealthy at enqueue");
+            return;
+        }
         try {
             eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
         } catch (java.util.concurrent.RejectedExecutionException e) {
             log.warn("Safety check queue saturated, post {} failed closed to PENDING_REVIEW", post.getId());
-            try {
-                vibePostMapper.updatePostStatus(post.getId(), PostStatus.PENDING_REVIEW.getCode());
-                AiReviewLog marker = new AiReviewLog();
-                marker.setPostId(post.getId());
-                marker.setReviewer("safety-check-agent");
-                marker.setResultJson("pipeline saturated at enqueue");
-                marker.setSeverity("pending-llm");
-                marker.setIsApproved(0);
-                marker.setCreatedAt(java.time.LocalDateTime.now());
-                aiReviewLogMapper.insert(marker);
-            } catch (Exception ex) {
-                log.warn("Failed to fail-closed post {} after rejection: {}", post.getId(), ex.getMessage());
-            }
+            failClosedAtEnqueue(post, "pipeline saturated at enqueue");
+        }
+    }
+
+    /**
+     * Best-effort fail-closed at enqueue time; never throws into the
+     * publish path — a persistence failure here only loses the marker,
+     * and the post stays visible until the next manual/audit sweep.
+     */
+    private void failClosedAtEnqueue(VibePost post, String reason) {
+        try {
+            vibePostMapper.updatePostStatus(post.getId(), PostStatus.PENDING_REVIEW.getCode());
+            AiReviewLog marker = new AiReviewLog();
+            marker.setPostId(post.getId());
+            marker.setReviewer("safety-check-agent");
+            marker.setResultJson(reason);
+            marker.setSeverity("pending-llm");
+            marker.setIsApproved(0);
+            marker.setCreatedAt(java.time.LocalDateTime.now());
+            aiReviewLogMapper.insert(marker);
+        } catch (Exception ex) {
+            log.warn("Failed to fail-closed post {} at enqueue: {}", post.getId(), ex.getMessage());
         }
     }
 

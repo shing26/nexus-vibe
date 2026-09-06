@@ -70,7 +70,7 @@ campus:
       stale-minutes: ${AI_RECONCILE_STALE_MINUTES:10}
     review:
       enabled: ${AI_REVIEW_ENABLED:true}
-      lease-seconds: ${AI_LEASE_SECONDS:30}
+      lease-seconds: ${AI_LEASE_SECONDS:240}
       max-attempts: ${AI_MAX_ATTEMPTS:5}
       max-context-tokens: ${AI_MAX_CONTEXT_TOKENS:12000}
     llm:
