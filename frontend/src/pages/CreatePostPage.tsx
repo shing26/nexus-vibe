@@ -158,6 +158,19 @@ export default function CreatePostPage() {
   const [variablesStr, setVariablesStr] = useState("");
   const [template, setTemplate] = useState<string>(searchParams.get("template") || "");
 
+  // Unsaved-changes guard: content is dirty once it drifts from the last
+  // restored/templated baseline; beforeunload warns on reload/close.
+  const baseline = useRef({ title: "", content: "" });
+  const dirty = title !== baseline.current.title || content !== baseline.current.content;
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
   // Apply template scaffold once channels are available
   useEffect(() => {
     if (draftId || !channels || !template) return;
@@ -173,6 +186,7 @@ export default function CreatePostPage() {
     setTemperature("temperature" in tpl && tpl.temperature != null ? tpl.temperature : 0.7);
     setVariablesStr("variablesStr" in tpl && tpl.variablesStr ? tpl.variablesStr : "");
     setActiveTab("editor");
+    baseline.current = { title: "", content: tpl.scaffold };
   }, [template, channels, draftId]);
 
   const selectTemplate = (id: string) => {
@@ -208,6 +222,7 @@ export default function CreatePostPage() {
       setRecommendedModel(draft.recommendedModel || "");
       setTemperature(draft.temperature ?? 0.7);
       setVariablesStr(draft.variablesStr || "");
+      baseline.current = { title: draft.title || "", content: draft.content || "" };
     } catch {
       // ignore malformed local drafts
     }
@@ -223,10 +238,10 @@ export default function CreatePostPage() {
     const after = content.slice(end);
     let insertion: string, cursorOffset: number;
     if (selected) {
-      insertion = "`\n" + selected + "\n`";
+      insertion = "```\n" + selected + "\n```";
       cursorOffset = start + insertion.length;
     } else {
-      insertion = "`\n\n`";
+      insertion = "```\n\n```";
       cursorOffset = start + 4;
     }
     setContent(before + insertion + after);

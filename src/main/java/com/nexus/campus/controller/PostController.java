@@ -15,6 +15,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.validation.Valid;
+import jakarta.servlet.http.HttpServletRequest;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Collections;
@@ -126,9 +127,11 @@ public class PostController {
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String language,
             @RequestParam(required = false) Integer aiScoreMin,
-            @RequestParam(required = false) String sort) {
+            @RequestParam(required = false) String sort,
+            HttpServletRequest request) {
         if (hot) {
             List<PostPageVo> hotPosts = vibePostService.getHotPosts(size);
+            fillLikedByMe(hotPosts, request);
             return ApiResponse.success(PageResult.of(page, size, hotPosts.size(), hotPosts));
         }
         PageResult<PostPageVo> result;
@@ -155,24 +158,47 @@ public class PostController {
         } else {
             result = vibePostService.getActivePosts(page, size, type);
         }
+        fillLikedByMe(result.getList(), request);
         return ApiResponse.success(result);
     }
 
     @GetMapping("/hot")
     public ApiResponse<List<PostPageVo>> getHotPosts(
-            @RequestParam(defaultValue = "10") int limit) {
+            @RequestParam(defaultValue = "10") int limit,
+            HttpServletRequest request) {
         List<PostPageVo> posts = vibePostService.getHotPosts(limit);
+        fillLikedByMe(posts, request);
         return ApiResponse.success(posts);
     }
 
     @GetMapping("/{id}")
-    public ApiResponse<PostPageVo> getPostDetail(@PathVariable Long id) {
+    public ApiResponse<PostPageVo> getPostDetail(@PathVariable Long id, HttpServletRequest request) {
         vibePostService.incrementView(id);
         PostPageVo post = vibePostService.getPostDetail(id);
         if (post == null) {
             return ApiResponse.notFound("Post not found.");
         }
+        fillLikedByMe(Collections.singletonList(post), request);
         return ApiResponse.success(post);
+    }
+
+    /**
+     * Stamps each VO with the viewer's like state. The JWT filter parses the
+     * token best-effort on public GETs; the attribute is absent when
+     * anonymous, leaving likedByMe null rather than a false "not liked".
+     */
+    private void fillLikedByMe(List<PostPageVo> posts, HttpServletRequest request) {
+        Object attr = request.getAttribute("currentUserId");
+        if (!(attr instanceof Long currentUserId)) {
+            return;
+        }
+        for (PostPageVo post : posts) {
+            try {
+                post.setLikedByMe(likeCounterService.isLiked(post.getId(), currentUserId));
+            } catch (Exception e) {
+                // Redis hiccup must not break the listing; client falls back to local state
+            }
+        }
     }
 
     @PostMapping("/{id}/like")

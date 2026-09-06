@@ -18,6 +18,8 @@
    promptMetadata?: string;
    forkedFromId?: string;
    versionCount?: number;
+   /** Whether the logged-in viewer has liked this post; null/absent when anonymous */
+   likedByMe?: boolean | null;
  }
 
  export interface PromptVersion {

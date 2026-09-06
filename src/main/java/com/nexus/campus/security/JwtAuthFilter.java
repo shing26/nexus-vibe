@@ -42,6 +42,14 @@ public class JwtAuthFilter implements Filter {
         }
 
         if ("GET".equalsIgnoreCase(request.getMethod()) && isPublicGet(path)) {
+            // Best-effort identity for public reads: endpoints may personalize
+            // the response (e.g. likedByMe) without requiring a token.
+            String publicToken = extractToken(request);
+            if (publicToken != null && jwtUtil.validateToken(publicToken)) {
+                request.setAttribute("currentUserId", jwtUtil.getUserIdFromToken(publicToken));
+                request.setAttribute("currentUsername", jwtUtil.getUsernameFromToken(publicToken));
+                request.setAttribute("currentRole", jwtUtil.getRoleFromToken(publicToken));
+            }
             chain.doFilter(request, response);
             return;
         }

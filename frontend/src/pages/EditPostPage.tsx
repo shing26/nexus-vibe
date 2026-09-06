@@ -32,6 +32,26 @@ export default function EditPostPage() {
   const [error, setError] = useState('');
   const { data: channels, isLoading: channelsLoading } = useChannels();
 
+  // Unsaved-changes guard: dirty once fields drift from the loaded baseline;
+  // beforeunload warns on reload/close, Cancel asks before discarding.
+  const baseline = useRef({ title: '', content: '', changeNote: '' });
+  const dirty = title !== baseline.current.title
+    || content !== baseline.current.content
+    || changeNote !== baseline.current.changeNote;
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e: BeforeUnloadEvent) => {
+      e.preventDefault();
+    };
+    window.addEventListener('beforeunload', handler);
+    return () => window.removeEventListener('beforeunload', handler);
+  }, [dirty]);
+
+  const handleCancel = () => {
+    if (dirty && !window.confirm('Discard unsaved changes?')) return;
+    navigate(`/post/${id}`);
+  };
+
   const tokens = useMemo(() => estimateTokens(content), [content]);
 
   const displayChannels = useMemo(() => {
@@ -58,6 +78,11 @@ export default function EditPostPage() {
         setContent(post.content || '');
         setPostType(post.postType || 'post');
         setPromptMetadata(post.promptMetadata || '');
+        baseline.current = {
+          title: post.title || '',
+          content: post.content || '',
+          changeNote: '',
+        };
       } catch {
         setError('Failed to load post.');
       } finally {
@@ -230,7 +255,7 @@ export default function EditPostPage() {
         <div className="flex justify-end gap-3">
           <button
             type="button"
-            onClick={() => navigate(`/post/${id}`)}
+            onClick={handleCancel}
             className="px-6 py-3 border border-vibe-border text-slate-400 text-xs font-mono rounded-lg hover:bg-vibe-surface transition-colors"
           >
             Cancel

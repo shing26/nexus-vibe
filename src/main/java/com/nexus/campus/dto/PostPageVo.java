@@ -44,4 +44,7 @@ public class PostPageVo implements Serializable {
     private Long forkedFromId;
 
     private Integer versionCount;
+
+    /** Whether the current (optional) viewer has liked this post; null when anonymous */
+    private Boolean likedByMe;
 }

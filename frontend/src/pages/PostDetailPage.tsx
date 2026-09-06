@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { motion } from 'motion/react';
@@ -88,6 +88,7 @@ export default function PostDetailPage() {
   const [copiedLink, setCopiedLink] = useState(false);
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
+  const likeInFlight = useRef(false);
 
   const { data: post, isLoading } = useQuery({
     queryKey: ['post', id],
@@ -126,6 +127,23 @@ export default function PostDetailPage() {
     retry: false,
   });
 
+  // The post cache updates quickly (polling) but the review cache holds for
+  // 5 minutes — without this, a re-review would leave the terminal showing
+  // the old score while the header already shows the new one.
+  useEffect(() => {
+    if (post?.aiReviewed === 1 && id) {
+      queryClient.invalidateQueries({ queryKey: ['agent-logs', 'post', id, 'latest'] });
+    }
+  }, [post?.aiReviewed, id, queryClient]);
+
+  // Seed like state from the server (likedByMe survives reloads; anonymous
+  // viewers get null → false). Re-syncs when a refetch brings new values.
+  useEffect(() => {
+    if (!post) return;
+    setLiked(post.likedByMe ?? false);
+    setLikeCount(post.likeCount ?? 0);
+  }, [post?.id, post?.likedByMe, post?.likeCount]);
+
   const commentMutation = useMutation({
     mutationFn: async (content: string) => {
       await apiClient.post('/comments', { postId: id, content });
@@ -141,11 +159,19 @@ export default function PostDetailPage() {
   });
 
   const handleLike = async () => {
+    // One toggle per click: the backend Lua script toggles for real on every
+    // request, so a double-fire would add and remove in the same burst.
+    if (likeInFlight.current) return;
+    likeInFlight.current = true;
+    const nextLiked = !liked;
     try {
       const res = await apiClient.post('/posts/' + id + '/like');
-      setLiked(!liked);
-      setLikeCount(res.data.data?.currentLikes ?? likeCount + (liked ? -1 : 1));
-    } catch { /* ignore */ }
+      // The server count (Redis SCARD after the toggle) is the single truth
+      setLiked(nextLiked);
+      setLikeCount(res.data.data?.currentLikes ?? likeCount + (nextLiked ? 1 : -1));
+    } catch { /* ignore */ } finally {
+      likeInFlight.current = false;
+    }
   };
 
   const handleCopyLink = () => {
@@ -284,7 +310,7 @@ export default function PostDetailPage() {
           {/* Stats badges */}
           <div className="flex items-center gap-3 mt-1.5 text-[11px] font-mono text-slate-500">
             <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {post.viewCount}</span>
-            <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {post.likeCount}</span>
+            <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {likeCount}</span>
             <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {totalComments}</span>
           </div>
           {post.forkedFromId && (
@@ -380,7 +406,7 @@ export default function PostDetailPage() {
            >
              <Heart className={'w-4 h-4 ' + (liked ? 'fill-red-500 text-red-500' : '')} />
            </motion.span>
-           {likeCount || post.likeCount}
+           {likeCount}
          </motion.button>
          <button onClick={handleCopyLink} className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-vibe-cyan transition-colors active:scale-[0.97]">
             {copiedLink ? <Check className="w-4 h-4 text-vibe-cyan" /> : <Share2 className="w-4 h-4" />}
