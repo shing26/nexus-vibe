@@ -103,6 +103,25 @@ public class AiLogController {
         return ApiResponse.success(aiReviewDetailService.toDetail(log));
     }
 
+    /**
+     * Public review history for a post's detail page: completed code reviews,
+     * newest first, so earlier scores stay visible after a re-review lands.
+     */
+    @GetMapping("/post/{postId}")
+    public ApiResponse<List<AiReviewDetail>> getPostReviewHistory(@PathVariable Long postId) {
+        List<AiReviewLog> logs = aiReviewLogMapper.selectList(new LambdaQueryWrapper<AiReviewLog>()
+                .eq(AiReviewLog::getPostId, postId)
+                .eq(AiReviewLog::getReviewer, "code-review-agent")
+                .isNotNull(AiReviewLog::getResultJson)
+                .orderByDesc(AiReviewLog::getId)
+                .last("LIMIT 20"));
+        List<AiReviewDetail> details = new ArrayList<>(logs.size());
+        for (AiReviewLog log : logs) {
+            details.add(aiReviewDetailService.toDetail(log));
+        }
+        return ApiResponse.success(details);
+    }
+
     @GetMapping("/stats")
     public ApiResponse<Map<String, Object>> getStats(
             @RequestAttribute(value = "currentRole", required = false) String role) {

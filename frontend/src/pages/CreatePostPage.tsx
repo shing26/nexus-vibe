@@ -347,13 +347,8 @@ export default function CreatePostPage() {
     }
   };
 
-  // Auto-dismiss error after 4s
-  useEffect(() => {
-    if (error) {
-      const t = setTimeout(() => setError(""), 4000);
-      return () => clearTimeout(t);
-    }
-  }, [error]);
+  // Errors persist until the next submit clears them — an auto-dismissing
+  // validation message disappears before the user can read and act on it.
 
   return (
     <div className="max-w-5xl mx-auto px-4 py-8">

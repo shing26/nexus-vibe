@@ -4,7 +4,7 @@ import { BorderBeam } from './ui/BorderBeam';
 import { DecryptedText } from './ui/DecryptedText';
 import type { AiReviewDetail } from '../types/post';
 
-export type AiReviewTerminalState = 'pending' | 'loading' | 'error' | 'unavailable' | 'data';
+export type AiReviewTerminalState = 'pending' | 'loading' | 'error' | 'unavailable' | 'data' | 'failed';
 
 interface AiReviewTerminalProps {
   state: AiReviewTerminalState;
@@ -148,6 +148,15 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
             </button>
           )}
         </div>
+      </div>
+    );
+  }
+
+  if (state === 'failed') {
+    return (
+      <div role="status" aria-live="polite" className="flex items-center gap-2 p-3 font-mono text-xs text-yellow-400">
+        <AlertCircle className="h-3.5 w-3.5 shrink-0" />
+        AI review failed this round — the system retries automatically; scores return when it succeeds.
       </div>
     );
   }

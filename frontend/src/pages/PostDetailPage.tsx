@@ -89,6 +89,7 @@ export default function PostDetailPage() {
   const [liked, setLiked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const likeInFlight = useRef(false);
+  const [showHistory, setShowHistory] = useState(false);
 
   const { data: post, isLoading } = useQuery({
     queryKey: ['post', id],
@@ -144,6 +145,15 @@ export default function PostDetailPage() {
     setLikeCount(post.likeCount ?? 0);
   }, [post?.id, post?.likedByMe, post?.likeCount]);
 
+  const { data: reviewHistory } = useQuery<AiReviewDetail[]>({
+    queryKey: ['agent-logs', 'post', id, 'history'],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<AiReviewDetail[]>>(`/agent-logs/post/${id}`);
+      return res.data.data ?? [];
+    },
+    enabled: !!id && showHistory,
+  });
+
   const commentMutation = useMutation({
     mutationFn: async (content: string) => {
       await apiClient.post('/comments', { postId: id, content });
@@ -159,6 +169,13 @@ export default function PostDetailPage() {
   });
 
   const handleLike = async () => {
+    // Without a token the backend answers 401 and the click would vanish
+    // silently — route to login instead, like the comment/fork actions.
+    if (!user) {
+      addToast('Log in to like posts', 'error');
+      navigate('/login');
+      return;
+    }
     // One toggle per click: the backend Lua script toggles for real on every
     // request, so a double-fire would add and remove in the same burst.
     if (likeInFlight.current) return;
@@ -284,7 +301,7 @@ export default function PostDetailPage() {
 
   const comments = commentsData ?? [];
   const totalComments = comments.length > 0 ? comments.length : post.commentCount;
-  // 2 = REVIEWING; FAILED (3) posts stay quiet until the backend retries them
+  // 2 = REVIEWING; 3 = FAILED gets its own quiet terminal notice (backend retries)
   const aiPending = hasCodeBlock && post.aiReviewed === 2;
 
    return (
@@ -507,6 +524,42 @@ export default function PostDetailPage() {
           ) : (
             <AiReviewTerminal state="unavailable" />
           )}
+          <button
+            onClick={() => setShowHistory((v) => !v)}
+            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-card border border-vibe-border text-[11px] font-mono text-slate-400 hover:text-vibe-cyan hover:border-vibe-cyan/40 transition-colors"
+            aria-expanded={showHistory}
+          >
+            <History className="w-3.5 h-3.5" />
+            {showHistory ? 'Hide Review History' : 'Review History'}
+          </button>
+          {showHistory && (
+            <div className="mt-2 rounded-xl border border-vibe-border bg-vibe-surface font-mono text-xs">
+              <div className="flex items-center h-8 bg-vibe-card border-b border-vibe-border px-3">
+                <span className="text-[10px] text-slate-600">// past review rounds (newest first)</span>
+              </div>
+              {(reviewHistory ?? []).length === 0 ? (
+                <p className="p-3 text-slate-500">No completed reviews yet.</p>
+              ) : (
+                <ul>
+                  {(reviewHistory ?? []).map((entry, i) => (
+                    <li key={i} className="flex flex-wrap items-center gap-2 border-b border-vibe-border px-3 py-2 last:border-0">
+                      <span className="text-slate-500">{entry.reviewedAt ? timeAgo(entry.reviewedAt) : '--'}</span>
+                      <span className="text-vibe-neon tabular-nums">Score {entry.score == null ? '--' : entry.score <= 10 ? Math.round(entry.score * 10) : Math.round(entry.score)}/100</span>
+                      <span className="text-slate-400 uppercase">{entry.severity || 'unknown'}</span>
+                      <span className={entry.isApproved ? 'text-vibe-emerald' : 'text-yellow-400'}>
+                        {entry.isApproved ? 'Approved' : 'Needs Review'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+      {hasCodeBlock && post.aiReviewed === 3 && (
+        <div className="max-w-3xl mx-auto mb-8">
+          <AiReviewTerminal state="failed" />
         </div>
       )}
 
