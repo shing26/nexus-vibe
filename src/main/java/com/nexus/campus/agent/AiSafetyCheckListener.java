@@ -180,12 +180,15 @@ public class AiSafetyCheckListener {
     /**
      * Fail-closed policy for an unusable LLM result: hold the post in the
      * human audit queue and log a "pending-llm" marker so the reconciliation
-     * task re-runs the check when the LLM recovers.
+     * task re-runs the check when the LLM recovers. The marker is written
+     * BEFORE the status flip — if the process dies between the two writes a
+     * stray marker on a visible post is harmless, while the reverse order
+     * would hide the post with no marker and no way to re-check it.
      */
     private void failClosed(Long postId, String title, Long authorId, JsonNode rawResult) {
         log.warn("Safety check unavailable for post {}, failing closed to PENDING_REVIEW", postId);
-        updatePostStatus(postId, PostStatus.PENDING_REVIEW.getCode());
         saveReviewLog(postId, rawResult == null ? "LLM unavailable" : rawResult.toString(), "pending-llm", 0);
+        updatePostStatus(postId, PostStatus.PENDING_REVIEW.getCode());
         notifyAuthor(authorId, title, "你的帖子正在等待安全审核，通过后将公开展示。");
     }
 

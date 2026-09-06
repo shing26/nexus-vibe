@@ -97,12 +97,12 @@ public class AiReviewEventListener {
 
     /**
      * Atomic claim; returns the new attempt count, or -1 when the lease is
-     * held elsewhere or the attempt budget is exhausted.
+     * held elsewhere or the attempt budget is exhausted. Expiry is judged
+     * by the DB clock inside the SQL, not by this node's local clock.
      */
     private int claim(Long postId) {
-        LocalDateTime now = LocalDateTime.now();
         int claimed = vibePostMapper.tryClaimReview(
-                postId, now.plusSeconds(leaseSeconds), resolveOwner(), now, maxAttempts);
+                postId, LocalDateTime.now().plusSeconds(leaseSeconds), resolveOwner(), maxAttempts);
         if (claimed <= 0) {
             return -1;
         }

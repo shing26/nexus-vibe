@@ -232,20 +232,33 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
 
     // Atomic lease claim (ADR-0005): wins iff no live lock exists and the
     // attempt budget is not exhausted. Returns 1 row claimed, 0 otherwise.
+    // Expiry is judged by the DB clock (NOW()) so nodes with skewed local
+    // clocks cannot re-claim a live lease early.
     @Update("UPDATE vibe_post " +
             "SET review_lock_until = #{lockUntil}, review_owner = #{owner}, " +
             "    review_attempts = review_attempts + 1 " +
             "WHERE id = #{id} " +
-            "AND (review_lock_until IS NULL OR review_lock_until < #{now}) " +
+            "AND (review_lock_until IS NULL OR review_lock_until < NOW()) " +
             "AND review_attempts < #{maxAttempts}")
     int tryClaimReview(@Param("id") Long id,
                        @Param("lockUntil") LocalDateTime lockUntil,
                        @Param("owner") String owner,
-                       @Param("now") LocalDateTime now,
                        @Param("maxAttempts") int maxAttempts);
 
     @Select("SELECT review_attempts FROM vibe_post WHERE id = #{id}")
     Integer selectReviewAttempts(@Param("id") Long id);
+
+    // Budget-exhausted sweep (P2): a worker that crashed after its final
+    // claim leaves the post REVIEWING with attempts == max — the claim
+    // refuses forever, so only this sweep can retire it. Lease expiry is
+    // judged by the DB clock to avoid racing an in-flight final attempt.
+    @Select("SELECT p.* FROM vibe_post p " +
+            "WHERE p.ai_reviewed = 2 " +
+            "AND p.review_attempts >= #{maxAttempts} " +
+            "AND (p.review_lock_until IS NULL OR p.review_lock_until < NOW()) " +
+            "ORDER BY p.create_time LIMIT #{limit}")
+    List<VibePost> selectReviewingBudgetExhausted(@Param("maxAttempts") int maxAttempts,
+                                                  @Param("limit") int limit);
 
     @Select("SELECT p.* FROM vibe_post p WHERE p.id > #{cursor} ORDER BY p.id LIMIT #{limit}")
     List<VibePost> selectPostWindow(@Param("cursor") long cursor, @Param("limit") int limit);

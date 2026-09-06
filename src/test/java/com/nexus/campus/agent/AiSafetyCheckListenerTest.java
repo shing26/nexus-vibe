@@ -158,6 +158,12 @@ class AiSafetyCheckListenerTest {
         verify(aiReviewLogMapper).insert((AiReviewLog) captor.capture());
         assertEquals("pending-llm", captor.getValue().getSeverity());
         verify(sysMessageService).sendMessage(eq(0L), eq(10L), contains("等待安全审核"), eq(3));
+        // P2 ordering: the pending-llm marker must be written BEFORE the post
+        // is hidden, or a crash in between hides the post with no marker and
+        // no reconciliation path.
+        org.mockito.InOrder inOrder = org.mockito.Mockito.inOrder(aiReviewLogMapper, vibePostMapper);
+        inOrder.verify(aiReviewLogMapper).insert(any(AiReviewLog.class));
+        inOrder.verify(vibePostMapper).updatePostStatus(5L, 2);
     }
 
     @Test

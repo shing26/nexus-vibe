@@ -1,12 +1,15 @@
 package com.nexus.campus.task;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmClient;
 import com.nexus.campus.agent.LlmHealthCache;
+import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.mapper.VibePostMapper;
+import com.nexus.campus.service.SysMessageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -21,6 +24,10 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.contains;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
@@ -37,6 +44,8 @@ class AiReviewReconcileTaskTest {
     private LlmClient llmClient;
     @Mock
     private ApplicationEventPublisher eventPublisher;
+    @Mock
+    private SysMessageService sysMessageService;
 
     @InjectMocks
     private AiReviewReconcileTask task;
@@ -45,9 +54,13 @@ class AiReviewReconcileTaskTest {
     void enableFeatures() {
         ReflectionTestUtils.setField(task, "reviewEnabled", true);
         ReflectionTestUtils.setField(task, "safetyEnabled", true);
+        ReflectionTestUtils.setField(task, "maxAttempts", 5);
         // The task now consumes health through the shared cache; wire it to
         // the mocked LlmClient so probe caching is exercised for real.
         ReflectionTestUtils.setField(task, "llmHealthCache", new LlmHealthCache(llmClient));
+        // Every reconcile cycle runs the budget-exhausted sweep first; tests
+        // that exercise the sweep override this default with their own stub.
+        lenient().when(vibePostMapper.selectReviewingBudgetExhausted(anyInt(), anyInt())).thenReturn(List.of());
     }
 
     private VibePost post(long id) {
@@ -60,13 +73,41 @@ class AiReviewReconcileTaskTest {
     }
 
     @Test
-    @DisplayName("Skips the whole cycle when the LLM is unhealthy")
+    @DisplayName("Skips the whole retry cycle when the LLM is unhealthy")
     void shouldSkipWhenLlmUnhealthy() {
         when(llmClient.isHealthy()).thenReturn(false);
 
         task.reconcile();
 
-        verifyNoInteractions(vibePostMapper, eventPublisher);
+        // the sweep still ran (before the gate) but nothing is re-triggered
+        verifyNoInteractions(eventPublisher);
+    }
+
+    @Test
+    @DisplayName("Budget-exhausted REVIEWING posts retire to FAILED and notify once")
+    void shouldSweepBudgetExhaustedReviews() {
+        when(llmClient.isHealthy()).thenReturn(false); // sweep must run even on outage
+        VibePost stuck = post(5L);
+        when(vibePostMapper.selectReviewingBudgetExhausted(5, 10)).thenReturn(List.of(stuck));
+        when(vibePostMapper.update(any(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+
+        task.reconcile();
+
+        verify(vibePostMapper).update(eq(null), any(LambdaUpdateWrapper.class));
+        verify(sysMessageService).sendMessage(eq(SysMessage.FROM_SYSTEM), eq(10L),
+                contains("停止自动重试"), eq(SysMessage.TYPE_SYSTEM));
+    }
+
+    @Test
+    @DisplayName("Sweep skips the notification when another instance already retired the post")
+    void shouldNotNotifyWhenRetirementLostTheRace() {
+        when(llmClient.isHealthy()).thenReturn(false);
+        when(vibePostMapper.selectReviewingBudgetExhausted(5, 10)).thenReturn(List.of(post(6L)));
+        when(vibePostMapper.update(any(), any(LambdaUpdateWrapper.class))).thenReturn(0);
+
+        task.reconcile();
+
+        verifyNoInteractions(sysMessageService);
     }
 
     @Test

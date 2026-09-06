@@ -6,9 +6,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.fasterxml.jackson.databind.node.TextNode;
-import org.jsoup.Jsoup;
-import org.jsoup.nodes.Document;
-import org.jsoup.safety.Safelist;
+import com.nexus.campus.util.ContentSanitizer;
 import org.springframework.web.util.HtmlUtils;
 
 import jakarta.servlet.ReadListener;
@@ -22,24 +20,6 @@ import java.util.*;
 public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
 
     private static final ObjectMapper objectMapper = new ObjectMapper();
-
-    /**
-     * Whitelist used for JSON request bodies: keeps safe formatting tags
-     * (p, code, pre, lists, tables, links with http(s)/mailto, images with
-     * http(s)) while stripping scripts, event handlers, javascript: URLs and
-     * other dangerous constructs. Plain text (including Markdown such as
-     * {@code a < b}) passes through unchanged, avoiding the double-encoding
-     * caused by blanket HTML-escaping of user content.
-     */
-    private static final Safelist JSON_SAFELIST = Safelist.relaxed()
-            .addTags("code", "pre", "table", "thead", "tbody", "tr", "th", "td")
-            .addAttributes("a", "href", "title", "target")
-            .addProtocols("a", "href", "http", "https", "mailto")
-            .addAttributes("img", "src", "alt", "title", "width", "height")
-            .addProtocols("img", "src", "http", "https");
-
-    private static final Document.OutputSettings JSON_OUTPUT_SETTINGS =
-            new Document.OutputSettings().prettyPrint(false);
 
     private byte[] cachedBody;
     private boolean bodySanitized;
@@ -206,10 +186,11 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
     /**
      * Whitelist-based sanitization for JSON body string values. Preserves
      * benign formatting and user content while removing dangerous HTML.
+     * Delegates to the shared {@link ContentSanitizer} (same safelist also
+     * guards server-side writers that bypass this filter).
      */
     private String sanitizeHtml(String value) {
-        if (value == null) return null;
-        return Jsoup.clean(value, "", JSON_SAFELIST, JSON_OUTPUT_SETTINGS);
+        return ContentSanitizer.clean(value);
     }
 
     /**

@@ -56,7 +56,7 @@ class AiReviewEventListenerTest {
     @Test
     @DisplayName("Claim lost (lease held elsewhere) -> review skipped, no LLM call")
     void claimLostSkipsReview() {
-        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), any(), anyInt())).thenReturn(0);
+        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(0);
 
         listener.handleAiReviewEvent(event(1L, 9L));
 
@@ -67,7 +67,7 @@ class AiReviewEventListenerTest {
     @Test
     @DisplayName("Claim won -> post marked REVIEWING, review runs")
     void claimWonRunsReview() {
-        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), any(), anyInt())).thenReturn(1);
+        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
         when(vibePostMapper.selectReviewAttempts(1L)).thenReturn(1);
 
         listener.handleAiReviewEvent(event(1L, 9L));
@@ -81,7 +81,7 @@ class AiReviewEventListenerTest {
     @Test
     @DisplayName("Final attempt failure sends the terminal notification exactly once")
     void finalAttemptFailureNotifiesOnce() {
-        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), any(), anyInt())).thenReturn(1);
+        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
         when(vibePostMapper.selectReviewAttempts(2L)).thenReturn(5);
         doThrow(new RuntimeException("LLM down")).when(aiReviewService)
                 .reviewPost(anyLong(), anyString(), anyString(), any(), anyBoolean());
@@ -99,7 +99,7 @@ class AiReviewEventListenerTest {
     @Test
     @DisplayName("Mid-budget failure does not send the terminal notification")
     void midBudgetFailureStaysSilent() {
-        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), any(), anyInt())).thenReturn(1);
+        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
         when(vibePostMapper.selectReviewAttempts(3L)).thenReturn(2);
         doThrow(new RuntimeException("LLM down")).when(aiReviewService)
                 .reviewPost(anyLong(), anyString(), anyString(), any(), anyBoolean());
