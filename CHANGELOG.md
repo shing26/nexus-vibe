@@ -9,6 +9,38 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+Audit-driven hardening of the AI pipeline (ADR-0003/0004/0005 review + product walkthrough, 2026-09-06):
+
+- **Fail-closed without backdoors**: the safety listener's outer catch now fails closed (was a silent
+  fail-open path leaving posts public with no reconciliation marker); the publish path gates on a
+  shared cached LLM health verdict, so posts never sit publicly visible during an LLM outage
+  (ADR-0004); `failClosed` writes the pending-llm marker before flipping post status
+- **Prompt-injection isolation**: per-request nonce delimiters + inline neutralization of
+  delimiter-like lines; post title/context excerpt moved inside their own META region
+- **Lease correctness**: expiry judged by the DB clock (`NOW()`) instead of the caller's clock;
+  lease raised 30s → 240s to exceed the LLM worst case and stop mid-review re-dispatch; the
+  reconcile task retires budget-exhausted REVIEWING posts that a worker crash left unclaimable
+- **Defense in depth**: AI review comments are sanitized through a shared safelist
+  (`ContentSanitizer`, also used by the request XSS filter) since they bypass it
+
+### Fixed
+
+Product walkthrough findings (three-persona full-journey report, `产品体验报告/`):
+
+- **P0**: re-reviewing a post no longer shows the stale score in the review terminal — the post
+  poll reaching `aiReviewed=1` invalidates the 5-minute review-detail cache
+- **Like state**: posts now carry `likedByMe` (Redis SISMEMBER, best-effort identity on public
+  GETs) so the highlight survives reloads; the falsy-count fallback is gone and the server's
+  `currentLikes` is the single truth with an in-flight lock against double toggles
+- **Unsaved content**: create/edit pages warn on `beforeunload` once content drifts from the
+  restored baseline; edit-page Cancel confirms before discarding
+- **Smaller UX**: `aiReviewed=3` renders a quiet "review failed, retrying" notice; liking while
+  logged out routes to login instead of swallowing the 401; a collapsible Review History panel
+  (public `GET /agent-logs/post/{id}`) keeps earlier scores visible after a re-review; the
+  create-page Code button inserts triple backticks; validation errors persist until the next submit
+
 ### Changed
 
 - **Review lease + attempt budget (ADR-0005)**: AI review attempts claim the post with an atomic
