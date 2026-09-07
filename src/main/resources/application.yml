@@ -153,6 +153,9 @@ campus:
       # none. Anything the provider rejects fails fast into the plain-completion
       # fallback, so a wrong value here degrades, never breaks.
       response-format: ${AI_RESPONSE_FORMAT:json_schema}
+      # DeepSeek V4 models think by default (content stays empty, latency explodes);
+      # this pipeline needs deterministic JSON, so thinking is disabled by default.
+      thinking-disabled: ${AI_THINKING_DISABLED:true}
       breaker:
         # Consecutive failed calls before the circuit opens
         failure-threshold: 3

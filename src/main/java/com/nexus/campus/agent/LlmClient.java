@@ -29,6 +29,13 @@ public class LlmClient {
     private final ObjectMapper objectMapper;
     /** json_schema (native strict) | json_object (DeepSeek et al.) | none */
     private final String responseFormat;
+    /**
+     * DeepSeek V4 models think by default (reasoning lands in
+     * reasoning_content, content stays empty and temperature is ignored).
+     * This pipeline needs deterministic bounded-latency JSON, not a hidden
+     * reasoning chain, so thinking is disabled unless explicitly wanted.
+     */
+    private final boolean thinkingDisabled;
 
     private final int breakerFailureThreshold;
     private final long breakerOpenMillis;
@@ -42,11 +49,13 @@ public class LlmClient {
             @Value("${campus.ai.llm.timeout}") Duration timeout,
             @Value("${campus.ai.llm.breaker.failure-threshold:3}") int breakerFailureThreshold,
             @Value("${campus.ai.llm.breaker.open-seconds:60}") long breakerOpenSeconds,
-            @Value("${campus.ai.llm.response-format:json_schema}") String responseFormat) {
+            @Value("${campus.ai.llm.response-format:json_schema}") String responseFormat,
+            @Value("${campus.ai.llm.thinking-disabled:true}") boolean thinkingDisabled) {
         this.model = model;
         this.breakerFailureThreshold = breakerFailureThreshold;
         this.breakerOpenMillis = breakerOpenSeconds * 1000;
         this.responseFormat = responseFormat;
+        this.thinkingDisabled = thinkingDisabled;
         this.objectMapper = new ObjectMapper();
         ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
                 .withConnectTimeout(timeout)
@@ -137,6 +146,9 @@ public class LlmClient {
      * or none (no response_format at all).
      */
     private void applyResponseFormat(ObjectNode requestBody, String schemaName, JsonNode jsonSchema) {
+        if (thinkingDisabled) {
+            requestBody.putObject("thinking").put("type", "disabled");
+        }
         if ("none".equalsIgnoreCase(responseFormat)) {
             return;
         }
