@@ -134,9 +134,24 @@ public class LlmClient {
         }
         applyResponseFormat(requestBody, schemaName, jsonSchema);
         ArrayNode messages = requestBody.putArray("messages");
-        messages.addObject().put("role", "system").put("content", systemPrompt);
+        messages.addObject().put("role", "system").put("content", withSchemaInPrompt(systemPrompt, jsonSchema));
         messages.addObject().put("role", "user").put("content", userContent);
         return withRetry(() -> postChatCompletion(requestBody), "structured completion");
+    }
+
+    /**
+     * In json_object/none modes the provider never sees the schema (it is not
+     * part of response_format), so it must travel in the prompt — DeepSeek's
+     * json_object guide requires the format description in the prompt anyway.
+     * In native json_schema mode the wire format already enforces it.
+     */
+    private String withSchemaInPrompt(String systemPrompt, JsonNode jsonSchema) {
+        if ("json_schema".equalsIgnoreCase(responseFormat) || jsonSchema == null) {
+            return systemPrompt;
+        }
+        return systemPrompt
+                + "\n\nThe JSON object must exactly match this schema — field names, types and enum values are fixed:\n"
+                + jsonSchema.toString();
     }
 
     /**
@@ -176,7 +191,7 @@ public class LlmClient {
         applyResponseFormat(requestBody, schemaName, jsonSchema);
 
         ArrayNode messages = requestBody.putArray("messages");
-        messages.addObject().put("role", "system").put("content", systemPrompt);
+        messages.addObject().put("role", "system").put("content", withSchemaInPrompt(systemPrompt, jsonSchema));
         messages.addObject().put("role", "user").put("content", userContent);
 
         String contentJson = withRetry(() -> postChatCompletion(requestBody), "structured completion");
