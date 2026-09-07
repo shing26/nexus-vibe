@@ -103,26 +103,25 @@ LLM_MODEL=deepseek-chat
    json_schema 请求发出后若报错，`LlmClient` 的既有降级链路（json_schema → 普通 completion → repair-parse → 自纠错）正好兜底，无需改代码。
 3. Gemini 原生协议不兼容，需走其 OpenAI 兼容层（覆盖度未实测），且 2.0 Flash 弃用期临近——除非专程要 Google 系，否则不选。
 
-## 六点五、追加评估：英伟达 NIM 免费节点（2026-09-07 补充）
+## 六点五、追加评估：英伟达 NIM 免费节点（2026-09-07 补充，含实测）
 
-用户提出"用英伟达的免费节点"——即 [build.nvidia.com](https://build.nvidia.com) 托管的 NIM API。核对到的事实：
+用户提出"用英伟达的免费节点"——即 [build.nvidia.com](https://build.nvidia.com) 托管的 NIM API。**已实测**（注册真实 key 走通端到端管线）：
 
-| 维度 | 事实 | 来源 |
+| 维度 | 实测结论 | 来源/证据 |
 |---|---|---|
-| 协议兼容 | `https://integrate.api.nvidia.com/v1/chat/completions`，标准 OpenAI 路径 | [NIM LLM API 文档](https://docs.api.nvidia.com/nim/reference/llm-apis) |
-| 模型库 | 含 **deepseek-v4-flash/pro、qwen3-next-80b、qwen2.5-coder-32b、llama-3.3-70b、kimi-k2/k3、glm-5** 等一线开源模型 | 同上 |
-| 结构化输出 | 官方推荐 **`nvext.guided_json`**（请求体扩展字段传 JSON schema）；文档明确不建议只靠 `response_format={"type":"json_object"}`（只保证合法 JSON 不保证结构）；标准 `response_format: json_schema` 在托管端点上的行为**官方未明确** | [Structured generation 文档](https://docs.nvidia.com/nim/large-language-models/latest/structured-generation.html) |
-| 免费额度/限流 | **未能从可访问的官方页确认具体数字**（credits/RPM 文档页在本机网络均 404/空），需注册后在控制台实测 | 见说明 |
+| 协议兼容 | `https://integrate.api.nvidia.com/v1/chat/completions` OpenAI 兼容；**标准 `response_format: json_schema` 实测被接受**（deepseek-v4-pro 返回严格 schema 合规 JSON），推翻接入前"行为未定义"的保守假设 | 实测（2026-09-07，curl + 全管线） |
+| 模型库 | 一线开源模型免费用；**注意 EOL 快**：`deepseek-v4-pro`/`qwen3-next-80b-a3b-instruct` 短 ID 均已 410 Gone，须用带日期后缀的全 ID（如 `deepseek-ai/deepseek-v4-pro-0813`）；当前在架：v4-pro-0813、v4-flash-0731、kimi-k2.6/k3、nemotron-3 系列 | `/v1/models` 实测列表 |
+| LlmClient 适配 | **需要且仅需要一处改动**：NIM 部分模型（deepseek-v4-pro 实测）响应 `Content-Type: application/octet-stream`，Spring String 转换器拒收 → 已修（默认 `Accept: application/json`，commit 1c59b43，236 测试全绿）；对 Ollama/OpenAI 是 no-op | 容器日志 + 实测修复 |
+| 质量（真实评审对比） | nemotron-3-super-120b：并发 HashMap 竞态帖评 3/10 high，精准命中 check-then-act 丢计数，给出 `ConcurrentHashMap.merge` 修复；deepseek-v4-pro 直连同帖：4/10 high，**中文原生输出**，并纠正"只换 ConcurrentHashMap 不够"——两家质量都显著高于本地 7B 的叙事基线 | 全管线评审 + 直连采样（2026-09-07） |
+| **稳定性（关键短板）** | **免费节点不稳定**：首轮 503 "Service temporarily overloaded"；deepseek-v4-pro 二次调用 120s 无响应挂起。应用侧 fail-soft 表现正确（评审落 FAILED 等对账重试），但作为生产主档不可靠 | 容器日志实测 |
+| 免费额度/限流 | 官方数字仍未在可访问文档确认，需控制台实测 | — |
 
-**对本项目的适配评估：**
+**定位结论（实测后修订）**：NIM 免费节点 = **质量评测工具 + 临时体验层**——
+- ✅ 立即价值：零成本拿到一线模型的真实评审输出做对比实验（本文档的对比数据就是这么来的）；
+- ⚠️ 不宜作生产主档：过载 503 与 120s 挂起在同一会话内先后出现，免费额度无 SLA；
+- 修复后的 LlmClient（Accept 头）使 NIM 成为 `.env` 即切的可选后端，保留作第二级回退无妨。
 
-1. **零成本拿到一线模型**——`deepseek-v4-pro` / `qwen3-next-80b` 免费用，正是三档推荐里"激进档"的模型，这让 NIM 成为**理想的零成本评测节点**：第 7 节的"抽样 10 篇对比评审质量"可以先用它跑，把钱花在拍板之后。
-2. **接入有一个小代码缺口**：`LlmClient` 发的是标准 `response_format: json_schema`，NIM 托管端点对此行为未定义（可能忽略→落到 repair-parse 兜底链路，或报错→熔断）。要吃到其结构化保证需在请求体加 `nvext: {"guided_json": schema}`——按端点 host 条件注入，约 10 行改动。
-3. **作为"生产叙事"主档的风险**：免费节点无 SLA、额度/限流政策不透明（且随时可能调整）、限流触发会让 agentLlmExecutor 队列与熔断器承压。作品集故事里"商用托管 + 可回退本地"比"蹭免费额度"更站得住。
-
-**定位建议**：NIM 免费节点 ≈ **评测与缓冲层**，不是主档替代——
-- 立即可用：注册拿 key → `.env` 三变量切换 → 零成本跑抽样对比实验，用真数据在 DashScope / DeepSeek 之间拍板；
-- 可选增强：给 `LlmClient` 加 `nvext.guided_json` 条件注入（连同 ADR-0006 一起做），把 NIM 保留为本地 Ollama 之上的第二级免费回退。
+另记录一个与 NIM 无关的实测发现：**含 `tags` 数组的建帖请求稳定 400**（`HttpMessageNotReadableException`，疑似 XssFilter 对数组字段的处理缺陷；GUI 发布路径不带 tags 故未暴露）——已记入待修清单，不在本研究范围。
 
 ## 七、下一步（决策落地路径）
 
