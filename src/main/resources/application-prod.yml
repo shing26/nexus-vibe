@@ -78,6 +78,7 @@ campus:
       api-key: ${LLM_API_KEY:}
       model: ${LLM_MODEL:gpt-4o}
       timeout: ${LLM_TIMEOUT:30s}
+      response-format: ${AI_RESPONSE_FORMAT:json_schema}
       breaker:
         failure-threshold: ${AI_BREAKER_FAILURE_THRESHOLD:3}
         open-seconds: ${AI_BREAKER_OPEN_SECONDS:60}

@@ -148,6 +148,11 @@ campus:
       api-key: ${LLM_API_KEY:}
       model: ${LLM_MODEL:qwen2.5:7b}
       timeout: ${LLM_TIMEOUT:30s}
+      # Structured-output mode: json_schema (OpenAI/NIM/DashScope native strict),
+      # json_object (DeepSeek: guaranteed-JSON, structure via prompt+repair-parse),
+      # none. Anything the provider rejects fails fast into the plain-completion
+      # fallback, so a wrong value here degrades, never breaks.
+      response-format: ${AI_RESPONSE_FORMAT:json_schema}
       breaker:
         # Consecutive failed calls before the circuit opens
         failure-threshold: 3

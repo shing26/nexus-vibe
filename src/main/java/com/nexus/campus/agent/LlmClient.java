@@ -27,6 +27,8 @@ public class LlmClient {
     private final RestClient restClient;
     private final String model;
     private final ObjectMapper objectMapper;
+    /** json_schema (native strict) | json_object (DeepSeek et al.) | none */
+    private final String responseFormat;
 
     private final int breakerFailureThreshold;
     private final long breakerOpenMillis;
@@ -39,10 +41,12 @@ public class LlmClient {
             @Value("${campus.ai.llm.model}") String model,
             @Value("${campus.ai.llm.timeout}") Duration timeout,
             @Value("${campus.ai.llm.breaker.failure-threshold:3}") int breakerFailureThreshold,
-            @Value("${campus.ai.llm.breaker.open-seconds:60}") long breakerOpenSeconds) {
+            @Value("${campus.ai.llm.breaker.open-seconds:60}") long breakerOpenSeconds,
+            @Value("${campus.ai.llm.response-format:json_schema}") String responseFormat) {
         this.model = model;
         this.breakerFailureThreshold = breakerFailureThreshold;
         this.breakerOpenMillis = breakerOpenSeconds * 1000;
+        this.responseFormat = responseFormat;
         this.objectMapper = new ObjectMapper();
         ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
                 .withConnectTimeout(timeout)
@@ -119,16 +123,33 @@ public class LlmClient {
         if (temperature != null) {
             requestBody.put("temperature", temperature);
         }
-        ObjectNode responseFormat = requestBody.putObject("response_format");
-        responseFormat.put("type", "json_schema");
-        ObjectNode jsonSchemaWrapper = responseFormat.putObject("json_schema");
-        jsonSchemaWrapper.put("name", schemaName);
-        jsonSchemaWrapper.put("strict", true);
-        jsonSchemaWrapper.set("schema", jsonSchema);
+        applyResponseFormat(requestBody, schemaName, jsonSchema);
         ArrayNode messages = requestBody.putArray("messages");
         messages.addObject().put("role", "system").put("content", systemPrompt);
         messages.addObject().put("role", "user").put("content", userContent);
         return withRetry(() -> postChatCompletion(requestBody), "structured completion");
+    }
+
+    /**
+     * Applies the configured structured-output mode: json_schema (native,
+     * strict — OpenAI, NIM, DashScope), json_object (DeepSeek: schema-less
+     * but guaranteed-JSON, structure carried by the prompt + repair-parse),
+     * or none (no response_format at all).
+     */
+    private void applyResponseFormat(ObjectNode requestBody, String schemaName, JsonNode jsonSchema) {
+        if ("none".equalsIgnoreCase(responseFormat)) {
+            return;
+        }
+        ObjectNode responseFormatNode = requestBody.putObject("response_format");
+        if ("json_object".equalsIgnoreCase(responseFormat)) {
+            responseFormatNode.put("type", "json_object");
+            return;
+        }
+        responseFormatNode.put("type", "json_schema");
+        ObjectNode jsonSchemaWrapper = responseFormatNode.putObject("json_schema");
+        jsonSchemaWrapper.put("name", schemaName);
+        jsonSchemaWrapper.put("strict", true);
+        jsonSchemaWrapper.set("schema", jsonSchema);
     }
 
     public JsonNode chatCompletionStructured(String systemPrompt, String userContent,
@@ -139,13 +160,8 @@ public class LlmClient {
             requestBody.put("temperature", temperature);
         }
 
-        // Add response_format for structured outputs
-        ObjectNode responseFormat = requestBody.putObject("response_format");
-        responseFormat.put("type", "json_schema");
-        ObjectNode jsonSchemaWrapper = responseFormat.putObject("json_schema");
-        jsonSchemaWrapper.put("name", schemaName);
-        jsonSchemaWrapper.put("strict", true);
-        jsonSchemaWrapper.set("schema", jsonSchema);
+        // Add structured-output mode per configuration
+        applyResponseFormat(requestBody, schemaName, jsonSchema);
 
         ArrayNode messages = requestBody.putArray("messages");
         messages.addObject().put("role", "system").put("content", systemPrompt);
