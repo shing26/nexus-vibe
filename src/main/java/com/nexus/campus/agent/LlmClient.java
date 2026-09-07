@@ -50,6 +50,11 @@ public class LlmClient {
         RestClient.Builder builder = RestClient.builder()
                 .baseUrl(endpoint)
                 .defaultHeader("Content-Type", "application/json")
+                // Some OpenAI-compatible providers (e.g. NVIDIA NIM, model
+                // dependent) answer with Content-Type: application/octet-stream
+                // unless explicitly told what we accept — without this, Spring's
+                // String converter rejects the body and every call fails.
+                .defaultHeader("Accept", "application/json")
                 .requestFactory(ClientHttpRequestFactories.get(settings));
         if (apiKey != null && !apiKey.isBlank()) {
             builder.defaultHeader("Authorization", "Bearer " + apiKey);
