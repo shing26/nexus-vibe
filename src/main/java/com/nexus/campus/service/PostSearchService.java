@@ -317,8 +317,12 @@ public class PostSearchService {
             doc.put("authorName", post.getAuthorName() != null ? post.getAuthorName() : "");
             doc.put("categoryName", post.getCategoryName() != null ? post.getCategoryName() : "");
             doc.put("tags", List.of());
+            // ES mapping declares format yyyy-MM-dd HH:mm:ss; LocalDateTime.toString()
+            // carries sub-second precision (MySQL 6-digit micros), which ES rejects.
+            // Truncate to seconds for both indexing and display consistency.
             doc.put("createTime", post.getCreateTime() != null
-                    ? post.getCreateTime().toString().replace("T", " ")
+                    ? post.getCreateTime().truncatedTo(java.time.temporal.ChronoUnit.SECONDS)
+                            .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                     : "");
             doc.put("status", post.getStatus() != null ? post.getStatus() : 1);
             return objectMapper.writeValueAsString(doc);
