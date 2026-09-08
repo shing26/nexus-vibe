@@ -30,6 +30,18 @@ public class GlobalExceptionHandler {
         return ApiResponse.error(404, "Resource not found.");
     }
 
+    /**
+     * A supported path hit with the wrong verb (e.g. PUT /users/me) is a
+     * client mistake, not a server error — it must not fall through to the
+     * catch-all handler and surface as a 500.
+     */
+    @ExceptionHandler(org.springframework.web.HttpRequestMethodNotSupportedException.class)
+    @ResponseStatus(HttpStatus.METHOD_NOT_ALLOWED)
+    public ApiResponse<Void> handleMethodNotSupported(org.springframework.web.HttpRequestMethodNotSupportedException e) {
+        log.debug("Method not allowed: {}", e.getMessage());
+        return ApiResponse.error(405, "Method not allowed. Supported: " + e.getSupportedHttpMethods());
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ApiResponse<Void> handleValidation(MethodArgumentNotValidException e) {

@@ -248,6 +248,16 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     @Select("SELECT review_attempts FROM vibe_post WHERE id = #{id}")
     Integer selectReviewAttempts(@Param("id") Long id);
 
+    // Release the lease after a review attempt has finished (success or
+    // failure). Scoped to the owner so a stale worker from a previous cycle
+    // can never free a lock it does not hold. Without this, a post edited
+    // inside the lease window is silently skipped (claim lost) and only the
+    // 5-minute reconcile task can recover it.
+    @Update("UPDATE vibe_post " +
+            "SET review_lock_until = NULL, review_owner = NULL " +
+            "WHERE id = #{id} AND review_owner = #{owner}")
+    int releaseReviewLease(@Param("id") Long id, @Param("owner") String owner);
+
     // Budget-exhausted sweep (P2): a worker that crashed after its final
     // claim leaves the post REVIEWING with attempts == max — the claim
     // refuses forever, so only this sweep can retire it. Lease expiry is

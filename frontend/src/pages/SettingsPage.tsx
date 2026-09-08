@@ -148,6 +148,7 @@ export default function SettingsPage() {
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
+              maxLength={50}
               placeholder="Your display name"
               className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
             />
@@ -159,6 +160,7 @@ export default function SettingsPage() {
               type="text"
               value={avatarUrl}
               onChange={(e) => setAvatarUrl(e.target.value)}
+              maxLength={255}
               placeholder="https://example.com/avatar.jpg"
               className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
             />
@@ -169,6 +171,7 @@ export default function SettingsPage() {
             <textarea
               value={bio}
               onChange={(e) => setBio(e.target.value)}
+              maxLength={255}
               placeholder="Tell us about yourself..."
               rows={4}
               className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"

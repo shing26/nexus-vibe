@@ -11,6 +11,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 
 import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Lease-claim semantics against H2 (ADR-0005): mutual exclusion, expiry and
@@ -91,5 +92,31 @@ class ReviewLeaseClaimTest {
         assertEquals(5, vibePostMapper.selectReviewAttempts(9103L));
         // 6th attempt refused even with an expired lease
         assertEquals(0, vibePostMapper.tryClaimReview(9103L, LocalDateTime.now().plusSeconds(30), "node", 5));
+    }
+
+    @Test
+    @DisplayName("Finished attempt releases the lease; another owner cannot free it")
+    void leaseReleasedByOwnerAfterAttempt() {
+        post(9104L, 0);
+
+        assertEquals(1, vibePostMapper.tryClaimReview(9104L, LocalDateTime.now().plusSeconds(240), "nodeA", 5));
+        // an edit re-publishing the event inside the lease window was the
+        // silent-drop scenario; after release the new event must claim fine
+        assertEquals(1, vibePostMapper.releaseReviewLease(9104L, "nodeA"));
+        assertNull(vibePostMapper.selectById(9104L).getReviewLockUntil());
+        assertEquals(1, vibePostMapper.tryClaimReview(9104L, LocalDateTime.now().plusSeconds(240), "nodeB", 5));
+        assertEquals(2, vibePostMapper.selectReviewAttempts(9104L));
+    }
+
+    @Test
+    @DisplayName("releaseReviewLease is owner-scoped: a foreign owner frees nothing")
+    void releaseLeaseOwnerScoped() {
+        post(9105L, 0);
+
+        assertEquals(1, vibePostMapper.tryClaimReview(9105L, LocalDateTime.now().plusSeconds(240), "nodeA", 5));
+        assertEquals(0, vibePostMapper.releaseReviewLease(9105L, "nodeB"));
+        // lock still held by nodeA: a live-lease claim from anyone else fails
+        assertEquals(0, vibePostMapper.tryClaimReview(9105L, LocalDateTime.now().plusSeconds(240), "nodeB", 5));
+        assertEquals(1, vibePostMapper.selectReviewAttempts(9105L));
     }
 }

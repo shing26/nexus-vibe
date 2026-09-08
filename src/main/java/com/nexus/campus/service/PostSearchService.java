@@ -98,7 +98,14 @@ public class PostSearchService {
                         "      \"categoryName\": { \"type\": \"keyword\" }," +
                         "      \"tags\":       { \"type\": \"keyword\" }," +
                         "      \"createTime\": { \"type\": \"date\", \"format\": \"yyyy-MM-dd HH:mm:ss\" }," +
-                        "      \"status\":     { \"type\": \"integer\" }" +
+                        "      \"status\":     { \"type\": \"integer\" }," +
+                        "      \"userId\":     { \"type\": \"long\" }," +
+                        "      \"viewCount\":  { \"type\": \"integer\" }," +
+                        "      \"likeCount\":  { \"type\": \"integer\" }," +
+                        "      \"commentCount\": { \"type\": \"integer\" }," +
+                        "      \"aiReviewed\":  { \"type\": \"integer\" }," +
+                        "      \"aiReviewScore\": { \"type\": \"integer\" }," +
+                        "      \"postType\":   { \"type\": \"keyword\" }" +
                         "    }" +
                         "  }" +
                         "}";
@@ -325,6 +332,15 @@ public class PostSearchService {
                             .format(java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss"))
                     : "");
             doc.put("status", post.getStatus() != null ? post.getStatus() : 1);
+            // Stats and AI fields ride in the index so search results carry the
+            // same numbers the DB-path listings show (they were previously null).
+            doc.put("userId", post.getUserId());
+            doc.put("viewCount", post.getViewCount() != null ? post.getViewCount() : 0);
+            doc.put("likeCount", post.getLikeCount() != null ? post.getLikeCount() : 0);
+            doc.put("commentCount", post.getCommentCount() != null ? post.getCommentCount() : 0);
+            doc.put("aiReviewed", post.getAiReviewed() != null ? post.getAiReviewed() : 0);
+            doc.put("aiReviewScore", post.getAiReviewScore());
+            doc.put("postType", post.getPostType() != null ? post.getPostType() : "post");
             return objectMapper.writeValueAsString(doc);
         } catch (Exception e) {
             log.warn("[NEXUS-ES] Failed to serialize post {}: {}", post.getId(), e.getMessage());
@@ -351,6 +367,16 @@ public class PostSearchService {
             List<?> tagList = (List<?>) source.get("tags");
             vo.setTags(tagList.stream().map(Object::toString).toArray(String[]::new));
         }
+        // Stats / AI fields: default to 0 rather than null so the search page
+        // never renders blanks where the DB-path listings show numbers.
+        vo.setStatus(source.get("status") instanceof Number n ? n.intValue() : 1);
+        if (source.get("userId") instanceof Number n) vo.setUserId(n.longValue());
+        vo.setViewCount(source.get("viewCount") instanceof Number n ? n.intValue() : 0);
+        vo.setLikeCount(source.get("likeCount") instanceof Number n ? n.intValue() : 0);
+        vo.setCommentCount(source.get("commentCount") instanceof Number n ? n.intValue() : 0);
+        vo.setAiReviewed(source.get("aiReviewed") instanceof Number n ? n.intValue() : 0);
+        if (source.get("aiReviewScore") instanceof Number n) vo.setAiReviewScore(n.intValue());
+        if (source.get("postType") instanceof String s && !s.isBlank()) vo.setPostType(s);
         return vo;
     }
 

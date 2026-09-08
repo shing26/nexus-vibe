@@ -92,6 +92,20 @@ public class AiReviewEventListener {
             if (attempts >= maxAttempts) {
                 notifyBudgetExhausted(postId, event.getTitle(), event.getAuthorId());
             }
+        } finally {
+            // A finished attempt must not hold the lease: an edit arriving
+            // inside the lease window would otherwise lose its claim (only
+            // logged, never surfaced) and wait out the whole reconcile cycle.
+            // Owner-scoped, so it cannot free another worker's lock.
+            releaseLease(postId);
+        }
+    }
+
+    private void releaseLease(Long postId) {
+        try {
+            vibePostMapper.releaseReviewLease(postId, resolveOwner());
+        } catch (Exception e) {
+            log.warn("Failed to release review lease for post {}: {}", postId, e.getMessage());
         }
     }
 
