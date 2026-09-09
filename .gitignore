@@ -54,3 +54,4 @@ node_modules/
 # JVM crash logs (belt & suspenders; *.log is already covered)
 hs_err_pid*.log
 replay_pid*.log
+.qa_tmp/
