@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Test-only harness around the real prod appender fragment. Plain logback parses this file, so
+  <springProfile> is not involved: the fragment deliberately contains no Spring-specific tags.
+  ASYNC_FILE is attached to the root logger because logback 1.5 dropped
+  LoggerContext.getAppender(String), and CONSOLE is left out to keep test output readable.
+-->
+<configuration>
+    <include resource="logback/prod-file-appender.xml"/>
+    <root level="INFO">
+        <appender-ref ref="ASYNC_FILE"/>
+    </root>
+</configuration>

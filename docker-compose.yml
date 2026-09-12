@@ -5,6 +5,14 @@
 
 name: nexus-vibe
 
+# Container stdout is the only copy of the daemon's logs, and json-file is unbounded by default:
+# one noisy prod run can fill the host disk. Cap every service at 3 x 10m.
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 networks:
   nexus-net:
     driver: bridge
@@ -14,6 +22,7 @@ volumes:
   redis-data:
   es-data:
   app-uploads:
+  app-logs:
   ollama-data:
 
 services:
@@ -22,6 +31,7 @@ services:
     image: mysql:8.0
     container_name: nexus-db
     restart: unless-stopped
+    logging: *default-logging
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       MYSQL_DATABASE: nexus_campus
@@ -45,6 +55,7 @@ services:
     image: redis:7-alpine
     container_name: nexus-redis
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - redis-data:/data
     networks:
@@ -60,6 +71,7 @@ services:
     image: elasticsearch:7.17.24
     container_name: nexus-es
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
@@ -79,6 +91,7 @@ services:
     image: ollama/ollama:latest
     container_name: nexus-ollama
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - ollama-data:/root/.ollama
     networks:
@@ -96,6 +109,7 @@ services:
       dockerfile: Dockerfile
     container_name: nexus-app
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -116,6 +130,8 @@ services:
       REDIS_PORT: "6379"
       ES_URI: ${ES_URI:-http://elasticsearch:9200}
       TZ: Asia/Shanghai
+      # Where logback/prod-file-appender.xml writes the structured JSON log (rotated, capped).
+      LOG_DIR: /app/logs
       # Heap = 75% of the 768m container limit (~576m); G1 + rotating GC log
       # under /tmp for post-load analysis (see docs/research/).
       JAVA_OPTS: >-
@@ -125,6 +141,8 @@ services:
     mem_limit: 768m
     volumes:
       - app-uploads:/app/uploads
+      # A rebuilt container loses its stdout history; the JSON log survives restarts on this volume.
+      - app-logs:/app/logs
     expose:
       - "8080"
     networks:
@@ -136,6 +154,7 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: nexus-web
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       - app
     ports:
