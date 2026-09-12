@@ -24,6 +24,9 @@ volumes:
   app-uploads:
   app-logs:
   ollama-data:
+  # Only created by the monitoring profile; absent from a plain `up`.
+  prometheus-data:
+  grafana-data:
 
 services:
 
@@ -161,3 +164,60 @@ services:
       - "${WEB_PORT:-8080}:80"
     networks:
       - nexus-net
+
+  # ---------------------------------------------------------------------------
+  # Monitoring profile only: docker compose --profile monitoring up
+  #
+  # These services are deliberately outside the default `up`, and none of them
+  # maps a host port. The public side stays nginx:80; dashboards are reached
+  # from inside nexus-net during the drill.
+  # ---------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:v2.53.2
+    container_name: nexus-prometheus
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - prometheus-data:/prometheus
+      - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    expose:
+      - "9090"
+    networks:
+      - nexus-net
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: nexus-grafana
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    environment:
+      # Sign-ups and anonymous access stay off. The box is only reachable from
+      # nexus-net, but it still holds the alert rules and the webhook target.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      # Not `${GRAFANA_ADMIN_PASSWORD:?...}`: compose interpolates every service regardless of
+      # profile, so a required variable here would break a plain `docker compose up` too.
+      # Override it in .env before exposing Grafana anywhere but nexus-net.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # One mount is enough: the dashboards provider reads
+      # /etc/grafana/provisioning/dashboards/json, so the dashboard JSON lives
+      # in git next to the provider that points at it.
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    expose:
+      - "3000"
+    networks:
+      - nexus-net
+    depends_on:
+      - prometheus

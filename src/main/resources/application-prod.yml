@@ -2,9 +2,6 @@ server:
   port: ${SERVER_PORT:8080}
 
 spring:
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration
   # @Scheduled tasks share this pool; sized > 1 so a slow AI reconcile probe
   # can't delay the like-counter flush.
   task:
@@ -103,7 +100,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
+        include: health,info,prometheus
   endpoint:
     health:
       show-details: when-authorized

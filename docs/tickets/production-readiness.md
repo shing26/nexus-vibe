@@ -39,6 +39,8 @@ was rebuilt, and a machine must be able to read them.
 
 ## T2 - Expose metrics and ship a monitoring stack
 
+Status: done on `codex/production-readiness`.
+
 **Scope:** scrapeable metrics without opening a port to the public internet.
 
 - `micrometer-registry-prometheus`, prod exposes `health,info,prometheus`.
