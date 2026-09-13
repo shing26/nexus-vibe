@@ -144,11 +144,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 
-- 296 JUnit cases (was 243 before this round, 284 after the observability tickets): first tests to
-  touch actuator at all, plus health semantics, trace propagation across the async hop, log JSON
-  shape, seed gating, bootstrap idempotency, the scheduling gate, and the Grafana alert file parsed
-  the way the engine parses it; the alert-bridge ships 17 Python tests pinning the Feishu signature
-  and the body it is computed over
+- 305 JUnit cases in 45 classes (was 243 before this round, 284 after the observability tickets, 296
+  after the evidence round's first eight): first tests to touch actuator at all, plus health
+  semantics, trace propagation across the async hop, log JSON shape, seed gating, bootstrap
+  idempotency, the scheduling gate, the Grafana alert file parsed the way the engine parses it, and
+  what a `_bulk` response actually confirms; the alert-bridge ships 17 Python tests pinning the
+  Feishu signature and the body it is computed over
 - Not yet proven, stated plainly: an alert arriving in a **real** Feishu group (the drill delivers to a
   signature-verifying stand-in), Grafana panel rendering, an A→B→A rollback driven through the real
   public entry point, and a backup copy that survives the death of its host disk — see the drill
