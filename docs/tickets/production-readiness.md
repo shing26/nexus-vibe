@@ -208,20 +208,28 @@ that make this pipeline hard to read.
 
 ## T7 - Align the frontend response contract
 
+Status: done on `codex/production-readiness`. Type-only change on the client: lint and
+build pass unchanged, and `ResponseContractTest` now fails if the envelope drifts again.
+
 **Scope:** the declared envelope must be the returned envelope.
 
 - `ApiResponse<T>` in the API client becomes `{ code, message?, data }`;
   success is derived from `code`. The backend does not gain a `success`
   field, because nothing reads it.
+- Callers read `res.data.data` on the happy path and `err.response.data.message`
+  on the failed one, both of which the real shape already provided; the drift was
+  invisible precisely because no code ever touched the phantom field.
 - Contract smoke test: representative endpoints always carry
   `code/message/data`, and `traceId` only shows up on 5xx.
 
 **Acceptance:**
 - `npm run build` type-checks against the real shape.
-- The smoke test fails if the envelope changes shape again.
+- The smoke test fails if the envelope changes shape again, including a `success`
+  field appearing unannounced or a fourth key leaking in.
 - Unaffected: no runtime behaviour change.
 
-**Files:** `frontend/src/api/client.ts`, contract test under `src/test/java`.
+**Files:** `frontend/src/api/client.ts`,
+`src/test/java/com/nexus/campus/controller/ResponseContractTest.java`.
 
 ## Drill - Prove it under a real failure
 

@@ -95,8 +95,16 @@ apiClient.interceptors.response.use(
   }
 );
 
+/**
+ * The envelope the API actually returns: `ApiResponse<T>` in
+ * `com.nexus.campus.dto`. `code` is the server's own view of the outcome and
+ * mirrors the HTTP status; axios already rejects non-2x, so callers read `data`
+ * on the happy path and `message` on the failed one. There is no `success`
+ * field — nothing ever read the declared one, which is how the type drifted from
+ * the response in the first place.
+ */
 export interface ApiResponse<T> {
-  success: boolean;
-  data: T;
+  code: number;
   message?: string;
+  data: T;
 }
