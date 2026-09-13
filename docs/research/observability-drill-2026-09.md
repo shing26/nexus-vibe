@@ -17,8 +17,9 @@
    `healthy`，`RestartCount=0`。这是 ADR-0007 的核心主张，之前只有单元测试，现在有真容器上的真证据。
 2. **故障没有变成静默丢弃。** 3 篇帖子全部落到 `status=2 (PENDING_REVIEW) + ai_reviewed=3 (FAILED 待重试)`，
    `ai_review_pending_posts=3` 被 Prometheus 抓到，LLM 恢复后对账任务重跑（`repairs=6`）。
-3. **告警规则不是装饰。** 4 条规则的表达式里出现的每个指标名，都能在同一份 scrape 里找到；
-   而这一点本轮之前是不成立的（见第四节第 1 条）。
+3. **告警规则不是装饰。** Grafana 的告警引擎报告装载了这 4 条规则（`for` 分别是 5m/15m/5m/5m），
+   注册的 receiver 指向 `http://alert-bridge:8080/notify`，而规则表达式里出现的每个指标名都能在同一份
+   scrape 里找到。最后这一点在本轮之前是不成立的（见第四节第 1 条）：规则会安静地永不触发。
 
 ## 二、演练矩阵
 
@@ -129,19 +130,19 @@ mock：`benchmark/observability/llm-mock/mock_llm.py` 按设计只回一句 `OK`
 4. **fail-closed 有两条路径，断言不能靠日志措辞。** 缓存健康探针落在哪一刻，决定这次是
    `VibePostServiceImpl`（"failed closed to PENDING_REVIEW"）还是 `AiSafetyCheckListener`
    （"failing closed to PENDING_REVIEW"）写库。脚本第一版 grep 了其中一种措辞，于是把一个正确的行为判成失败。
-    现在读 `vibe_post` 的 `status + ai_reviewed` 两列。
+   现在读 `vibe_post` 的 `status + ai_reviewed` 两列。
 
-5. **要说清楚：这一节里只有第 1 条是产品的 bug。** 为了拿到可信的 16/16，演练真跑了 10 次：3 次全绿
-   （12:41 的 15 步、13:19 与 14:17 的 16 步），4 次被我主动中断（断言还挂在日志措辞上，或 `le=` 因
-   标签顺序取错值），2 次红在脚本自己的错上（一个漏提交的 helper、一处重复的 `param` 行、`$_.Name`
-   取了不存在的属性），1 次红在宿主机的 docker CLI 崩溃上（第 6 条）。断言红了先查断言、再查产品，
-   否则演练报告会变成噪声，下次谁也不会再跑它。产品行为在三次全绿运行里逐项一致：3 篇 parked、
-   `429` 3 次、`repairs=6`、公网三探全 404、`/actuator/health/deps` 四组件齐名。
-
-6. **一次 docker CLI 崩溃不该变成产品失败。** 14:05 那次有两个 Step 红了，原因都在宿主机：`docker exec`
+5. **一次 docker CLI 崩溃不该变成产品失败。** 14:05 那次有两个 Step 红了，原因都在宿主机：`docker exec`
    自己吐了一段 Go runtime 崩溃栈（exit 2），另一次 docker 打了 usage（exit 125）。这两步在前后两次运行里
    都是绿的。脚本现在把"命令行自己崩了"和"断言没过"分开：前者退避重试最多 3 次，后者照旧立刻红。
-   没有这条区分，演练报告的可用性取决于宿主机当天的运气，那就没人会信 16/16 这个数字了。
+   没有这条区分，演练结论的可用性取决于宿主机当天的运气，那就没人会信 16/16 这个数字了。
+
+6. **要说清楚：这一节里只有第 1 条是产品的 bug。** 为了拿到可信的 16/16，演练真跑了 10 次：3 次全绿
+   （12:41 的 15 步、13:19 与 14:17 的 16 步），4 次被我主动中断（断言还挂在日志措辞上，或 `le=` 因
+   标签顺序取错值），2 次红在脚本自己的错上（一个漏提交的 helper、一处重复的 `param` 行、`$_.Name`
+   取了不存在的属性），1 次红在宿主机的 docker CLI 崩溃上（第 5 条）。断言红了先查断言、再查产品，
+   否则演练报告会变成噪声，下次谁也不会再跑它。产品行为在三次全绿运行里逐项一致：3 篇 parked、
+   `429` 3 次、`repairs=6`、公网三探全 404、`/actuator/health/deps` 四组件齐名。
 
 ## 五、演练没有覆盖的（诚实清单）
 
@@ -165,11 +166,10 @@ mock：`benchmark/observability/llm-mock/mock_llm.py` 按设计只回一句 `OK`
 - **`for: 5m` / `15m` 的持续条件意味着最短 5 分钟延迟**：瞬时抖动不会吵到人，这是有意的（见第四节第 3 条）。
 
 ## 六、怎么重跑
-## 六、怎么重跑
 
 ```bash
 pwsh -File benchmark/observability/drill.ps1              # 建镜像 + 全流程，15–20 分钟
-pwsh -File benchmark/observability/drill.ps1 -SkipBuild   # 复用镜像，约 9 分钟
+pwsh -File benchmark/observability/drill.ps1 -SkipBuild   # 复用镜像，约 11 分钟（大头是对账那一步要等 cron）
 pwsh -File benchmark/observability/drill.ps1 -Keep        # 跑完别拆，留着手查
 ```
 
