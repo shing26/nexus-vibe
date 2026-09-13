@@ -2,7 +2,19 @@
 #
 # Provisioned, not hand-built in the UI, so a rebuilt box cannot quietly lose the alerts. Each rule
 # keeps the same expression as its dashboard panel; the comments record the failure it is meant to
-# catch, because an alert nobody remembers how to read is an alert that gets muted.
+# catch and the traffic it assumes, because an alert nobody remembers how to read gets muted.
+#
+# Missing data is not one answer for six rules, so each one decides for itself:
+#   - The gauge rules (breaker, backlog) and the scrapability rule watch series that exist from the
+#     moment the app registers them. No data there means the watched thing is gone: ALERTING.
+#   - The ratio rules (5xx, burn-rate, rate-limit) end in a volume guard, so an empty result
+#     normally means "too quiet to have a rate", which is not an outage. Those stay OK, and the one
+#     honest no-data-there-is-a-problem question -- can Prometheus scrape the app at all -- has its
+#     own rule near the bottom of this file. That is the only reason OK is defensible on a ratio.
+#   - errorState (the query itself failed, usually: Grafana cannot reach Prometheus) is ALERTING on
+#     the scrapability rule alone. The other five report OK on purpose, so a Prometheus restart is
+#     one alert about blindness rather than six. Without that single rule the old failure mode --
+#     the whole stack reporting healthy while nothing is being measured -- comes straight back.
 apiVersion: 1
 
 groups:
@@ -14,6 +26,13 @@ groups:
       # The LLM being unreachable is normal operation for this app: posts park in pending-llm and
       # the reconcile task retries. What must not pass unnoticed is a breaker that stays open,
       # because after lease-seconds x max-attempts the reviews start failing for good.
+      #
+      # Threshold is not traffic-dependent -- the gauge is 0 or 1 and gt 0.5 means "open at any
+      # point in the last 5m" -- but the rule does assume someone is posting. Overnight, a breaker
+      # that opened at 23:50 on the last post of the day decays back to 0 only when a new attempt
+      # succeeds, so the gauge can hold a stale value until the morning traffic exercises it. The
+      # number to collect before touching this rule is the hourly post-arrival rate; without it,
+      # "5m of open breaker" silently means "5m of open breaker *and* someone tried to post".
       - uid: nexus-llm-breaker-open
         title: "LLM circuit breaker has been open for 5m"
         condition: C
@@ -49,7 +68,10 @@ groups:
                   reducer: { type: last, params: [] }
                   evaluator: { type: gt, params: [0.5] }
         for: 5m
-        noDataState: OK
+        # Registered in the LlmClient constructor, so it is in every scrape while the process is
+        # up. Absent series therefore mean the process, the endpoint, or the scrape is gone, and
+        # "we cannot see the breaker" is not the same fact as "the breaker is closed".
+        noDataState: ALERTING
         errorState: OK
         execErrState: OK
         labels:
@@ -61,6 +83,15 @@ groups:
 
       # Backlog is the leading indicator: it grows while users keep posting and the pipeline keeps
       # declining the work. 15m of waiting avoids firing on a single in-flight batch.
+      #
+      # Threshold 10 is the only number in this file with a measurement behind it: the local 7B CPU
+      # run in docs/research/async-pool-loadtest.md cleared about 2-3 posts/min, so 10 parked
+      # reviews is roughly 4 minutes of arrivals at full pipeline speed and 15 minutes of it means
+      # the drain rate has collapsed rather than a batch being in flight. Assumed traffic: a day
+      # where people are posting. At night one burst of 11 posts with the LLM down will fire this
+      # rule on an empty campus, which is accepted -- the work is genuinely still owed, just not
+      # owed loudly. Re-derive from ai_review_pending_posts over the first real week plus the
+      # observed posts/min on the reconcile log lines.
       - uid: nexus-ai-review-backlog
         title: "AI review backlog above 10 for 15m"
         condition: C
@@ -96,7 +127,12 @@ groups:
                   reducer: { type: last, params: [] }
                   evaluator: { type: gt, params: [10] }
         for: 15m
-        noDataState: OK
+        # The gauge is registered in the reconcile task's @PostConstruct, before the first cron
+        # tick, and it is refreshed ahead of that task's health gate -- so it reads 0 on an idle
+        # app rather than nothing. No data means the app or the scrape is down, which is the
+        # incident this rule's own annotation points at ("if the breaker gauge is 0 too, the cron
+        # is not running").
+        noDataState: ALERTING
         errorState: OK
         execErrState: OK
         labels:
@@ -108,6 +144,22 @@ groups:
 
       # 5xx is the only rule that speaks for the whole API surface. The denominator is deliberately
       # unfiltered: a ratio against "non-health requests" would drift whenever a uri tag changes.
+      #
+      # Threshold 1% is an estimate, not a measurement, and it assumes a day where the API answers
+      # more than a handful of requests a minute. The volume guard at the end of the expression is
+      # what stops that estimate from firing on arithmetic: below 0.05 rps (3 requests/minute) a
+      # single 500 is already over 1%, and one lonely 500 in a quiet minute is a ratio, not an
+      # incident. The only measured rate in this repository is a load test that offered 700+
+      # requests/second at the entry (docs/research/async-pool-loadtest.md), which is a saturation
+      # number and not a forecast. What should replace both guesses: p50/p95 of
+      # sum(rate(http_server_requests_seconds_count{application="nexus-vibe"}[5m])) by hour of day
+      # over the first real week, read against the count of level=ERROR lines in
+      # /app/logs/nexus-vibe.json for the same hours.
+      #
+      # 1% is also the floor the burn-rate rule near the end of this file deliberately does not
+      # carry: at real traffic a 1.44% error rate is a burning budget, while at quiet traffic a 1%
+      # floor is what is left reading. Which is why nexus-ai-review-backlog above treats a zero as a
+      # normal answer, why this rule keeps a floor, and what nexus-prometheus-scrape-failed is for.
       - uid: nexus-http-5xx-ratio
         title: "HTTP 5xx ratio above 1% for 5m"
         condition: C
@@ -117,7 +169,7 @@ groups:
             datasourceUid: nexus-prometheus
             model:
               refId: A
-              expr: 'sum(rate(http_server_requests_seconds_count{application="nexus-vibe",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{application="nexus-vibe"}[5m]))'
+              expr: 'sum(rate(http_server_requests_seconds_count{application="nexus-vibe",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{application="nexus-vibe"}[5m])) and sum(rate(http_server_requests_seconds_count{application="nexus-vibe"}[5m])) > 0.05'
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200
@@ -143,7 +195,11 @@ groups:
                   reducer: { type: last, params: [] }
                   evaluator: { type: gt, params: [0.01] }
         for: 5m
-        # No traffic means no samples. Firing on a quiet night would train everyone to ignore it.
+        # An empty result here is the guard talking, and the guard is honest: it means "not enough
+        # requests in this window for a percentage to mean anything", which describes a quiet campus
+        # at 3am rather than a broken site. So OK. The case that used to hide behind this state -
+        # nobody is being scraped at all - is what nexus-prometheus-scrape-failed now owns, and this
+        # answer is only safe because that rule exists.
         noDataState: OK
         errorState: OK
         execErrState: OK
@@ -155,7 +211,8 @@ groups:
           description: "Grep the JSON logs for traceId values on level ERROR; the response header X-Trace-Id points at the same line."
 
       # Rejections are the cheap signal for a credential-stuffing run or a client bug in a loop.
-      # The volume guard keeps a single stray 429 from firing a "3x baseline" ratio off a zero base.
+      # The volume guard keeps a single stray 429 from firing a "3x baseline" ratio off a zero base,
+      # and this is the least ambiguous no-data answer in the file - see the state comment below.
       - uid: nexus-rate-limit-spike
         title: "Rate-limit rejections spiking above 3x baseline"
         condition: C
@@ -191,6 +248,11 @@ groups:
                   reducer: { type: last, params: [] }
                   evaluator: { type: gt, params: [3] }
         for: 5m
+        # No rejections is the healthy state, and it looks identical to no traffic. The severity is
+        # warning, and rate_limit_rejected_total is created lazily at the first rejection
+        # (RateLimitInterceptor:121), so no data is the expected answer on any box that has never
+        # shed a request. ALERTING here would raise a fuss about the absence of bad traffic, which
+        # is the one thing this rule is supposed to mean by "quiet".
         noDataState: OK
         errorState: OK
         execErrState: OK
@@ -200,3 +262,134 @@ groups:
         annotations:
           summary: "One path is being rejected far more often than its own hour baseline."
           description: "The path tag names the endpoint; the [RATE-LIMIT] log lines name the client IP."
+
+      # The rule that watches the watchers, and the reason the rules above are allowed to say what
+      # they say about no data. `up` is the series Prometheus writes about its own scraping, so it
+      # survives every failure the app's metrics cannot report: the process gone, the endpoint no
+      # longer exposed, the target list empty, Prometheus restarted without this job. min_over_time
+      # rather than the bare value, so that one dropped scrape does not read as an outage - the
+      # interval is 15s, and a container restart routinely costs more than one of those.
+      - uid: nexus-prometheus-scrape-failed
+        title: "Prometheus has not been able to scrape the app for 2m"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              expr: 'min_over_time(up{job="nexus-vibe"}[2m])'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: lt, params: [0.5] }
+        for: 1m
+        # `job=`, never `application=`: Prometheus synthesizes up, and it cannot carry the common tag
+        # of a process that is not answering. The value is a contract with the job_name at
+        # docker/observability/prometheus/prometheus.yml:16, and benchmark/observability/drill.ps1
+        # checks it against the live target list, because a renamed job kills this rule in silence.
+        #
+        # Absent data, a query error and an execution error are all ALERTING here. The series is
+        # missing only when the job is gone, and Grafana gets no answer only when Prometheus is down
+        # - neither of which is a state worth reporting as healthy. This is the one rule where the
+        # monitoring stack has to admit it is blind.
+        #
+        # What it is actually worth in time: 15s scrapes put a zero in the 2m window within ~2m of
+        # the process dying, then for: 1m on a 1m group cadence - a 3-4 minute page for "the site is
+        # gone and I would otherwise have learned that from a user". The same window is the recovery
+        # lag: this stays firing for up to 2m after the target comes back, because min_over_time is
+        # still looking at the zeros.
+        noDataState: ALERTING
+        errorState: ALERTING
+        execErrState: ALERTING
+        labels:
+          severity: critical
+          service: nexus-vibe
+        annotations:
+          summary: "Monitoring cannot see the app: every scrape in the last 2m failed."
+          description: "docker compose ps, then docker compose logs app; if the container is Up, GET /actuator/prometheus from inside nexus-net - a 404 there means the exposure list changed, not that the app died."
+
+      # The SLO this file has been implying without saying it, written down at last: 99.9% of
+      # requests served without a 5xx, over a rolling 30d window. That budget is 43.2 minutes of bad
+      # requests a month, and a 14.4x burn spends 2% of it in an hour - the rate a page has to be
+      # worth. Threshold and guard shape come from docs/tickets/evidence-credibility.md E3.
+      #
+      # Relationship to nexus-http-5xx-ratio, stated plainly because two rules on one measurement
+      # looks like an accident: same 5m window, higher ratio, shorter pending. This one wins by
+      # roughly three minutes during a real outage and says why in budget terms; the 1% rule still
+      # catches the slow bleed this one is not sensitive enough to see. If the overlap ever stops
+      # paying for itself, this is the rule to retire, not the 1% one.
+      #
+      # Both floors are load-bearing and both assume traffic that has never been measured: 0.05 rps
+      # is 3 requests a minute, 0.01 rps is 3 server errors in the window. A 1.44% ratio cannot be
+      # reached below ~70 requests per 5m at all, so at low volume it is the error floor that decides
+      # whether this rule is allowed an opinion. The series that would calibrate the pair is p50/p95
+      # of the request rate by hour of day over a real week - see nexus-http-5xx-ratio above.
+      - uid: nexus-availability-999-fast-burn
+        title: "Availability error budget burning at 14.4x of the 99.9% SLO"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              expr: 'sum(rate(http_server_requests_seconds_count{application="nexus-vibe",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{application="nexus-vibe"}[5m])) and sum(rate(http_server_requests_seconds_count{application="nexus-vibe"}[5m])) > 0.05 and sum(rate(http_server_requests_seconds_count{application="nexus-vibe",status=~"5.."}[5m])) > 0.01'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [0.0144] }
+        for: 2m
+        # Ratio rules answer nothing when they have no samples, and here that is the two guards
+        # being honest rather than a cover-up: too quiet for a rate, or too few 5xx for a burn. The
+        # failure that used to hide in this state - the app not being scraped at all - now has its
+        # own critical, so OK here is a decision and not the default.
+        noDataState: OK
+        errorState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+          service: nexus-vibe
+        annotations:
+          summary: "99.9% availability is burning at 14.4x: 2% of the month's budget per hour."
+          description: "Same triage as the 5xx rule. This one cannot fire on fewer than about 3 server errors inside the window, so the errors are real and findable by traceId."

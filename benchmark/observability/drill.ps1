@@ -85,8 +85,11 @@ $script:results = New-Object System.Collections.Generic.List[object]
 
 # The uids rules.yaml declares, in one place: one step checks the file lists them, another checks
 # the alerting engine loaded them, and they must not be able to drift apart.
+# nexus-prometheus-scrape-failed is the rule that asks "is anyone still measuring this at all";
+# nexus-availability-999-fast-burn is the error-budget form of the 5xx ratio.
 $script:ruleUids = @('nexus-llm-breaker-open', 'nexus-ai-review-backlog',
-                     'nexus-http-5xx-ratio', 'nexus-rate-limit-spike')
+                     'nexus-http-5xx-ratio', 'nexus-rate-limit-spike',
+                     'nexus-prometheus-scrape-failed', 'nexus-availability-999-fast-burn')
 
 function Invoke-Docker {
     param([Parameter(Mandatory)][string[]]$Cmd)
@@ -493,12 +496,18 @@ Step 'alert-rules-select-real-metrics' {
     if ($absent) { throw "rules missing from provisioning: $($absent -join ', ')" }
 
     $exprs = @([regex]::Matches($rules, "expr:\s*'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
-    $untagged = @($exprs | Where-Object { $_ -notmatch 'application="nexus-vibe"' })
-    if ($untagged) { throw "expressions with no application selector: $($untagged -join ' ;; ')" }
+    # `application=` selects our own series. The scrapability rule is the exception it cannot avoid:
+    # `up` is synthesized by Prometheus from the scrape, so it carries job= and never could carry an
+    # application tag. Every other expression must still name the application, or a second deployment
+    # on the same Prometheus would answer for this one.
+    $untagged = @($exprs | Where-Object { $_ -notmatch 'application="nexus-vibe"' -and $_ -notmatch 'job="nexus-vibe"' })
+    if ($untagged) { throw "expressions with no selector: $($untagged -join ' ;; ')" }
 
     # A name inside an expression has to be a name this build exposes, or the rule is decoration.
     $scrape = Get-Scrape
-    $names = @([regex]::Matches(($exprs -join ' '), '([a-z_]+)\{application') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    $names = @([regex]::Matches(($exprs -join ' '), '([a-z_]+)\{(?:application|job)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    # `up` belongs to Prometheus, not to the app, so it cannot be checked against the app's scrape.
+    $names = @($names | Where-Object { $_ -ne 'up' })
     $unknown = @($names | Where-Object {
         $escaped = [regex]::Escape($_)
         -not (Test-Metric -Scrape $scrape -Pattern $escaped) -and
@@ -510,6 +519,37 @@ Step 'alert-rules-select-real-metrics' {
     $contact = Get-Content -Raw 'docker/observability/grafana/provisioning/alerting/contact-points.yaml'
     if ($contact -notmatch 'alert-bridge') { throw 'no contact point aimed at the alert bridge' }
     return "$($script:ruleUids.Count) rules, $($exprs.Count) expressions, metrics named: $($names -join ', ')"
+}
+
+Step 'alert-no-data-policy-is-per-rule' {
+    # Four of these rules once sat in noDataState OK, so an app that stopped being scraped reported
+    # healthy. That is not one policy for every rule: a gauge that exists from the moment the process
+    # registers it means "no data" is "no process", while a ratio needs traffic to mean anything, so
+    # no data there is usually quiet rather than broken.
+    $rules = Get-Content -Raw 'docker/observability/grafana/provisioning/alerting/rules.yaml'
+    $blocks = @([regex]::Matches($rules, "(?ms)- uid:\s*(\S+)(.*?)(?=\r?\n\s*- uid:|\z)"))
+    if ($blocks.Count -lt 5) { throw "only $($blocks.Count) rule blocks parsed from rules.yaml" }
+    $expected = @{
+        'nexus-llm-breaker-open'           = 'ALERTING'
+        'nexus-ai-review-backlog'          = 'ALERTING'
+        'nexus-prometheus-scrape-failed'   = 'ALERTING'
+        'nexus-http-5xx-ratio'             = 'OK'
+        'nexus-rate-limit-spike'           = 'OK'
+        'nexus-availability-999-fast-burn' = 'OK'
+    }
+    $seen = @()
+    foreach ($block in $blocks) {
+        $uid = $block.Groups[1].Value
+        if (-not $expected.ContainsKey($uid)) { throw "rule $uid has no no-data policy stated in this drill" }
+        $state = [regex]::Match($block.Groups[2].Value, 'noDataState:\s*(\S+)').Groups[1].Value
+        $seen += "$uid=$state"
+        if ($state -ne $expected[$uid]) {
+            throw "$uid reports noDataState $state, expected $($expected[$uid])"
+        }
+    }
+    Write-Evidence 'no-data policy per rule' ($seen -join "`n")
+    $loud = @($blocks | Where-Object { $_.Groups[2].Value -match 'noDataState:\s*ALERTING' }).Count
+    return "$($seen -join '  ')  ($loud treat missing data as an incident)"
 }
 
 Step 'bridge-fails-loudly-without-feishu' {
@@ -601,6 +641,50 @@ Step 'trace-id-visible-to-a-user' {
     $logs = Invoke-Compose -Cmd @('logs', '--since', '20m', 'app')
     if ($logs -notmatch [regex]::Escape($trace)) { throw "trace $trace never appears in the application log" }
     return "$trace reached the browser and the log line"
+}
+
+Step 'public-health-answers-only-servability' {
+    # Same URL, narrower document: the public /actuator/health is proxied onto the servable group, so
+    # it may carry a verdict and nothing else. If components, the group list or a dependency name ever
+    # appear here, an outside probe is being told which dependency is unhappy and ADR-0007's two
+    # audiences have collapsed back into one.
+    $public = (Invoke-WebRequest -Uri "http://localhost:$WebPort/actuator/health" -SkipHttpErrorCheck).Content
+    $internal = Invoke-AppHttp GET '/actuator/health/deps'
+    Write-Evidence 'public vs internal health' "public: $public`ninternal deps: $($internal.Body)"
+    if ($public -notmatch '"status"') { throw 'public health carries no status' }
+    foreach ($leak in @('components', 'groups', 'llm', 'elasticsearch')) {
+        if ($public -match "`"$leak`"") { throw "public health leaks dependency detail: $leak" }
+    }
+    if ($internal.Body -notmatch '"llm"') { throw 'the internal deps group stopped naming llm, so this comparison proves nothing' }
+    return 'public answers servability only; dependency detail stays on the internal group'
+}
+
+Step 'app-death-is-not-reported-as-health' {
+    # Everything above proves the app can be degraded and stay servable. This is the other half of E3:
+    # when the app stops answering, the stack has to say so instead of settling into the no-data
+    # corner it used to call healthy.
+    Invoke-Compose -Cmd @('stop', 'app') | Out-Null
+    try {
+        Wait-For 'Prometheus to notice the app is gone' {
+            $q = Invoke-Compose -Cmd @('exec', '-T', 'prometheus', 'wget', '-qO-',
+                'http://localhost:9090/api/v1/query?query=min_over_time(up%7Bjob%3D%22nexus-vibe%22%7D%5B1m%5D)')
+            Write-Evidence 'up query' $q
+            $q -match '"value":\[[0-9.]+,"0"\]'
+        } -TimeoutSec 180 -IntervalSec 5 | Out-Null
+
+        # And the public edge agrees by failing rather than serving a cheerful 200.
+        $answer = Invoke-WebRequest -Uri "http://localhost:$WebPort/actuator/health" -SkipHttpErrorCheck
+        Write-Evidence 'public health while app down' "$($answer.StatusCode)"
+        if ($answer.StatusCode -eq 200) { throw 'public health still answered 200 with the app stopped' }
+        $detail = "up=0 observed; public /actuator/health=$($answer.StatusCode)"
+    } finally {
+        Invoke-Compose -Cmd @('start', 'app') | Out-Null
+        Wait-For 'the app to be scraped again' {
+            $t = Invoke-Compose -Cmd @('exec', '-T', 'prometheus', 'wget', '-qO-', 'http://localhost:9090/api/v1/targets')
+            $t -match 'app:8080' -and $t -match '"health"\s*:\s*"up"'
+        } -TimeoutSec 300 -IntervalSec 5 | Out-Null
+    }
+    return $detail
 }
 
 # --------------------------------------------------------------------------- report

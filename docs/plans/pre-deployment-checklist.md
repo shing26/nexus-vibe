@@ -69,6 +69,18 @@
       演练只能证明"告警到得了桥、桥失败时会喊出来"。
 - [ ] 上线 24 小时后回看 `/app/logs`（卷 `app-logs`）：确认滚动按 100MB / 7 天 / 1GB 收口，`docker logs` 侧 10m x 3 也没漏。
 
+## 发布与回滚（E4，2026-09-14，分支 `codex/production-readiness`）
+
+- [x] compose 的 `app`/`web` 不再匿名：`image: nexus-vibe-app:${APP_TAG:?}` 与 `nexus-vibe-web:${APP_TAG:?}`（`alert-bridge` 本来就有 tag）。缺 `APP_TAG` 时 `docker compose config` 直接报错，而不是留下一个没有回滚目标的 latest。本机 `.env` 若还没有这个键，先补一行 `APP_TAG=dev`。
+- [x] `.env.example` 写清 `APP_TAG` 语义：每个发布值唯一标识一次构建（git short SHA 或 `20260914-01`）；发布 = 改 tag 后带 `--build` 起，回滚 = 改回旧值后不带 build 起。
+- [x] 内存上限补齐：`elasticsearch` 1g、`ollama` 8g（原先全栈只有 `app` 有 `mem_limit`）。这两个不自我封顶——app 的堆按容器上限自适应，ES 的堆钉死在 `ES_JAVA_OPTS`、Ollama 按模型体积增长；没有上限时，OOM killer 随机挑的受害者可能是 MySQL。
+- [x] CI 在 master push 用 `actions/upload-artifact@v4` 落 `target/nexus-campus.jar` 与 `frontend/dist`（private registry 按票面 Rejected，先要一个可指认的对象）；同时后端 job 换到 JDK 21（运行时），镜像 job 对 `Dockerfile`、`frontend/Dockerfile`、`pom.xml`、`src/main/**` 的 PR 变更做构建验证，master push 构建后真 `docker run` 探 `/actuator/health`。
+- [ ] 发布纪律：宿主机上始终保留最近两个 `APP_TAG` 的镜像；回滚窗口内禁止 `docker image prune -a` 和 `docker compose down --rmi all`（E4 票面的 Rejected 段已把 registry 出圈，旧 tag 不 prune 是回滚唯一还活着的前提）。
+- [ ] 回滚一条命令（尚未在演练机演示 A→B→A，这是 E4 的验收项）：
+      `APP_TAG=<上一个值> docker compose up -d app web`（不带 `--build`，直接用留在宿主机上的旧镜像），
+      随后 `curl -s http://localhost:8080/api/v1/posts` 确认真的答回来了，再把该值写回 `.env`，防止下次 `up` 又漂回新版本。
+- [ ] 发布与回滚都动 `app` + `web` 两个服务、共用同一个 `APP_TAG` 值：SPA 和 API 是一组，不拆开滚。
+
 ## 待执行（需用户确认）
 
 - [ ] 部署暂不执行，不 push；确认后再按 `deployment-and-blog-plan.md` 走提交、CI 与本机 Docker + Cloudflare Tunnel 上线。
