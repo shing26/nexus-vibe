@@ -9,6 +9,7 @@ import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
+import com.nexus.campus.util.TraceIds;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -88,6 +89,10 @@ public class AiReviewReconcileTask {
      */
     @Scheduled(cron = "0 3/5 * * * ?")
     public void reconcile() {
+        TraceIds.runAsJob("ai-review-reconcile", this::reconcileOnce);
+    }
+
+    private void reconcileOnce() {
         if (!reviewEnabled && !safetyEnabled) {
             return;
         }

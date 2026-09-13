@@ -173,6 +173,10 @@ and must not start with sample content.
 
 Depends on T1.
 
+Status: done on `codex/production-readiness`. A live run of the suite shows one id on the
+request thread and on `agent-llm-*` in the same second, so the handoff is proven rather than
+assumed.
+
 **Scope:** one user-facing identifier per request, surviving the async hops
 that make this pipeline hard to read.
 
@@ -181,16 +185,23 @@ that make this pipeline hard to read.
   `campus.security.trust-forwarded-headers` is on, so a public deployment
   cannot be flooded with attacker-chosen cardinality.
 - Both async pools copy the MDC; each scheduled run gets its own id.
+- A sweep invoked from an HTTP request keeps that request's id instead of
+  inventing one, so the manual trigger stays attached to what caused it.
 - 5xx bodies carry `traceId`, matching the header; the error toast shows the
-  first 8 characters so a user can report a number.
+  first 8 characters so a user can report a number. 2xx envelopes keep their
+  exact previous shape.
 
 **Acceptance:**
 - A post with a code block logs the same traceId on the request thread and in
   the async review listener.
 - Response header and 5xx body agree.
-- Unaffected: 2xx response shape, JWT and XSS filter order.
+- Unaffected: 2xx response shape, JWT and XSS filter order (the trace filter sits
+  one slot ahead of both and changes neither).
 
 **Files:** `src/main/java/com/nexus/campus/config/TraceIdFilter.java`,
+`src/main/java/com/nexus/campus/config/TraceIdConfig.java`,
+`src/main/java/com/nexus/campus/util/TraceIds.java`,
+`src/main/java/com/nexus/campus/config/MdcCopyingTaskDecorator.java`,
 `src/main/java/com/nexus/campus/config/AsyncConfig.java`,
 `src/main/java/com/nexus/campus/dto/ApiResponse.java`, scheduled tasks,
 `frontend/src/api/client.ts`.

@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-272%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-281%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -276,7 +276,7 @@ curl http://localhost:8081/api/v1/users/2/summary
 ## Testing
 
 ```bash
-mvn test                      # 272 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
+mvn test                      # 281 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 ```

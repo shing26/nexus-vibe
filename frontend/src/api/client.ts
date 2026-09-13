@@ -1,5 +1,7 @@
 import axios from 'axios';
+import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
+import { useToastStore } from '../stores/toastStore';
 
 export const apiClient = axios.create({
   baseURL: '/api/v1',
@@ -46,6 +48,19 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshPromise;
 }
 
+/**
+ * The server stamps every response with `X-Trace-Id`, and a 5xx repeats it in the
+ * body. Showing the first eight characters gives a user something to say when
+ * something breaks: it is the same string the log line carries.
+ */
+function shortTraceId(error: AxiosError): string | null {
+  const header = error.response?.headers?.['x-trace-id'];
+  const fromHeader = typeof header === 'string' ? header : undefined;
+  const body = error.response?.data as { traceId?: unknown } | undefined;
+  const traceId = typeof body?.traceId === 'string' ? body.traceId : fromHeader;
+  return traceId ? traceId.slice(0, 8) : null;
+}
+
 apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -66,6 +81,15 @@ apiClient.interceptors.response.use(
       if (original?.url !== '/auth/login') {
         useAuthStore.getState().logout();
       }
+    }
+    // A server-side failure is the one class of error a user cannot fix, so it is
+    // the one worth naming itself. Pages keep their own copy; this adds the number.
+    if ((error.response?.status ?? 0) >= 500) {
+      const trace = shortTraceId(error as AxiosError);
+      useToastStore.getState().addToast(
+        trace ? `服务暂时不可用（追踪号 ${trace}）` : '服务暂时不可用，请稍后重试',
+        'error',
+      );
     }
     return Promise.reject(error);
   }
