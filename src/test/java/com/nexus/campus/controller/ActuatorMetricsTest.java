@@ -41,9 +41,8 @@ class ActuatorMetricsTest {
     @DisplayName("GET /actuator/prometheus renders JVM and HTTP request metrics")
     void prometheusScrapeReturnsMetrics() throws Exception {
         // Any filtered request creates the http_server_requests series, so scrape after one.
-        // /actuator/info is used rather than /actuator/health: with no Redis or Elasticsearch
-        // listening, the starter indicators drag the aggregate to 503 even though the app serves
-        // traffic. That conflation is what T4 and ADR-0007 exist to fix.
+        // /actuator/info is used rather than /actuator/health so this test does not depend on
+        // dependency health at all; HealthSemanticsIntegrationTest owns that contract.
         mockMvc.perform(get("/actuator/info")).andExpect(status().isOk());
 
         mockMvc.perform(get("/actuator/prometheus"))

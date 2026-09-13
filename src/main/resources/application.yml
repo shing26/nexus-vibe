@@ -177,7 +177,29 @@ management:
         include: health,info,prometheus
   endpoint:
     health:
-      show-details: always
+      # Two levels: the top-level answer is one word wide and safe to wire to a container
+      # healthcheck, the named group is what an operator reads. Details never go out with the
+      # first one.
+      show-details: never
+      group:
+        deps:
+          include: db,redis,elasticsearch,llm
+          show-details: always
+      status:
+        # degraded must rank below up and above unknown, otherwise a dependency that is merely
+        # down still drags the aggregate into the band a healthcheck treats as fatal.
+        order: down,out-of-service,unknown,degraded,up
+        http-mapping:
+          # Explicit, and deliberate: Boot maps an unmapped status through the order list, which
+          # would answer 503 for DEGRADED and have Docker kill an instance whose /api still works.
+          degraded: 200
+  health:
+    # The starter ships its own redis and elasticsearch indicators, and they report DOWN. Register
+    # ours under the same component names without switching these off would only collide.
+    redis:
+      enabled: false
+    elasticsearch:
+      enabled: false
 
 ---
 spring:

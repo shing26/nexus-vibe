@@ -101,6 +101,6 @@ management:
     web:
       exposure:
         include: health,info,prometheus
-  endpoint:
-    health:
-      show-details: when-authorized
+  # Health details, the deps group and the DEGRADED to 200 mapping all come from the base
+  # document: they describe serving semantics, not a deployment stage, and a prod-only version of
+  # them could not be exercised by the test suite.

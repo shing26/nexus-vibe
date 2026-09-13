@@ -104,6 +104,9 @@ hear about it.
 
 ## T4 - Two-level health and actuator lockdown
 
+Status: done on `codex/production-readiness`. The nginx deny rule is verified by config syntax
+only; the public probe is a drill step.
+
 **Scope:** `unhealthy` must mean "cannot serve", and no dependency outage may
 get the container killed while it is still serving traffic.
 
