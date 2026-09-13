@@ -286,10 +286,11 @@ Status: open. Three separate honesty problems in
 
 **Files:** `.github/workflows/maven.yml`, `pom.xml`.
 
-## E8 - Correct the assessment documents against the current tree
+## E8 - Correct the in-repo documents against the current tree
 
-Status: open. `Nexus-Vibe-项目全量梳理.md` was written at 2026-09-13 02:32, before
-T1-T7 landed. Its headline "可观测性与运维配套仍停留在 Demo 级" is now false for
+Status: open. The assessment this round was planned against was written at
+2026-09-13 02:32, before T1-T7 landed. Its headline "可观测性与运维配套仍停留在
+Demo 级" is now false for
 observability, and five of the seven gaps in its M8 table are closed. Its numbers
 are stale too: 243 test cases (now 284), 28 test classes (now 40), 6 ADRs (now 8),
 7 compose services (now 9), "traceId 占位/改造中" (now shipped), "logback 未提交"
@@ -308,14 +309,19 @@ these are the easiest questions to fail in an interview.
   no private registry.
 - Re-measure rather than hand-adjust: `mvn test` count, `git ls-files` counts,
   `docker compose config --services`, `git shortlog -sne`, and line totals.
+- Out of this ticket: the job-hunting write-up that carried the same stale
+  numbers is deliberately not in this repository (`.gitignore` keeps it out).
+  Nothing in the tracked tree may name it; the corrected wording above is the
+  shared source of truth for whoever updates it.
 
 **Acceptance:**
 - Every number in the doc reproduces from a listed command; the document's own
   evidence index (chapter 8) lists those commands.
 - No claim in the doc contradicts `git log` on the merge commit of PR #2.
 
-**Files:** `Nexus-Vibe-项目全量梳理.md`, `README.md` (badges/observability
-section), `CHANGELOG.md`, `docs/research/observability-ops-review-2026-09.md`.
+**Files:** `README.md` (badges/observability section), `CHANGELOG.md`,
+`docs/research/observability-ops-review-2026-09.md`,
+`docs/research/production-readiness-assessment-2026-09.md`.
 
 ## Explicitly out of this round
 

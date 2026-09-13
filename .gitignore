@@ -63,3 +63,6 @@ __pycache__/
 # Raw probe output from benchmark/observability/drill.ps1. The conclusions are written up in
 # docs/research; the scrape dumps and log tails behind them stay on the machine that ran it.
 benchmark/observability/evidence/
+# Career-facing write-up: it quotes internal assessments and interview framing, so it lives on the
+# machine that runs the project and never in the public remote. Never add it back.
+Nexus-Vibe-项目全量梳理.md
