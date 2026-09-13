@@ -1,12 +1,17 @@
 ﻿> 演练脚本：`benchmark/observability/drill.ps1`（16 步）
 > 环境：Windows 宿主机 + Docker 29.5.3；独立 compose project `nexus-drill`、独立命名卷、公网侧发布在 18080；
 > 镜像用本轮分支 `codex/production-readiness` 构建的 prod 形态（`SPRING_PROFILES_ACTIVE=prod`，`temurin:21-jre`）。
-> 作为结论的一次：2026-09-13 14:17:08 → 14:28:23（约 11 分钟，`-SkipBuild`；含构建约 15–20 分钟）。
-> 结论：16/16 PASS。此前 12:41（15 步）与 13:19（16 步）两次也全绿，产品行为在三次运行里逐项一致。
+> 作为结论的一次：2026-09-14 05:25:04 → 05:35（约 10 分钟，含镜像构建）。
+> 结论：**21/21 PASS**，逐条证据在第六节。上一版结论是 2026-09-13 14:17 的 16/16（12:41 的 15 步与 13:19 的 16 步同样全绿）；
+> 第一到第五节保留那一版的原文与原文里的错，因为它描述的是当时那个版本 —— 本分支在那之后改了告警面与公网健康面，
+> 改完之后的重跑与纠偏全部记在第六节。
 
 # 可观测性故障演练报告
 
 ## 一、结论
+
+> （第一到第五节是 2026-09-13 那一版的原文，含当时成立、现在已被本分支改掉的数字，例如"4 条规则"；
+> 当前版本看第六节。）
 
 这一轮要还的债是"功能完整但看不见"。演练把 LLM 真打死、把限流真打满，然后只看监控面有没有如实说出发生过什么。
 答案是：说了。三层（结构化日志 / 指标 / 告警链路）在 prod 形态容器里全部被实证，且没有新增任何公网端口。
@@ -146,8 +151,8 @@ mock：`benchmark/observability/llm-mock/mock_llm.py` 按设计只回一句 `OK`
 
 ## 五、演练没有覆盖的（诚实清单）
 
-- **真实飞书送达**：需要一个可用 webhook。桥的 5 个 Python 单测固定了加签算法与请求体，演练只证明了
-  "告警到得了桥、桥失败时会喊出来"。上线前请人工发一条测试告警到群里确认。
+- **真实飞书送达**：需要一个可用 webhook。桥的 17 个 Python 单测固定了加签算法与请求体，演练（第六节）
+  证明了告警能一路走到一个会验签的假收件人并被接受，但那不是飞书自己的服务器。上线前请人工发一条测试告警到群里确认。
 - **Prometheus 真的把规则推进 pending/firing**：演练用 provisioning API 证明了 4 条规则被引擎装载、
   且表达式里的指标名在同一份 scrape 里找得到；但规则要 5m/15m 的持续条件，演练窗口不够，所以
   "会响"这一步仍未验证。
@@ -159,24 +164,71 @@ mock：`benchmark/observability/llm-mock/mock_llm.py` 按设计只回一句 `OK`
 - 其它故障形态（磁盘满、OOM、MySQL 主从抖动）不在本轮范围。
 - 前端把短编号显示在错误提示里，属于人工验收。
 
-两条不是"没测"、而是这套告警面的固有边界，运营时要记住：
+两条关于这套告警面的边界，运营时要记住（第一条在 E3 之后只剩一半，另一半正是这一轮改掉的）：
 
-- **规则是拉模式的**：应用进程或抓取本身没了，4 条规则全部进入 no data，而它们的 `noDataState=OK`，
-  于是一声不响。能发现"整个应用不见了"的是 Docker healthcheck 与 nginx 那两层，不是 Grafana。
+- **规则是拉模式的**：应用进程或抓取本身没了，抓不到 target 这件事现在由 `nexus-prometheus-scrape-failed`
+  负责喊（`noDataState` 与 `execErrState` 都是 `Alerting`），这是第六节里 `app-death-is-not-reported-as-health`
+  与 `alert-no-data-policy-is-per-rule` 两步在证的事。其余比率类规则仍是 `noDataState: OK`：它们表达式末端有
+  流量 guard，空结果通常意味着"太安静"而不是"坏了"。
 - **`for: 5m` / `15m` 的持续条件意味着最短 5 分钟延迟**：瞬时抖动不会吵到人，这是有意的（见第四节第 3 条）。
 
-## 六、怎么重跑
+## 六、2026-09-14 重跑（E 轮，21 步全绿）
+
+E3（告警面）与 E6（公网健康面）改完之后，第一到第五节描述的那一版已经不成立了，所以在 05:25:04 重跑了一次完整演练：
+**21 步，0 失败**，证据 `benchmark/observability/evidence/drill-20260914-052504.log`。
+
+这一步真正新增的，不是"又多几步绿"，而是三类以前只能声称的东西拿到了证据：
+
+| 步骤 | 证的是哪句声称 | 实测 |
+|---|---|---|
+| grafana-provisioning-loaded | "规则在仓库里版本化"不等于"规则生效" | 引擎读回 6 条规则、`for` 分别 5m/15m/5m/5m/1m/2m，且 `noDataState` 计数 `Alerting=3 OK=3` 是**引擎的回答**而不是文件的字 |
+| alert-no-data-policy-is-per-rule | 缺数据到底算不算事故，每条规则自己决定 | 三条 `Alerting`（熔断、积压、抓不到 target），三条比率 `OK` |
+| bridge-refuses-to-start-without-a-target | 没有收件人的监控面不能看起来是绿的 | 同一镜像在清空 `FEISHU_ALERT_WEBHOOK` 后 exit 2，并把变量名说出口 |
+| alert-delivers-to-the-far-side | "告警送出去了" | 按引擎注册的 URL 投一条真通知 → 桥加签转发 → `webhook-sink` 用同一把密钥重算 HMAC：`[sink] feishu msg_type=text signature=ok`，回 `{"code":0}` |
+| public-nginx-denies-actuator（加了 metrics） | 公网与 prod 进程都不该有指标浏览 | 边缘五探 `health=200`、`prometheus`/`health/deps`/`env`/`metrics` 全 404；prod 容器自己的 8080 上 `/actuator/metrics` 也是 404 |
+| public-health-answers-only-servability | 同一个 URL 回答两个问题这件事被拆开了 | 公网 `{"status":"UP"}`，内网 `/actuator/health/deps` 四组件带详情，互不越界 |
+| app-death-is-not-reported-as-health | 应用没了要说"没了" | `up{job="nexus-vibe"}=0` 被抓到，公网 `/actuator/health` 回 502 |
+| rollback-swaps-between-two-real-image-tags | 有名字的标签=能回滚 | `prerelease-20260913 → latest → prerelease-20260913`，每次换完都读容器自己的 `Config.Image`，两侧 `/api/v1/posts` 都是 200 |
+
+顺带说清楚两件事：`latest` 与 `prerelease-20260913` 是**两个真实不同的构建**（相差 18 小时，digest 不同），
+所以这一步不是在证明 compose 会拼字符串；而它也不能证明回滚在语义上正确——两侧代码只差这一轮的可观测性改动，
+一次真正的"回滚到一个坏版本"仍然没有样本。
+
+### 这一轮演练自己错的三处（比上面那张表更值得记）
+
+1. **`noDataState: ALERTING` 把整个监控面弄崩了。** 这是产品 bug，不是断言 bug：Grafana 只认
+   `Alerting | NoData | OK | KeepState`，装载失败即退出，`restart: unless-stopped` 变成重启循环——
+   没有面板、没有通知、没有规则。发现它的是 `grafana-provisioning-loaded` 去问 `/api/health`；
+   而同样读这个文件的 `alert-no-data-policy-is-per-rule` 在那次红跑里是**绿的**：它比对的是文件的字，
+   不是引擎的解析结果。现在两侧都在：Java 侧 `GrafanaAlertProvisioningTest` 0.3 秒内拒掉错误拼法
+   （把 `ALERTING` 放回去会红四条），演练侧从引擎 API 数 `noDataState`。
+2. **断言读的是字节而不是文本。** `public-health-answers-only-servability` 报 "public health carries no status"，
+   而证据文件里躺着一串 `123 34 115 116 97 116 117 115 34 58 34 85 80 34 125` —— 那正是 `{"status":"UP"}`。
+   PowerShell 7 对 actuator 的媒体类型返回 `byte[]`，`.Content -notmatch '"status"'` 于是永远为真。
+   产品是对的，断言是错的；修法是 `Get-PlainText` 解码，而不是把断言放宽成只信状态码。
+3. **演练结果取决于它是被怎么启动的。** 一次 detached 启动里 `first-install-is-empty-and-administrable`
+   死在 `ConvertFrom-Json`（`data[1].description` 后面有非法字符）：频道描述是中文，宿主机控制台不是 UTF-8
+   代码页时 `docker exec` 的字节就被解码成乱码。同一个断言在交互式启动里一直是绿的。脚本现在自己把控制台设成
+   UTF-8——"这条断言只在某些人正确启动 shell 时才成立"是演练不该有的性质。
+   同一类竞态还有第二处：`grafana-provisioning-loaded` 只探一次 `/api/health`，而 Grafana 冷卷启动要几十秒
+   （sqlite 迁移 + 一次 `database is locked` 重试），该服务又没有 healthcheck，于是这一步在和自己的启动赛跑。
+
+还有一处是流程上的：所有演练服务都钉了 `container_name`，两次并发运行不会得到两套栈，只会在 `up -d` 中途
+撞出一句 `Conflict. The container name "/nexus-drill-db" is already in use`——这个现场我踩了一次，
+白烧十二分钟。脚本现在开机先看有没有别的 `nexus-drill-*` 容器，有就把命令说清楚再退出。
+
+## 七、怎么重跑
 
 ```bash
-pwsh -File benchmark/observability/drill.ps1              # 建镜像 + 全流程，15–20 分钟
-pwsh -File benchmark/observability/drill.ps1 -SkipBuild   # 复用镜像，约 11 分钟（大头是对账那一步要等 cron）
+pwsh -File benchmark/observability/drill.ps1              # 建镜像 + 全流程，约 10–20 分钟
+pwsh -File benchmark/observability/drill.ps1 -SkipBuild   # 复用镜像（大头是对账那一步要等 cron）
 pwsh -File benchmark/observability/drill.ps1 -Keep        # 跑完别拆，留着手查
 ```
 
 它以 `-p nexus-drill` 独立 project 运行，容器名全部是 `nexus-drill-*`，卷也是自己的一套，
 所以能和开发者正在跑的 `nexus-vibe` 栈并存；结束时 `down -v` 只清自己的卷。
 每步的原始回答写进 `benchmark/observability/evidence/drill-<时间戳>.log`（该目录已 gitignore），
-汇总写进同目录的 `-summary.md`，退出码 0 代表 16 步全过。
+汇总写进同目录的 `-summary.md`，退出码 0 代表 21 步全过。
 
 脚本里有一个坑值得记：所有 docker 参数都必须以数组形式传入。`Invoke-Compose up -d` 里的 `-d` 会被
 PowerShell 的公共参数 `-Debug` 吃掉，于是 `compose up -d` 变成前台运行的 `compose up`，永不返回；

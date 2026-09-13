@@ -259,8 +259,8 @@ Prometheus 与 Grafana 都不映射宿主端口，演练时用 `docker compose e
 
 | 事项 | 做法 | 状态 |
 |------|------|------|
-| 发布 | 改 `.env` 的 `APP_TAG` → `docker compose up -d --build` | 镜像名与标签由 compose 解析验证；主机上的一次完整发布未做真机演练 |
-| 回滚 | `APP_TAG` 改回上一个值 → `docker compose up -d --no-build` | 同上：留法写进 `docs/plans/pre-deployment-checklist.md`，未跑过 A→B→A |
+| 发布 | 改 `.env` 的 `APP_TAG` → `docker compose up -d --build` | 演练里真起过两个标签的镜像；生产主机上的一次完整发布仍未演练 |
+| 回滚 | `APP_TAG` 改回上一个值 → `docker compose up -d --no-build` | A→B→A 已在演练里跑通（换完读容器自身的 `Config.Image`，两侧 `/api/v1/posts` 都 200）；它没证的是"回滚能救一个坏版本" |
 | 备份 | `pwsh scripts/backup.ps1 -Destination <第二块盘>`（周计划任务）：mysqldump + uploads 打包，逐件校验明文 SHA-256、gzip 与 dump 结束标记，留 `-Keep` 份 | 脚本与 runbook 已入库；一次真实恢复尚未演练 |
 | 恢复 | [docs/runbook/restore.md](docs/runbook/restore.md)，另起 `-p nexus-restore-test` 项目，不碰生产卷 | **未演练**；runbook 里明确列了两处会毁掉恢复的坑（`es-data` 无全量重建索引路径、卷清单 8 个而非 7 个） |
 
@@ -326,7 +326,7 @@ mvn test                      # 296 tests: unit + H2 integration (lease claims, 
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 17 tests: Feishu sign + body
-pwsh -File benchmark/observability/drill.ps1      # 20 步故障演练，另起 compose project，~15 分钟，需 Docker
+pwsh -File benchmark/observability/drill.ps1      # 21 步故障演练，另起 compose project，~10-20 分钟，需 Docker
 ```
 
 CI（`.github/workflows/maven.yml`）只跑 `mvn test`：告警桥的 Python 单测与演练脚本都在本地跑，

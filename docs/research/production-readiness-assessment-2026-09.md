@@ -5,6 +5,34 @@
 > 技术栈：Spring Boot 3.3.5 / Java 18 · MyBatis-Plus 3.5.9 · MySQL 8 / H2 · Redis 7 · ES 7.17 · React 19 + Vite
 > 测试基线：`mvn test` 实测 **243** 个用例（README 写 236，已轻微过期）
 
+## 复核（2026-09-14，分支 `codex/production-readiness`，PR #2）
+
+本文是 2026-09-12 对 `master` 的判断，那份判断里的**业务与容错结论仍然成立**，但它对"可观测性与运维"那一半
+已经过期：那一半在它写下之后的两天里被 T1–T7 与 E1–E8 两轮做掉了大半。原文一字不改地留在下面，
+本节只说哪些结论要换掉，每条都给出可复现的命令。
+
+| 本文的说法 | 现在的事实 | 怎么复现 |
+|---|---|---|
+| "日志不落盘、无结构化、无轮转"（P0-1） | prod 以 `LogstashEncoder` 把 JSON 写进命名卷 `app-logs`（100MB/7 天/1GB，`AsyncAppender` 不丢事件），compose 全服务 json-file 限量 | `docker compose exec -T app cat /app/logs/nexus-vibe.json`，或演练步 `structured-json-log-lands-on-the-volume` |
+| "指标零暴露、告警为零"（P0-2） | `/actuator/prometheus`（仅内网）+ `--profile monitoring` 起 prometheus/grafana/alert-bridge，6 条 Grafana 规则 + 飞书加签桥 | `pwsh -File benchmark/observability/drill.ps1`（21 步全绿，见演练报告） |
+| "无业务指标"（P0-3） | `llm_chat_completions_total{outcome}`、`llm_chat_completion_duration_seconds`、`llm_circuit_breaker_open`、`rate_limit_rejected_total{path}`、`ai_review_pending_posts`、`ai_review_reconcile_repairs_total`、`ai_review_lease_attempts_exhausted_total` | `docker compose exec -T app curl -sS localhost:8080/actuator/prometheus` |
+| "健康检查不代表真实可服务"（P0-4） | `DEGRADED` 显式映射 200，公网只答 `servable` 组、容器 healthcheck 保留聚合，细节在 `/actuator/health/deps`（ADR-0007 及其修订） | 演练步 `container-not-killed-while-degraded`、`public-health-answers-only-servability` |
+| "关键告警规则缺失"（P0-6） | 4 条原计划规则 + `up{job="nexus-vibe"}==0`（抓不到 target）+ 99.9% 错误预算快烧；`noDataState` 按规则分别决定 | 演练步 `alert-no-data-policy-is-per-rule`、`app-death-is-not-reported-as-health` |
+| "生产无首个管理员引导路径"（P0-5） | `BOOTSTRAP_ADMIN_PASSWORD` 一次性引导 `admin`；样例账号与样例内容移出生产路径（ADR-0008） | 演练步 `first-install-is-empty-and-administrable` |
+| "前后端响应契约漂移"（P1-3） | 前端 `ApiResponse<T>` 改为后端真实形状 `{ code, message?, data }`，成功由 `code` 派生；`ResponseContractTest` 冒烟 | `mvn -o test -Dtest=ResponseContractTest` |
+| 243 用例 / README 236 | **296 用例**（44 个测试类），ADR 从 6 篇到 8 篇，compose 服务 7 → 9（默认 6 + monitoring 3），命名卷 8 个 | `mvn -o test`、`git ls-files 'src/test/**/*Test.java' | wc -l`、`docker compose config --services` |
+
+仍然成立、且本轮**没有**做掉的：错误码体系与 `BusinessException`（P1-2，含"帖子停在待审却回 404"的语义）、
+集中式 `@RequiresRole`（P1-6）、容器非 root（P1-5 的一半）、前端崩溃上报（P1-7）、配置校验（P1-4）、
+日志检索层（P2 里的 Loki/ELK，本轮明确以"本地 1GB + traceId 前缀"换它）、OTel（P2-1）、Flyway（P2-5）。
+
+本轮另外查出的两件与运维有关、但原文没有点名的事：
+
+1. **`es-data` 没有全量重建索引的路径。** 恢复数据库之后搜索面可以永久是空的而无人知晓
+   （`PostSearchService` 只有逐帖 `indexPost`）。已进 `docs/tickets/evidence-credibility.md` 的 out-of-scope 表。
+2. **备份从未被真恢复过。** `scripts/backup.ps1` 与 `docs/runbook/restore.md` 都在，缺的是把恢复跑一遍并记下输出。
+   原文的"综合约 60%"如果要往上调，这一条不落地的话，涨的就不该算运维就绪度。
+
 ---
 
 ## 一、总体结论

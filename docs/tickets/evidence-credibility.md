@@ -178,7 +178,15 @@ boot there is no scraper and no listener.
 
 ## E4 - A release you can point at and a rollback you can perform
 
-Status: half done, and the half that is done is the easy half. `app`
+Status: done, including the acceptance line that was the point of it. The rollback has now
+been performed on the drill host (`2026-09-14 05:25` run, step
+`rollback-swaps-between-two-real-image-tags`): `prerelease-20260913` → `latest` →
+`prerelease-20260913`, and after each move the container's own `Config.Image` is the tag that
+was asked for and `/api/v1/posts` answers 200. What that does **not** prove is a rollback away
+from a bad version — the two builds differ by this round's observability work, so the sequence
+shows the mechanism is real, not that it would have saved us from something.
+
+Original finding, kept for the record — `app`
 (`docker-compose.yml:134`) and `web` (`:186`) are declared with `build:` and no
 `image:` reference, so every build replaces one anonymous image and there is
 physically nothing to roll back to; only `alert-bridge` gets a tag (`:265`). There
@@ -191,11 +199,15 @@ compose refuses to resolve at all without a tag, and `.env.example` documents th
 bump-and-re-up release move plus the revert-and-re-up rollback. CI uploads the jar and
 `dist` on a `master` push. All six always-on services got a `mem_limit`.
 
-Not delivered, and it is the acceptance criterion that matters: **no A→B→A rollback has
-been performed anywhere.** The words "deploy tag A, deploy tag B, roll back to A, `/api
-/v1/posts` answers on A" describe the only proof that a rollback target is real, and
-what exists instead is a name that has never been pointed at. The drill does not cover
-it; the next person to touch the deploy path should run it before believing this ticket.
+That last paragraph was true when this ticket was written, and it is the reason the drill
+got a rollback step: on 2026-09-14 the acceptance sequence ran (`prerelease-20260913` →
+`latest` → `prerelease-20260913`), so the tag is no longer a name nobody has pointed at.
+Two limits on what that proves: the two images differ by this round's work, so the
+sequence shows the mechanism moves the right container and the API still answers — it does
+not show that a rollback rescues a real regression, because neither side is broken; and it
+was a drill project, not the deployment, so the production host's own tags
+(`docs/plans/pre-deployment-checklist.md` says which two must stay unpulled) remain the
+thing to keep alive by hand.
 
 What `mem_limit` is actually worth here, stated so nobody oversells it: before this ticket
 no service had a per-container memory ceiling, so the only bound was the 7.65 GiB Docker
@@ -371,11 +383,23 @@ Three separate honesty problems in
 
 ## E8 - Correct the in-repo documents against the current tree
 
-Status: in progress this round. The assessment this round was planned against was written at
-2026-09-13 02:32, before T1-T7 landed. Its headline "可观测性与运维配套仍停留在
+Status: done as a dated 复核, not as a rewrite — see the new section at the top of
+`docs/research/production-readiness-assessment-2026-09.md`, which is the choice this ticket
+should have named up front. The assessment's own section numbers (§4.4, §5.1, §7) do not exist:
+that document is structured as 一–五 with `### 1）…5）` subsections and no evidence index, so the
+scope list below refers to the *other* document (the career-facing write-up, which
+`.gitignore` keeps out of the repository). Corrected: every claim in the 复核 is pinned to a
+command or a named drill step, and all eight step names were checked against `drill.ps1`.
+
+Original finding, kept for the record: the assessment this round was planned against was written
+at 2026-09-13 02:32, before T1-T7 landed. Its headline "可观测性与运维配套仍停留在
 Demo 级" is now false for
-observability, and five of the seven gaps in its M8 table are closed. Its numbers
-are stale too: 243 test cases (now 284), 28 test classes (now 40), 6 ADRs (now 8),
+observability. Counted against the tables that document actually has: **all six P0 gaps are
+closed** (P0-1 日志、P0-2 指标+监控栈、P0-3 业务指标、P0-4 健康语义、P0-5 管理员引导、P0-6 告警规则),
+and **two of seven P1** (P1-1 traceId, P1-3 前后端契约). The other five P1 items — error codes,
+config validation, non-root app/web containers, `@RequiresRole`, frontend crash reporting — are
+still open, four of them by this round's explicit choice. Its numbers
+are stale too: 243 test cases (now 296), 28 test classes (now 44), 6 ADRs (now 8),
 7 compose services (now 9), "traceId 占位/改造中" (now shipped), "logback 未提交"
 (now committed), and "CI 3 Job 全绿门槛" (currently red on PR #2). Left uncorrected
 these are the easiest questions to fail in an interview.
@@ -394,8 +418,14 @@ these are the easiest questions to fail in an interview.
   `docker compose config --services`, `git shortlog -sne`, and line totals.
 - Out of this ticket: the job-hunting write-up that carried the same stale
   numbers is deliberately not in this repository (`.gitignore` keeps it out).
-  Nothing in the tracked tree may name it; the corrected wording above is the
+  Nothing in the tracked tree may name it; the 复核 section above is the
   shared source of truth for whoever updates it.
+- Not done here, and it should be its own ticket: the assessment's five-dimension percentages
+  (日志体系 45%、监控与告警 15%) and its "综合约 60%" are still the 2026-09-12 numbers. They are
+  now wrong in the optimistic direction for two of the five, and re-deriving them is a judgement
+  call about what "就绪度百分比" is supposed to mean — which is a better conversation than a
+  search-and-replace. The two operations facts that keep it from being a straight upgrade are
+  in the 复核's closing list: no restore rehearsal, and no full-reindex path for `es-data`.
 
 **Acceptance:**
 - Every number in the doc reproduces from a listed command; the document's own
@@ -418,5 +448,7 @@ these are the easiest questions to fail in an interview.
 | CD through the tunnel | `cloudflared` runs as a Windows service; a runner holding those credentials is a bigger risk than a manual `compose up -d` |
 | Automatic secret rotation | Two secrets, one maintainer; a checklist is more honest than a script |
 | Nightly drill in CI | It needs this machine's Docker daemon; scheduled in CI it becomes a daily green that proves nothing |
-| Full 16-step drill as a CI job | Keep it manual; promote only the two cheap invariants (nginx denies actuator; degraded does not restart the container) if E7 leaves room |
+| Full 21-step drill as a CI job | Keep it manual; promote only the two cheap invariants (nginx denies actuator; degraded does not restart the container) if E7 leaves room |
 | Flyway/Liquibase | Half a day to adopt, but the value only lands together with a tested restore (E5); scheduled right after it |
+| Bulk reindex path for `es-data` | Found while writing `docs/runbook/restore.md`: only per-post `indexPost` exists, so a restored database can serve a search index that is silently empty. Belongs to the search module, and it wants a design decision (reindex-on-restore, or index-on-read repair, or a rebuild endpoint) rather than a patch |
+| E1's flake is proven gone only by repetition | One green CI run on JDK 21 is data, not proof. Re-run the gate on the next few pushes; if it ever goes red on a docs-only commit again, this whole round's premise is wrong |
