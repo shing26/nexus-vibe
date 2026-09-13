@@ -59,8 +59,24 @@ class HealthSemanticsIntegrationTest {
     }
 
     @Test
-    @DisplayName("The metrics API stays off the exposure allowlist")
-    void metricsApiIsNotExposed() throws Exception {
+    @DisplayName("The config endpoint is not exposed even where metrics is")
+    void configEndpointIsNotExposed() throws Exception {
         mockMvc.perform(get("/actuator/env")).andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("The servable group answers the visitor question without pretending about deps")
+    void servableGroupIgnoresDegradedDependencies() throws Exception {
+        // LLM and Elasticsearch are down in this context by construction. The top-level document
+        // therefore reads DEGRADED while servability -- real storage only -- is unaffected.
+        mockMvc.perform(get("/actuator/health/servable"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"))
+                .andExpect(jsonPath("$.components").doesNotExist())
+                .andExpect(jsonPath("$.groups").doesNotExist());
+
+        mockMvc.perform(get("/actuator/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("DEGRADED"));
     }
 }

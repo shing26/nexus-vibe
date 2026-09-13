@@ -23,16 +23,16 @@ import java.io.IOException;
  */
 public class TraceIdFilter implements Filter {
 
-    private final boolean trustForwardedHeaders;
+    private final boolean trustInboundHeader;
 
-    public TraceIdFilter(boolean trustForwardedHeaders) {
-        this.trustForwardedHeaders = trustForwardedHeaders;
+    public TraceIdFilter(boolean trustInboundHeader) {
+        this.trustInboundHeader = trustInboundHeader;
     }
 
     @Override
     public void doFilter(ServletRequest request, ServletResponse response, FilterChain chain)
             throws IOException, ServletException {
-        String inbound = trustForwardedHeaders
+        String inbound = trustInboundHeader
                 ? ((HttpServletRequest) request).getHeader(TraceIds.HEADER)
                 : null;
         String traceId = TraceIds.orGenerate(inbound);

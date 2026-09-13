@@ -20,9 +20,10 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  *
  * <p>Assertions are deliberately limited to {@code jvm_*} and {@code http_server_requests_*}.
  * OS and disk metrics come from {@code SystemMetricsAutoConfiguration}, and the {@code ci-linux}
- * profile runs surefire with {@code -XX:-UseContainerSupport} precisely because container cgroup
- * detection used to crash the JVM on the runner; asserting those names here would be asserting
- * the disabled configuration. The prod container check lives in the observability drill.</p>
+ * profile (now {@code surefire-without-container-support}, opt-in from the workflow) runs surefire
+ * with {@code -XX:-UseContainerSupport} precisely because container cgroup detection used to crash
+ * the JVM on the runner; asserting those names here would be asserting the disabled configuration.
+ * The prod container check lives in the observability drill.</p>
  *
  * <p>{@link AutoConfigureObservability} is not decoration: Boot's test context customizer sets
  * {@code management.defaults.metrics.export.enabled=false} for every {@code @SpringBootTest}, which
@@ -56,9 +57,13 @@ class ActuatorMetricsTest {
     }
 
     @Test
-    @DisplayName("exposure stays an allowlist: prometheus is in, the metrics API is out")
+    @DisplayName("the metrics API is available where it is a debugging tool, /env never is")
     void onlyAdvertisedEndpointsAreExposed() throws Exception {
-        mockMvc.perform(get("/actuator/metrics")).andExpect(status().isNotFound());
+        // Dev/base keeps /actuator/metrics: it is how a developer checks a counter name before
+        // writing an alert for it. Prod drops it from the allowlist and the public edge never
+        // forwards it; that half of the contract is pinned in ActuatorExposureContractTest.
+        mockMvc.perform(get("/actuator/metrics")).andExpect(status().isOk());
+        mockMvc.perform(get("/actuator/metric/notAThing")).andExpect(status().isNotFound());
         mockMvc.perform(get("/actuator/env")).andExpect(status().isNotFound());
     }
 }

@@ -44,6 +44,7 @@ _Avoid_: Unhealthy, Partially Down, Degradation
 
 **Servable（可服务性）**:
 顶层 /actuator/health 唯一回答的问题：还能不能服务。只由真实存储决定——db DOWN 才算不可服务，其余依赖最多把总状态压到 Degraded。
+对外它是一个具名组 `servable`（只含 db）：公网 `/actuator/health` 由 nginx 转到它，容器 HEALTHCHECK 仍问聚合文档，同一个状态码不再同时回答两个问题（见 ADR-0007 修订段）。
 _Avoid_: Healthy, Liveness, Readiness
 
 **Reconciliation（对账任务）**:
@@ -72,6 +73,7 @@ _Avoid_: Default Admin, Superuser, Root Account
 
 **Trace ID（追踪号）**:
 一次请求（或一次定时任务运行）的 16-hex 标识，随 MDC 跨过同步/异步边界，出现在日志、`X-Trace-Id` 响应头与 5xx 响应体里；前端错误提示展示前 8 位，供用户报障时复述。
+**生成**形状是 16-hex；**接收**外部值时只接受 `^[0-9a-zA-Z-]{1,64}$`，且默认不接收：要 `campus.trace.trust-inbound-header=true` 才沿用外部值，那是独立于 `trust-forwarded-headers`（客户端 IP 真伪）的另一项信任决定，公网 nginx 还会先把该头清空。四个 `@Scheduled` 任务每次运行都拥有一个。
 _Avoid_: Request ID, Correlation Id, Span
 
 ## Channels

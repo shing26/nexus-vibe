@@ -104,6 +104,9 @@ management:
   endpoints:
     web:
       exposure:
+        # The shipped allowlist: no `metrics`, unlike the dev/base document. Pinned by
+        # ActuatorExposureContractTest because it is the one place a well-meaning edit to the base
+        # surface could silently widen what prod answers on :8080.
         include: health,info,prometheus
   # Health details, the deps group and the DEGRADED to 200 mapping all come from the base
   # document: they describe serving semantics, not a deployment stage, and a prod-only version of

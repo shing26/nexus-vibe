@@ -6,6 +6,7 @@ import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.mapper.VibePostMapper;
 import jakarta.annotation.PostConstruct;
+import com.nexus.campus.util.TraceIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.BeanUtils;
@@ -133,6 +134,15 @@ public class PostRankingService {
      */
     @Scheduled(cron = "0 0 * * * ?")
     public void recalculateHotRanking() {
+        TraceIds.runAsJob("hot-ranking-recalculate", this::recalculateHotRankingOnce);
+    }
+
+    /**
+     * The sweep itself. Public callers ({@code DriftReconcileTask}, the preloader,
+     * the demo controller) reach it through {@link #recalculateHotRanking()}, which
+     * keeps an id that already exists and mints one for an hourly run that has none.
+     */
+    private void recalculateHotRankingOnce() {
         if (!redisAvailable) return;
 
         try {
