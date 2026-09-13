@@ -10,7 +10,7 @@
 
 这是一个**真实可运行的全栈产品，不是演示原型**。判据不是"功能多"，而是三件造假成本很高的事：
 
-1. **284 个 JUnit 用例全绿**（本次实测：`classes=40 tests=284 failures=0 errors=0 skipped=0`），其中 8 个 `*IntegrationTest` 真起 Spring 上下文打 HTTP，不是纯 mock。
+1. **284 个 JUnit 用例全绿**（本次实测：`classes=40 tests=284 failures=0 errors=0 skipped=0`）。其中 12 个测试类带 `@SpringBootTest`，会真起 Spring 上下文（H2 + MockMvc 打 HTTP），不是纯 mock；7 个按 `*IntegrationTest` 命名。
 2. **626 行故障演练脚本**（`benchmark/observability/drill.ps1`），把 LLM 端点指向死端口跑真实容器栈，16 步断言全过，且报告里明确写了"这 16/16 里哪几步曾因为脚本自己的 bug 而假红"。
 3. **有被记录并执行的否定决策**：7 篇研究文档里 3 篇的结论是"回滚 / 不采用"（深分页延迟关联退化 40%、AI 排序索引无过滤时负优化、cgroup exclude 属于误诊）。只写成功案例的项目是宣传，写下"我试错了"的才是工程。
 
