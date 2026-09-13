@@ -34,7 +34,7 @@ class RateLimitInterceptorTest {
     @Mock
     private HttpServletRequest request;
 
-@Mock
+    @Mock
     private HttpServletResponse response;
 
     /** Real registry: the assertion below is about the number that lands on the counter. */
