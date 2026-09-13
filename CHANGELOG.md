@@ -92,10 +92,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `<os><family>unix</family>` activation is invisible in a build log) and moved the gate to JDK 21,
   the LTS the Dockerfile actually runs — it used to compile and test on 18, which nothing else uses
 - **Per-container memory ceilings**: `mem_limit` on all six always-on services, sized from what the
-  running stack holds (app 400MiB of its 768MiB, es 653MiB) on a 7.65 GiB Docker VM shared with two
-  unrelated projects; the three `monitoring`-profile containers still have none. E4 started from "the
-  stack is unbounded", which was wrong — the VM was always the ceiling — and the ticket says so,
-  because that correction is the difference between a hardening step and a capacity decision
+  running stack holds (app 400MiB of its 768MiB, es 653MiB); the three `monitoring`-profile
+  containers still have none. This is a capacity decision rather than a disk-hygiene one: the only
+  bound before it was the 7.65 GiB Docker Desktop VM, shared with two unrelated projects' live
+  containers, so the limit is about one stack starving another rather than about filling a disk.
 - **Frontend response contract matched to the backend**: `ApiResponse<T>` is now
   `{ code, message?, data }` with success derived from `code`; the never-read `success` field is gone
   from the type rather than bolted onto the API

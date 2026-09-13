@@ -197,15 +197,16 @@ been performed anywhere.** The words "deploy tag A, deploy tag B, roll back to A
 what exists instead is a name that has never been pointed at. The drill does not cover
 it; the next person to touch the deploy path should run it before believing this ticket.
 
-Two premises here were wrong and are corrected on the record, because they changed what
-the ticket is worth:
-- "container stdout was unbounded on the host disk" — it is bounded anyway by the 7.65
-  GiB Docker Desktop VM on this machine. The `json-file` rotation from the previous round
-  is still right, but it is hygiene, not the removal of a disk-filling risk.
-- "no memory ceiling": true of the compose file, but the ceiling that actually applies is
-  the VM's, shared with two other live projects. The `mem_limit` values were sized to
-  measured use (app holds ~400MiB, es ~653MiB) so one container cannot take the VM from
-  the others; the three `monitoring`-profile containers still have no limit.
+What `mem_limit` is actually worth here, stated so nobody oversells it: before this ticket
+no service had a per-container memory ceiling, so the only bound was the 7.65 GiB Docker
+Desktop VM this machine shares with two other projects' live containers. The values are
+sized to measured use (app holds ~400MiB, es ~653MiB), which makes this a fairness and
+capacity decision between co-resident stacks — not the removal of a disk-filling risk. An
+earlier revision of this paragraph claimed the opposite of both: that "stdout unbounded on
+the host disk" was bounded by the VM anyway. That conflated RAM with disk, and it was
+wrong; the `json-file` rotation from the previous round is what bounds log size on disk, and
+"unbounded" was the correct word for it. Also unstated before: the three
+`monitoring`-profile containers still have no `mem_limit` at all.
 
 **Scope:**
 - Tag both application images: `image: nexus-vibe-app:${APP_TAG:?}` and
@@ -319,7 +320,18 @@ since the endpoint is not reachable publicly either way.
 
 ## E7 - Make the CI gate describe the thing that ships
 
-Status: done in the tree; CI is the experiment. Three separate honesty problems in
+Status: done, and CI ran the experiment. Run `34783762204` (head `725daea`) is green on
+all three jobs that matter: Backend build and tests in 1m2s on JDK 21 with
+`Tests run: 296, Failures: 0`, Docker image build green on a PR that touches
+`src/main/**`, Frontend green. That run is also the first proof of E1 from the
+non-hermetic side: the previous head (`0284933`, a docs-only commit) was red because the
+cron was inside the context, and this one passed with the same docs churn in history.
+Two caveats kept visible: the smoke-run step is `if: github.event_name == 'push'`, so it
+has never executed — its first real run will be the merge commit on `master`, which is
+exactly the moment to be watching; and E1's acceptance asked for the flake to be proved
+gone by repeating the run 3–5 times, which so far is one green run, not five.
+
+Three separate honesty problems in
 `.github/workflows/maven.yml` and `pom.xml`:
 
 - The gate tests JDK 18 (`java.version=18` at `pom.xml:22`, `java-version: "18"`
