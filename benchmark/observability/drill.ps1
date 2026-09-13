@@ -68,6 +68,18 @@ $ErrorActionPreference = 'Stop'
 $repoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSCommandPath))
 Set-Location $repoRoot
 
+# Everything this script reads comes out of `docker exec` as UTF-8: channel descriptions and AI
+# review summaries are Chinese. Under an OEM console codepage those bytes arrive mangled, and
+# ConvertFrom-Json then fails with "after parsing a value an unexpected character was encountered"
+# on a response that is perfectly valid JSON - a step red for a reason that has nothing to do with
+# the stack. One run showed this only because it was started detached, where nothing had set the
+# console encoding first, which is exactly the kind of host luck a drill must not depend on.
+try {
+    [Console]::OutputEncoding = [System.Text.Encoding]::UTF8
+} catch {
+    Write-Host 'could not set the console to UTF-8: assertions that parse JSON may fail on Chinese text' -ForegroundColor Yellow
+}
+
 # Compose reads WEB_PORT for the published port; a shell value beats .env, so the drill never
 # has to edit anyone's .env to probe the public side.
 $env:WEB_PORT = "$WebPort"
@@ -321,6 +333,13 @@ Step 'prometheus-scrapes-app' {
 }
 
 Step 'grafana-provisioning-loaded' {
+    # Grafana takes tens of seconds (sqlite migrations, then a "database is locked" retry on a
+    # volume it has just created), and compose does not know it is up: healthcheck: none. Probing
+    # once means this step races its own startup and loses about as often as it wins, so wait for
+    # the listener the same way every other step waits for its service.
+    Wait-For 'grafana to answer /api/health' {
+        (Invoke-Compose -Cmd @('exec', '-T', 'grafana', 'wget', '-qO-', 'http://localhost:3000/api/health')) -match '"database"\s*:\s*"ok"'
+    } -TimeoutSec 240 -IntervalSec 5
     $health = Invoke-Compose -Cmd @('exec', '-T', 'grafana', 'wget', '-qO-', 'http://localhost:3000/api/health')
     Write-Evidence 'grafana health' $health
     if ($health -notmatch '"database"\s*:\s*"ok"') { throw "grafana not ready: $health" }
