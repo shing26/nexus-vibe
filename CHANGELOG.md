@@ -9,6 +9,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Observability round (P0-1..P0-6, P1-1, P1-3 — `docs/tickets/production-readiness.md`)**
+  - **Structured log to disk**: `logback-spring.xml` gives prod a `LogstashEncoder` file appender on the
+    `app-logs` volume (size+time rolling, 100MB/7d/1GB cap) wrapped in an `AsyncAppender` with
+    `discardingThreshold=0` so nothing is dropped; dev/console keeps `%X{traceId}` in the pattern;
+    `logstash-logback-encoder` moved 7.4 → 8.0 to match logback 1.5.11
+  - **Prometheus endpoint + opt-in monitoring stack**: `micrometer-registry-prometheus`, prod exposes
+    `health,info,prometheus`; `docker/observability/` ships Prometheus, Grafana (datasource, 4 alert
+    rules, 2 dashboards) and a Feishu `alert-bridge`, all under the `monitoring` profile — no host port
+    mapping, so the public surface stays nginx-only and the stack runs unchanged without the profile
+  - **Business metrics instrumented by hand** (no `@Timed` AOP): `llm_chat_completions_total{outcome}`,
+    `llm_chat_completion_duration_seconds` (SLO buckets on the timeout ladder),
+    `llm_circuit_breaker_open`, `rate_limit_rejected_total{path}`, `ai_review_pending_posts` (a snapshot
+    gauge, so a scrape never turns into a `COUNT` on the database), `ai_review_reconcile_repairs_total`,
+    `ai_review_lease_attempts_exhausted_total`
+  - **Trace ID across every boundary (ADR-0007 neighbour)**: `TraceIdFilter` at
+    `HIGHEST_PRECEDENCE - 1` mints a 16-hex id and echoes `X-Trace-Id`; `MdcCopyingTaskDecorator`
+    carries MDC into both async pools; `TraceIds.runAsJob` gives each `@Scheduled` run its own id;
+    5xx bodies repeat the traceId (`@JsonInclude(NON_NULL)`, normal responses unchanged) and the error
+    toast shows the first 8 characters so a user can quote it
+  - **Bootstrap admin, empty production seed (ADR-0008)**: prod no longer inserts demo accounts —
+    `DataPreloader` keeps only the functional `AiAgent(999)`; `BootstrapAdminInitializer` creates
+    `admin` from `BOOTSTRAP_ADMIN_PASSWORD` once when no ADMIN exists; demo posts/comments/messages move
+    to `DemoContentSeeder` behind `DEMO_SEED_ENABLED`, so a first boot cannot produce content owned by
+    nobody
+
+### Changed
+
+- **Two-level health semantics (ADR-0007)**: a degraded dependency is no longer an unhealthy container.
+  Boot's `redis`/`elasticsearch` indicators are switched off and replaced with ours that map to
+  `DEGRADED` (plus a new `llm` one reusing `LlmHealthCache`, so probing never feeds the breaker);
+  `degraded` ranks above `up` but maps to HTTP **200**, only `db` can still go DOWN, details move to
+  the `deps` group with `show-details: always`
+- **`SystemMetricsAutoConfiguration` exclude removed** — the original crash came from the CI profile's
+  `-XX:-UseContainerSupport`, not from cgroup v2; OS metrics now verified present in a prod container,
+  and unit tests assert only `jvm_*` so no runner crash returns
+- **Frontend response contract matched to the backend**: `ApiResponse<T>` is now
+  `{ code, message?, data }` with success derived from `code`; the never-read `success` field is gone
+  from the type rather than bolted onto the API
+- **nginx actuator lockdown**: `location /actuator/ { return 404; }` before the SPA fallback, keeping the
+  single exact `/actuator/health` forward — "accidentally safe" becomes explicitly denied
+
+### Fixed
+
+- **Compose log rotation on every service**: all services now share a `json-file` anchor with
+  `max-size: 10m` / `max-file: 3`; container stdout was previously unbounded on the host disk
+
+### Documentation
+
+- Failure drill `benchmark/observability/drill.ps1` (16 steps, real container stack, dead-port LLM mock)
+  with results and — equally — its own false-red history in
+  `docs/research/observability-drill-2026-09.md`; module/completion audit in
+  `docs/research/project-module-audit-2026-09.md`; the readiness assessment archived to
+  `docs/research/production-readiness-assessment-2026-09.md`; `CONTEXT.md` gains **Degraded**,
+  **Servable**, **Bootstrap Admin**, **Trace ID**
+
+### Testing
+
+- 284 JUnit cases (was 243): first tests to touch actuator at all, plus health semantics, trace
+  propagation across the async hop, log JSON shape, seed gating and bootstrap idempotency; the
+  alert-bridge ships 5 Python tests pinning the Feishu signature
+- Not yet proven, stated plainly: real Feishu delivery, rules actually reaching `firing`, and Grafana
+  panel rendering — see the drill report's honest-list section
+
 ### Security
 
 Audit-driven hardening of the AI pipeline (ADR-0003/0004/0005 review + product walkthrough, 2026-09-06):
