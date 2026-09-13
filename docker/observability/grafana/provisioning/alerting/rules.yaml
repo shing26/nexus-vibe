@@ -1,0 +1,202 @@
+# Grafana unified-alerting rules for the Nexus-Vibe pipeline.
+#
+# Provisioned, not hand-built in the UI, so a rebuilt box cannot quietly lose the alerts. Each rule
+# keeps the same expression as its dashboard panel; the comments record the failure it is meant to
+# catch, because an alert nobody remembers how to read is an alert that gets muted.
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: nexus-vibe
+    folder: Nexus Vibe
+    interval: 1m
+    rules:
+      # The LLM being unreachable is normal operation for this app: posts park in pending-llm and
+      # the reconcile task retries. What must not pass unnoticed is a breaker that stays open,
+      # because after lease-seconds x max-attempts the reviews start failing for good.
+      - uid: nexus-llm-breaker-open
+        title: "LLM circuit breaker has been open for 5m"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              expr: 'max_over_time(llm_circuit_breaker_open{application="nexus-vibe"}[5m])'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [0.5] }
+        for: 5m
+        noDataState: OK
+        errorState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+          service: nexus-vibe
+        annotations:
+          summary: "The breaker is open, so every AI review is failing fast."
+          description: "Check LLM_ENDPOINT reachability and /actuator/health llm detail; the reconcile task retries once the probe answers."
+
+      # Backlog is the leading indicator: it grows while users keep posting and the pipeline keeps
+      # declining the work. 15m of waiting avoids firing on a single in-flight batch.
+      - uid: nexus-ai-review-backlog
+        title: "AI review backlog above 10 for 15m"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              expr: 'max_over_time(ai_review_pending_posts{application="nexus-vibe"}[15m])'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [10] }
+        for: 15m
+        noDataState: OK
+        errorState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+          service: nexus-vibe
+        annotations:
+          summary: "Posts are waiting on an AI review verdict that is not arriving."
+          description: "If the breaker gauge is 0 too, the reconcile cron is not running or is throwing."
+
+      # 5xx is the only rule that speaks for the whole API surface. The denominator is deliberately
+      # unfiltered: a ratio against "non-health requests" would drift whenever a uri tag changes.
+      - uid: nexus-http-5xx-ratio
+        title: "HTTP 5xx ratio above 1% for 5m"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              expr: 'sum(rate(http_server_requests_seconds_count{application="nexus-vibe",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{application="nexus-vibe"}[5m]))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [0.01] }
+        for: 5m
+        # No traffic means no samples. Firing on a quiet night would train everyone to ignore it.
+        noDataState: OK
+        errorState: OK
+        execErrState: OK
+        labels:
+          severity: critical
+          service: nexus-vibe
+        annotations:
+          summary: "More than 1% of requests are failing server-side."
+          description: "Grep the JSON logs for traceId values on level ERROR; the response header X-Trace-Id points at the same line."
+
+      # Rejections are the cheap signal for a credential-stuffing run or a client bug in a loop.
+      # The volume guard keeps a single stray 429 from firing a "3x baseline" ratio off a zero base.
+      - uid: nexus-rate-limit-spike
+        title: "Rate-limit rejections spiking above 3x baseline"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              expr: 'sum(rate(rate_limit_rejected_total{application="nexus-vibe"}[5m])) / clamp_min(sum(rate(rate_limit_rejected_total{application="nexus-vibe"}[1h] offset 1h)), 0.01) and sum(increase(rate_limit_rejected_total{application="nexus-vibe"}[5m])) > 10'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 3600, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [3] }
+        for: 5m
+        noDataState: OK
+        errorState: OK
+        execErrState: OK
+        labels:
+          severity: warning
+          service: nexus-vibe
+        annotations:
+          summary: "One path is being rejected far more often than its own hour baseline."
+          description: "The path tag names the endpoint; the [RATE-LIMIT] log lines name the client IP."

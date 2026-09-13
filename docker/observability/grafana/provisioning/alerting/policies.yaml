@@ -1,0 +1,8 @@
+# A flat policy: every rule in this stack goes to the bridge. Sub-routing can come back later;
+# what matters is that no rule can be created without a destination.
+apiVersion: 1
+
+policies:
+  - orgId: 1
+    receiver: nexus-feishu-bridge
+    group_by: ["alertname", "severity"]

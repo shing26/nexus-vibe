@@ -221,3 +221,24 @@ services:
       - nexus-net
     depends_on:
       - prometheus
+
+  alert-bridge:
+    build:
+      context: ./docker/observability/alert-bridge
+    image: nexus-alert-bridge:local
+    container_name: nexus-alert-bridge
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    environment:
+      # Both stay empty by default so the stack still starts for a drill without Feishu
+      # credentials; the bridge answers 502 with "FEISHU_ALERT_WEBHOOK is not set" when an alert
+      # fires unconfigured, instead of dropping it quietly.
+      FEISHU_ALERT_WEBHOOK: ${FEISHU_ALERT_WEBHOOK:-}
+      FEISHU_ALERT_SECRET: ${FEISHU_ALERT_SECRET:-}
+    expose:
+      - "8080"
+    networks:
+      - nexus-net
+    depends_on:
+      - grafana

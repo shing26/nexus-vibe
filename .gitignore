@@ -55,3 +55,7 @@ node_modules/
 hs_err_pid*.log
 replay_pid*.log
 .qa_tmp/
+
+# Python bytecode from the alert-bridge unit tests run on the host
+__pycache__/
+*.pyc

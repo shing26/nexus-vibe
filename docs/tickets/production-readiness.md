@@ -72,6 +72,9 @@ Status: done on `codex/production-readiness`.
 
 Depends on T2.
 
+Status: done on `codex/production-readiness`. Rules and bridge are in the repo and the bridge
+unit tests pass; delivery to a real Feishu group is a drill step.
+
 **Scope:** the AI pipeline has to report its own health, and a human has to
 hear about it.
 

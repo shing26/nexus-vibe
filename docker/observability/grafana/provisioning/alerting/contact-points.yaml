@@ -1,0 +1,15 @@
+# Grafana sends alert notifications to the in-network alert-bridge, which re-signs them for the
+# Feishu custom bot. Grafana itself never talks to Feishu: the webhook URL and its signing secret
+# live in one container's environment instead of in a UI form that would be lost on rebuild.
+apiVersion: 1
+
+contactPoints:
+  - orgId: 1
+    name: nexus-feishu-bridge
+    receivers:
+      - uid: nexus-feishu-bridge
+        type: webhook
+        settings:
+          url: "http://alert-bridge:8080/notify"
+          httpMethod: POST
+          maxAlerts: "10"
