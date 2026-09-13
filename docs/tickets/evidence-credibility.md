@@ -506,6 +506,14 @@ code. So the endpoint reported `reindexed: 32` for a cluster that rejected all 3
 E5 was written to prevent - a restored site serving empty search with a green checkmark next to it
 - reached from the opposite direction: not a missing tool, but a tool that grades its own homework.
 
+Both directions were then executed against a real cluster on 2026-09-14, in a second pass over the
+restored scratch project with `elasticsearch` added: `{"requested":32,"esAvailable":true,
+"reindexed":32,"failed":0,"complete":true}` with `nexus_posts` docs.count going 0 to 32, a keyword
+search returning a post that predated the dump, and `_analyze` on `构建教程` yielding bigrams (so the
+CJK mapping really landed rather than an auto-created index). Then, with the cluster stopped mid-run
+while the app still believed it was available: `{"requested":32,"reindexed":0,"failed":32,
+"complete":false}`. The implementation this replaced answers `reindexed: 32` to that second call.
+
 **Scope:**
 - `bulkIndex` returns `BulkResult(submitted, indexed, failed)`; `indexed` comes from counting the
   2xx item statuses in the `_bulk` body, and an unparseable body counts as zero (fail-closed, same

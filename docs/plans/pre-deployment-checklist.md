@@ -86,7 +86,11 @@
 - [ ] **换一块真正的异盘或异机副本**：本机是单块 NVMe 分区成 C/D/E，所谓"第二卷"和数据库同盘，盘坏即一起没。脚本现在会把这件事打印出来并写进 `manifest.json` -> `warnings`，但没人替你把副本搬走。
 - [x] `es-data` 的全量重建索引写进恢复流程（E9 + `restore.md` 第 7 节）：索引不在任何 dump 里，恢复后必须调 `POST /api/v1/admin/search/reindex` 并核对 `requested/reindexed/failed/complete`，否则搜索静默返回空且不报错。
       顺带纠正一个本轮自己写进仓库的错误断言：文档曾称"代码里根本没有全量重建路径"，而该端点自 `9c4b002`（2026-08-14）就在；真正的缺陷是 `rebuildIndex` 返回它从 MySQL 读到的行数，ES 全拒或根本没起也照样报 `reindexed: 32`——现在计数来自 `_bulk` 响应里逐项 2xx，解析不了按 0 计（fail-closed）。
-- [ ] 在第 7 节的两条 reindex 路径上真跑一次（演练停在第 6 节，带 `elasticsearch` 的那条至今没被执行过）：至少要求 `complete: true`，再用一个已知老帖子里的词搜回来。
+- [x] 第 7 节的两条 reindex 路径都在真集群上跑过（2026-09-14 第二遍，scratch 里补起 `elasticsearch`）：
+      重建返回 `{"requested":32,"reindexed":32,"failed":0,"complete":true}`，`nexus_posts` 的 `docs.count` 从 0 变 32，
+      用 dump 之前就存在的老帖子关键词 `RAG` 搜得回来，`_analyze` 对 `构建教程` 切出 `构建/建教/教程` 二元组（证明确实带上了 CJK mapping，不是自动建的默认索引）；
+      再把集群中途 `docker stop`，同一个端点如实返回 `{"requested":32,"reindexed":0,"failed":32,"complete":false}` —— 被替换掉的实现在这一枪下报的是 `reindexed: 32`。
+- [ ] 决定 `es-data` 的读时修复策略（E9 的遗留项）：ES 宕机期间写的帖子只在下一次成功写入时补索引，没有谁去扫差额；全量重建是把钝刀，要不要定时跑还没人拍板。
 - [ ] 装上周计划任务并确认它真的在跑（`Get-ScheduledTask`），第一次触发后回看 `manifest.json` 的 `complete` 与 `warnings`。
 
 ## 发布与回滚（E4，2026-09-14，分支 `codex/production-readiness`）

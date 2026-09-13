@@ -38,8 +38,13 @@ loud in the rehearsal notes rather than restoring half of it and calling it gree
 - The scratch project reads the same `.env` as the real stack (compose takes the environment file
   from the compose file's directory). That means the restored database is created with the
   production `DB_PASSWORD` as its root password. Do not point this runbook at a shared host.
-- Only `db` is needed for the restore itself. `web` is never started, so the published host port
-  (`${WEB_PORT:-8080}:80`) cannot collide with a running site.
+- Only `db` is needed for the restore itself, plus `redis` and `app` if sections 6 and 7 are in scope. The scratch `app`
+  publishes **no** host port, and that is the trap: `${WEB_PORT:-8080}:80` belongs to the *live* stack's `web`,
+  so `http://localhost:8080/...` from the host always reaches production however many scratch containers are
+  up. Reach the scratch app with `docker compose ... exec app curl http://localhost:8080/...`, which cannot
+  lie about which site you are writing to. An application request sent to `localhost:8080` during the
+  2026-09-14 run created an account on the real site; it was deleted within the hour, and section 10 keeps
+  the record. Do not treat "web is never started" as protection - it is the live web that owns the port.
 - Do not run `docker compose down -v` without `-p nexus-restore-test` in the same command line.
 - **Container names are not project-scoped, volumes are.** `docker-compose.yml` pins
   `container_name:` for every service, so a second compose project on the same daemon cannot create
@@ -243,17 +248,41 @@ lives in `es-data`, which this procedure does not restore. Elasticsearch answers
 `200` and zero hits, so a restore that stops at section 6 leaves a site that reads as healthy and
 cannot find any of its own posts.
 
-The application has a full-reindex endpoint, and it has had one since `9c4b002` (2026-08-14):
+The application has a full-reindex endpoint, and it has had one since `9c4b002` (2026-08-14).
+
+**Do not address it as `http://localhost:8080`.** The scratch `app` publishes no host port - the
+only thing listening on `localhost:8080` is the *live* site's `web` container, because compose maps
+`${WEB_PORT:-8080}:80` for `web`, and section 1's "web is never started" protection covers the
+scratch project's `web`, not the live one already holding that port. Everything below therefore goes
+through `docker exec` into the scratch container's own loopback. A `curl localhost:8080` typed here
+registers an account on production, which is not a hypothetical: it is what the 2026-09-14 run did,
+and the row was deleted again the same hour (see section 10).
+
+First, an admin token. On a real restore the restored database already has one, so log in as it. On a
+scratch rehearsal you may not know its password, so create a throwaway admin *inside the scratch
+project only*:
 
 ```powershell
-# admin login -> token -> rebuild the index from whatever the restored database holds
-$tok = (Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/auth/login' `
-        -ContentType 'application/json' `
-        -Body (@{ username = 'admin'; password = $env:BOOTSTRAP_ADMIN_PASSWORD } | ConvertTo-Json)).data.token
-$re = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/admin/search/reindex' `
-        -Headers @{ Authorization = "Bearer $tok" }
-$re.data
+# 1. register through the scratch app's own loopback
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app sh -c `
+  "curl -sS -X POST http://localhost:8080/api/v1/auth/register -H 'Content-Type: application/json' -d '{\"username\":\"reindexdrill\",\"email\":\"reindexdrill@example.invalid\",\"password\":\"Dril1Password9\",\"nickname\":\"Reindex Drill\"}' | head -c 200"
+
+# 2. promote it in the scratch database (note: scratch db, never the live nexus-db)
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c `
+  'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus -e "UPDATE sys_user SET role=\"ADMIN\" WHERE username=\"reindexdrill\"" '
+
+# 3. log in, then read the role straight out of the JWT so a USER token cannot be mistaken for an admin one
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app sh -c `
+  "curl -sS -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"reindexdrill\",\"password\":\"Dril1Password9\"}'" |
+    ConvertFrom-Json | ForEach-Object { $_.data.token }
+
+# 4. the reindex itself, with the token from step 3
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app sh -c `
+  "curl -sS -X POST http://localhost:8080/api/v1/admin/search/reindex -H 'Authorization: Bearer $TOKEN'"
 ```
+
+Print the JSON `data` object and read `requested`, `reindexed`, `failed` and `complete` before
+believing any of it.
 
 Read `requested`, `reindexed`, `failed` and `complete` before believing it. `reindexed` is the count of
 documents Elasticsearch *confirmed*, item by item, out of the `_bulk` response - not the number of rows
@@ -278,10 +307,26 @@ Two ways to run it, and they prove different things:
   back. If `failed` is non-zero the bulk response named the count and nothing else; the per-item
   reasons are in the app log under `[NEXUS-ES]`.
 
-**The 2026-09-14 rehearsal did neither.** It stopped at section 6, so this section is written from the
-code and from the assertion added to `PostControllerIntegrationTest`, not from a performed reindex. The
-second bullet above is the piece a real restore has to exercise before anyone calls the search path
-backed up.
+**Both legs were run on 2026-09-14**, in a second pass over the same backup set with
+`elasticsearch` added to the scratch project. Numbers, in the order they were produced:
+
+| | result |
+| --- | --- |
+| `docs.count` before | `0` |
+| reindex response | `{"requested":32,"esAvailable":true,"reindexed":32,"failed":0,"complete":true}` |
+| `docs.count` after | `32` |
+| `GET /api/v1/posts?keyword=RAG` | `total: 1`, hit id 1 "Building a RAG pipeline with LangChain and Claude 3" |
+| `POST /nexus_posts/_analyze` on `构建教程` | `构建` / `建教` / `教程` - the CJK mapping is really on the index, not an auto-created default |
+| reindex with `docker stop` on the cluster mid-run | `{"requested":32,"esAvailable":true,"reindexed":0,"failed":32,"complete":false}` |
+
+That last row is the one that justifies this whole ticket: the app had cached `esAvailable: true` from
+startup, the transport then failed, and the endpoint said *0 indexed, 32 failed, not complete*. The
+implementation this replaced returned `reindexed: 32` for the identical call, because 32 was the
+number of rows MySQL had handed it.
+
+The scratch project was then removed with `down -v` (0 volumes left matching `nexus-restore-test`) and
+the live stack was `Up 2 days` and untouched throughout - including the accidental-account cleanup
+noted in section 1.
 ## 8. Tear it down
 
 ```powershell
@@ -301,13 +346,14 @@ production volumes, and nothing in Docker will ask twice.
 These are the rows of `volumes.tsv` where the action says `inventory only`, and each one is a
 deliberate gap rather than an oversight:
 
-- **`es-data`** is the sharp one, though not for the reason this file used to give. It was written
-  that "there is no bulk reindex path anywhere in the code" - that claim was false when it was made,
-  and `AdminController` had answered it for a month. What is actually true: the index is not part of
-any dump, the reindex is a manual authenticated HTTP call that no restore performed until section 7
-  was written, and until 2026-09-14 the endpoint reported the size of the row set it read rather than
-the count Elasticsearch accepted, so a total failure looked like a full success. Section 7 is the
-  procedure; the reporting is now `BulkResult(submitted, indexed, failed)`.
+- **`es-data`** is the sharp one, though not for the reason this file used to give. It claimed "there
+  is no bulk reindex path anywhere in the code", which was false when written - `AdminController` had
+  been answering it for a month. What is actually true: the index is in no dump, so the restore has to
+  reindex by hand (section 7, now performed once, with the numbers); until 2026-09-14 the endpoint
+  reported the size of the row set it read rather than the count Elasticsearch accepted, so a total
+  failure looked like a full success; and nothing sweeps posts written while the cluster was down.
+  The reporting is now `BulkResult(submitted, indexed, failed)`. The remaining risk is discipline:
+  a manual authenticated call that nobody runs leaves search empty with a `200` and no error.
 - **`redis-data`**: cache plus like counters, and `LikeSyncTask` flushes the counters to MySQL every
   5 minutes, so a Redis loss costs at most one flush window of the dirty set. Rebuildable.
 - **`app-logs`**: logback caps the volume at 100 MB per file, 7 days, 1 GB total by design. Losing
@@ -385,9 +431,17 @@ Volume inventory for that set: 5 of the 8 declared volumes exist on this host. T
 - **There is no off-box copy.** Both backup sets live on the same physical NVMe as the database they
   protect. The runbook's own first rule - a second disk or a second machine - is not satisfied on
   this host, and `manifest.json` now says so in `warnings`.
-- **`es-data` has no bulk reindex path**, so the site that comes back from this procedure answers
-searches from an index that is silently empty while the database holds every post. Section 9 keeps
-  it as the sharpest known gap; it is follow-up work, not a rehearsal defect.
+- **One thing went wrong outside the procedure.** A request meant for the scratch app was sent to
+  `http://localhost:8080` from the host, which is the *live* site's published port, and it registered
+  an account there. Found within minutes because the scratch database did not have the row; confirmed
+  the account held no posts, comments, likes or messages; deleted by primary key the same hour, with
+  `sys_user` back to its restored 10 rows and zero matches for `reindex%`. Section 1 now states the
+  port rule that would have prevented it. This is the best argument in this file for executing a
+  rehearsal instead of reviewing one: no read-through catches it, and the runbook's own earlier claim
+  that the published port "cannot collide with a running site" was part of the cause.
+- **Index-on-read repair is still undefined.** A post written while ES is down gets indexed on its
+  next successful write and nothing sweeps the difference. Section 7's reindex is the blunt fix, and
+  nobody has decided whether it should also run on a schedule.
 - A restore into a *real* disaster - a dead volume, an app pinned to the restored database, DNS and
   TLS back in the picture - was not attempted. This proves the artifacts are readable and the
   commands work, on a healthy host, next to a running site.
@@ -407,11 +461,15 @@ So the record is unambiguous about what is measured and what is written:
   plus a NUL and an 0xFF through the gzip path and hashes what comes back out.
 - The failure path is executed for real: a refused destination produces one `BACKUP FAILED` line on
   stderr, the next-eyes block, and exit code 1.
-- **The restore was performed on 2026-09-14** against a real backup set taken from the running
-stack, and every assertion in section 5 and section 6 passed with the numbers recorded in
-section 10. Two commands in the first version of this file were not runnable as written (the
-  `mysqladmin` placeholder in section 2, and the `container_name` collision that section 1 now
-  explains); both are fixed here rather than left to the next reader.
+- **The restore was performed on 2026-09-14** against a real backup set taken from the running stack,
+  and every assertion in sections 5, 6 and 7 passed with the numbers recorded in section 10 - dump
+  hash, load exit code, ten row counts, Chinese titles, one uploaded file served over HTTP, then
+  `32` documents in `nexus_posts`, a keyword hit for a post that predated the dump, and a CJK
+  analyzer that tokenises `构建教程` into bigrams.
+- Two commands in the first version of this file were not runnable as written (the `mysqladmin`
+  placeholder in section 2, and the `container_name` collision that section 1 now explains), and one
+  address in it was actively dangerous (`localhost:8080` is the live site, not the scratch app). All
+  three are fixed here rather than left to the next reader.
 - What that run did **not** cover is listed at the end of section 10, and the headline is that both
   backup sets sit on the same physical disk as the database, so the copy itself is still untested
   against machine loss. `-DryRun` remains a rehearsal of the plan, never of the outcome.
