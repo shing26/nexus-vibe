@@ -91,7 +91,7 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 - 职责：令牌签发与解析、身份上下文注入。
 - 技术栈：jjwt 0.12.6、BCrypt、`OncePerRequestFilter`（注册顺序 `HIGHEST_PRECEDENCE + 1`，刻意排在 XSS 之后）。
 - 亮点：公开 GET 上做尽力而为的令牌解析，解析不到就让 `currentUserId` 属性缺失；`PostController.fillLikedByMe` 因此把"未登录"和"没点过赞"区分成 `null` 与 `false`，而不是粗暴归零。这是个容易被忽略的语义正确性细节。
-- 短板：角色判断仍是内联 `if (!"ADMIN".equals(role))`，`controller/` 下实测 4 处，另有 `AdminController.checkAdmin`（第 161 行）。集中式 `@RequiresRole` 未做（已明确留下一轮）。
+- 短板：**admin 判定被实现了三套互不复用的私有版本**——`AdminController.checkAdmin`（第 161 行）、`AiLogController.isAdmin`（第 160 行）、以及 `PostController` 里两处直接内联的 `if (!"ADMIN".equals(role))`（第 40、53 行）。集中式 `@RequiresRole` 未做（已明确留下一轮），这是 P1-6 的实际形状。
 
 **`config/RateLimitInterceptor.java`（168 行）— 限流 — C3**
 
@@ -103,7 +103,7 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 **`dto/`（24 文件 / 555 行）— 统一契约 — C1**
 
 - 职责：请求/响应外形与视图对象。
-- 亮点：`ApiResponse` 的 `success` / `error` / `forbidden` / `notFound` / `successMessage` 五个工厂方法承担全仓 61 处调用，是图的枢纽顶端。本轮把 `traceId` 做成 `@JsonInclude(NON_NULL)` 且仅 5xx 携带，正常响应形状零变化——加字段的兼容性处理是教科书式的。
+- 亮点：`ApiResponse` 的 `success` / `error` / `forbidden` / `notFound` / `successMessage` 五个工厂方法在主源码里被调用 105 次（其中 `controller/` 占 94 次），是图的枢纽顶端。本轮把 `traceId` 做成 `@JsonInclude(NON_NULL)` 且仅 5xx 携带，正常响应形状零变化——加字段的兼容性处理是教科书式的。
 - 短板：`code` 目前镜像 HTTP 状态，没有独立的业务错误码目录（P1-2，未做）。
 
 ### 3.2 业务服务层
@@ -113,10 +113,10 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 **`impl/VibePostServiceImpl.java`（706 行 / 50 符号）— 帖子主服务 — C3**
 
 - 职责：发帖、编辑、Fork、版本回滚、删除、置顶、审核、多路查询分发、事件投递。
-- 技术栈：MyBatis-Plus `LambdaQueryWrapper`、7 处 `@Transactional`、`ApplicationEventPublisher`。
+- 技术栈：MyBatis-Plus `LambdaQueryWrapper`、9 处 `@Transactional`、`ApplicationEventPublisher`。
 - 亮点一：Prompt Fork 与版本链是产品的差异化能力，`forkPrompt`（第 263 行）/ `getPromptVersions`（307）/ `restorePromptVersion`（329）/ `saveVersionSnapshot`（389）构成完整的模板谱系模型，同类论坛项目里不常见。
 - 亮点二：事件投递的背压边界（第 604 行注释）—— `@Async` 提交发生在发布者线程内，因此线程池饱和时 `failClosedAtEnqueue`（第 655 行）必须在事务外写库。这个边界被提前想清楚了，而不是撞上问题再说。
-- 客观短板：**全仓唯一的 `oversizedFiles` 热点**，14 个 `@Autowired` 字段，同时承担命令（写）与查询（读），`getActivePosts` 有 4 个重载。它不该是一个类。
+- 客观短板：**全仓唯一的 `oversizedFiles` 热点**，14 个 `@Autowired` 字段，同时承担命令（写）与查询（读）两类职责；查询侧还留下一个 `getActivePosts(int,int)` / `getActivePosts(int,int,String)` / `getActivePostsLegacy()` 的近义方法组（第 403、408、685 行），调用方要靠读签名才知道该用哪个。它不该是一个类。
 
 **`PostRankingService.java`（271 行）— 热度排序 — C3**
 
@@ -196,6 +196,7 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 - `supersedePreviousReviewComments`（第 489 行）：重评时隐藏旧 AI 评论，避免同一线程出现两个矛盾评分，历史全量保留在 `ai_review_log`。
 - `buildContextExcerpt` + `estimateTokens`（第 245-270 行）：按 `AI_MAX_CONTEXT_TOKENS`（默认 12000）截断上下文，**成本上界是配置项而不是祈祷**。
 - 测试：`AiReviewServiceTest` 15 例，后端单测第二重的类。
+- 测试：`AiReviewServiceTest` 15 例（按用例数排全仓第四，前三是 `PostControllerIntegrationTest` 29、`SysUserServiceTest` 17、`LikeCounterServiceTest` 16）。
 
 **`AiSafetyCheckListener.java`（278 行）— 语义安全检测 — C3**
 
@@ -226,7 +227,7 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 
 **`mapper/VibePostMapper.java`（311 行，全仓最重的 SQL 载体）— C2**
 
-- 技术栈：MyBatis-Plus 3.5.9 注解式 mapper（约 40 条 `@Select` / `@Update` / `@Insert` / `@Delete`）+ 5 处 `<script>` 动态 SQL；仅 `VibePostTagMapper.insertBatch` 走 XML。
+- 技术栈：MyBatis-Plus 3.5.9 注解式 mapper（实测 41 条 `@Select` / `@Update` / `@Insert` / `@Delete`）+ 4 处 `<script>` 动态 SQL；仅 `VibePostTagMapper.insertBatch` 走 XML。
 - 亮点：作者昵称与频道名 JOIN 进同一结果（`u.nickname as authorName, c.name as categoryName`）避免 N+1；计数增减用 `GREATEST(like_count + #{delta}, 0)` / `GREATEST(comment_count - 1, 0)`（第 142-146 行）在**数据库侧**钳住负数，不在 Java 侧兜——并发下这是对的。租约条件更新也落在此处。
 - **静态分析边界（如实报告）**：CodeCompass 的 main-flow tour 最后一跳标 `[Static Analysis Break: Dynamic/RPC Dispatch]`，`trace_call_chain` 从接口方法 `createPost` 出发只能拿到 1 跳。这不是代码缺陷，是 MyBatis mapper 动态代理的固有性质——任何静态工具（包括本报告的调用图计数）在 service 到 mapper 这条边上都是断的。**读图时不能把"入度 0"当死代码。**
 
@@ -339,7 +340,7 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 **`pages/`（17 文件 / 4 245 行）+ `components/`（22 文件 / 1 854 行）— C2**
 
 - 结构：17 条路由全部 `lazy()` + `Suspense`；`MainLayout` 与 `AdminLayout` 双布局，`AuthGuard`（5 条需登录路由）与 `AdminRouteGuard`（3 条管理路由）分层守；`ErrorBoundary` 包在最内层。
-- 实测构建产物：`PostDetailPage` 单独 151.6 kB（gzip 46.9 kB）、`index` 445.3 kB（gzip 142.5 kB）、7 个懒加载 chunk 各自分开——**代码分割真的生效了**，不是配了 `lazy` 结果仍全打进一个包。
+- 实测构建产物：`dist/assets` 共 34 个 JS chunk，其中 **17 个页面各自一个 chunk**（`HomePage` / `DashboardPage` / `AgentLogsPage` / `UserProfilePage` / `CreatePostPage` / `PostDetailPage` 等）——**代码分割真的生效了**，不是配了 `lazy` 结果仍全打进一个包。最重的 `PostDetailPage` 151.6 kB（gzip 46.9 kB，因为吃进了 markdown 渲染与语法高亮），入口 `index` 445.3 kB（gzip 142.5 kB）。
 - 亮点组件：`AiReviewTerminal.tsx`（243 行，把 AI 评审结果渲染成终端视图，呼应产品定位）、`PromptVersionPanel.tsx`（157 行，Prompt 版本谱系与回滚）、`CommandPalette.tsx`（278 行）、`PostCard.tsx`（210 行）、`CodeBlock.tsx`（110 行）。
 - 主题：`themeStore` 初值读 `prefers-color-scheme`，`documentElement.classList.toggle('dark')`，**尊重系统偏好的暗色切换**。
 - 状态：`authStore` / `themeStore` 用 `persist` 中间件落 localStorage 并 `partialize` 只存必要字段；`toastStore` 不持久化。三个 store 共 95 行，很克制。
@@ -349,7 +350,7 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 
 - **8 篇 ADR**，每篇都带被否方案：0007 否掉"聚合降级进总状态""只靠指标"；0008 否掉"保留随机密码幽灵账号""首个注册者即管理员""手工 SQL 造管理员"；0004-0006 记录 fail-closed、租约、模型选型。**ADR 的价值在于记录为什么不做什么，这里做到了。** 短板是 0001-0005 与 0007-0008 都只有 3-9 行，是决策便签而非完整 ADR，缺"后果"与"状态"字段。
 - **7 篇研究文档**，其中 3 篇结论是负向的：深分页延迟关联退化 40% 已回滚、AI 排序索引无过滤时负优化、cgroup exclude 属误诊。另有 1 篇技术博客（结构化输出与注入防御实战）。**只写成功案例的项目是宣传。**
-- `CONTEXT.md` 领域词汇表 **14 个术语**，每个带 `_Avoid_` 反义词列表（`Review Lease` 的 `_Avoid_: Distributed Lock, Mutex`；`Degraded` 的 `_Avoid_: Unhealthy, Partially Down`；`Reconciliation` 的 `_Avoid_: Retry Job, Cleanup Task`）。**通用语言被当成一等工程资产维护**，这在个人项目里极罕见。
+- `CONTEXT.md` 领域词汇表 **20 个术语**，每个带 `_Avoid_` 反义词列表（`Review Lease` 的 `_Avoid_: Distributed Lock, Mutex`；`Degraded` 的 `_Avoid_: Unhealthy, Partially Down`；`Reconciliation` 的 `_Avoid_: Retry Job, Cleanup Task`）。**通用语言被当成一等工程资产维护**，这在个人项目里极罕见。
 - 2 个工单集：`p0-optimization.md` 70 行、`production-readiness.md` 278 行（每票 Scope / Acceptance / Files + 落地状态 + 防回归的"未受影响项"清单）。
 - 短板：README 徽章 `tests-284` 与实测一致（正确），但 `Java-18` 徽章与运行时 JDK 21 不一致；`target/surefire-reports/` 残留 2 个已删除诊断测试的旧 XML（`TmpDiagTest` / `TmpAutoConfigReportTest`），会让"数报告得测试数"这类统计得出 286 的错误结论——**本报告差点被它骗过去**。
 
