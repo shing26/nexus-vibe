@@ -774,6 +774,43 @@ Step 'app-death-is-not-reported-as-health' {
     return $detail
 }
 
+Step 'rollback-swaps-between-two-real-image-tags' {
+    # E4's acceptance line, and the one thing a named tag has to be able to do. Two genuinely
+    # different images are required: retagging one build twice would prove that compose can
+    # interpolate a string, which nobody doubted. The assertion is what the running container
+    # actually reports as its image, plus the API answering afterwards, so "rolled back" cannot
+    # mean "compose printed the old tag and left the new container in place".
+    $tagA = ''
+    foreach ($line in (Get-Content '.env' -ErrorAction SilentlyContinue)) {
+        if ($line -match '^APP_TAG=(.+)$') { $tagA = $Matches[1].Trim() }
+    }
+    if (-not $tagA) { throw 'no APP_TAG in .env, so there is no release tag to roll back to' }
+    $tags = @((Invoke-Docker -Cmd @('images', 'nexus-vibe-app', '--format', '{{.Tag}}')) -split "`n" |
+              ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne '<none>' })
+    $tagB = @($tags | Where-Object { $_ -ne $tagA } | Select-Object -First 1)
+    if (-not $tagB) { throw "only tag '$tagA' exists for nexus-vibe-app; build a second one first ($($tags -join ', '))" }
+    $tagB = "$tagB"
+    Write-Evidence 'rollback tags' "A=$tagA B=$tagB present=$(($tags | Sort-Object) -join ', ')"
+
+    $seen = @()
+    foreach ($tag in @($tagB, $tagA)) {
+        $env:APP_TAG = $tag
+        Invoke-Compose -Cmd @('up', '-d', '--no-build', '--no-deps', 'app') | Out-Null
+        Wait-For "app answering after APP_TAG=$tag" {
+            (Invoke-AppHttp GET '/actuator/health').Code -in @('200', '503')
+        } -TimeoutSec $StartupTimeoutSec -IntervalSec 5
+        # Config.Image is what the container was created from, not what the host now calls latest.
+        $running = (Invoke-Docker -Cmd @('inspect', '-f', '{{.Config.Image}}', 'nexus-drill-app')).Trim()
+        $posts = Invoke-AppHttp GET '/api/v1/posts?page=1&size=1'
+        $seen += "APP_TAG=$tag -> $running, /api/v1/posts=$($posts.Code)"
+        if ($running -ne "nexus-vibe-app:$tag") { throw "asked for $tag, the container reports $running" }
+        if ($posts.Code -ne '200') { throw "post list answered $($posts.Code) on $tag" }
+    }
+    Write-Evidence 'rollback sequence' ($seen -join "`n")
+    if ($seen.Count -ne 2) { throw 'the A-B-A sequence did not run twice' }
+    return "$tagA -> $tagB -> $tagA by container image, API answering on both; $tagA last"
+}
+
 # --------------------------------------------------------------------------- report
 
 if (-not $Keep) {
