@@ -25,7 +25,7 @@
 1. 按上述改动实现代码与配置，新增测试后运行 `mvn test`，确认 188 全绿；再运行 `cd frontend && npm run lint && npm run build`。
 2. 提交（建议信息：`feat: production hardening for public demo`）并 `git push origin master`，确认 GitHub Actions 全绿。（此步仍需用户确认）
 3. 本机准备：启动 Docker Desktop（已安装于 `D:\Docker`），运行 `docker info` 确认可用；`cloudflared` 已通过 Chocolatey 安装。
-4. `git clone` 项目，写入 `.env`：强随机 `DB_PASSWORD`、`JWT_SECRET`，按需设置 `DEMO_SEED_ENABLED` / `DEMO_PASSWORD`；保持 `WEB_PORT=8080` 与 Ollama 默认值。
+4. `git clone` 项目，写入 `.env`：强随机 `DB_PASSWORD`、`JWT_SECRET`，并设置 `BOOTSTRAP_ADMIN_PASSWORD`（`DEMO_SEED_ENABLED=false` 时唯一的管理员入口，首启后即弃）；按需设置 `DEMO_SEED_ENABLED` / `DEMO_PASSWORD`；保持 `WEB_PORT=8080` 与 Ollama 默认值。
 5. `docker compose up -d --build`，然后 `docker compose exec ollama ollama pull qwen2.5:3b`；验证 `http://localhost:8080` 与 `GET /actuator/health`。
 6. Cloudflare Tunnel 初始化：`cloudflared tunnel login`（免费账号），`cloudflared tunnel create nexus-vibe` 记录 `TUNNEL_ID`。
 7. DNS 路由：

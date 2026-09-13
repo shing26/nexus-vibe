@@ -8,6 +8,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
@@ -27,6 +28,7 @@ import java.util.UUID;
  * <p>All Redis operations gracefully degrade if the backend is unavailable.</p>
  */
 @Component
+@Order(100)
 public class DataPreloader implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(DataPreloader.class);
@@ -66,11 +68,17 @@ public class DataPreloader implements CommandLineRunner {
         ensureDemoUsers();
         if (demoSeedEnabled) {
             printCredentials();
+        } else {
+            log.info("[PREHEAT] Demo seeding is off — no sample accounts and no sample content.");
         }
 
         log.info("============================================================");
         log.info("  Nexus Campus is fully operational.");
-        log.info("  Demo account — username: admin / password: from DEMO_PASSWORD");
+        if (demoSeedEnabled) {
+            log.info("  Demo account — username: admin / password: from DEMO_PASSWORD");
+        } else {
+            log.info("  Admin account — set BOOTSTRAP_ADMIN_PASSWORD before the first start.");
+        }
         log.info("============================================================");
         log.info("");
     }
@@ -110,20 +118,20 @@ public class DataPreloader implements CommandLineRunner {
     }
 
     private void ensureDemoUsers() {
-        String encoded;
-        if (demoSeedEnabled) {
-            if (demoPassword == null || demoPassword.isBlank()) {
-                throw new IllegalStateException(
-                        "DEMO_PASSWORD must be set when demo user seeding is enabled; refusing to seed a blank password.");
-            }
-            encoded = passwordEncoder.encode(demoPassword);
-            log.info("[PREHEAT] Demo accounts ensured (insert-only, password source: DEMO_PASSWORD).");
-        } else {
-            // Keep the seed users for sample content, but give them random,
-            // unrecoverable passwords so they cannot be used to log in.
-            encoded = passwordEncoder.encode(UUID.randomUUID().toString());
-            log.info("[PREHEAT] Demo accounts ensured with random passwords (demo seeding disabled).");
+        if (!demoSeedEnabled) {
+            // Seeding off means this is a real deployment. The sample authors used to be
+            // inserted anyway with an unrecoverable random password, which left seven
+            // ghost accounts in sys_user: unloginable, but still occupying the usernames,
+            // still counted by the dashboard, and still referenced by any content a demo
+            // seed had left behind. A production database starts empty instead.
+            return;
         }
+        if (demoPassword == null || demoPassword.isBlank()) {
+            throw new IllegalStateException(
+                    "DEMO_PASSWORD must be set when demo user seeding is enabled; refusing to seed a blank password.");
+        }
+        String encoded = passwordEncoder.encode(demoPassword);
+        log.info("[PREHEAT] Demo accounts ensured (insert-only, password source: DEMO_PASSWORD).");
         ensureDemoUser(1L, "admin", encoded, "System Admin", "default_avatar.png", "ADMIN", 99999, 8);
         ensureDemoUser(2L, "shing", encoded, "shing", "default_avatar.png", "USER", 2280, 5);
         ensureDemoUser(3L, "alice", encoded, "Alice", "default_avatar.png", "USER", 1560, 4);

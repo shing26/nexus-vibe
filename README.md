@@ -1,4 +1,4 @@
-﻿# Nexus-Vibe
+# Nexus-Vibe
 
 **AI-Powered Vibe Coding & Developer Community**
 
@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-236%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-272%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -149,7 +149,7 @@ model of 14B+ in production.
 
 ### Default Accounts
 
-> 仅开发模式（H2 seed data）可用。生产环境 demo 账号默认关闭，详见下方安全说明。
+> 仅开发模式（H2 seed data + `DEMO_SEED_ENABLED`）可用。生产默认不写任何样例账号或样例内容，详见下方安全说明。
 
 | Username | Password | Role |
 |----------|----------|------|
@@ -157,11 +157,15 @@ model of 14B+ in production.
 | `shing` | `123456` | USER |
 | `alice` | `123456` | USER |
 
+In a deployment with seeding off the only account is the one you bootstrap: set
+`BOOTSTRAP_ADMIN_PASSWORD` before the first start and `admin` is created with it,
+once, while the database has no `ADMIN`. Rotate the password after logging in.
+
 ### Run with Docker Compose (recommended)
 
 ```bash
 cp .env.example .env
-# fill in DB_PASSWORD / JWT_SECRET
+# fill in DB_PASSWORD / JWT_SECRET / BOOTSTRAP_ADMIN_PASSWORD
 docker compose up --build
 ```
 
@@ -193,7 +197,8 @@ docker compose exec ollama ollama pull qwen2.5:7b
 | `LLM_MODEL` | `qwen2.5:7b` | Default model（Windows CPU 建议 `qwen2.5:3b`） |
 | `LLM_API_KEY` | empty | 仅托管 API 需要 |
 | `JWT_SECRET` | empty | JWT signing secret (required in prod, fail-fast) |
-| `DEMO_SEED_ENABLED` | `false` | Seed demo accounts with `DEMO_PASSWORD` |
+| `DEMO_SEED_ENABLED` | `false` | Seed demo accounts *and* sample content from `DEMO_PASSWORD` |
+| `BOOTSTRAP_ADMIN_PASSWORD` | empty | Creates `admin` once, only while no `ADMIN` exists and seeding is off |
 | `CORS_ALLOWED_ORIGINS` | online domain | Allowed browser origins |
 | `AI_REVIEW_ENABLED` / `AI_LEASE_SECONDS` / `AI_MAX_ATTEMPTS` | `true` / `30` / `5` | Agent pipeline tuning |
 | `LIKE_DRIFT_ENABLED` / `LIKE_DRIFT_RATIO` / `LIKE_DRIFT_ABS` | `true` / `0.5` / `100` | Drift repair thresholds |
@@ -216,7 +221,7 @@ docker compose exec ollama ollama pull qwen2.5:7b
 
 ### Privacy & Security Notes
 
-- Demo 账号仅是本地种子数据。生产 `DEMO_SEED_ENABLED=false`（默认）会给样例账号写入随机不可恢复密码。
+- Demo 账号与样例内容同属演示数据：`DEMO_SEED_ENABLED=false`（生产默认）时两者都不写入，库里只有功能性的 `AiAgent(999)` 与你引导出的 `admin`。历史做法是写入随机不可恢复密码的幽灵账号，见 ADR-0008。
 - Never commit real credentials: `.env` is git-ignored; `.env.example` ships placeholders only.
 - 生产 `/api/demo/**` 默认不可达（`DEMO_ENDPOINTS_ENABLED=false`）。
 - 上传只接受 JPG/PNG/GIF/WebP 魔数，扩展名由服务端生成。
@@ -235,7 +240,7 @@ nexus-vibe/
 │   ├── config/                 # Dual async pools, Redis, security
 │   └── security/ util/         # JWT filter, DFA filter
 ├── docker/mysql/
-│   ├── init.sql                # Production schema + seed
+│   ├── init.sql                # Production schema + reference data (channels, tags)
 │   ├── migrate-*.sql           # One-shot migrations for existing volumes
 │   └── benchmark/              # 100k-row EXPLAIN/loadtest harness
 ├── benchmark/jmeter/           # Async-pool load test scenario
@@ -271,7 +276,7 @@ curl http://localhost:8081/api/v1/users/2/summary
 ## Testing
 
 ```bash
-mvn test                      # 236 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
+mvn test                      # 272 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 ```

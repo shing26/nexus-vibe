@@ -105,6 +105,10 @@ campus:
     seed-enabled: true
     # Feature-demo endpoints (/api/demo/*) are anonymous; off by default.
     endpoints-enabled: ${DEMO_ENDPOINTS_ENABLED:false}
+  # One-shot administrator, used only when demo seeding is off. Blank in dev:
+  # there the seeded demo accounts are the way in.
+  bootstrap:
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:8080}
   upload:

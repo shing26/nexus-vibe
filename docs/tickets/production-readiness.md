@@ -133,6 +133,10 @@ get the container killed while it is still serving traffic.
 
 ## T5 - Bootstrap admin and an empty production seed
 
+Status: done on `codex/production-readiness`. The empty-database prod start is verified by
+unit tests and by the MySQL gate in `DemoContentSeeder`; the first-start drill step is the
+one that reads the actual `sys_user` table.
+
 **Scope:** a real deployment must be administrable without a ghost account,
 and must not start with sample content.
 
@@ -141,9 +145,13 @@ and must not start with sample content.
 - `BootstrapAdminInitializer` creates `admin` from `BOOTSTRAP_ADMIN_PASSWORD`
   when no ADMIN exists, and logs one warning telling the operator to rotate
   it. Seeding on without a password keeps failing fast.
+- The username `admin` belongs to someone else, or the password is missing: the
+  runner says so and leaves the database alone. Booting is not the emergency.
 - `docker/mysql/init.sql` keeps schema plus reference data; sample posts,
   comments, messages and review logs move to a gated `DemoContentSeeder`, so
   production cannot hold content that points at authors who do not exist.
+  MySQL only, insert only, and only while `vibe_post` is empty; the H2 dev
+  profile still reads `data.sql`.
 - `.env.example`, README and the pre-deployment checklist follow.
 - Decision recorded in ADR-0008.
 
@@ -156,6 +164,7 @@ and must not start with sample content.
 **Files:** `src/main/java/com/nexus/campus/config/DataPreloader.java`,
 `src/main/java/com/nexus/campus/config/BootstrapAdminInitializer.java`,
 `src/main/java/com/nexus/campus/config/DemoContentSeeder.java`,
+`src/main/resources/db/mysql/demo-content.sql`,
 `docker/mysql/init.sql`, `.env.example`, `README.md`,
 `docs/plans/pre-deployment-checklist.md`,
 `docs/adr/0008-bootstrap-admin-and-empty-production-seed.md`.
