@@ -1,5 +1,6 @@
 # Drill-only overrides. Nothing here belongs in a real deployment: it points the app at a
-# refused port to break the LLM on purpose, and at a canned mock to bring it back.
+# refused port to break the LLM on purpose, at a canned mock to bring it back, and at a sink that
+# stands in for the Feishu bot so an alert can be delivered to something the drill can read back.
 #
 #   docker compose -f docker-compose.yml -f benchmark/observability/docker-compose.drill.yml `
 #     --profile monitoring --profile drill up -d
@@ -67,3 +68,23 @@ services:
 
   alert-bridge:
     container_name: nexus-drill-alert-bridge
+    environment:
+      # The bridge refuses to start with no target (see alert_bridge.main), so a drill that wants to
+      # exercise delivery has to give it one. The sink recomputes the signature with the matching
+      # secret below, which is what turns "the bridge said 200" into "a receiver accepted a signed
+      # alert". A deployment never gets these values; they are drill addresses.
+      FEISHU_ALERT_WEBHOOK: ${DRILL_FEISHU_WEBHOOK:-http://webhook-sink:9000/notify}
+      FEISHU_ALERT_SECRET: ${DRILL_FEISHU_SECRET:-drill-shared-secret}
+
+  webhook-sink:
+    build:
+      context: ./benchmark/observability/webhook-sink
+    image: nexus-webhook-sink:drill
+    container_name: nexus-drill-webhook-sink
+    profiles: ["drill"]
+    environment:
+      SINK_FEISHU_SECRET: ${DRILL_FEISHU_SECRET:-drill-shared-secret}
+    expose:
+      - "9000"
+    networks:
+      - nexus-net

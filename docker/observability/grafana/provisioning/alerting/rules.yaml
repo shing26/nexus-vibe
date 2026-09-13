@@ -6,15 +6,23 @@
 #
 # Missing data is not one answer for six rules, so each one decides for itself:
 #   - The gauge rules (breaker, backlog) and the scrapability rule watch series that exist from the
-#     moment the app registers them. No data there means the watched thing is gone: ALERTING.
+#     moment the app registers them. No data there means the watched thing is gone: Alerting.
 #   - The ratio rules (5xx, burn-rate, rate-limit) end in a volume guard, so an empty result
 #     normally means "too quiet to have a rate", which is not an outage. Those stay OK, and the one
 #     honest no-data-there-is-a-problem question -- can Prometheus scrape the app at all -- has its
 #     own rule near the bottom of this file. That is the only reason OK is defensible on a ratio.
-#   - errorState (the query itself failed, usually: Grafana cannot reach Prometheus) is ALERTING on
-#     the scrapability rule alone. The other five report OK on purpose, so a Prometheus restart is
-#     one alert about blindness rather than six. Without that single rule the old failure mode --
-#     the whole stack reporting healthy while nothing is being measured -- comes straight back.
+#   - execErrState (the evaluation itself failed, usually: Grafana cannot reach Prometheus) is
+#     Alerting on the scrapability rule alone. The other five report OK on purpose, so a Prometheus
+#     restart is one alert about blindness rather than six. Without that single rule the old failure
+#     mode -- the whole stack reporting healthy while nothing is being measured -- comes straight
+#     back. These are the only two state knobs the provisioning schema has; a third key here was
+#     silently dropped, and it is gone.
+#
+# Spelling is load-bearing: noDataState and execErrState take exactly Alerting | NoData | OK |
+# KeepState. A provisioned file Grafana cannot parse aborts startup, so with restart: unless-stopped
+# the whole monitoring profile crash loops -- which is loud, but only if someone is watching
+# docker compose ps. benchmark/observability/drill.ps1 has a step for it, and so does
+# GrafanaAlertProvisioningTest, which is the two-second version of the same lesson.
 apiVersion: 1
 
 groups:
@@ -71,8 +79,7 @@ groups:
         # Registered in the LlmClient constructor, so it is in every scrape while the process is
         # up. Absent series therefore mean the process, the endpoint, or the scrape is gone, and
         # "we cannot see the breaker" is not the same fact as "the breaker is closed".
-        noDataState: ALERTING
-        errorState: OK
+        noDataState: Alerting
         execErrState: OK
         labels:
           severity: critical
@@ -132,8 +139,7 @@ groups:
         # app rather than nothing. No data means the app or the scrape is down, which is the
         # incident this rule's own annotation points at ("if the breaker gauge is 0 too, the cron
         # is not running").
-        noDataState: ALERTING
-        errorState: OK
+        noDataState: Alerting
         execErrState: OK
         labels:
           severity: warning
@@ -201,7 +207,6 @@ groups:
         # nobody is being scraped at all - is what nexus-prometheus-scrape-failed now owns, and this
         # answer is only safe because that rule exists.
         noDataState: OK
-        errorState: OK
         execErrState: OK
         labels:
           severity: critical
@@ -254,7 +259,6 @@ groups:
         # shed a request. ALERTING here would raise a fuss about the absence of bad traffic, which
         # is the one thing this rule is supposed to mean by "quiet".
         noDataState: OK
-        errorState: OK
         execErrState: OK
         labels:
           severity: warning
@@ -319,9 +323,8 @@ groups:
         # gone and I would otherwise have learned that from a user". The same window is the recovery
         # lag: this stays firing for up to 2m after the target comes back, because min_over_time is
         # still looking at the zeros.
-        noDataState: ALERTING
-        errorState: ALERTING
-        execErrState: ALERTING
+        noDataState: Alerting
+        execErrState: Alerting
         labels:
           severity: critical
           service: nexus-vibe
@@ -385,7 +388,6 @@ groups:
         # failure that used to hide in this state - the app not being scraped at all - now has its
         # own critical, so OK here is a decision and not the default.
         noDataState: OK
-        errorState: OK
         execErrState: OK
         labels:
           severity: critical

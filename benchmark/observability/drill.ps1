@@ -19,8 +19,11 @@
     probe cache window, so plan for fifteen to twenty minutes. The drill project is torn down
     with its volumes at the end unless -Keep is given. Exit code 0 means every step passed.
 
-    Two things no script can assert: an alert arriving in a real Feishu group (needs a live
-    webhook; the bridge's unit test pins the signed body), and the Grafana UI.
+    The alerting path is asserted as far as a script can take it: the rules have to load into
+    Grafana's engine, the notification has to leave the bridge, and a stand-in receiver
+    (benchmark/observability/webhook-sink) recomputes the Feishu signature and answers the way
+    Feishu does. What no script can assert is a message appearing in a real Feishu group, which
+    still needs one manual send with a live webhook, and the Grafana UI.
 
     Note on style: every docker argument list is passed as one array. A bare -d at a function
     call is swallowed by PowerShell's common -Debug parameter, which turns `compose up -d`
@@ -116,6 +119,26 @@ function Invoke-Docker {
 function Invoke-Compose {
     param([Parameter(Mandatory)][string[]]$Cmd)
     return Invoke-Docker -Cmd (@($composeArgs) + @($Cmd))
+}
+
+function Invoke-DockerTolerant {
+    param([Parameter(Mandatory)][string[]]$Cmd)
+    # For the cases where a non-zero exit IS the assertion. Invoke-Docker deliberately turns every
+    # non-zero into a thrown failure, which is right for docker and wrong for a process that is
+    # supposed to refuse to start.
+    $output = & docker @Cmd 2>&1 | ForEach-Object { "$_" }
+    return [pscustomobject]@{ Code = $LASTEXITCODE; Out = ($output -join "`n") }
+}
+
+function Get-PlainText {
+    param($Content)
+    # PowerShell 7 hands back a byte[] for content types it does not recognise as text, and the
+    # actuator's media type (application/vnd.spring-boot.actuator.v3+json) is one of them. The
+    # assertion below reads JSON, so decode it here rather than trust the status code alone: this
+    # script once reported a healthy public endpoint as carrying no status, and the byte array in
+    # the evidence file was the only clue.
+    if ($Content -is [byte[]]) { return [Text.Encoding]::UTF8.GetString($Content) }
+    return [string]$Content
 }
 
 function Write-Evidence {
@@ -246,10 +269,10 @@ Step 'stack-up' {
     $ps = Invoke-Compose -Cmd @('ps', '--format', '{{.Name}} {{.Status}}')
     Write-Evidence 'compose ps' $ps
     $absent = @('nexus-drill-app', 'nexus-drill-prometheus', 'nexus-drill-grafana',
-                'nexus-drill-alert-bridge', 'nexus-drill-llm-mock') |
+                'nexus-drill-alert-bridge', 'nexus-drill-llm-mock', 'nexus-drill-webhook-sink') |
               Where-Object { $ps -notmatch "(?m)^$_\s+Up" }
     if ($absent) { throw "services not Up: $($absent -join ', ')" }
-    return "app, prometheus, grafana, alert-bridge, llm-mock Up; public side on $WebPort"
+    return "app, prometheus, grafana, alert-bridge, llm-mock, webhook-sink Up; public side on $WebPort"
 }
 
 Step 'first-install-is-empty-and-administrable' {
@@ -312,6 +335,19 @@ Step 'grafana-provisioning-loaded' {
     $url = [regex]::Match($points, '"url"\s*:\s*"(http://alert-bridge:\d+/[^"]+)"')
     if (-not $url.Success) { throw "no alert-bridge URL on the registered contact point: $points" }
     $script:bridgeUrl = $url.Groups[1].Value
+
+    # The file listing above proves the mount; this proves the engine's own reading of the two
+    # state knobs, which is where a misspelled enum value used to disappear. Grafana now exits on a
+    # file it cannot parse, so a crash-looping grafana shows up here as /api/health refusing; the
+    # counts below catch the milder version, where a value is accepted but not the one intended.
+    $loaded = Invoke-GrafanaApi '/api/v1/provisioning/alert-rules'
+    $loud = ([regex]::Matches($loaded, '"noDataState"\s*:\s*"Alerting"')).Count
+    $quiet = ([regex]::Matches($loaded, '"noDataState"\s*:\s*"OK"')).Count
+    Write-Evidence 'engine noDataState counts' "Alerting=$loud OK=$quiet"
+    if ($loud -lt 3 -or $quiet -lt 3) {
+        throw "the engine loaded Alerting=$loud OK=$quiet, expected 3 and 3 - a rule's no-data policy" +
+              ' was dropped, misspelled, or never made it out of the file'
+    }
 
     return "$($script:ruleUids.Count) rules loaded by the engine, receiver registered at $script:bridgeUrl"
 }
@@ -530,9 +566,9 @@ Step 'alert-no-data-policy-is-per-rule' {
     $blocks = @([regex]::Matches($rules, "(?ms)- uid:\s*(\S+)(.*?)(?=\r?\n\s*- uid:|\z)"))
     if ($blocks.Count -lt 5) { throw "only $($blocks.Count) rule blocks parsed from rules.yaml" }
     $expected = @{
-        'nexus-llm-breaker-open'           = 'ALERTING'
-        'nexus-ai-review-backlog'          = 'ALERTING'
-        'nexus-prometheus-scrape-failed'   = 'ALERTING'
+        'nexus-llm-breaker-open'           = 'Alerting'
+        'nexus-ai-review-backlog'          = 'Alerting'
+        'nexus-prometheus-scrape-failed'   = 'Alerting'
         'nexus-http-5xx-ratio'             = 'OK'
         'nexus-rate-limit-spike'           = 'OK'
         'nexus-availability-999-fast-burn' = 'OK'
@@ -541,6 +577,15 @@ Step 'alert-no-data-policy-is-per-rule' {
     foreach ($block in $blocks) {
         $uid = $block.Groups[1].Value
         if (-not $expected.ContainsKey($uid)) { throw "rule $uid has no no-data policy stated in this drill" }
+        foreach ($key in @('noDataState', 'execErrState')) {
+            $value = [regex]::Match($block.Groups[2].Value, ($key + ':\s*(\S+)')).Groups[1].Value
+            # Grafana resolves these four spellings and nothing else; ALERTING and alerting both abort
+            # startup, which took the dashboard and the notifier down with it. The engine check above
+            # is the real gate; this one says which rule is unwritable before the stack ever comes up.
+            if ($value -notin @('Alerting', 'NoData', 'OK', 'KeepState')) {
+                throw "$uid sets ${key}: $value, which is not one of Alerting | NoData | OK | KeepState"
+            }
+        }
         $state = [regex]::Match($block.Groups[2].Value, 'noDataState:\s*(\S+)').Groups[1].Value
         $seen += "$uid=$state"
         if ($state -ne $expected[$uid]) {
@@ -548,11 +593,28 @@ Step 'alert-no-data-policy-is-per-rule' {
         }
     }
     Write-Evidence 'no-data policy per rule' ($seen -join "`n")
-    $loud = @($blocks | Where-Object { $_.Groups[2].Value -match 'noDataState:\s*ALERTING' }).Count
+    $loud = @($blocks | Where-Object { $_.Groups[2].Value -match 'noDataState:\s*Alerting\b' }).Count
     return "$($seen -join '  ')  ($loud treat missing data as an incident)"
 }
 
-Step 'bridge-fails-loudly-without-feishu' {
+Step 'bridge-refuses-to-start-without-a-target' {
+    # E3 replaced "start anyway and answer 502 to every alert" with "do not start at all", so the
+    # proof is an exit code and a reason, not a response body. The running service carries the
+    # drill's webhook, so this clears it on a throwaway container of the same image: the tag is the
+    # one docker-compose.yml pins for alert-bridge, and a rename there has to be followed here.
+    $run = Invoke-DockerTolerant -Cmd @('run', '--rm', '-e', 'FEISHU_ALERT_WEBHOOK=', 'nexus-alert-bridge:local')
+    Write-Evidence 'bridge with no webhook' "exit=$($run.Code)`n$($run.Out)"
+    if ($run.Code -eq 0) { throw 'the bridge started happily with FEISHU_ALERT_WEBHOOK cleared' }
+    if ($run.Out -notmatch 'refusing to start') { throw "it exited $($run.Code) without saying why: $($run.Out)" }
+    if ($run.Out -notmatch 'FEISHU_ALERT_WEBHOOK is not set') { throw 'the refusal never named the missing variable' }
+    return "exited $($run.Code) naming FEISHU_ALERT_WEBHOOK as the reason"
+}
+
+Step 'alert-delivers-to-the-far-side' {
+    # Everything above proves a rule can fire. This proves the notification has somewhere to go and
+    # that the bytes that arrive are the ones Feishu will accept: the sink recomputes the signature
+    # from the same secret the bridge signs with, and answers 200-with-an-error-code on a mismatch,
+    # which is the shape that used to let a refused alert read as delivered.
     $payload = (@{
         status            = 'firing'
         commonAnnotations = @{ description = 'drill alert, not a real outage' }
@@ -571,12 +633,15 @@ Step 'bridge-fails-loudly-without-feishu' {
               '-H', 'Content-Type: application/json', '--data-binary', $payload,
               $script:bridgeUrl)
     $raw = Invoke-Compose -Cmd $curl
-    $logs = Invoke-Compose -Cmd @('logs', '--tail', '40', 'alert-bridge')
-    Write-Evidence 'bridge answer' "$raw`n--- bridge log ---`n$logs"
-    # A failed forward must report why: an unexplained 200 is how an alert goes missing.
-    if ($raw -notmatch '502') { throw "the bridge answered something other than 502 while unconfigured: $raw" }
-    if ($raw -notmatch 'FEISHU_ALERT_WEBHOOK is not set') { throw "the bridge refused without naming the missing webhook: $raw" }
-    return 'alert reached the bridge; it answered 502 and named the missing webhook'
+    $code = ((@($raw -split "`n")[-1]) -replace '\D', '')
+    $bridgeLogs = Invoke-Compose -Cmd @('logs', '--tail', '40', 'alert-bridge')
+    $sinkLogs = Invoke-Compose -Cmd @('logs', '--since', '15m', 'webhook-sink')
+    Write-Evidence 'delivery' "bridge answer: $raw`n--- alert-bridge ---`n$bridgeLogs`n--- webhook-sink ---`n$sinkLogs"
+    if ($code -ne '200') { throw "the bridge answered $code instead of forwarding: $raw" }
+    if ($bridgeLogs -notmatch '\[alert-bridge\] notify state=') { throw 'the bridge logged no notification at all' }
+    if ($sinkLogs -notmatch 'signature=ok') { throw "the far side never accepted a signed alert: $sinkLogs" }
+    if ($sinkLogs -notmatch 'DrillProbe') { throw 'the alert title never reached the far side' }
+    return 'Grafana-shaped notification reached the bridge, signed, and one receiver accepted it'
 }
 
 # --------------------------------------------------------------------------- recovery
@@ -648,7 +713,7 @@ Step 'public-health-answers-only-servability' {
     # it may carry a verdict and nothing else. If components, the group list or a dependency name ever
     # appear here, an outside probe is being told which dependency is unhappy and ADR-0007's two
     # audiences have collapsed back into one.
-    $public = (Invoke-WebRequest -Uri "http://localhost:$WebPort/actuator/health" -SkipHttpErrorCheck).Content
+    $public = Get-PlainText (Invoke-WebRequest -Uri "http://localhost:$WebPort/actuator/health" -SkipHttpErrorCheck).Content
     $internal = Invoke-AppHttp GET '/actuator/health/deps'
     Write-Evidence 'public vs internal health' "public: $public`ninternal deps: $($internal.Body)"
     if ($public -notmatch '"status"') { throw 'public health carries no status' }

@@ -268,9 +268,10 @@ services:
     profiles: ["monitoring"]
     logging: *default-logging
     environment:
-      # Both stay empty by default so the stack still starts for a drill without Feishu
-      # credentials; the bridge answers 502 with "FEISHU_ALERT_WEBHOOK is not set" when an alert
-      # fires unconfigured, instead of dropping it quietly.
+      # Both stay empty by default, and the bridge treats that as fatal: it refuses to start and
+      # names FEISHU_ALERT_WEBHOOK, which restart: unless-stopped turns into a visible crash loop.
+      # A monitoring profile that cannot notify is worse than no monitoring profile, because the
+      # dashboard still reads green. The drill overrides both with an in-network sink.
       FEISHU_ALERT_WEBHOOK: ${FEISHU_ALERT_WEBHOOK:-}
       FEISHU_ALERT_SECRET: ${FEISHU_ALERT_SECRET:-}
     expose:
