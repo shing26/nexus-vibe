@@ -1,0 +1,64 @@
+# Drill-only overrides. Nothing here belongs in a real deployment: it points the app at a
+# refused port to break the LLM on purpose, and at a canned mock to bring it back.
+#
+#   docker compose -f docker-compose.yml -f benchmark/observability/docker-compose.drill.yml `
+#     --profile monitoring --profile drill up -d
+#
+# drill.ps1 also runs it as its own project (`-p nexus-drill`), which is what makes the
+# container_name overrides below necessary: the base file pins container names, so a second
+# project cannot share them. Same reason on the public port - the drill publishes 18080.
+#
+# A separate project also means separate named volumes, so the drill always starts from a
+# first-install database: that is the only way to check what init.sql and the seed switch
+# actually leave behind.
+services:
+  db:
+    container_name: nexus-drill-db
+
+  redis:
+    container_name: nexus-drill-redis
+
+  elasticsearch:
+    container_name: nexus-drill-es
+
+  ollama:
+    container_name: nexus-drill-ollama
+
+  app:
+    container_name: nexus-drill-app
+    environment:
+      # The drill sets this: a refused port to break the LLM, http://llm-mock:8000/v1 to
+      # heal it. It has to be an compose-level environment entry because overriding the
+      # env_file value from the host does not work.
+      LLM_ENDPOINT: ${DRILL_LLM_ENDPOINT:-http://ollama:11434/v1}
+      # Posts older than this count as lost to the reconciliation sweep, so the recovery
+      # step does not have to wait out the production 10-minute window.
+      AI_RECONCILE_STALE_MINUTES: ${DRILL_STALE_MINUTES:-1}
+      # The drill proves the production shape: no demo accounts, no sample content, and one
+      # bootstrap administrator.
+      DEMO_SEED_ENABLED: "false"
+      DEMO_ENDPOINTS_ENABLED: "false"
+      BOOTSTRAP_ADMIN_PASSWORD: ${DRILL_BOOTSTRAP_PASSWORD:-DrillAdmin123}
+
+  web:
+    container_name: nexus-drill-web
+
+  llm-mock:
+    build:
+      context: ./benchmark/observability/llm-mock
+    image: nexus-llm-mock:drill
+    container_name: nexus-drill-llm-mock
+    profiles: ["drill"]
+    expose:
+      - "8000"
+    networks:
+      - nexus-net
+
+  prometheus:
+    container_name: nexus-drill-prometheus
+
+  grafana:
+    container_name: nexus-drill-grafana
+
+  alert-bridge:
+    container_name: nexus-drill-alert-bridge

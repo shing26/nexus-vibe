@@ -59,3 +59,7 @@ replay_pid*.log
 # Python bytecode from the alert-bridge unit tests run on the host
 __pycache__/
 *.pyc
+
+# Raw probe output from benchmark/observability/drill.ps1. The conclusions are written up in
+# docs/research; the scrape dumps and log tails behind them stay on the machine that ran it.
+benchmark/observability/evidence/
