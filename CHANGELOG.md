@@ -25,9 +25,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     `llm_circuit_breaker_open`, `rate_limit_rejected_total{path}`, `ai_review_pending_posts` (a snapshot
     gauge, so a scrape never turns into a `COUNT` on the database), `ai_review_reconcile_repairs_total`,
     `ai_review_lease_attempts_exhausted_total`
-  - **Trace ID across every boundary (ADR-0007 neighbour)**: `TraceIdFilter` at
+  - **Trace ID across every boundary**: `TraceIdFilter` at
     `HIGHEST_PRECEDENCE - 1` mints a 16-hex id and echoes `X-Trace-Id`; `MdcCopyingTaskDecorator`
-    carries MDC into both async pools; `TraceIds.runAsJob` gives each `@Scheduled` run its own id;
+    carries MDC into both async pools; `TraceIds.runAsJob` gives the AI-review reconcile, like-sync,
+    and drift sweeps their own id per run (the hourly hot-ranking recalculation is still unwrapped);
     5xx bodies repeat the traceId (`@JsonInclude(NON_NULL)`, normal responses unchanged) and the error
     toast shows the first 8 characters so a user can quote it
   - **Bootstrap admin, empty production seed (ADR-0008)**: prod no longer inserts demo accounts —
