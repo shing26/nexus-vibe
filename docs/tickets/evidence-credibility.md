@@ -12,10 +12,15 @@ a later round, with reasons in the discussion doc: error-code catalogue +
 `BusinessException` (which also owns the `404`-for-a-parked-post semantics),
 centralized `@RequiresRole`, log aggregation (Loki/ELK), OTel tracing,
 cAdvisor/resource dashboards, a private registry, and CD through the tunnel.
+A ninth joins that list with this round's evidence: **a bulk reindex path for
+`es-data`**. `PostSearchService.indexPost` only ever indexes one post, so a restored
+database can serve an index that is silently empty, and nothing in the stack says so.
+Found while writing [docs/runbook/restore.md](../runbook/restore.md); it belongs to the
+search module, not to a backup script, which is why it is a ticket and not a caveat.
 
 ## E1 - Stop scheduled jobs from poisoning the test context
 
-Status: open. This is why PR #2 is red, and it is not a code regression: the
+Status: done, pending the CI run that proves it. This is why PR #2 is red, and it is not a code regression: the
 failing run (`0284933`) changed one markdown file, and the run six minutes
 earlier (`a802b73`) was green on the same tests.
 
@@ -76,7 +81,7 @@ free to sweep fixtures mid-test.
 
 ## E2 - Finish what trace-id started, and stop trusting a public header
 
-Status: open. Follow-up from the previous review (Spec findings 1 and 2).
+Status: done. Follow-up from the previous review (Spec findings 1 and 2).
 
 **Scope:**
 - Wrap the fourth cron (`PostRankingService:134`) in `TraceIds.runAsJob`, so
@@ -106,21 +111,42 @@ Status: open. Follow-up from the previous review (Spec findings 1 and 2).
 
 ## E3 - Make the alerting layer unable to fail silently
 
-Status: open. This is the highest-severity thing the previous round shipped.
+Status: done, and re-exercised end to end by the drill — after first teaching a lesson
+worth keeping in the open. This ticket is the highest-severity thing the previous round
+shipped, and the fix as written here was itself broken:
+
+- This file told the implementer to set `noDataState: ALERTING`. Grafana resolves only
+  `Alerting | NoData | OK | KeepState`, and a provisioned file it cannot parse aborts
+  startup. With `restart: unless-stopped` that is a crash loop: no dashboard, no
+  notifier, no rules — an alerting layer that cannot fail silently, failing by taking
+  the whole monitoring profile with it. Only `grafana-provisioning-loaded`, which asks
+  `/api/health`, could see it; the step that reads the YAML passed throughout. Fixed in
+  `rules.yaml`, guarded in 0.3s by `GrafanaAlertProvisioningTest`, and the drill now
+  reads both state knobs back out of the engine API rather than trusting the file.
+- Six `errorState:` keys were removed on the way. Provisioning has two state knobs, not
+  three: that key parsed, was ignored, and let the file's header argue for a policy the
+  engine never had.
+- The drill's own bridge step was written against the *old* behavior (start anyway,
+  answer 502 when unconfigured). It now asserts the two real halves: the bridge refuses
+  to start with no target, and a Grafana-shaped notification travels through
+  `benchmark/observability/webhook-sink`, a receiver that recomputes the Feishu
+  signature and answers 200-with-an-error-code on a mismatch.
+
+Original finding, kept for the record:
 All four rules in
 `docker/observability/grafana/provisioning/alerting/rules.yaml` set
-`noDataState: OK` (lines 52, 99, 147, 194). If the app dies, or Prometheus
+`noDataState: OK`. If the app dies, or Prometheus
 dies, or Grafana cannot reach Prometheus, every rule reports "healthy". The
 structural gap the assessment called out — nobody knows when self-healing fails —
 is reproduced inside its own fix. Compounding it: the whole monitoring stack
-sits behind `profiles: ["monitoring"]` (`docker-compose.yml:176-236`), and
-`FEISHU_ALERT_WEBHOOK: ${FEISHU_ALERT_WEBHOOK:-}` defaults to empty
-(`docker-compose.yml:237`), so on a normal boot there is no scraper and no
-listener.
+sits behind `profiles: ["monitoring"]`, and
+`FEISHU_ALERT_WEBHOOK: ${FEISHU_ALERT_WEBHOOK:-}` defaults to empty, so on a normal
+boot there is no scraper and no listener.
 
 **Scope:**
-- `noDataState: ALERTING` on the availability-facing rules (circuit, backlog,
-  5xx), keeping the rate-comparison rule honest about what no-data means for it.
+- `noDataState: Alerting` (that exact spelling; see the status above) on the
+  availability-facing rules (circuit, backlog, scrapability), keeping the ratio rules
+  honest about what no-data means for them.
 - Add a scrapability rule: `up{job="nexus-vibe"} == 0` sustained, severity
   critical. Prometheus already carries that job name (`prometheus.yml:16`).
 - Fail fast, not quietly: the bridge must refuse to start (or the compose
@@ -152,12 +178,34 @@ listener.
 
 ## E4 - A release you can point at and a rollback you can perform
 
-Status: open. `app` (`docker-compose.yml:110`) and `web` (`:155`) are declared
-with `build:` and no `image:` reference, so every build replaces one anonymous
-image and there is physically nothing to roll back to; only `alert-bridge` gets
-a tag (`:228`). There is no `backup`, `restore` or `rollback` string anywhere in
-the tracked repository (`git grep -i mysqldump\|backup` returns nothing), and no
-mention of data anywhere in `docs/plans/pre-deployment-checklist.md`.
+Status: half done, and the half that is done is the easy half. `app`
+(`docker-compose.yml:134`) and `web` (`:186`) are declared with `build:` and no
+`image:` reference, so every build replaces one anonymous image and there is
+physically nothing to roll back to; only `alert-bridge` gets a tag (`:265`). There
+is no `backup`, `restore` or `rollback` string anywhere in the tracked repository
+(`git grep -i mysqldump\|backup` returns nothing), and no mention of data anywhere in
+`docs/plans/pre-deployment-checklist.md`.
+
+Delivered: both application images now carry `nexus-vibe-{app,web}:${APP_TAG:?}`, so
+compose refuses to resolve at all without a tag, and `.env.example` documents the
+bump-and-re-up release move plus the revert-and-re-up rollback. CI uploads the jar and
+`dist` on a `master` push. All six always-on services got a `mem_limit`.
+
+Not delivered, and it is the acceptance criterion that matters: **no A→B→A rollback has
+been performed anywhere.** The words "deploy tag A, deploy tag B, roll back to A, `/api
+/v1/posts` answers on A" describe the only proof that a rollback target is real, and
+what exists instead is a name that has never been pointed at. The drill does not cover
+it; the next person to touch the deploy path should run it before believing this ticket.
+
+Two premises here were wrong and are corrected on the record, because they changed what
+the ticket is worth:
+- "container stdout was unbounded on the host disk" — it is bounded anyway by the 7.65
+  GiB Docker Desktop VM on this machine. The `json-file` rotation from the previous round
+  is still right, but it is hygiene, not the removal of a disk-filling risk.
+- "no memory ceiling": true of the compose file, but the ceiling that actually applies is
+  the VM's, shared with two other live projects. The `mem_limit` values were sized to
+  measured use (app holds ~400MiB, es ~653MiB) so one container cannot take the VM from
+  the others; the three `monitoring`-profile containers still have no limit.
 
 **Scope:**
 - Tag both application images: `image: nexus-vibe-app:${APP_TAG:?}` and
@@ -184,9 +232,29 @@ adds credentials and a network hop without adding a rollback target.
 
 ## E5 - Back up, and prove the backup is restorable
 
-Status: open. Single host, single disk, `db-data`/`app-uploads` volumes, one
+Status: script and runbook in; **the live rehearsal is NOT done**, which is the whole
+acceptance criterion. Single host, single disk, `db-data`/`app-uploads` volumes, one
 human, no copy. A dead disk ends the project, and — unlike every gap in the
 previous round — nothing in the system would tell anyone.
+
+What the writing of the runbook measured, three of it contradicting this ticket:
+- The migration history is not what the glob implied. `migrate-0001`–`0004` have never
+  existed in any commit; numbering starts at `0005`; and `0005`/`0006`/`0007` are all
+  already inside `init.sql`, so replaying them onto a fresh volume is a
+  `Duplicate column name 'email'` error, not a no-op. `migrate-0005`'s own how-to-run
+  line also named a database (`nexus_vibe`) that does not exist — fixed.
+- The compose file declares **eight** named volumes, not seven: `ollama-data` was missing
+  from the list, and is the largest thing on the disk (model weights, re-downloadable, so
+  inventory-only and deliberately not dumped).
+- `es-data` has no full-reindex path. Only `PostSearchService.indexPost` (one post at a
+  time) exists, so a restored site can answer every query from an index that is quietly
+  empty while the database holds every post. This is now a follow-up ticket, not a
+  footnote in a runbook.
+- Backup failure does reach the alert path, but only under an explicit
+  `-AlertViaBridge`; the "blocked on E3" note that made it opt-in is obsolete now that the
+  bridge and its contact point are proven end to end, so the remaining question is whether
+  a weekly task should default to it, which is a decision for whoever runs the first
+  rehearsal.
 
 **Scope:**
 - `scripts/backup.ps1`: `docker compose exec -T db mysqldump --single-transaction`
@@ -214,7 +282,10 @@ pipeline to anywhere.
 
 ## E6 - One endpoint, one meaning; and stop losing dev tooling for free
 
-Status: open. `docker/nginx/nginx.conf:77` proxies the top-level
+Status: done, and now proved on the public side by the drill (rebuilt web image, real
+nginx, app stopped and degraded): the public URL answers the `servable` group only, the
+container healthcheck keeps the aggregate, and `/actuator/metrics` is back in dev while
+prod and the edge both refuse it. `docker/nginx/nginx.conf:89` proxies the top-level
 `/actuator/health` to the public internet, while `Dockerfile:38` uses the same
 URL for the container healthcheck. Since ADR-0007 maps `DEGRADED` to HTTP 200,
 one status code now serves two different questions: "should Docker restart this
@@ -248,7 +319,7 @@ since the endpoint is not reachable publicly either way.
 
 ## E7 - Make the CI gate describe the thing that ships
 
-Status: open. Three separate honesty problems in
+Status: done in the tree; CI is the experiment. Three separate honesty problems in
 `.github/workflows/maven.yml` and `pom.xml`:
 
 - The gate tests JDK 18 (`java.version=18` at `pom.xml:22`, `java-version: "18"`
@@ -288,7 +359,7 @@ Status: open. Three separate honesty problems in
 
 ## E8 - Correct the in-repo documents against the current tree
 
-Status: open. The assessment this round was planned against was written at
+Status: in progress this round. The assessment this round was planned against was written at
 2026-09-13 02:32, before T1-T7 landed. Its headline "可观测性与运维配套仍停留在
 Demo 级" is now false for
 observability, and five of the seven gaps in its M8 table are closed. Its numbers

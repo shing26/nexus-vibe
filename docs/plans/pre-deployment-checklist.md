@@ -56,8 +56,12 @@
 - [x] 日志落盘：prod 用 `logback-spring.xml` 把 JSON 写进 `/app/logs`（命名卷 `app-logs`，单件 100MB / 7 天 / 总量 1GB），外层 `AsyncAppender`；compose 全部服务 json-file 上限 10m x 3，重建容器不再丢日志。
 - [x] 指标暴露：`/actuator/prometheus` 只在 compose 内网可达，prod 暴露 `health,info,prometheus`；去掉 `SystemMetricsAutoConfiguration` 的 exclude 以恢复 OS/磁盘指标（由容器演练验证）。
 - [x] AI 链路埋点：`llm_chat_completions_total{outcome}`、`llm_chat_completion_duration_seconds`、`llm_circuit_breaker_open`、`rate_limit_rejected_total{path}`、`ai_review_pending_posts`、`ai_review_reconcile_repairs_total{kind}`、`ai_review_lease_attempts_exhausted_total`。
-- [x] 告警闭环：Grafana 4 条规则（熔断打开、评审积压、5xx 比率、限流突增）→ `alert-bridge` → 飞书自定义机器人（HMAC-SHA256 加签）；webhook 与密钥只进 `.env`。
+- [x] 告警闭环：Grafana 6 条规则（熔断打开、评审积压、5xx 比率、限流突增、抓不到 target、99.9% 错误预算快烧）→ `alert-bridge` → 飞书自定义机器人（HMAC-SHA256 加签）；webhook 与密钥只进 `.env`。
 - [x] 监控栈（prometheus / grafana / alert-bridge）挂在 `monitoring` profile 下且不映射宿主端口；不开 profile 时 `docker compose up` 行为不变，公网面仍只有 nginx:80。
+- [x] 部署命令写死在这里，别让"要不要开监控"变成一次临场决定：
+      `APP_TAG=<新值> docker compose --profile monitoring up -d --build`（默认 6 个服务 + prometheus/grafana/alert-bridge 3 个）。
+      开 profile 就必须先填 `FEISHU_ALERT_WEBHOOK`：`alert-bridge` 在没有收件人时直接拒绝启动（`restart: unless-stopped` 会把它变成明显的重启循环），
+      没有飞书机器人就整个去掉 `--profile monitoring`，别留一个绿色但没人收信的面板。
 - [x] 健康语义：`DEGRADED` 显式映射 200，`/actuator/health` 只回答可服务性，细节在 `/actuator/health/deps`；nginx 对其余 actuator 路径显式 404（ADR-0007）。
 - [x] 生产账号与种子：`DEMO_SEED_ENABLED=false` 时既不写样例账号也不写样例内容，`init.sql` 只留 schema + 频道/标签；`BOOTSTRAP_ADMIN_PASSWORD` 一次性引导 `admin`（ADR-0008）。
 - [x] traceId 贯穿：过滤器生成 16-hex 写 MDC 并回写 `X-Trace-Id`，异步池与定时任务继承/新建，5xx 响应体带 `traceId`，前端错误 toast 显示前 8 位追踪号。
@@ -65,6 +69,8 @@
 - [x] 上线前跑 `benchmark/observability/drill.ps1` 并把结论写进 `docs/research/observability-drill-2026-09.md`：
       2026-09-13 13:19 那次 16 步全绿（真容器、真断流、真打满限流），演练脚本本身修掉 4 处，产品侧暴露并修掉 1 个真 bug
       （告警规则依赖的 `application` 指标标签缺失）。
+- [ ] 同一件事在本轮要重做一遍：E3/E6 之后演练是 20 步，且断言换了对象（告警规则要经 Grafana 引擎读回、
+      告警要走到会验签的假收件人）。上面那句"16 步全绿"只描述 09-13 的那个版本，不能拿来证明这一版。
 - [ ] 配好 `FEISHU_ALERT_WEBHOOK` / `FEISHU_ALERT_SECRET` 后，人工发一条测试告警到群里确认真的收得到——
       演练只能证明"告警到得了桥、桥失败时会喊出来"。
 - [ ] 上线 24 小时后回看 `/app/logs`（卷 `app-logs`）：确认滚动按 100MB / 7 天 / 1GB 收口，`docker logs` 侧 10m x 3 也没漏。

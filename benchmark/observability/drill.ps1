@@ -256,8 +256,21 @@ Write-Host "Nexus-Vibe observability drill - evidence: $evidencePath" -Foregroun
 
 # --------------------------------------------------------------------------- bring it up
 
+# Refuse before touching anything. This project pins container_name for every service, so a second
+# drill on the same project does not get a second stack: it gets "Conflict. The container name
+# /nexus-drill-db is already in use", halfway through a build, from whichever of the two arrives
+# last. That cost a run. Say it here instead, where the fix is one command.
+$leftover = Invoke-Docker -Cmd @('ps', '-a', '--filter', 'name=nexus-drill-', '--format', '{{.Names}}')
+if ($leftover.Trim()) {
+    throw ("drill containers from an earlier or concurrent run are still on this host:`n$leftover`n" +
+           'Tear them down first (they are the drill project''s own, never a deployment):' +
+           "`n  docker compose -p nexus-drill -f docker-compose.yml" +
+           " -f benchmark/observability/docker-compose.drill.yml" +
+           " --profile monitoring --profile drill down -v")
+}
+
 if (-not $SkipBuild) {
-    Write-Host 'building images (app, web, alert-bridge, llm-mock)' -ForegroundColor DarkGray
+    Write-Host 'building images (app, web, alert-bridge, llm-mock, webhook-sink)' -ForegroundColor DarkGray
     Invoke-Compose -Cmd @('build') | Out-Null
 }
 Invoke-Compose -Cmd @('up', '-d') | Out-Null
@@ -685,6 +698,7 @@ Step 'public-nginx-denies-actuator' {
         '/actuator/prometheus'  = 404
         '/actuator/health/deps' = 404
         '/actuator/env'         = 404
+        '/actuator/metrics'     = 404
     }
     $seen = @()
     foreach ($path in $probes.Keys) {
@@ -695,6 +709,14 @@ Step 'public-nginx-denies-actuator' {
         }
     }
     Write-Evidence 'public probes' ($seen -join "`n")
+    # The other half of E6's acceptance: metrics is a dev tool, so it must be gone at the prod
+    # container's own port as well as at the edge. The edge denying it proves nothing about the
+    # exposure list, and the exposure contract test proves nothing about a running prod JVM.
+    $metrics = Invoke-AppHttp GET '/actuator/metrics'
+    Write-Evidence 'prod container metrics' "$($metrics.Code)"
+    if ($metrics.Code -ne '404') {
+        throw "the prod container still answers /actuator/metrics with $($metrics.Code) - exposure is not prod's allowlist"
+    }
     return ($seen -join '  ')
 }
 
