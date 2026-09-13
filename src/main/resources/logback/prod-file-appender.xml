@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Structured JSON file appenders for the prod profile.
+
+  logback-spring.xml includes this fragment inside <springProfile name="prod">. It holds only
+  appender definitions (no springProfile / springProperty) so LogbackStructuredOutputTest can
+  parse it through plain logback, attached to the root logger by a test-only wrapper, and still
+  cover the real appender graph.
+
+  Every knob is a self-defaulting property: LOG_DIR overrides the file location, and the
+  rotation caps stay pinned here instead of spreading into deployment config.
+-->
+<included>
+    <property name="LOG_PATH" value="${LOG_DIR:-/app/logs}"/>
+    <property name="LOG_FILE_BASE" value="${LOG_FILE_BASE:-nexus-vibe}"/>
+    <property name="LOG_MAX_FILE_SIZE" value="${LOG_MAX_FILE_SIZE:-100MB}"/>
+    <property name="LOG_MAX_HISTORY" value="${LOG_MAX_HISTORY:-7}"/>
+    <property name="LOG_TOTAL_SIZE_CAP" value="${LOG_TOTAL_SIZE_CAP:-1GB}"/>
+
+    <appender name="FILE_JSON" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>${LOG_PATH}/${LOG_FILE_BASE}.json</file>
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <timeZone>Asia/Shanghai</timeZone>
+            <customFields>{"app":"nexus-vibe"}</customFields>
+        </encoder>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>${LOG_PATH}/${LOG_FILE_BASE}.%d{yyyy-MM-dd}.%i.json.gz</fileNamePattern>
+            <maxFileSize>${LOG_MAX_FILE_SIZE}</maxFileSize>
+            <maxHistory>${LOG_MAX_HISTORY}</maxHistory>
+            <totalSizeCap>${LOG_TOTAL_SIZE_CAP}</totalSizeCap>
+        </rollingPolicy>
+    </appender>
+
+    <!-- discardingThreshold=0 never drops WARN/ERROR while the queue drains: blocking a
+         caller briefly beats losing the exact events that explain an outage. -->
+    <appender name="ASYNC_FILE" class="ch.qos.logback.classic.AsyncAppender">
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>false</neverBlock>
+        <includeCallerData>false</includeCallerData>
+        <appender-ref ref="FILE_JSON"/>
+    </appender>
+</included>

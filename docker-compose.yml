@@ -5,6 +5,14 @@
 
 name: nexus-vibe
 
+# Container stdout is the only copy of the daemon's logs, and json-file is unbounded by default:
+# one noisy prod run can fill the host disk. Cap every service at 3 x 10m.
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 networks:
   nexus-net:
     driver: bridge
@@ -14,7 +22,11 @@ volumes:
   redis-data:
   es-data:
   app-uploads:
+  app-logs:
   ollama-data:
+  # Only created by the monitoring profile; absent from a plain `up`.
+  prometheus-data:
+  grafana-data:
 
 services:
 
@@ -22,6 +34,7 @@ services:
     image: mysql:8.0
     container_name: nexus-db
     restart: unless-stopped
+    logging: *default-logging
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       MYSQL_DATABASE: nexus_campus
@@ -45,6 +58,7 @@ services:
     image: redis:7-alpine
     container_name: nexus-redis
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - redis-data:/data
     networks:
@@ -60,6 +74,7 @@ services:
     image: elasticsearch:7.17.24
     container_name: nexus-es
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
@@ -79,6 +94,7 @@ services:
     image: ollama/ollama:latest
     container_name: nexus-ollama
     restart: unless-stopped
+    logging: *default-logging
     volumes:
       - ollama-data:/root/.ollama
     networks:
@@ -96,6 +112,7 @@ services:
       dockerfile: Dockerfile
     container_name: nexus-app
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -116,6 +133,8 @@ services:
       REDIS_PORT: "6379"
       ES_URI: ${ES_URI:-http://elasticsearch:9200}
       TZ: Asia/Shanghai
+      # Where logback/prod-file-appender.xml writes the structured JSON log (rotated, capped).
+      LOG_DIR: /app/logs
       # Heap = 75% of the 768m container limit (~576m); G1 + rotating GC log
       # under /tmp for post-load analysis (see docs/research/).
       JAVA_OPTS: >-
@@ -125,6 +144,8 @@ services:
     mem_limit: 768m
     volumes:
       - app-uploads:/app/uploads
+      # A rebuilt container loses its stdout history; the JSON log survives restarts on this volume.
+      - app-logs:/app/logs
     expose:
       - "8080"
     networks:
@@ -136,9 +157,88 @@ services:
       dockerfile: frontend/Dockerfile
     container_name: nexus-web
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       - app
     ports:
       - "${WEB_PORT:-8080}:80"
     networks:
       - nexus-net
+
+  # ---------------------------------------------------------------------------
+  # Monitoring profile only: docker compose --profile monitoring up
+  #
+  # These services are deliberately outside the default `up`, and none of them
+  # maps a host port. The public side stays nginx:80; dashboards are reached
+  # from inside nexus-net during the drill.
+  # ---------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:v2.53.2
+    container_name: nexus-prometheus
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - prometheus-data:/prometheus
+      - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    expose:
+      - "9090"
+    networks:
+      - nexus-net
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: nexus-grafana
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    environment:
+      # Sign-ups and anonymous access stay off. The box is only reachable from
+      # nexus-net, but it still holds the alert rules and the webhook target.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      # Not `${GRAFANA_ADMIN_PASSWORD:?...}`: compose interpolates every service regardless of
+      # profile, so a required variable here would break a plain `docker compose up` too.
+      # Override it in .env before exposing Grafana anywhere but nexus-net.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # One mount is enough: the dashboards provider reads
+      # /etc/grafana/provisioning/dashboards/json, so the dashboard JSON lives
+      # in git next to the provider that points at it.
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    expose:
+      - "3000"
+    networks:
+      - nexus-net
+    depends_on:
+      - prometheus
+
+  alert-bridge:
+    build:
+      context: ./docker/observability/alert-bridge
+    image: nexus-alert-bridge:local
+    container_name: nexus-alert-bridge
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    environment:
+      # Both stay empty by default so the stack still starts for a drill without Feishu
+      # credentials; the bridge answers 502 with "FEISHU_ALERT_WEBHOOK is not set" when an alert
+      # fires unconfigured, instead of dropping it quietly.
+      FEISHU_ALERT_WEBHOOK: ${FEISHU_ALERT_WEBHOOK:-}
+      FEISHU_ALERT_SECRET: ${FEISHU_ALERT_SECRET:-}
+    expose:
+      - "8080"
+    networks:
+      - nexus-net
+    depends_on:
+      - grafana

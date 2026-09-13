@@ -302,4 +302,10 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
             "ORDER BY p.create_time LIMIT #{limit}")
     List<VibePost> selectPostsPendingSafetyRecheck(@Param("before") LocalDateTime before,
                                                    @Param("limit") int limit);
+
+    // Backlog gauge (ai_review_pending_posts): rows still in a non-terminal review state, i.e.
+    // REVIEWING (2) or FAILED-awaiting-retry (3). Unlike the selects above this one has no stale
+    // window and no batch limit, because the gauge feeds an alert on absolute backlog size.
+    @Select("SELECT COUNT(*) FROM vibe_post WHERE ai_reviewed IN (2, 3)")
+    long countReviewsAwaitingWork();
 }

@@ -1,5 +1,6 @@
 package com.nexus.campus.config;
 
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,8 +34,11 @@ class RateLimitInterceptorTest {
     @Mock
     private HttpServletRequest request;
 
-    @Mock
+@Mock
     private HttpServletResponse response;
+
+    /** Real registry: the assertion below is about the number that lands on the counter. */
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     private RateLimitInterceptor interceptor;
     private StringWriter responseWriter;
@@ -45,6 +49,7 @@ class RateLimitInterceptorTest {
         interceptor = new RateLimitInterceptor();
         // Inject Redis mock since @Autowired(required = false) won't pick up @Mock
         ReflectionTestUtils.setField(interceptor, "redisTemplate", redisTemplate);
+        ReflectionTestUtils.setField(interceptor, "meterRegistry", meterRegistry);
         interceptor.init();
 
         when(request.getHeader("X-Forwarded-For")).thenReturn(clientIp);
@@ -92,6 +97,8 @@ class RateLimitInterceptorTest {
         assertFalse(result, "11th request should be blocked");
         verify(response).setStatus(429);
         verify(response).setContentType("application/json;charset=UTF-8");
+        assertEquals(1.0, meterRegistry.get("rate.limit.rejected").tag("path", "/api/v1/posts")
+                .counter().count(), 0.0001, "one rejection counted for the limited path");
     }
 
     @Test

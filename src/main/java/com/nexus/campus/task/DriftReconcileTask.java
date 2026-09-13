@@ -2,6 +2,7 @@ package com.nexus.campus.task;
 
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.mapper.VibePostMapper;
+import com.nexus.campus.util.TraceIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -66,6 +67,10 @@ public class DriftReconcileTask {
      */
     @Scheduled(cron = "0 40 * * * ?")
     public void reconcileDrift() {
+        TraceIds.runAsJob("like-drift-reconcile", this::reconcileDriftOnce);
+    }
+
+    private void reconcileDriftOnce() {
         if (!driftEnabled || redisTemplate == null) {
             return;
         }

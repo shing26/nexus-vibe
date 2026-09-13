@@ -37,6 +37,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Prometheus text format for /actuator/prometheus. Version comes from the Boot BOM. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>
@@ -128,11 +133,11 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
-        <!-- Logstash -->
+        <!-- Logstash JSON encoder (8.x targets the logback 1.5 line that Boot 3.3 pulls in) -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
-            <version>7.4</version>
+            <version>8.0</version>
         </dependency>
 
         <!-- HTML sanitization (whitelist-based XSS defense) -->

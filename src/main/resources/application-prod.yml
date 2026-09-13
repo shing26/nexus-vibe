@@ -2,9 +2,6 @@ server:
   port: ${SERVER_PORT:8080}
 
 spring:
-  autoconfigure:
-    exclude:
-      - org.springframework.boot.actuate.autoconfigure.metrics.SystemMetricsAutoConfiguration
   # @Scheduled tasks share this pool; sized > 1 so a slow AI reconcile probe
   # can't delay the like-counter flush.
   task:
@@ -51,6 +48,10 @@ campus:
     # Demo accounts are opt-in for production; set DEMO_SEED_ENABLED=true for a public demo.
     seed-enabled: ${DEMO_SEED_ENABLED:false}
     endpoints-enabled: ${DEMO_ENDPOINTS_ENABLED:false}
+  # With seeding off this is the only way into the admin area: BootstrapAdminInitializer
+  # creates 'admin' from it once, when the database holds no ADMIN yet.
+  bootstrap:
+    admin-password: ${BOOTSTRAP_ADMIN_PASSWORD:}
   cors:
     allowed-origins: ${CORS_ALLOWED_ORIGINS:https://nexus-vibe.shing26.is-a.dev}
   upload:
@@ -103,7 +104,7 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info
-  endpoint:
-    health:
-      show-details: when-authorized
+        include: health,info,prometheus
+  # Health details, the deps group and the DEGRADED to 200 mapping all come from the base
+  # document: they describe serving semantics, not a deployment stage, and a prod-only version of
+  # them could not be exercised by the test suite.

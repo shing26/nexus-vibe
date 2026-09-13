@@ -1,5 +1,7 @@
 package com.nexus.campus.config;
 
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.slf4j.Logger;
@@ -47,6 +49,9 @@ public class RateLimitInterceptor implements HandlerInterceptor {
 
     @Autowired(required = false)
     private StringRedisTemplate redisTemplate;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
 
     private DefaultRedisScript<Long> rateLimitScript;
 
@@ -111,6 +116,12 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             );
 
             if (allowed == null || allowed == 0L) {
+                // Tagged by the configured path, never by client IP: the cardinality has to stay
+                // bounded, and the log line above already carries the IP for forensics.
+                Counter.builder("rate.limit.rejected")
+                        .tag("path", path)
+                        .register(meterRegistry)
+                        .increment();
                 log.warn("[RATE-LIMIT] IP {} exceeded limit ({}/{}ms) on {} {}",
                         clientIp, MAX_REQUESTS, WINDOW_MS, method, path);
                 response.setContentType("application/json;charset=UTF-8");

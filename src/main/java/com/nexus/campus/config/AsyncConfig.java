@@ -12,16 +12,18 @@
  @EnableAsync
  public class AsyncConfig implements AsyncConfigurer {
 
-     @Override
-     public Executor getAsyncExecutor() {
-         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-         executor.setCorePoolSize(4);
-         executor.setMaxPoolSize(10);
-         executor.setQueueCapacity(100);
-         executor.setThreadNamePrefix("nexus-async-");
-         executor.initialize();
-         return executor;
-     }
+    @Override
+    public Executor getAsyncExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(10);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("nexus-async-");
+        // The id that made the request has to be on the line the listener logs.
+        executor.setTaskDecorator(new MdcCopyingTaskDecorator());
+        executor.initialize();
+        return executor;
+    }
 
      /**
       * Dedicated pool for LLM-bound agent listeners: long model calls can
@@ -30,14 +32,15 @@
       * + Abort policy fail fast; saturation degrades via the rejection
       * handling added at the publish sites.
       */
-     @Bean("agentLlmExecutor")
-     public Executor agentLlmExecutor() {
-         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
-         executor.setCorePoolSize(2);
-         executor.setMaxPoolSize(4);
-         executor.setQueueCapacity(50);
-         executor.setThreadNamePrefix("agent-llm-");
-         executor.initialize();
-         return executor;
-     }
+    @Bean("agentLlmExecutor")
+    public Executor agentLlmExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("agent-llm-");
+        executor.setTaskDecorator(new MdcCopyingTaskDecorator());
+        executor.initialize();
+        return executor;
+    }
  }
