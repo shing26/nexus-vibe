@@ -29,7 +29,7 @@
 
 `RateLimitInterceptor.getClientIp` 在无 `X-Real-IP` 时信任客户端提供的 `X-Forwarded-For`。直连应用端口（绕过 nginx）的攻击者可轮换伪造 IP 绕过每 IP 限流——本轮压测正是利用这一点合法地放开了限流。生产部署中 nginx 必须设置 `X-Real-IP`（compose 内已如此），且 8080 不应对外暴露。修复建议（待办）：`server.forward-headers-strategy` 显式白名单化，或仅在容器网络内信任转发头。
 
-## 对线程池参数的实测依据（面试叙事）
+## 对线程池参数的实测依据
 
 - core=4 / max=10 / queue=100：评审是 IO 等待型任务（等 LLM 数十秒），小池 + 中队列合理；但 queue=100 在瓶颈型依赖下等于**放大延迟后集中丢弃**。实测显示 queue 打满只用了 14 秒。
 - 改进方向（未改，属行为变更）：a) 评审事件入队前做池水位检查，超阈值直接标 FAILED 省一次无效入队；b) 队列改为有界小队列 + CallerRuns 策略让发帖线程自己降速；c) LLM 侧并发（Ollama 并行度）与池大小对齐——池 10 个线程对 1 路 CPU 推理没有意义。

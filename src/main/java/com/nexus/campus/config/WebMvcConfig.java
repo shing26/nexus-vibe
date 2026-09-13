@@ -1,7 +1,6 @@
 package com.nexus.campus.config;
 
 import org.springframework.context.annotation.Configuration;
-import org.springframework.scheduling.annotation.EnableScheduling;
 import org.springframework.web.servlet.config.annotation.ResourceHandlerRegistry;
 import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
@@ -19,10 +18,11 @@ import java.nio.file.Paths;
  * Core Spring MVC configuration.
  *
  * <p>Static-resource serving is declared here. The XSS filter is registered
- * separately in {@link XssConfig} at the highest servlet-filter precedence.</p>
+ * separately in {@link XssConfig} at the highest servlet-filter precedence, and
+ * scheduled jobs are switched on in {@link SchedulingConfig} rather than here,
+ * so a test context can opt out of the cron clock.</p>
  */
 @Configuration
-@EnableScheduling
 public class WebMvcConfig implements WebMvcConfigurer {
 
     private static final Logger log = LoggerFactory.getLogger(WebMvcConfig.class);

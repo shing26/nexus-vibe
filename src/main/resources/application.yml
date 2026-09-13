@@ -98,6 +98,17 @@ campus:
   # Enable via REDIS_ENABLED=true in production (see application-prod.yml).
   redis:
     enabled: false
+  # Cron owner. Off in the test profile: a wall-clock sweep writing a five-minute
+  # LLM health verdict into a shared cache made integration tests pass or fail on
+  # timing. See SchedulingConfig.
+  scheduling:
+    enabled: true
+  trace:
+    # Adopt a client-sent X-Trace-Id instead of minting one. Off: whoever sets it
+    # then owns the text of every log line for that request and the number an
+    # operator is asked to read back. Turn it on only for a deployment whose
+    # ingress is known to overwrite the header first.
+    trust-inbound-header: ${TRUST_INBOUND_TRACE_ID:false}
   cache:
     ttl: 1h
   demo:
@@ -178,7 +189,10 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,prometheus
+        # Dev/base surface. `metrics` stays here because it is a debugging tool and costs nothing:
+        # the public edge never forwards it (docker/nginx/nginx.conf) and application-prod.yml drops
+        # it from the allowlist. Losing it was a regression with no upside behind it.
+        include: health,info,prometheus,metrics
   metrics:
     tags:
       # Every alert rule and dashboard panel selects on application="nexus-vibe". Boot 3.3 does
@@ -196,6 +210,13 @@ management:
         deps:
           include: db,redis,elasticsearch,llm
           show-details: always
+        # What a visitor-facing probe is allowed to claim. Deliberately narrower than the top-level
+        # document: /actuator/health answers "should this container be replaced", this answers "can
+        # the site still serve its users". nginx forwards the public URL onto this group so the two
+        # questions cannot be confused by a status code that happens to serve both. See ADR-0007.
+        servable:
+          include: db
+          show-details: never
       status:
         # degraded must rank below up and above unknown, otherwise a dependency that is merely
         # down still drags the aggregate into the band a healthcheck treats as fatal.
