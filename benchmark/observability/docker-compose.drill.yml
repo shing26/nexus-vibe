@@ -59,6 +59,11 @@ services:
 
   grafana:
     container_name: nexus-drill-grafana
+    environment:
+      # The drill authenticates against the provisioning API to prove the alert rules are
+      # actually loaded, so it has to know the admin password. A fresh grafana-data volume means
+      # this is the initial password, not a changed one.
+      GF_SECURITY_ADMIN_PASSWORD: ${DRILL_GRAFANA_PASSWORD:-drill-grafana}
 
   alert-bridge:
     container_name: nexus-drill-alert-bridge

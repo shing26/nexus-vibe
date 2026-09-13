@@ -242,7 +242,7 @@ build pass unchanged, and `ResponseContractTest` now fails if the envelope drift
 ## Drill - Prove it under a real failure
 
 Status: done. 16 of 16 steps pass on a real run
-(`2026-09-13 13:19:32`, ~9 min with prebuilt images); conclusions in
+(`2026-09-13 14:17:08`, ~11 min with prebuilt images); conclusions in
 [observability-drill-2026-09.md](../research/observability-drill-2026-09.md).
 
 `benchmark/observability/drill.ps1` runs the monitoring profile as its own
@@ -257,7 +257,9 @@ disk metrics come back in the prod container once the cgroup exclude is gone
 `200 DEGRADED` with Docker still calling the container healthy, the limiter
 counts its own 429s, the recovery sweep re-dispatches what the outage parked,
 the deps group names all four components, and public nginx serves
-`/actuator/health` while denying everything else under `/actuator/*`.
+`/actuator/health` while denying everything else under `/actuator/*`. The Grafana
+step asks the alerting engine what it loaded instead of trusting a mounted file,
+and the alert is posted at the URL the engine registered for the bridge.
 
 **Acceptance:**
 - Each step reports PASS with the raw probe kept in an evidence file, and the

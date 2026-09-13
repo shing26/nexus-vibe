@@ -83,14 +83,31 @@ $composeArgs = @('compose', '-p', 'nexus-drill',
 
 $script:results = New-Object System.Collections.Generic.List[object]
 
+# The uids rules.yaml declares, in one place: one step checks the file lists them, another checks
+# the alerting engine loaded them, and they must not be able to drift apart.
+$script:ruleUids = @('nexus-llm-breaker-open', 'nexus-ai-review-backlog',
+                     'nexus-http-5xx-ratio', 'nexus-rate-limit-spike')
+
 function Invoke-Docker {
     param([Parameter(Mandatory)][string[]]$Cmd)
-    $output = & docker @Cmd 2>&1 | ForEach-Object { "$_" }
-    if ($LASTEXITCODE -ne 0) {
-        $tail = (($output | Where-Object { $_.Trim() }) | Select-Object -Last 2) -join ' | '
-        throw "docker $(($Cmd -join ' ')) exited $LASTEXITCODE : $tail"
+    # The docker CLI on Windows occasionally dies mid-drill (Go runtime dump, or a usage error
+    # from a child it could not spawn). That is the host, not the stack under test, and it should
+    # not cost a fifteen minute run. Retry only those shapes, a couple of times, and let every
+    # other non-zero exit surface immediately: an assertion failure is not a flake.
+    $attempt = 0
+    while ($true) {
+        $attempt++
+        $output = & docker @Cmd 2>&1 | ForEach-Object { "$_" }
+        if ($LASTEXITCODE -eq 0) { return ($output -join "`n") }
+        $joined = $output -join "`n"
+        $crashed = $joined -match 'runtime\.[a-z_]+\(|goroutine \d+ \[running\]|docker\.exe|Usage:  docker'
+        if (-not $crashed -or $attempt -ge 3) {
+            $tail = (($output | Where-Object { $_.Trim() }) | Select-Object -Last 2) -join ' | '
+            throw "docker $(($Cmd -join ' ')) exited $LASTEXITCODE : $tail"
+        }
+        Write-Host "    docker CLI crashed (attempt $attempt), retrying" -ForegroundColor DarkYellow
+        Start-Sleep -Seconds 5
     }
-    return ($output -join "`n")
 }
 
 function Invoke-Compose {
@@ -159,6 +176,19 @@ function Test-Metric {
 function Get-LogFile {
     # What the prod container actually wrote to the app-logs volume, not what docker logs shows.
     return Invoke-Compose -Cmd @('exec', '-T', 'app', 'cat', '/app/logs/nexus-vibe.json')
+}
+
+# The compose file and this script have to agree on the Grafana admin password: compose resolves
+# ${DRILL_GRAFANA_PASSWORD:-drill-grafana}, so the script reads the same variable and default.
+$grafanaPassword = if ([string]::IsNullOrWhiteSpace($env:DRILL_GRAFANA_PASSWORD)) { 'drill-grafana' } else { $env:DRILL_GRAFANA_PASSWORD }
+
+function Invoke-GrafanaApi {
+    param([string]$Path)
+    # Basic auth over loopback inside nexus-net. This is the provisioning API, so what comes back
+    # is what the alerting engine loaded, not what a directory listing hopes for.
+    $auth = 'Basic ' + [Convert]::ToBase64String([Text.Encoding]::ASCII.GetBytes("admin:$grafanaPassword"))
+    return Invoke-Compose -Cmd @('exec', '-T', 'grafana', 'wget', '-qO-', "--header=Authorization: $auth",
+                                 ('http://localhost:3000' + $Path))
 }
 
 function Invoke-AppHttp {
@@ -262,7 +292,25 @@ Step 'grafana-provisioning-loaded' {
     foreach ($needed in @('rules.yaml', 'contact-points.yaml', 'policies.yaml', 'nexus-overview.json', 'nexus-ai-pipeline.json')) {
         if ($files -notmatch [regex]::Escape($needed)) { throw "$needed not mounted" }
     }
-    return 'datasource, 2 dashboards and 3 alerting files mounted'
+
+    # Mounted files prove nothing on their own: a rules.yaml the engine rejects still lists fine.
+    # Ask the alerting API what it loaded, by the uids the file declares.
+    Wait-For 'grafana to load the provisioned alert rules' {
+        $rules = Invoke-GrafanaApi '/api/v1/provisioning/alert-rules'
+        @($script:ruleUids | Where-Object { $rules -notmatch $_ }).Count -eq 0
+    } -TimeoutSec 120 -IntervalSec 5
+    $rules = Invoke-GrafanaApi '/api/v1/provisioning/alert-rules'
+    Write-Evidence 'grafana alert rules' $rules
+
+    $points = Invoke-GrafanaApi '/api/v1/provisioning/contact-points'
+    Write-Evidence 'grafana contact points' $points
+    if ($points -notmatch 'nexus-feishu-bridge') { throw 'the Feishu bridge receiver is not registered' }
+    # The bridge step hits the URL the engine would notify, not one this script invented.
+    $url = [regex]::Match($points, '"url"\s*:\s*"(http://alert-bridge:\d+/[^"]+)"')
+    if (-not $url.Success) { throw "no alert-bridge URL on the registered contact point: $points" }
+    $script:bridgeUrl = $url.Groups[1].Value
+
+    return "$($script:ruleUids.Count) rules loaded by the engine, receiver registered at $script:bridgeUrl"
 }
 
 # --------------------------------------------------------------------------- metric surface
@@ -441,8 +489,7 @@ Step 'rate-limit-rejects-and-counts' {
 
 Step 'alert-rules-select-real-metrics' {
     $rules = Get-Content -Raw 'docker/observability/grafana/provisioning/alerting/rules.yaml'
-    $expected = @('nexus-llm-breaker-open', 'nexus-ai-review-backlog', 'nexus-http-5xx-ratio', 'nexus-rate-limit-spike')
-    $absent = @($expected | Where-Object { $rules -notmatch $_ })
+    $absent = @($script:ruleUids | Where-Object { $rules -notmatch $_ })
     if ($absent) { throw "rules missing from provisioning: $($absent -join ', ')" }
 
     $exprs = @([regex]::Matches($rules, "expr:\s*'([^']+)'") | ForEach-Object { $_.Groups[1].Value })
@@ -462,7 +509,7 @@ Step 'alert-rules-select-real-metrics' {
 
     $contact = Get-Content -Raw 'docker/observability/grafana/provisioning/alerting/contact-points.yaml'
     if ($contact -notmatch 'alert-bridge') { throw 'no contact point aimed at the alert bridge' }
-    return "$($expected.Count) rules, $($exprs.Count) expressions, metrics named: $($names -join ', ')"
+    return "$($script:ruleUids.Count) rules, $($exprs.Count) expressions, metrics named: $($names -join ', ')"
 }
 
 Step 'bridge-fails-loudly-without-feishu' {
@@ -477,10 +524,12 @@ Step 'bridge-fails-loudly-without-feishu' {
     } | ConvertTo-Json -Compress -Depth 6)
 
     # The app container is the courier: it can reach the bridge over nexus-net and it has curl,
-    # while the bridge's own busybox wget cannot POST a body.
+    # while the bridge's own busybox wget cannot POST a body. The URL is the one the Grafana engine
+    # registered, so this is the request a real alert would make.
+    if (-not $script:bridgeUrl) { throw 'no bridge URL was captured from the Grafana contact point' }
     $curl = @('exec', '-T', 'app', 'curl', '-sS', '-w', '\n%{http_code}', '-X', 'POST',
               '-H', 'Content-Type: application/json', '--data-binary', $payload,
-              'http://alert-bridge:8080/alert')
+              $script:bridgeUrl)
     $raw = Invoke-Compose -Cmd $curl
     $logs = Invoke-Compose -Cmd @('logs', '--tail', '40', 'alert-bridge')
     Write-Evidence 'bridge answer' "$raw`n--- bridge log ---`n$logs"
