@@ -2,9 +2,12 @@
 
 > Ticket: E5 in [evidence-credibility.md](../tickets/evidence-credibility.md).
 > Producer of the input: [scripts/backup.ps1](../../scripts/backup.ps1).
-> **Status: never executed.** Every command below is written to be run literally, and the first
-> rehearsal is still an open item at the bottom of this file. A restore nobody has performed is not
-> a tested backup, which is the whole reason E5 exists.
+> **Status: executed on 2026-09-14, and it needed two fixes to be runnable at all** — see
+> [§ 9 Rehearsal log](#9-first-rehearsal-log-2026-09-14-the-first-time-this-was-actually-run)
+> at the bottom.
+> Sections 2-8 below are the commands as they were actually typed on that run; the two places where
+> the first version of this file could not be followed literally are marked inline. A restore nobody
+> has performed is not a tested backup, which is the whole reason E5 exists.
 
 ## 0. What one backup set is
 
@@ -38,12 +41,18 @@ loud in the rehearsal notes rather than restoring half of it and calling it gree
 - Only `db` is needed for the restore itself. `web` is never started, so the published host port
   (`${WEB_PORT:-8080}:80`) cannot collide with a running site.
 - Do not run `docker compose down -v` without `-p nexus-restore-test` in the same command line.
+- **Container names are not project-scoped, volumes are.** `docker-compose.yml` pins
+  `container_name:` for every service, so a second compose project on the same daemon cannot create
+  `nexus-db` while the live stack owns that name — the first rehearsal died on exactly that at its
+  first command. `docs/runbook/docker-compose.restore-test.yml` renames the containers to
+  `nexus-restore-*` and changes nothing else, which is why every command in this file passes both
+  `-f` files. The volumes were never the danger; the names were.
 
 ## 2. Bring up an empty database
 
 ```powershell
-docker compose -p nexus-restore-test up -d db
-docker compose -p nexus-restore-test ps db
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml up -d db
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml ps db
 ```
 
 On a first run the volume is empty, so the MySQL entrypoint executes
@@ -53,11 +62,20 @@ Demo content is not in `init.sql` (it lives in
 `DEMO_SEED_ENABLED=true`), so a fresh scratch database has the right tables and zero posts. That
 is the state you want to see immediately before the restore, otherwise the restore proves nothing.
 
-Wait for the healthcheck rather than for luck:
+Wait for MySQL, and wait for the right thing. The image's own healthcheck going `healthy` is not
+sufficient: the rehearsal's first load died with `ERROR 2003 (HY000): Can't connect to MySQL server
+on '127.0.0.1'` against a container that was already reporting `healthy`, because the healthcheck
+probes through the local socket while the dump has to arrive over TCP, and TCP lags it. Poll the
+TCP endpoint instead:
 
 ```powershell
-docker compose -p nexus-restore-test exec -T db mysqladmin ping -h 127.0.0.1 -uroot -p"not-the-password"
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c 'until mysqladmin ping -h 127.0.0.1 -uroot --silent 2>/dev/null || MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysqladmin ping -h 127.0.0.1 -uroot --silent; do sleep 2; done; echo ready-over-tcp'
 ```
+
+`mysqldump`/`mysqladmin`/`mysql` read the password from the environment, never from the command
+line, so nothing secret lands in the container's process list or in this runbook. Do not put a
+literal password in these commands: the first version of this file carried a placeholder that was
+not a runnable command, which is the kind of thing a rehearsal exists to catch.
 
 The password stays inside the container for everything below, via `MYSQL_PWD` and the container's
 own `MYSQL_ROOT_PASSWORD`. Note the `` `$ `` in the commands that follow: PowerShell expands `$`
@@ -65,7 +83,7 @@ itself, and the value has to survive into the container's shell, not be resolved
 
 ```powershell
 # expected: the empty reference data, and nothing else
-docker compose -p nexus-restore-test exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot nexus_campus -e 'SELECT COUNT(*) FROM vibe_post; SELECT COUNT(*) FROM sys_user; SELECT COUNT(*) FROM vibe_channel'"
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot nexus_campus -e 'SELECT COUNT(*) FROM vibe_post; SELECT COUNT(*) FROM sys_user; SELECT COUNT(*) FROM vibe_channel'"
 ```
 
 ## 3. Load the dump
@@ -92,9 +110,9 @@ Copy it in and load it with the container's own shell doing the redirect - Power
 `<` redirection for a native command's stdin, and `Get-Content` would decode the file as text:
 
 ```powershell
-docker compose -p nexus-restore-test cp $dst db:/tmp/nexus-restore.sql
-docker compose -p nexus-restore-test exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus < /tmp/nexus-restore.sql"
-docker compose -p nexus-restore-test exec -T db sh -c 'rm -f /tmp/nexus-restore.sql'
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml cp $dst db:/tmp/nexus-restore.sql
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus < /tmp/nexus-restore.sql"
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c 'rm -f /tmp/nexus-restore.sql'
 ```
 
 The load is expected to succeed on top of `init.sql`'s tables: `mysqldump` emits
@@ -124,8 +142,8 @@ The rules that follow from that table:
    applied after the load, in number order:
 
    ```powershell
-   docker compose -p nexus-restore-test cp docker/mysql/migrate-0007-add-review-lease.sql db:/tmp/m.sql
-   docker compose -p nexus-restore-test exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus < /tmp/m.sql"
+   docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml cp docker/mysql/migrate-0007-add-review-lease.sql db:/tmp/m.sql
+   docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus < /tmp/m.sql"
    ```
 
 4. **Nothing in the repository records which of them the live volume has had.** There is no
@@ -134,7 +152,7 @@ The rules that follow from that table:
    one before you trust any dump from it:
 
    ```powershell
-    docker compose -p nexus-restore-test exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot nexus_campus -e ""SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='nexus_campus' AND COLUMN_NAME IN ('email','review_lock_until','review_owner','review_attempts') UNION ALL SELECT 'index', INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='nexus_campus' AND INDEX_NAME='idx_post_ai_sort' ORDER BY 1, 2"" | sort"
+    docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot nexus_campus -e ""SELECT TABLE_NAME, COLUMN_NAME FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='nexus_campus' AND COLUMN_NAME IN ('email','review_lock_until','review_owner','review_attempts') UNION ALL SELECT 'index', INDEX_NAME FROM information_schema.STATISTICS WHERE TABLE_SCHEMA='nexus_campus' AND INDEX_NAME='idx_post_ai_sort' ORDER BY 1, 2"" | sort"
    ```
 
 Two naming facts to keep in mind while reading those files:
@@ -155,7 +173,7 @@ Read `manifest.json` -> `rowCounts`, then compare every table. One command, one 
 in the same table order the manifest used:
 
 ```powershell
-docker compose -p nexus-restore-test exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot nexus_campus -e 'SELECT ""sys_user"", COUNT(*) FROM sys_user UNION ALL SELECT ""vibe_post"", COUNT(*) FROM vibe_post UNION ALL SELECT ""vibe_comment"", COUNT(*) FROM vibe_comment UNION ALL SELECT ""vibe_post_like"", COUNT(*) FROM vibe_post_like'"
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot nexus_campus -e 'SELECT ""sys_user"", COUNT(*) FROM sys_user UNION ALL SELECT ""vibe_post"", COUNT(*) FROM vibe_post UNION ALL SELECT ""vibe_comment"", COUNT(*) FROM vibe_comment UNION ALL SELECT ""vibe_post_like"", COUNT(*) FROM vibe_post_like'"
 ```
 
 Counts must match exactly. The manifest numbers are taken a moment after the dump's transaction
@@ -166,7 +184,7 @@ Content check - the schema can survive a bad restore while the text does not. `v
 is where the Chinese prose lives, and mojibake in a backup is invisible until someone reads a post:
 
 ```powershell
-docker compose -p nexus-restore-test exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot --default-character-set=utf8mb4 nexus_campus -e 'SELECT id, LEFT(title, 40) FROM vibe_post ORDER BY id LIMIT 5'"
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot --default-character-set=utf8mb4 nexus_campus -e 'SELECT id, LEFT(title, 40) FROM vibe_post ORDER BY id LIMIT 5'"
 ```
 
 Paste five rows. If they came back as `?` or as box-drawing garbage, the dump was taken or loaded
@@ -177,6 +195,13 @@ and it is not optional here.
 
 The dump records only the `/uploads/<uuid>.<ext>` string a post points at; the bytes are a second
 artifact. Take the same file two ways, and compare hashes.
+
+**If `tar -tzf` lists nothing, there is nothing to assert**, and that is a finding, not a shortcut:
+an empty `app-uploads` volume means the backup of your uploads has never carried a byte, so nothing
+here can prove it would carry one. Plant one before the backup rather than after it: write a small
+file into the live volume (`docker compose cp` a 70-byte PNG to `app:/app/uploads/probe-<hex>.png`),
+take the set, and use that name below. The 2026-09-14 rehearsal did exactly this, and deleted the
+probe from the live volume afterwards, which is why `app-uploads` is empty again.
 
 6a. From the archive, on the host:
 
@@ -193,11 +218,11 @@ Pop-Location
 6b. Into the scratch volume, then read it back the way the application reads it:
 
 ```powershell
-docker compose -p nexus-restore-test up -d --no-deps db redis app
-docker compose -p nexus-restore-test cp (Join-Path $set 'app-uploads.tar.gz') app:/tmp/uploads.tar.gz
-docker compose -p nexus-restore-test exec -T app tar -C /app/uploads -xzf /tmp/uploads.tar.gz
-docker compose -p nexus-restore-test exec -T app sha256sum /app/uploads/8f2c1f4a-...-9b7c3d1e4f2a.png
-docker compose -p nexus-restore-test exec -T app curl -sS -o /dev/null -w '%{http_code} %{size_download}\n' http://localhost:8080/uploads/8f2c1f4a-...-9b7c3d1e4f2a.png
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml up -d --no-deps db redis app
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml cp (Join-Path $set 'app-uploads.tar.gz') app:/tmp/uploads.tar.gz
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app tar -C /app/uploads -xzf /tmp/uploads.tar.gz
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app sha256sum /app/uploads/8f2c1f4a-...-9b7c3d1e4f2a.png
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app curl -sS -o /dev/null -w '%{http_code} %{size_download}\n' http://localhost:8080/uploads/8f2c1f4a-...-9b7c3d1e4f2a.png
 ```
 
 The two hashes must be identical, and the last line must be `200` with a byte count equal to the
@@ -214,9 +239,9 @@ quiet because the restored database already contains an `ADMIN`.
 ## 7. Tear it down
 
 ```powershell
-docker compose -p nexus-restore-test ps --format '{{.Name}} {{.Status}}'
-docker compose -p nexus-restore-test down --remove-orphans
-docker compose -p nexus-restore-test down -v
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml ps --format '{{.Name}} {{.Status}}'
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml down --remove-orphans
+docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml down -v
 docker volume ls --format '{{.Name}}' | Select-String 'nexus-restore-test'
 docker compose -p nexus-vibe ps --format '{{.Name}} {{.Status}}'
 ```
@@ -246,37 +271,80 @@ deliberate gap rather than an oversight:
   dashboards and alert rules are in git under `docker/observability/grafana/provisioning`; what a
   lost `grafana-data` really costs is the Grafana admin password and UI state.
 
-## First rehearsal record (to fill)
+## 9. First rehearsal log (2026-09-14, the first time this was actually run)
 
-Not executed. This section is the evidence checklist for whoever runs it; paste the real output
-under each heading, in this file, and correct any step that needed improvising - that correction is
-part of E5's acceptance, not a bonus.
+Host: single Windows machine, Docker Engine 29.5.3. Live `nexus-vibe` stack was `Up` for the whole
+run and is byte-for-byte untouched afterwards (`Up 2 days`, all six containers, same names). Raw
+terminal output is kept on that machine under
+`benchmark/observability/evidence/restore-rehearsal/20260914.txt`; this section is the readable
+version of it.
 
-- [ ] Date, host, and the exact `docker compose ps` state of `nexus-vibe` while the drill ran
-      (the point is that the live stack was up and untouched throughout).
-- [ ] The full command list actually used, copied from the terminal, including which
-      `yyyyMMdd-HHmmss` set was restored and where it came from.
-- [ ] `manifest.json` for that set: `takenAt`, `complete`, `verified.db.gzBytes`,
-      `verified.db.plainBytes`, `verified.db.statements`, `verified.db.plainSha256`.
-- [ ] The host-side `Get-FileHash` of the decompressed dump, next to the manifest value, and the
-      word "match" or what happened instead.
-- [ ] The pre-restore `COUNT(*)` output from step 2 (proves the scratch database was empty).
-- [ ] The `mysql` load command with its exit status and any stderr it produced.
-- [ ] `dump 行数`: the statement line count from `manifest.json`, and the `wc`-equivalent on the
-      decompressed file: `(Get-Content -LiteralPath $dst -ReadCount 1000 | Measure-Object -Line).Lines`.
-- [ ] `select count(*)` comparison table: every table in `rowCounts`, manifest value, restored
-      value, and a difference column that is empty.
-- [ ] Five `id, LEFT(title, 40)` rows from step 5, legible, so a reader can see the Chinese came
-      back as Chinese.
-- [ ] One uploaded file: its name, the host-side sha256 from 6a, the in-volume sha256 from 6b, and
-      the `curl` line showing `200` plus `size_download`.
-- [ ] The output of all four teardown commands in step 7, including the empty `Select-String`.
-- [ ] Anything this runbook got wrong, fixed in place, with a one-line note on what the first
-      attempt actually needed.
-- [ ] The schema probe from rule 4 of step 4, so the record shows which one-shot migrations the
-      restored database really carries.
+### What had to be fixed before a single step was runnable
 
-## 9. How far this file has actually been checked
+Three blockers, all found by executing rather than by reading:
+
+1. **`scripts/backup.ps1` could not start.** It asked `docker compose ls` for a Go template
+   (`--format {{.Name}}`), and that command rejects Go templates outright, so every run died on the
+   destination check before touching the database. Now `--format json` + `ConvertFrom-Json`.
+2. **The scratch project collided with the live one.** `container_name:` is *not*
+   project-scoped (volumes are), so `-p nexus-restore-test` still tried to create `nexus-db` while
+   the real site owned that name. `docs/runbook/docker-compose.restore-test.yml` renames the
+   containers to `nexus-restore-*`; every command in this file now passes both `-f` files.
+3. **Container `healthy` does not mean TCP is listening.** Covered in section 2 above: the first
+   load failed with `ERROR 2003` against a healthy container.
+
+One more finding, about the premise rather than the mechanics: the ticket said "second volume".
+This machine has one NVMe (`SAMSUNG MZVL2512HCJQ`, 477 GB) partitioned into `C:`, `D:` and `E:`, so
+the rehearsal's destination `E:\nexus-vibe-backups` is a different *volume* on the *same physical
+disk* - it survives a dropped dump, not a dead drive. `backup.ps1` now detects that and puts a
+`same-physical-disk` warning into `manifest.json` -> `warnings` plus a console WARNING. The rehearsal
+ran with that warning printed, correctly.
+
+### What was asserted, with the numbers
+
+Backup set: `E:\nexus-vibe-backups\rehearsal\20260914-061050`, taken from the live stack while it
+served traffic.
+
+| Check | Expected | Actual |
+| --- | --- | --- |
+| `manifest.json` -> `complete` | `true` | `true` |
+| Dump size | - | 31027 B gzipped, 177131 B plain, 351 statements |
+| Decompressed sha256 vs `verified.db.plainSha256` | equal | equal (`5e5a496e2a0b3ee4…fd49eea`) |
+| `mysql < dump` exit code | 0 | 0, no stderr |
+| Row counts, all 10 tables | manifest value | identical (see below) |
+| Chinese titles after load | legible | legible, no `?` and no box-drawing garbage |
+| `migrate-0005/6/7` schema objects | present in dump | present (`email`, `review_lock_until`/`review_owner`/`review_attempts`, `idx_post_ai_sort`) |
+| Uploaded file served by the restored app | `200` + real size | `200 70` |
+| Uploaded file hash, archive vs volume vs HTTP response | equal | equal (`a4bcd7b80c65e14e…f6f3443`) |
+| Scratch volumes after `down -v` | none | none; `nexus-restore-test` volume list empty |
+| Live stack after rehearsal | `Up`, untouched | `Up 2 days`, 6/6 containers |
+
+Row counts, manifest then restored, in manifest order - all differences zero:
+`sys_user` 10, `vibe_post` 32, `vibe_comment` 18, `vibe_post_like` 0, `vibe_post_tag` 16,
+`vibe_tag` 7, `vibe_channel` 7, `sys_message` 11, `ai_review_log` 957, `vibe_prompt_version` 7.
+
+The uploads leg needed a file to exist to restore, so the rehearsal wrote a 70-byte PNG
+(`probe-4d588e6d14f749be88a7744c20d9b168.png`) into the live volume first - `app-uploads` had been
+empty, which is why the earlier set at `20260914-060257` is a database-only backup. The probe file
+was deleted from the live volume once the run was over; `app-uploads` is back to zero files.
+
+Volume inventory for that set: 5 of the 8 declared volumes exist on this host. The absent three are
+`app-logs` (the live stack predates the log volume), plus `prometheus-data` and `grafana-data`
+(monitoring profile not started on this project). That is recorded, not smoothed over.
+
+### What the rehearsal still does not prove
+
+- **There is no off-box copy.** Both backup sets live on the same physical NVMe as the database they
+  protect. The runbook's own first rule - a second disk or a second machine - is not satisfied on
+  this host, and `manifest.json` now says so in `warnings`.
+- **`es-data` has no bulk reindex path**, so the site that comes back from this procedure answers
+  searches from an index that is silently empty while the database holds every post. Section 8 keeps
+  it as the sharpest known gap; it is follow-up work, not a rehearsal defect.
+- A restore into a *real* disaster - a dead volume, an app pinned to the restored database, DNS and
+  TLS back in the picture - was not attempted. This proves the artifacts are readable and the
+  commands work, on a healthy host, next to a running site.
+
+## 10. How far this file has actually been checked
 
 So the record is unambiguous about what is measured and what is written:
 
@@ -291,6 +359,11 @@ So the record is unambiguous about what is measured and what is written:
   plus a NUL and an 0xFF through the gzip path and hashes what comes back out.
 - The failure path is executed for real: a refused destination produces one `BACKUP FAILED` line on
   stderr, the next-eyes block, and exit code 1.
-- **No docker command in this file has been run, and no restore has been performed.** The dump,
-  load, count and upload assertions are untested prose until the rehearsal above fills in.
-  `-DryRun` is a rehearsal of the plan, never of the outcome.
+- **The restore was performed on 2026-09-14** against a real backup set taken from the running
+  stack, and every assertion in section 5 and section 6 passed with the numbers recorded in
+  section 9. Two commands in the first version of this file were not runnable as written (the
+  `mysqladmin` placeholder in section 2, and the `container_name` collision that section 1 now
+  explains); both are fixed here rather than left to the next reader.
+- What that run did **not** cover is listed at the end of section 9, and the headline is that both
+  backup sets sit on the same physical disk as the database, so the copy itself is still untested
+  against machine loss. `-DryRun` remains a rehearsal of the plan, never of the outcome.

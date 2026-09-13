@@ -1,0 +1,31 @@
+# Restore-rehearsal overrides. Used only together with -p nexus-restore-test:
+#
+#   docker compose -p nexus-restore-test -f docker-compose.yml `
+#     -f docs/runbook/docker-compose.restore-test.yml up -d db
+#
+# docker-compose.yml pins container_name for every service, and container names are NOT
+# project-scoped the way named volumes are. Without this file a rehearsal started beside a running
+# site dies with "Conflict. The container name /nexus-db is already in use" - which is precisely
+# what the first rehearsal did, at the very first command, and why this file exists. The volumes
+# were always safe (compose prefixes them with the project name); the containers were not.
+#
+# Nothing here changes configuration: same image, same volumes, same environment. It only renames
+# the containers so a scratch rehearsal and a live stack can occupy the same daemon at once.
+services:
+  db:
+    container_name: nexus-restore-db
+
+  redis:
+    container_name: nexus-restore-redis
+
+  elasticsearch:
+    container_name: nexus-restore-es
+
+  ollama:
+    container_name: nexus-restore-ollama
+
+  app:
+    container_name: nexus-restore-app
+
+  web:
+    container_name: nexus-restore-web

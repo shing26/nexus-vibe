@@ -357,6 +357,29 @@ function Resolve-BackupDestination {
     # here exists to make "it is on another disk" a checked claim rather than an intention.
     param([string]$Path, [string]$SourceRoot)
 
+    function Get-SamePhysicalDisk {
+        # Drive letters are not failure domains. Get-Partition maps both letters to the disk behind
+        # them, which is the only way this script can tell "second disk" from "second partition".
+        param([string]$DestinationPath, [string]$SourcePath)
+        try {
+            $srcQualifier = Split-Path -Qualifier $SourcePath
+            $dstQualifier = Split-Path -Qualifier ([System.IO.Path]::GetFullPath($DestinationPath))
+            if (-not $srcQualifier -or -not $dstQualifier) { return $null }
+            $srcDisk = @(Get-Partition -DriveLetter $srcQualifier.TrimEnd(':') -ErrorAction Stop |
+                         Select-Object -ExpandProperty DiskNumber)
+            $dstDisk = @(Get-Partition -DriveLetter $dstQualifier.TrimEnd(':') -ErrorAction Stop |
+                         Select-Object -ExpandProperty DiskNumber)
+            $shared = @($srcDisk | Where-Object { $dstDisk -contains $_ })
+            if ($shared) { return $shared[0] }
+        } catch {
+            # Get-Partition is not available off Windows (or not permitted). The volume check above
+            # still ran; this one is a stronger claim we cannot always make, so it stays unmade
+            # rather than being silently reported as "different disk".
+            Write-Line '  note     could not resolve physical disks; same-disk check skipped' 'DarkGray'
+        }
+        return $null
+    }
+
     $full = [System.IO.Path]::GetFullPath($Path)
     if ($full.StartsWith('\\localhost\') -or $full.StartsWith('\\127.0.0.1\') -or
         $full.StartsWith('\\.\')) {
@@ -413,6 +436,20 @@ function Resolve-BackupDestination {
         Stop-Backup ("destination $full is on $($source.Name) - the same volume as $SourceRoot. " +
                      'E5 exists because this box has one disk; give -Destination a second volume: ' +
                      'another drive letter, or a share like \\server\backups.')
+        # Different drive letter is not a different disk, and on this machine the difference is
+        # nothing: C, D and E are partitions on one Samsung NVMe, so "back it up onto E:" protects
+        # against a corrupt filesystem and a deleted file, and against nothing else. A dead disk
+        # takes both copies. Checked here rather than assumed, because this is the one property that
+        # decides whether the whole ticket is worth anything.
+        $sameDisk = Get-SamePhysicalDisk -DestinationPath $full -SourcePath $SourceRoot
+        if ($sameDisk) {
+            Write-Line "  WARNING  destination shares physical disk $($sameDisk) with the repository." 'Yellow'
+            Write-Line '           The set survives a bad delete or a corrupt filesystem. It does not' 'Yellow'
+            Write-Line '           survive the disk: copy it off-box (another machine, a NAS, a share)' 'Yellow'
+            Write-Line '           before treating this as a backup.' 'Yellow'
+            $script:sameDiskWarning = "destination and repository share physical disk $sameDisk; " +
+                                      'not recoverable from a disk failure'
+        }
     }
     return [pscustomobject]@{ Path = $full; Kind = $kind; Volume = "$($dest.Name)";
                               SourceVolume = "$($source.Name)"; Distinct = $true }
@@ -550,12 +587,16 @@ try {
     # ---------------------------------------------------------------------- stack reachability
 
     # `compose ls` takes no -p; it is the one call that answers "is this project up at all".
-    $projectArgs = @('compose', 'ls', '--format', '{{.Name}}')
+    # --format json, not {{.Name}}: compose ls accepts only json and table, so the Go template
+    # docker ps would have taken here fails with "format value could not be parsed" — which is what
+    # this line did on its first real run, before a single artifact had been written.
+    $projectArgs = @('compose', 'ls', '--format', 'json')
     $serviceArgs = Get-ComposeArgs @('ps', '--status', 'running', '--services')
     $running = Step 'preflight-stack' "docker $(Format-Argv $projectArgs)`ndocker $(Format-Argv $serviceArgs)" {
-        $projects = Invoke-DockerText -Cmd $projectArgs
-        if (@($projects -split "`n" | Where-Object { $_.Trim() -ieq $Project }).Count -eq 0) {
-            Stop-Backup "compose project '$Project' is not running; there is nothing to dump."
+        $projects = @(try { (Invoke-DockerText -Cmd $projectArgs | ConvertFrom-Json) } catch { @() })
+        if (@($projects | Where-Object { $_.Name -ieq $Project }).Count -eq 0) {
+            Stop-Backup "compose project '$Project' is not running; there is nothing to dump." +
+                        " compose ls reported: $(@($projects | ForEach-Object { $_.Name }) -join ', ')"
         }
         $services = @(Invoke-DockerText -Cmd $serviceArgs) -split "`n" |
                     ForEach-Object { $_.Trim() } | Where-Object { $_ }
@@ -716,7 +757,8 @@ try {
         rowCounts     = $counts
         volumes       = $inventory
         verified      = $verified
-        warnings      = @(@($script:dumpWarning, $script:tarWarning) | Where-Object { $_ })
+        warnings      = @(@($script:dumpWarning, $script:tarWarning, $script:sameDiskWarning) |
+                          Where-Object { $_ })
         retentionKeep = $Keep
     }
     Step 'write-manifest' "run record -> $manifestPath" {

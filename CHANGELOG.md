@@ -42,10 +42,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - **A release with a name**: `app`/`web` carry `image: nexus-vibe-{app,web}:${APP_TAG:?}`,
     `mem_limit` per container sized from measured usage (the compose file set no memory ceiling at
     all on a 7.65 GiB Docker VM shared with two other projects), and CI uploads the jar and `dist`
-  - **A backup that has not yet been restored**: `scripts/backup.ps1` (mysqldump + uploads with
+  - **A backup that has now been restored**: `scripts/backup.ps1` (mysqldump + uploads with
     SHA-256 and end-marker verification, retention, optional alert-bridge notification) and
     `docs/runbook/restore.md`, which records that `es-data` has no full-reindex path — a restored
-    site can serve a database whose search index is silently empty
+    site can serve a database whose search index is silently empty. The rehearsal ran on 2026-09-14
+    and passed every assertion (dump sha256 against the manifest, load exit 0, all ten table row
+    counts equal, Chinese titles legible, restored app serving the restored upload at `200` with a
+    matching hash); it also found two commands that did not work as written — `docker compose ls`
+    rejects the Go template `backup.ps1` asked it for, and `-p` does not scope `container_name:`, so
+    the scratch project collided with the live `nexus-db` until
+    `docs/runbook/docker-compose.restore-test.yml` renamed its containers. What stays unproven: the
+    "second volume" is a partition of the same physical NVMe, so there is still no off-box copy
 
 - **Observability round (P0-1..P0-6, P1-1, P1-3 — `docs/tickets/production-readiness.md`)**
   - **Structured log to disk**: `logback-spring.xml` gives prod a `LogstashEncoder` file appender on the
@@ -130,8 +137,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   the way the engine parses it; the alert-bridge ships 17 Python tests pinning the Feishu signature
   and the body it is computed over
 - Not yet proven, stated plainly: an alert arriving in a **real** Feishu group (the drill delivers to a
-  signature-verifying stand-in), Grafana panel rendering, a backup actually restored, and an A→B→A
-  rollback on a host — see the drill report's honest-list section
+  signature-verifying stand-in), Grafana panel rendering, an A→B→A rollback driven through the real
+  public entry point, and a backup copy that survives the death of its host disk — see the drill
+  report's honest-list section and `docs/runbook/restore.md` section 9
 
 ### Security
 

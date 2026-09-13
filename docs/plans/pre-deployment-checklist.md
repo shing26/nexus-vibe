@@ -77,6 +77,16 @@
       演练只能证明"告警到得了桥、桥失败时会喊出来"。
 - [ ] 上线 24 小时后回看 `/app/logs`（卷 `app-logs`）：确认滚动按 100MB / 7 天 / 1GB 收口，`docker logs` 侧 10m x 3 也没漏。
 
+## 备份与恢复（E5，2026-09-14，分支 `codex/production-readiness`）
+
+- [x] `scripts/backup.ps1` 真跑通：对运行中的栈导出备份集，逐件校验明文 SHA-256 / gzip / dump 结束标记，`manifest.json` 记行数与卷清单（本机 8 个声明卷里 5 个存在）。
+      过程里修掉两处会让脚本一步都跑不动的问题：`docker compose ls` 不接受 Go 模板（改 `--format json`），以及 `-p` 只管卷不管 `container_name`（新增 `docs/runbook/docker-compose.restore-test.yml` 把演练容器改名为 `nexus-restore-*`）。
+- [x] 按 `docs/runbook/restore.md` 把一次真实恢复演练做完（2026-09-14）：dump 哈希与 manifest 一致 → 导入退出码 0 → 10 张表行数逐项相等 → 中文标题可读 → `migrate-0005/6/7` 的对象都在 → 恢复出的 app 以 `200 70` 提供还原后的上传文件且三处哈希一致；演练后 6 个临时卷清干净、生产栈 `Up 2 days` 未被碰。
+- [x] 演练暴露的两处文字坑就地改掉：section 2 的 `mysqladmin` 占位命令原本不可执行（容器 `healthy` 早于 TCP 可连，第一次导入死在 `ERROR 2003`），section 1 补上"容器名不是 project-scoped"这条前提。
+- [ ] **换一块真正的异盘或异机副本**：本机是单块 NVMe 分区成 C/D/E，所谓"第二卷"和数据库同盘，盘坏即一起没。脚本现在会把这件事打印出来并写进 `manifest.json` -> `warnings`，但没人替你把副本搬走。
+- [ ] 定下 `es-data` 的重建索引路径（E5 的后续票）：现在按这份 runbook 恢复出来的站点，数据库里帖子齐全、索引里空的，搜索静默返回空且不报错。
+- [ ] 装上周计划任务并确认它真的在跑（`Get-ScheduledTask`），第一次触发后回看 `manifest.json` 的 `complete` 与 `warnings`。
+
 ## 发布与回滚（E4，2026-09-14，分支 `codex/production-readiness`）
 
 - [x] compose 的 `app`/`web` 不再匿名：`image: nexus-vibe-app:${APP_TAG:?}` 与 `nexus-vibe-web:${APP_TAG:?}`（`alert-bridge` 本来就有 tag）。缺 `APP_TAG` 时 `docker compose config` 直接报错，而不是留下一个没有回滚目标的 latest。本机 `.env` 若还没有这个键，先补一行 `APP_TAG=dev`。
@@ -84,7 +94,7 @@
 - [x] 内存上限补齐：`elasticsearch` 1g、`ollama` 8g（原先全栈只有 `app` 有 `mem_limit`）。这两个不自我封顶——app 的堆按容器上限自适应，ES 的堆钉死在 `ES_JAVA_OPTS`、Ollama 按模型体积增长；没有上限时，OOM killer 随机挑的受害者可能是 MySQL。
 - [x] CI 在 master push 用 `actions/upload-artifact@v4` 落 `target/nexus-campus.jar` 与 `frontend/dist`（private registry 按票面 Rejected，先要一个可指认的对象）；同时后端 job 换到 JDK 21（运行时），镜像 job 对 `Dockerfile`、`frontend/Dockerfile`、`pom.xml`、`src/main/**` 的 PR 变更做构建验证，master push 构建后真 `docker run` 探 `/actuator/health`。
 - [ ] 发布纪律：宿主机上始终保留最近两个 `APP_TAG` 的镜像；回滚窗口内禁止 `docker image prune -a` 和 `docker compose down --rmi all`（E4 票面的 Rejected 段已把 registry 出圈，旧 tag 不 prune 是回滚唯一还活着的前提）。
-- [ ] 回滚一条命令（尚未在演练机演示 A→B→A，这是 E4 的验收项）：
+- [x] 回滚一条命令（A→B→A 已在演练里跑通：换 `APP_TAG` 后不带 `--build` 起，读容器自己的 `Config.Image` 确认换到的就是目标 tag，两侧 `/api/v1/posts` 都 200）：
       `APP_TAG=<上一个值> docker compose up -d app web`（不带 `--build`，直接用留在宿主机上的旧镜像），
       随后 `curl -s http://localhost:8080/api/v1/posts` 确认真的答回来了，再把该值写回 `.env`，防止下次 `up` 又漂回新版本。
 - [ ] 发布与回滚都动 `app` + `web` 两个服务、共用同一个 `APP_TAG` 值：SPA 和 API 是一组，不拆开滚。

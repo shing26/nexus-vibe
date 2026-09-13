@@ -254,10 +254,26 @@ adds credentials and a network hop without adding a rollback target.
 
 ## E5 - Back up, and prove the backup is restorable
 
-Status: script and runbook in; **the live rehearsal is NOT done**, which is the whole
-acceptance criterion. Single host, single disk, `db-data`/`app-uploads` volumes, one
-human, no copy. A dead disk ends the project, and — unlike every gap in the
-previous round — nothing in the system would tell anyone.
+Status: **rehearsed on 2026-09-14** — the acceptance criterion this ticket exists for. A
+backup set taken from the running stack was restored into a scratch compose project, and every
+assertion passed with the numbers: dump sha256 matched the manifest, the load exited 0, all ten
+table row counts matched exactly (32 posts, 10 users, 957 review logs), Chinese titles came back
+legible, and the restored application served the restored upload at `200` with a byte-for-byte
+matching hash. Evidence and the three blockers the run exposed are in
+`docs/runbook/restore.md` section 9.
+
+Two acceptance lines stay open, and neither is a documentation problem:
+- **No off-box copy.** The host has one 477 GB NVMe partitioned into `C:`/`D:`/`E:`; "second
+  volume" turned out to mean the same physical disk. The backup script now prints and records a
+  `same-physical-disk` warning instead of letting the destination look safer than it is, but a dead
+  drive still ends the project — which was the original fear, and is unfixed.
+- **`es-data` has no bulk reindex path**, so a restored site answers from a quietly empty index.
+  Filed as follow-up in `restore.md` section 8.
+
+Also found by running rather than reading: `docker compose ls` rejects Go templates, so
+`backup.ps1` died on its own destination check on every run until that moved to `--format json`;
+and `container_name:` is not project-scoped, so the scratch project collided with the live
+`nexus-db` until `docs/runbook/docker-compose.restore-test.yml` renamed its containers.
 
 What the writing of the runbook measured, three of it contradicting this ticket:
 - The migration history is not what the glob implied. `migrate-0001`–`0004` have never
@@ -396,8 +412,8 @@ Status: done as a dated 复核, not as a rewrite — see the new section at the 
 `docs/research/production-readiness-assessment-2026-09.md`, which is the choice this ticket
 should have named up front. The assessment's own section numbers (§4.4, §5.1, §7) do not exist:
 that document is structured as 一–五 with `### 1）…5）` subsections and no evidence index, so the
-scope list below refers to the *other* document (the career-facing write-up, which
-`.gitignore` keeps out of the repository). Corrected: every claim in the 复核 is pinned to a
+scope list below refers to a write-up that lives outside this repository (`.gitignore` keeps it
+out). Corrected: every claim in the 复核 is pinned to a
 command or a named drill step, and all eight step names were checked against `drill.ps1`.
 
 Original finding, kept for the record: the assessment this round was planned against was written
@@ -410,25 +426,26 @@ config validation, non-root app/web containers, `@RequiresRole`, frontend crash 
 still open, four of them by this round's explicit choice. Its numbers
 are stale too: 243 test cases (now 296), 28 test classes (now 44), 6 ADRs (now 8),
 7 compose services (now 9), "traceId 占位/改造中" (now shipped), "logback 未提交"
-(now committed), and "CI 3 Job 全绿门槛" (currently red on PR #2). Left uncorrected
-these are the easiest questions to fail in an interview.
+(now committed), and "CI 3 Job 全绿门槛" (currently red on PR #2). Left uncorrected, these are
+the claims a reader can disprove in one command, which is the fastest way to lose an argument
+about everything else in the document.
 
 **Scope:**
 - Rewrite the 5-dimension table and the headline to what the tree proves, and
   split the sentence in two: observability is at "instrumented, alerted,
   exercised" level for a single instance; delivery operations are still manual.
-- Update M8/M10, §4.4, §4.5, §5.1, §5.4 and the interview answers at §7 (the
-  "补可观测性" answer is now a completed thing, which is a better story) and add
+- Update M8/M10, §4.4, §4.5, §5.1, §5.4 and the "补可观测性" conclusion at §7 (that work is now a
+  completed thing, which is a better story than a plan) and add
   the E1 finding as a named example of what a non-hermetic gate costs.
 - Record the accepted trade-offs as decisions, not omissions: 1GB/7-day local
   log retention with no search layer, hand-rolled trace id instead of OTel, and
   no private registry.
 - Re-measure rather than hand-adjust: `mvn test` count, `git ls-files` counts,
   `docker compose config --services`, `git shortlog -sne`, and line totals.
-- Out of this ticket: the job-hunting write-up that carried the same stale
-  numbers is deliberately not in this repository (`.gitignore` keeps it out).
-  Nothing in the tracked tree may name it; the 复核 section above is the
-  shared source of truth for whoever updates it.
+- Out of this ticket: a non-tracked write-up that carried the same stale
+numbers is deliberately not in this repository (`.gitignore` keeps it out).
+Nothing in the tracked tree may name it; the 复核 section above is the
+shared source of truth for whoever updates it.
 - Not done here, and it should be its own ticket: the assessment's five-dimension percentages
   (日志体系 45%、监控与告警 15%) and its "综合约 60%" are still the 2026-09-12 numbers. They are
   now wrong in the optimistic direction for two of the five, and re-deriving them is a judgement
