@@ -179,6 +179,13 @@ management:
     web:
       exposure:
         include: health,info,prometheus
+  metrics:
+    tags:
+      # Every alert rule and dashboard panel selects on application="nexus-vibe". Boot 3.3 does
+      # not add that tag on its own, so without this line the selectors match nothing and each
+      # rule silently sits in its noDataState: an alert that can never fire still looks green in
+      # the UI. Bound to the application name rather than a literal so the two cannot drift.
+      application: ${spring.application.name}
   endpoint:
     health:
       # Two levels: the top-level answer is one word wide and safe to wire to a container

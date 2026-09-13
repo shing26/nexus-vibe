@@ -48,7 +48,11 @@ class ActuatorMetricsTest {
         mockMvc.perform(get("/actuator/prometheus"))
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("# TYPE jvm_memory_used_bytes gauge")))
-                .andExpect(content().string(containsString("http_server_requests_seconds_count")));
+                .andExpect(content().string(containsString("http_server_requests_seconds_count")))
+                // Every alert rule selects on application="nexus-vibe". Boot 3.3 does not add that
+                // tag by itself, so this is the line that fails if the binding is dropped: the rules
+                // would match nothing and still look healthy in their noDataState.
+                .andExpect(content().string(containsString("application=\"nexus-vibe\"")));
     }
 
     @Test
