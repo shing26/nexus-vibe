@@ -10,7 +10,9 @@ and frontend crash reporting are deliberately left for the next round.
 
 ## T1 - Log to disk as structured JSON
 
-Status: done on `codex/production-readiness`.
+Status: done on `codex/production-readiness`. The drill read the file the prod
+container actually wrote: one JSON object per line on the `app-logs` volume, with
+the same `traceId` the response header carried.
 
 **Scope:** a rebuilt container must not lose the log lines that explain why it
 was rebuilt, and a machine must be able to read them.
@@ -39,7 +41,9 @@ was rebuilt, and a machine must be able to read them.
 
 ## T2 - Expose metrics and ship a monitoring stack
 
-Status: done on `codex/production-readiness`.
+Status: done on `codex/production-readiness`. The prod container serves the
+scrape with OS and disk metrics and no cgroup crash, so the exclude stayed
+deleted and this ticket is not blocked.
 
 **Scope:** scrapeable metrics without opening a port to the public internet.
 
@@ -72,8 +76,10 @@ Status: done on `codex/production-readiness`.
 
 Depends on T2.
 
-Status: done on `codex/production-readiness`. Rules and bridge are in the repo and the bridge
-unit tests pass; delivery to a real Feishu group is a drill step.
+Status: done on `codex/production-readiness`. Rules and bridge are in the repo and the bridge's
+5 unit tests pass. The drill checked every metric name the 4 rules select against a live scrape,
+and posted a real alert at the bridge, which answered 502 and named the missing webhook rather
+than swallowing it. Delivery into a real Feishu group still needs a webhook and stays manual.
 
 **Scope:** the AI pipeline has to report its own health, and a human has to
 hear about it.
@@ -104,8 +110,9 @@ hear about it.
 
 ## T4 - Two-level health and actuator lockdown
 
-Status: done on `codex/production-readiness`. The nginx deny rule is verified by config syntax
-only; the public probe is a drill step.
+Status: done on `codex/production-readiness`. Verified from outside the stack: `/actuator/health`
+200 through nginx, `/actuator/prometheus`, `/actuator/health/deps` and `/actuator/env` all 404,
+and a `DEGRADED` app stayed `healthy` to Docker with zero restarts.
 
 **Scope:** `unhealthy` must mean "cannot serve", and no dependency outage may
 get the container killed while it is still serving traffic.
@@ -133,9 +140,10 @@ get the container killed while it is still serving traffic.
 
 ## T5 - Bootstrap admin and an empty production seed
 
-Status: done on `codex/production-readiness`. The empty-database prod start is verified by
-unit tests and by the MySQL gate in `DemoContentSeeder`; the first-start drill step is the
-one that reads the actual `sys_user` table.
+Status: done on `codex/production-readiness`. Verified on a first boot with an empty database:
+0 posts, 7 reference channels, and the bootstrap `admin` logs in with role ADMIN. `DemoContentSeeder`
+refuses to touch a MySQL that does not already hold demo rows, which is the guard that keeps an
+existing deployment's content alone.
 
 **Scope:** a real deployment must be administrable without a ghost account,
 and must not start with sample content.
@@ -233,15 +241,32 @@ build pass unchanged, and `ResponseContractTest` now fails if the envelope drift
 
 ## Drill - Prove it under a real failure
 
-`benchmark/observability/drill.ps1` runs the observability profile and drives
-an LLM outage end to end: metric names present, OS metrics present in the
-prod container, the post parks in `pending-llm` while the breaker gauge reads
-1, health stays 200 `DEGRADED`, the container is not restarted, the rate
-limit counter and alert fire, recovery re-runs the reconcile, a test alert
-lands in the Feishu group, and public probes of the actuator paths 404.
+Status: done. 16 of 16 steps pass on a real run
+(`2026-09-13 13:19:32`, ~9 min with prebuilt images); conclusions in
+[observability-drill-2026-09.md](../research/observability-drill-2026-09.md).
 
-**Acceptance:** conclusions written up in
-`docs/research/observability-drill-2026-09.md`.
+`benchmark/observability/drill.ps1` runs the monitoring profile as its own
+compose project (own containers, own volumes, published on 18080) so it can
+sit next to a running stack, and drives an LLM outage and an exhausted rate
+limit for real. Proven on the machine: a first install is empty but
+administrable, JSON logs land on the `app-logs` volume with the request's
+trace id, every AI metric name is on the scrape with its SLO buckets, OS and
+disk metrics come back in the prod container once the cgroup exclude is gone
+(no JVM crash, so T2 is not blocked), 3 posts park in `PENDING_REVIEW` +
+`FAILED` while the breaker gauge reads 1 and sheds, health stays
+`200 DEGRADED` with Docker still calling the container healthy, the limiter
+counts its own 429s, the recovery sweep re-dispatches what the outage parked,
+the deps group names all four components, and public nginx serves
+`/actuator/health` while denying everything else under `/actuator/*`.
+
+**Acceptance:**
+- Each step reports PASS with the raw probe kept in an evidence file, and the
+  report lists what the drill deliberately could not prove: delivery into a
+  real Feishu group (no webhook configured), Prometheus moving a rule into
+  pending/firing (needs a 5m/15m sustained condition), the Grafana UI, and
+  the rotation caps.
+- Unaffected: the developer's own stack and volumes (the drill only ever
+  removes `nexus-drill_*`), and `mvn test` at 284.
 
 ## Out of scope this round
 

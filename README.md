@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-281%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-284%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -219,6 +219,35 @@ docker compose exec ollama ollama pull qwen2.5:7b
 4. `cloudflared service install` 注册为 Windows 服务；HTTPS 生效后把仓库
    homepage 指向线上域名。
 
+### Observability
+
+三层：日志、指标、告警。都不新开公网端口。
+
+| 层 | 位置 | 内容 |
+|----|------|------|
+| 日志 | `docker logs` + 卷 `app-logs` 下的 `/app/logs` | prod 额外把 JSON 落盘（单件 100MB / 保留 7 天 / 总量 1GB，异步写入），重建容器不丢历史；每行带 `traceId` |
+| 指标 | `GET /actuator/prometheus`（仅 compose 内网） | JVM / HTTP 之外是 AI 链路自己的数：`llm_chat_completions_total{outcome}`、`llm_chat_completion_duration_seconds`、`llm_circuit_breaker_open`、`rate_limit_rejected_total{path}`、`ai_review_pending_posts`、`ai_review_reconcile_repairs_total{kind}` |
+| 告警 | Grafana 规则 → `alert-bridge` → 飞书自定义机器人 | 4 条：熔断打开、评审积压、5xx 比率、限流突增；webhook 与加签密钥只进 `.env` |
+
+监控栈挂在 profile 上，默认 `docker compose up` 不启动它，公网面仍然只有 nginx:80：
+
+```bash
+docker compose --profile monitoring up -d
+```
+
+Prometheus 与 Grafana 都不映射宿主端口，演练时用 `docker compose exec` 访问；dashboard 与告警规则都在
+`docker/observability/grafana/provisioning/` 里版本化，重建机器不会把告警丢掉。
+
+健康检查分两层：`/actuator/health` 只回答"还能不能服务"——Redis / Elasticsearch / LLM 掉线是
+`DEGRADED` + HTTP 200，容器不会被杀；解释在 `/actuator/health/deps`（同样仅内网，nginx 对其余
+`/actuator/*` 一律 404）。为什么这样切记录在 [ADR-0007](docs/adr/0007-degraded-status-is-not-unhealthy.md)。
+
+每个请求一个 16 位十六进制追踪号：日志字段 `traceId`、响应头 `X-Trace-Id`、5xx 响应体里的 `traceId`，
+跨线程池和定时任务都跟着走；前端错误提示显示前 8 位，用户报障时只需要给这个数。
+
+`benchmark/observability/drill.ps1` 会把上面这套真跑一遍故障（独立 compose project 与独立卷，不会碰正在跑的栈），
+结论见 [docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
+
 ### Privacy & Security Notes
 
 - Demo 账号与样例内容同属演示数据：`DEMO_SEED_ENABLED=false`（生产默认）时两者都不写入，库里只有功能性的 `AiAgent(999)` 与你引导出的 `admin`。历史做法是写入随机不可恢复密码的幽灵账号，见 ADR-0008。
@@ -243,6 +272,7 @@ nexus-vibe/
 │   ├── init.sql                # Production schema + reference data (channels, tags)
 │   ├── migrate-*.sql           # One-shot migrations for existing volumes
 │   └── benchmark/              # 100k-row EXPLAIN/loadtest harness
+├── docker/observability/       # Prometheus + Grafana provisioning + the Feishu alert bridge
 ├── benchmark/jmeter/           # Async-pool load test scenario
 ├── docs/
 │   ├── adr/                    # Architecture Decision Records
@@ -276,10 +306,15 @@ curl http://localhost:8081/api/v1/users/2/summary
 ## Testing
 
 ```bash
-mvn test                      # 281 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
+mvn test                      # 284 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
+cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 5 tests: Feishu sign + body
+pwsh -File benchmark/observability/drill.ps1      # 16 步故障演练，另起 compose project，~13 分钟，需 Docker
 ```
+
+CI（`.github/workflows/maven.yml`）只跑 `mvn test`：告警桥的 Python 单测与演练脚本都在本地跑，
+演练结论见 [docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
 
 ## License
 
