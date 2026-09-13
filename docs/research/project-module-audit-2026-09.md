@@ -195,7 +195,6 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 - 配套亮点：`isValidReviewResult` + `isSubstantive` + `PLACEHOLDER_PATTERN` + `VALID_SEVERITIES` 组成**语义级**有效性校验，不是"能 parse 就算成功"；二次仍无效则 `markPost(FAILED)` + 通知作者（第 333-347 行），"静默降级"被落实成具体行为：不写脏分数、不假装成功、状态进终态、人拿到消息。
 - `supersedePreviousReviewComments`（第 489 行）：重评时隐藏旧 AI 评论，避免同一线程出现两个矛盾评分，历史全量保留在 `ai_review_log`。
 - `buildContextExcerpt` + `estimateTokens`（第 245-270 行）：按 `AI_MAX_CONTEXT_TOKENS`（默认 12000）截断上下文，**成本上界是配置项而不是祈祷**。
-- 测试：`AiReviewServiceTest` 15 例，后端单测第二重的类。
 - 测试：`AiReviewServiceTest` 15 例（按用例数排全仓第四，前三是 `PostControllerIntegrationTest` 29、`SysUserServiceTest` 17、`LikeCounterServiceTest` 16）。
 
 **`AiSafetyCheckListener.java`（278 行）— 语义安全检测 — C3**
