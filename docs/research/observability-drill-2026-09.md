@@ -1,4 +1,4 @@
-﻿> 演练脚本：`benchmark/observability/drill.ps1`（16 步）
+﻿> 演练脚本：`benchmark/observability/drill.ps1`（当前 21 步；本文第一到第五节是 09-13 那一版，第六节是 09-14 的重跑与纠偏）
 > 环境：Windows 宿主机 + Docker 29.5.3；独立 compose project `nexus-drill`、独立命名卷、公网侧发布在 18080；
 > 镜像用本轮分支 `codex/production-readiness` 构建的 prod 形态（`SPRING_PROFILES_ACTIVE=prod`，`temurin:21-jre`）。
 > 作为结论的一次：2026-09-14 05:25:04 → 05:35（约 10 分钟，含镜像构建）。

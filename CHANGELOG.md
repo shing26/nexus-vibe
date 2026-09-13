@@ -114,7 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Documentation
 
-- Failure drill `benchmark/observability/drill.ps1` (20 steps, real container stack, dead-port LLM
+- Failure drill `benchmark/observability/drill.ps1` (21 steps, real container stack, dead-port LLM
   mock, and a signature-verifying webhook sink standing in for Feishu) with results and — equally —
   its own false-red and false-green history in
   `docs/research/observability-drill-2026-09.md`; module/completion audit in

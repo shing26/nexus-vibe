@@ -20,9 +20,18 @@ search module, not to a backup script, which is why it is a ticket and not a cav
 
 ## E1 - Stop scheduled jobs from poisoning the test context
 
-Status: done, pending the CI run that proves it. This is why PR #2 is red, and it is not a code regression: the
-failing run (`0284933`) changed one markdown file, and the run six minutes
-earlier (`a802b73`) was green on the same tests.
+Status: done, and CI proved it. `ca4cf6d` — one markdown-and-docs commit, the same shape that
+made run `34743397875` red — came back green in 59s, as did the code commit before it
+(`34783762204`, 1m2s). The failure this ticket describes was never a code regression: the red run
+(`0284933`) changed one markdown file, and the run six minutes earlier (`a802b73`) was green on the
+same tests.
+
+What is still not proven here, stated so the next person does not over-read two green runs: the
+flake was clock-driven, so it could only show itself on a run that happened to cross a `0 3/5 * * * ?`
+boundary while a stub window was closed. Two greens are consistent with the gate being fixed and are
+not evidence that it is fixed. The real evidence is the gate itself — `SchedulingGateTest` asserts
+that no job bean exists in the test context, which is why the mechanism cannot come back without a
+test going red. E1's acceptance asked for 3–5 repeats; that is a calendar matter now, not a work item.
 
 Mechanism, verified in the current tree:
 
