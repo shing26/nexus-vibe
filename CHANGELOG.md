@@ -44,8 +44,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     all on a 7.65 GiB Docker VM shared with two other projects), and CI uploads the jar and `dist`
   - **A backup that has now been restored**: `scripts/backup.ps1` (mysqldump + uploads with
     SHA-256 and end-marker verification, retention, optional alert-bridge notification) and
-    `docs/runbook/restore.md`, which records that `es-data` has no full-reindex path — a restored
-    site can serve a database whose search index is silently empty. The rehearsal ran on 2026-09-14
+    `docs/runbook/restore.md`. `es-data` is in no dump, so the runbook now carries the reindex as a
+    restore step (E9); a restored site that skips it serves an empty search index with a `200`. The
+    rehearsal ran on 2026-09-14
     and passed every assertion (dump sha256 against the manifest, load exit 0, all ten table row
     counts equal, Chinese titles legible, restored app serving the restored upload at `200` with a
     matching hash); it also found two commands that did not work as written — `docker compose ls`
@@ -53,6 +54,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the scratch project collided with the live `nexus-db` until
     `docs/runbook/docker-compose.restore-test.yml` renamed its containers. What stays unproven: the
     "second volume" is a partition of the same physical NVMe, so there is still no off-box copy
+  - **E9 - the reindex stopped grading its own homework**: this round's own docs claimed "there is no
+    bulk reindex path anywhere in the code", which was false when written — `POST
+    /api/v1/admin/search/reindex` and `PostSearchService.rebuildIndex` shipped in `9c4b002`
+    (2026-08-14) with tests. The real defect was the number: `rebuildIndex` returned the size of the
+    row list it had read from MySQL and the endpoint published it as `reindexed`, so a cluster that
+    rejected every document — or was not running — reported `reindexed: 32`. `bulkIndex` now returns
+    `BulkResult(submitted, indexed, failed)` counted from the `_bulk` body's per-item 2xx statuses
+    (an unreadable body counts as zero, the same fail-closed stance as ADR-0004), `createIndexIfNotExists`
+    reports whether the index is really ready so a rebuild cannot bulk into an auto-created index with
+    the wrong analyzer, the call asks for `refresh=true`, and its timeout went 10s → 60s because a
+    whole-site reindex is one request. 9 new unit tests plus a controller test that reads the body
+    instead of asserting `notNullValue()`; 305 JUnit cases green.
 
 - **Observability round (P0-1..P0-6, P1-1, P1-3 — `docs/tickets/production-readiness.md`)**
   - **Structured log to disk**: `logback-spring.xml` gives prod a `LogstashEncoder` file appender on the

@@ -152,8 +152,13 @@ public class AdminController {
         ApiResponse check = checkAdmin(role);
         if (check != null) return check;
         List<VibePost> posts = vibePostMapper.selectActivePostsOrdered();
+        PostSearchService.BulkResult result = postSearchService.rebuildIndex(posts);
         Map<String, Object> data = new HashMap<>();
-        data.put("reindexed", postSearchService.rebuildIndex(posts));
+        // reindexed is what Elasticsearch confirmed, not how many rows were read out of MySQL.
+        data.put("reindexed", result.indexed());
+        data.put("requested", result.submitted());
+        data.put("failed", result.failed());
+        data.put("complete", result.complete());
         data.put("esAvailable", postSearchService.isAvailable());
         return ApiResponse.success(data);
     }

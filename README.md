@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-296%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-305%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -262,7 +262,7 @@ Prometheus 与 Grafana 都不映射宿主端口，演练时用 `docker compose e
 | 发布 | 改 `.env` 的 `APP_TAG` → `docker compose up -d --build` | 演练里真构建并起过两个标签的镜像，A→B→A 两侧 `/api/v1/posts` 都 200；没证的是"这套流程在真实公网入口上跑过一次完整发布" |
 | 回滚 | `APP_TAG` 改回上一个值 → `docker compose up -d --no-build` | A→B→A 已在演练里跑通（换完读容器自身的 `Config.Image`，两侧 `/api/v1/posts` 都 200）；它没证的是"回滚能救一个坏版本" |
 | 备份 | `pwsh scripts/backup.ps1 -Destination <第二块盘>`（周计划任务）：mysqldump + uploads 打包，逐件校验明文 SHA-256、gzip 与 dump 结束标记，留 `-Keep` 份 | 2026-09-14 对运行中的栈真跑过，产出可恢复的备份集；**但该"第二卷"与数据库在同一块物理盘上**（本机单 NVMe 分区为 C/D/E），脚本现在会打印并记录 `same-physical-disk` 告警，异地/异盘副本仍未做 |
-| 恢复 | [docs/runbook/restore.md](docs/runbook/restore.md)，另起 `-p nexus-restore-test` 项目（配 `docs/runbook/docker-compose.restore-test.yml` 改名容器），不碰生产卷 | **已演练**（2026-09-14）：dump 校验和与 manifest 一致、导入退出码 0、10 张表行数逐项相等（32 帖 / 10 用户 / 957 评审日志）、中文标题无乱码、恢复出的应用以 `200` 提供还原后的上传文件且哈希一致。仍未证的是异盘副本，以及 `es-data` 无全量重建索引路径（恢复后搜索会静默为空） |
+| 恢复 | [docs/runbook/restore.md](docs/runbook/restore.md)，另起 `-p nexus-restore-test` 项目（配 `docs/runbook/docker-compose.restore-test.yml` 改名容器），不碰生产卷 | **已演练**（2026-09-14）：dump 校验和与 manifest 一致、导入退出码 0、10 张表行数逐项相等（32 帖 / 10 用户 / 957 评审日志）、中文标题无乱码、恢复出的应用以 `200` 提供还原后的上传文件且哈希一致。仍未证的是异盘副本；`es-data` 不在任何 dump 里，恢复后必须跑 runbook 第 7 节的全量重建索引（`POST /api/v1/admin/search/reindex`），否则搜索静默返回空 |
 
 ### Privacy & Security Notes
 
@@ -322,7 +322,7 @@ curl http://localhost:8081/api/v1/users/2/summary
 ## Testing
 
 ```bash
-mvn test                      # 296 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
+mvn test                      # 305 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 17 tests: Feishu sign + body

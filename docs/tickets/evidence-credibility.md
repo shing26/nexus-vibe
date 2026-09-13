@@ -12,11 +12,14 @@ a later round, with reasons in the discussion doc: error-code catalogue +
 `BusinessException` (which also owns the `404`-for-a-parked-post semantics),
 centralized `@RequiresRole`, log aggregation (Loki/ELK), OTel tracing,
 cAdvisor/resource dashboards, a private registry, and CD through the tunnel.
-A ninth joins that list with this round's evidence: **a bulk reindex path for
-`es-data`**. `PostSearchService.indexPost` only ever indexes one post, so a restored
-database can serve an index that is silently empty, and nothing in the stack says so.
-Found while writing [docs/runbook/restore.md](../runbook/restore.md); it belongs to the
-search module, not to a backup script, which is why it is a ticket and not a caveat.
+A ninth joins that list with this round's evidence: **the `es-data` reindex is never run by a
+restore, and until this round it reported a number that meant nothing**. The claim this ticket
+originally recorded - that "only per-post `indexPost` exists" - was **wrong when it was written**:
+`POST /api/v1/admin/search/reindex` and `PostSearchService.rebuildIndex` have existed since
+`9c4b002` (2026-08-14) and had two tests. What is actually true is worse in one specific way:
+`rebuildIndex` returned the size of the list it was handed, so the endpoint reported
+`reindexed: 32` whether Elasticsearch accepted 32 documents, rejected all 32, or was not running.
+Fixed here (see E9), and `docs/runbook/restore.md` section 7 now makes the reindex a restore step.
 
 ## E1 - Stop scheduled jobs from poisoning the test context
 
@@ -267,8 +270,9 @@ Two acceptance lines stay open, and neither is a documentation problem:
   volume" turned out to mean the same physical disk. The backup script now prints and records a
   `same-physical-disk` warning instead of letting the destination look safer than it is, but a dead
   drive still ends the project — which was the original fear, and is unfixed.
-- **`es-data` has no bulk reindex path**, so a restored site answers from a quietly empty index.
-  Filed as follow-up in `restore.md` section 8.
+- **`es-data` is not restored and the rehearsal did not reindex it**, so a restored site can answer
+  from a quietly empty index. The reindex endpoint exists; the restore procedure did not call it.
+  `restore.md` section 7 is now that step, and E9 fixed the number it reports.
 
 Also found by running rather than reading: `docker compose ls` rejects Go templates, so
 `backup.ps1` died on its own destination check on every run until that moved to `--format json`;
@@ -284,10 +288,14 @@ What the writing of the runbook measured, three of it contradicting this ticket:
 - The compose file declares **eight** named volumes, not seven: `ollama-data` was missing
   from the list, and is the largest thing on the disk (model weights, re-downloadable, so
   inventory-only and deliberately not dumped).
-- `es-data` has no full-reindex path. Only `PostSearchService.indexPost` (one post at a
-  time) exists, so a restored site can answer every query from an index that is quietly
-  empty while the database holds every post. This is now a follow-up ticket, not a
-  footnote in a runbook.
+- `es-data` is not restored, and no restore step reindexes it. This was first written as "there
+  is no full-reindex path, only per-post `indexPost`", which was **false on the day it was
+  committed**: `AdminController:150` has exposed `POST /api/v1/admin/search/reindex` since
+  `9c4b002` (2026-08-14), backed by `PostSearchService.rebuildIndex` and two tests. The real
+  defect, found while correcting the claim, is that `rebuildIndex` returned the row count it read
+  from MySQL rather than the document count Elasticsearch confirmed - so the endpoint reported a
+  full reindex against a cluster that was down, or that had rejected every item. Fixed as E9;
+  the missing restore step is `docs/runbook/restore.md` section 7.
 - Backup failure does reach the alert path, but only under an explicit
   `-AlertViaBridge`; the "blocked on E3" note that made it opt-in is obsolete now that the
   bridge and its contact point are proven end to end, so the remaining question is whether
@@ -451,7 +459,10 @@ shared source of truth for whoever updates it.
   now wrong in the optimistic direction for two of the five, and re-deriving them is a judgement
   call about what "就绪度百分比" is supposed to mean — which is a better conversation than a
   search-and-replace. The two operations facts that keep it from being a straight upgrade are
-  in the 复核's closing list: no restore rehearsal, and no full-reindex path for `es-data`.
+  in the 复核's closing list: the restore rehearsal was still ahead of us, and the `es-data` reindex
+  was not part of any procedure. Both are now closed - the rehearsal ran on 2026-09-14, and
+  `restore.md` section 7 makes the reindex a step - but the percentages have still not been
+  re-derived, so they remain wrong in the optimistic direction.
 
 **Acceptance:**
 - Every number in the doc reproduces from a listed command; the document's own
@@ -476,5 +487,58 @@ shared source of truth for whoever updates it.
 | Nightly drill in CI | It needs this machine's Docker daemon; scheduled in CI it becomes a daily green that proves nothing |
 | Full 21-step drill as a CI job | Keep it manual; promote only the two cheap invariants (nginx denies actuator; degraded does not restart the container) if E7 leaves room |
 | Flyway/Liquibase | Half a day to adopt, but the value only lands together with a tested restore (E5); scheduled right after it |
-| Bulk reindex path for `es-data` | Found while writing `docs/runbook/restore.md`: only per-post `indexPost` exists, so a restored database can serve a search index that is silently empty. Belongs to the search module, and it wants a design decision (reindex-on-restore, or index-on-read repair, or a rebuild endpoint) rather than a patch |
-| E1's flake is proven gone only by repetition | One green CI run on JDK 21 is data, not proof. Re-run the gate on the next few pushes; if it ever goes red on a docs-only commit again, this whole round's premise is wrong |
+| ~~Bulk reindex path for `es-data`~~ → **done as E9** | The claim as first written ("only per-post `indexPost` exists") was false: a rebuild endpoint had shipped in `9c4b002`. What was real - that no restore ran it, and that it reported MySQL's row count instead of Elasticsearch's confirmed documents - is fixed in E9 and `restore.md` section 7. Index-on-read repair is still open and still wants a design decision |
+| E1's flake is proven gone only by repetition | One green CI run on JDK 21 is data, not proof. As of 2026-09-14 the gate has been green on several consecutive pushes including docs-only commits (`ca4cf6d`, `f5bd10f`, `c8f9a3a`, `9b68a0f`), which is corroborating but still not a long sample. If it ever goes red on a markdown-only commit again, this whole round's premise is wrong |
+
+## E9 - Make the reindex report the truth, and put it in the restore procedure
+
+Status: done on `codex/production-readiness`. Found while correcting a false claim this round had
+itself committed: `docs/runbook/restore.md` and this file both asserted "there is no bulk reindex
+path anywhere in the code". It has existed since `9c4b002` (2026-08-14) as
+`POST /api/v1/admin/search/reindex`, with two tests. So the gap was never capability. It was that
+the number the capability prints was not a measurement.
+
+**The bug:** `PostSearchService.rebuildIndex` returned `posts.size()` - the count of rows read out
+of MySQL - and `AdminController` published it as `reindexed`. Elasticsearch's `_bulk` answers
+HTTP 200 while individual items inside the body fail, and the old code looked only at the status
+code. So the endpoint reported `reindexed: 32` for a cluster that rejected all 32, and
+`reindexed: 32` for a cluster that was not running at all. That is the exact shape of the incident
+E5 was written to prevent - a restored site serving empty search with a green checkmark next to it
+- reached from the opposite direction: not a missing tool, but a tool that grades its own homework.
+
+**Scope:**
+- `bulkIndex` returns `BulkResult(submitted, indexed, failed)`; `indexed` comes from counting the
+  2xx item statuses in the `_bulk` body, and an unparseable body counts as zero (fail-closed, same
+  stance ADR-0004 took for the safety gate).
+- `createIndexIfNotExists` returns whether the index is ready, and `rebuildIndex` refuses to bulk
+  into an index it could not create with the CJK mapping - a bulk into an auto-created index
+  succeeds while making every multi-character Chinese query miss.
+- The bulk call now asks for `refresh=true`, so "reindexed" means searchable on return rather than
+  eventually, and its timeout went 10s -> 60s because a whole-site reindex is one request and the
+  old ceiling was a timeout on the largest thing the endpoint exists for.
+- The endpoint response carries `requested` / `reindexed` / `failed` / `complete` / `esAvailable`.
+- `restore.md` section 7 makes the reindex a restore step with both commands written out, and says
+  plainly that the rehearsal did not run either variant.
+
+**Acceptance:**
+- 9 new unit tests in `PostSearchBulkResultTest` pin the item-count parsing (all-2xx, partial
+  429/400, all-503, unparseable, missing `items`, and a body that claims more items than were
+  submitted), the ES-absent refusal, the empty-batch case, and `complete()`.
+- `PostControllerIntegrationTest` now reads the response body instead of asserting
+  `notNullValue()`: `requested == reindexed + failed`, `complete` false while anything failed, and
+  with `esAvailable: false` the endpoint must report `reindexed: 0`. That assertion fails against
+  the previous implementation, which is the point.
+- Full suite: `mvn -o test` 305 cases, 0 failures (was 296 before this ticket).
+- Unaffected: per-post `indexPost` on publish/edit/delete, the MySQL search fallback, and the
+  frontend - no caller reads `reindexed` except the test.
+
+**Files:** `src/main/java/com/nexus/campus/service/PostSearchService.java`,
+`src/main/java/com/nexus/campus/controller/AdminController.java`,
+`src/test/java/com/nexus/campus/service/PostSearchBulkResultTest.java`,
+`src/test/java/com/nexus/campus/controller/PostControllerIntegrationTest.java`,
+`docs/runbook/restore.md`.
+
+**Rejected:** making the restore script call the endpoint for you. It needs an admin token, which
+means putting `BOOTSTRAP_ADMIN_PASSWORD` into a backup tool's argument list, and a reindex nobody
+looked at is not safer than a step in a runbook with a number to check. Index-on-read repair stays
+open as a design question.

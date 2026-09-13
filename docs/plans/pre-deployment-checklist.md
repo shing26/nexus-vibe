@@ -84,7 +84,9 @@
 - [x] 按 `docs/runbook/restore.md` 把一次真实恢复演练做完（2026-09-14）：dump 哈希与 manifest 一致 → 导入退出码 0 → 10 张表行数逐项相等 → 中文标题可读 → `migrate-0005/6/7` 的对象都在 → 恢复出的 app 以 `200 70` 提供还原后的上传文件且三处哈希一致；演练后 6 个临时卷清干净、生产栈 `Up 2 days` 未被碰。
 - [x] 演练暴露的两处文字坑就地改掉：section 2 的 `mysqladmin` 占位命令原本不可执行（容器 `healthy` 早于 TCP 可连，第一次导入死在 `ERROR 2003`），section 1 补上"容器名不是 project-scoped"这条前提。
 - [ ] **换一块真正的异盘或异机副本**：本机是单块 NVMe 分区成 C/D/E，所谓"第二卷"和数据库同盘，盘坏即一起没。脚本现在会把这件事打印出来并写进 `manifest.json` -> `warnings`，但没人替你把副本搬走。
-- [ ] 定下 `es-data` 的重建索引路径（E5 的后续票）：现在按这份 runbook 恢复出来的站点，数据库里帖子齐全、索引里空的，搜索静默返回空且不报错。
+- [x] `es-data` 的全量重建索引写进恢复流程（E9 + `restore.md` 第 7 节）：索引不在任何 dump 里，恢复后必须调 `POST /api/v1/admin/search/reindex` 并核对 `requested/reindexed/failed/complete`，否则搜索静默返回空且不报错。
+      顺带纠正一个本轮自己写进仓库的错误断言：文档曾称"代码里根本没有全量重建路径"，而该端点自 `9c4b002`（2026-08-14）就在；真正的缺陷是 `rebuildIndex` 返回它从 MySQL 读到的行数，ES 全拒或根本没起也照样报 `reindexed: 32`——现在计数来自 `_bulk` 响应里逐项 2xx，解析不了按 0 计（fail-closed）。
+- [ ] 在第 7 节的两条 reindex 路径上真跑一次（演练停在第 6 节，带 `elasticsearch` 的那条至今没被执行过）：至少要求 `complete: true`，再用一个已知老帖子里的词搜回来。
 - [ ] 装上周计划任务并确认它真的在跑（`Get-ScheduledTask`），第一次触发后回看 `manifest.json` 的 `complete` 与 `warnings`。
 
 ## 发布与回滚（E4，2026-09-14，分支 `codex/production-readiness`）

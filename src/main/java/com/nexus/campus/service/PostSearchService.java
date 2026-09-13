@@ -1,6 +1,7 @@
 package com.nexus.campus.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.nexus.campus.dto.PageResult;
 import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.entity.VibePost;
@@ -68,7 +69,16 @@ public class PostSearchService {
         }
     }
 
-    private void createIndexIfNotExists() {
+    /**
+     * Ensure the index exists with the CJK mapping this service's queries assume.
+     *
+     * @return true when the index is present or was created; false when ES could not be asked or
+     *         refused the create. Callers that depend on the mapping (rebuildIndex) must not
+     *         proceed on false: a bulk into an auto-created index succeeds with the default
+     *         analyzer, which indexes Chinese text one character at a time and quietly makes
+     *         every multi-character query miss.
+     */
+    private boolean createIndexIfNotExists() {
         try {
             HttpRequest req = HttpRequest.newBuilder()
                     .uri(URI.create(esBase + "/" + INDEX_NAME))
@@ -118,14 +128,24 @@ public class PostSearchService {
                 HttpResponse<String> createResp = httpClient.send(createReq, HttpResponse.BodyHandlers.ofString());
                 if (createResp.statusCode() == 200 || createResp.statusCode() == 201) {
                     log.info("[NEXUS-ES] Index '{}' created successfully.", INDEX_NAME);
+                    return true;
                 } else {
                     log.warn("[NEXUS-ES] Index creation returned {}: {}", createResp.statusCode(), createResp.body());
+                    return false;
                 }
             } else {
-                log.info("[NEXUS-ES] Index '{}' already exists.", INDEX_NAME);
+                if (resp.statusCode() == 200) {
+                    log.info("[NEXUS-ES] Index '{}' already exists.", INDEX_NAME);
+                    return true;
+                }
+                // Anything else (a 503 from a red cluster, a 401 from a secured one) is "we do not
+                // know", which has to be treated as "not ready" rather than as "it exists".
+                log.warn("[NEXUS-ES] Index check returned {} - treating the index as not ready.", resp.statusCode());
+                return false;
             }
         } catch (Exception e) {
             log.warn("[NEXUS-ES] Failed to check/create index: {}", e.getMessage());
+            return false;
         }
     }
 
@@ -244,10 +264,46 @@ public class PostSearchService {
     }
 
     /**
-     * Bulk index a list of posts.
+     * What a bulk index actually achieved, per Elasticsearch rather than per request.
+     *
+     * <p>{@code _bulk} answers HTTP 200 while individual items inside the body failed, so the
+     * status code cannot be the report. Every count here comes from the item array.</p>
+     *
+     * @param submitted documents handed to the call
+     * @param indexed   documents Elasticsearch confirmed with a 2xx item status
+     * @param failed    the difference, including the case where the response could not be read
      */
-    public void bulkIndex(List<VibePost> posts) {
-        if (!esAvailable || posts == null || posts.isEmpty()) return;
+    public record BulkResult(int submitted, int indexed, int failed) {
+
+        static BulkResult nothingToIndex() {
+            return new BulkResult(0, 0, 0);
+        }
+
+        /** Everything asked for, nothing confirmed - the ES-unavailable and transport-failure shape. */
+        static BulkResult refused(int submitted) {
+            return new BulkResult(submitted, 0, submitted);
+        }
+
+        /** True only when every submitted document came back accepted. */
+        public boolean complete() {
+            return failed == 0 && indexed == submitted;
+        }
+    }
+
+    /**
+     * Bulk index a list of posts and report what Elasticsearch accepted.
+     *
+     * <p>Asks for {@code refresh=true} so a reindex is searchably finished when this returns;
+     * without it a caller that reindexes and immediately searches sees nothing.</p>
+     */
+    public BulkResult bulkIndex(List<VibePost> posts) {
+        int submitted = posts == null ? 0 : posts.size();
+        if (submitted == 0) {
+            return BulkResult.nothingToIndex();
+        }
+        if (!esAvailable) {
+            return BulkResult.refused(submitted);
+        }
         try {
             StringBuilder bulkBody = new StringBuilder();
             for (VibePost post : posts) {
@@ -257,35 +313,82 @@ public class PostSearchService {
             }
 
             HttpRequest req = HttpRequest.newBuilder()
-                    .uri(URI.create(esBase + "/_bulk"))
-                    .timeout(Duration.ofSeconds(10))
+                    .uri(URI.create(esBase + "/_bulk?refresh=true"))
+                    // A whole-site reindex is one request; the 10s this used to allow is a timeout
+                    // on the largest thing the endpoint is for.
+                    .timeout(Duration.ofSeconds(60))
                     .header("Content-Type", "application/x-ndjson")
                     .POST(HttpRequest.BodyPublishers.ofString(bulkBody.toString()))
                     .build();
             HttpResponse<String> resp = httpClient.send(req, HttpResponse.BodyHandlers.ofString());
             if (resp.statusCode() == 200) {
-                log.info("[NEXUS-ES] Bulk indexed {} posts", posts.size());
-            } else {
-                log.warn("[NEXUS-ES] Bulk index failed: {}", resp.body());
+                int indexed = countAcceptedItems(resp.body(), submitted);
+                int failed = submitted - indexed;
+                if (failed == 0) {
+                    log.info("[NEXUS-ES] Bulk indexed {}/{} posts", indexed, submitted);
+                } else {
+                    log.warn("[NEXUS-ES] Bulk index accepted {} of {} posts; {} item(s) failed",
+                            indexed, submitted, failed);
+                }
+                return new BulkResult(submitted, indexed, failed);
             }
+            log.warn("[NEXUS-ES] Bulk index failed: {}", resp.body());
+            return BulkResult.refused(submitted);
         } catch (Exception e) {
             log.warn("[NEXUS-ES] Bulk index failed: {}", e.getMessage());
+            return BulkResult.refused(submitted);
+        }
+    }
+
+    /**
+     * Count the 2xx items in a {@code _bulk} response body.
+     *
+     * <p>Fails closed: an unparseable or missing {@code items} array yields zero, because the
+     * alternative is reporting an index nobody verified.</p>
+     */
+    int countAcceptedItems(String responseBody, int submitted) {
+        try {
+            JsonNode items = objectMapper.readTree(responseBody).path("items");
+            if (!items.isArray()) {
+                log.warn("[NEXUS-ES] _bulk response carried no items array - counting 0 indexed");
+                return 0;
+            }
+            int accepted = 0;
+            for (JsonNode item : items) {
+                Iterator<JsonNode> operations = item.elements();
+                if (!operations.hasNext()) {
+                    continue;
+                }
+                int status = operations.next().path("status").asInt(0);
+                if (status >= 200 && status < 300) {
+                    accepted++;
+                }
+            }
+            return Math.min(accepted, submitted);
+        } catch (Exception e) {
+            log.warn("[NEXUS-ES] Could not parse the _bulk response ({}), counting 0 indexed", e.getMessage());
+            return 0;
         }
     }
 
     /**
      * Recreate the index and bulk-index every provided post.
      *
-     * @return number of posts handed to the reindex operation, or 0 when ES is unavailable
+     * @return what actually landed in a rebuilt index. This used to return the size of the list it
+     *         was handed, which is the same number whether Elasticsearch indexed every post or
+     *         rejected all of them - the reason a restore could report a warm index over an
+     *         empty one.
      */
-    public int rebuildIndex(List<VibePost> posts) {
-        if (!esAvailable) return 0;
-        deleteIndex();
-        createIndexIfNotExists();
-        if (posts != null && !posts.isEmpty()) {
-            bulkIndex(posts);
+    public BulkResult rebuildIndex(List<VibePost> posts) {
+        int submitted = posts == null ? 0 : posts.size();
+        if (!esAvailable) {
+            return BulkResult.refused(submitted);
         }
-        return posts == null ? 0 : posts.size();
+        deleteIndex();
+        if (!createIndexIfNotExists()) {
+            return BulkResult.refused(submitted);
+        }
+        return bulkIndex(posts);
     }
 
     private void deleteIndex() {

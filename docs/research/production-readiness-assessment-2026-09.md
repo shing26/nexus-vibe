@@ -28,10 +28,15 @@
 
 本轮另外查出的两件与运维有关、但原文没有点名的事：
 
-1. **`es-data` 没有全量重建索引的路径。** 恢复数据库之后搜索面可以永久是空的而无人知晓
-   （`PostSearchService` 只有逐帖 `indexPost`）。已进 `docs/tickets/evidence-credibility.md` 的 out-of-scope 表。
+1. **`es-data` 不在任何 dump 里，而恢复流程里没有重建索引这一步。** 恢复数据库之后搜索面可以永久是空的而无人知晓。
+   —— 本条当时的写法是"代码里没有全量重建索引的路径（只有逐帖 `indexPost`）"，**那是错的**：
+   `POST /api/v1/admin/search/reindex` 与 `PostSearchService.rebuildIndex` 自 `9c4b002`（2026-08-14）就在，还带两个测试。
+   复核自己犯了这个错误，纠正于 2026-09-14：真正的缺陷是 `rebuildIndex` 返回它从 MySQL 读到的行数，
+   所以 ES 逐项拒绝、或者根本没起，也照样报 `reindexed: 32`。已由 E9 修复（计数改为读 `_bulk` 响应里逐项 2xx），
+   重建索引也已写进 `docs/runbook/restore.md` 第 7 节成为恢复步骤。
 2. **备份从未被真恢复过。** `scripts/backup.ps1` 与 `docs/runbook/restore.md` 都在，缺的是把恢复跑一遍并记下输出。
-   原文的"综合约 60%"如果要往上调，这一条不落地的话，涨的就不该算运维就绪度。
+   （2026-09-14 已补：演练完成，数字见 runbook 第 10 节。）
+  原文的"综合约 60%"如果要往上调，这一条不落地的话，涨的就不该算运维就绪度。
 
 ---
 

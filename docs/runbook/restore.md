@@ -3,7 +3,7 @@
 > Ticket: E5 in [evidence-credibility.md](../tickets/evidence-credibility.md).
 > Producer of the input: [scripts/backup.ps1](../../scripts/backup.ps1).
 > **Status: executed on 2026-09-14, and it needed two fixes to be runnable at all** — see
-> [§ 9 Rehearsal log](#9-first-rehearsal-log-2026-09-14-the-first-time-this-was-actually-run)
+> [§ 10 Rehearsal log](#10-first-rehearsal-log-2026-09-14-the-first-time-this-was-actually-run)
 > at the bottom.
 > Sections 2-8 below are the commands as they were actually typed on that run; the two places where
 > the first version of this file could not be followed literally are marked inline. A restore nobody
@@ -236,7 +236,53 @@ Two things that are *not* noise: `spring.sql.init.mode: never` in `application-p
 stops the app from touching the schema you just restored, and `BootstrapAdminInitializer` stays
 quiet because the restored database already contains an `ADMIN`.
 
-## 7. Tear it down
+## 7. Reindex Elasticsearch, or the restored site cannot search
+
+The database dump carries the `/uploads/...` strings and the post rows, but the `nexus_posts` index
+lives in `es-data`, which this procedure does not restore. Elasticsearch answers an empty index with
+`200` and zero hits, so a restore that stops at section 6 leaves a site that reads as healthy and
+cannot find any of its own posts.
+
+The application has a full-reindex endpoint, and it has had one since `9c4b002` (2026-08-14):
+
+```powershell
+# admin login -> token -> rebuild the index from whatever the restored database holds
+$tok = (Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/auth/login' `
+        -ContentType 'application/json' `
+        -Body (@{ username = 'admin'; password = $env:BOOTSTRAP_ADMIN_PASSWORD } | ConvertTo-Json)).data.token
+$re = Invoke-RestMethod -Method Post -Uri 'http://localhost:8080/api/v1/admin/search/reindex' `
+        -Headers @{ Authorization = "Bearer $tok" }
+$re.data
+```
+
+Read `requested`, `reindexed`, `failed` and `complete` before believing it. `reindexed` is the count of
+documents Elasticsearch *confirmed*, item by item, out of the `_bulk` response - not the number of rows
+read out of MySQL. Until 2026-09-14 it *was* the row count: the endpoint answered `reindexed: 32` for a
+cluster that rejected all 32, and for one it never contacted at all. That is the failure this section
+exists to catch, and it is the reason the sentence "there is no bulk reindex path" could sit in this
+file for a month next to an endpoint that had been answering it since August.
+
+Two ways to run it, and they prove different things:
+
+- **Against the scratch project as sections 2-6 leave it** (`app` up, no `elasticsearch`): the honest
+  answer is `esAvailable: false`, `reindexed: 0`, `failed: requested`, `complete: false`. That is the
+  whole point of the check - a restore environment with no search cluster must not report a warm index.
+- **With the scratch cluster actually present**, which is what a real restore looks like:
+
+  ```powershell
+  docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml up -d elasticsearch
+  # wait for it to answer, then run the two commands above again
+  ```
+
+  Require `complete: true`, then search for a phrase you know is in an old post and confirm it comes
+  back. If `failed` is non-zero the bulk response named the count and nothing else; the per-item
+  reasons are in the app log under `[NEXUS-ES]`.
+
+**The 2026-09-14 rehearsal did neither.** It stopped at section 6, so this section is written from the
+code and from the assertion added to `PostControllerIntegrationTest`, not from a performed reindex. The
+second bullet above is the piece a real restore has to exercise before anyone calls the search path
+backed up.
+## 8. Tear it down
 
 ```powershell
 docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml ps --format '{{.Name}} {{.Status}}'
@@ -250,16 +296,18 @@ The fourth command must print nothing. The fifth must show the real stack exactl
 the rehearsal - same containers, `Up`, untouched. `down -v` without `-p` in front of it deletes the
 production volumes, and nothing in Docker will ask twice.
 
-## 8. What a successful restore still does not cover
+## 9. What a successful restore still does not cover
 
 These are the rows of `volumes.tsv` where the action says `inventory only`, and each one is a
 deliberate gap rather than an oversight:
 
-- **`es-data`** is the sharp one. The `nexus_posts` index is filled one post at a time by
-  `PostSearchService.indexPost`, and there is no bulk reindex path anywhere in the code. A restore
-  that brings the database back and an empty index leaves full-text search returning nothing for
-  every pre-existing post, with a `200` and no error. Either reindex on restore or stop pretending
-  search is backed up; this is E5's real follow-up work.
+- **`es-data`** is the sharp one, though not for the reason this file used to give. It was written
+  that "there is no bulk reindex path anywhere in the code" - that claim was false when it was made,
+  and `AdminController` had answered it for a month. What is actually true: the index is not part of
+any dump, the reindex is a manual authenticated HTTP call that no restore performed until section 7
+  was written, and until 2026-09-14 the endpoint reported the size of the row set it read rather than
+the count Elasticsearch accepted, so a total failure looked like a full success. Section 7 is the
+  procedure; the reporting is now `BulkResult(submitted, indexed, failed)`.
 - **`redis-data`**: cache plus like counters, and `LikeSyncTask` flushes the counters to MySQL every
   5 minutes, so a Redis loss costs at most one flush window of the dirty set. Rebuildable.
 - **`app-logs`**: logback caps the volume at 100 MB per file, 7 days, 1 GB total by design. Losing
@@ -271,7 +319,7 @@ deliberate gap rather than an oversight:
   dashboards and alert rules are in git under `docker/observability/grafana/provisioning`; what a
   lost `grafana-data` really costs is the Grafana admin password and UI state.
 
-## 9. First rehearsal log (2026-09-14, the first time this was actually run)
+## 10. First rehearsal log (2026-09-14, the first time this was actually run)
 
 Host: single Windows machine, Docker Engine 29.5.3. Live `nexus-vibe` stack was `Up` for the whole
 run and is byte-for-byte untouched afterwards (`Up 2 days`, all six containers, same names). Raw
@@ -338,13 +386,13 @@ Volume inventory for that set: 5 of the 8 declared volumes exist on this host. T
   protect. The runbook's own first rule - a second disk or a second machine - is not satisfied on
   this host, and `manifest.json` now says so in `warnings`.
 - **`es-data` has no bulk reindex path**, so the site that comes back from this procedure answers
-  searches from an index that is silently empty while the database holds every post. Section 8 keeps
+searches from an index that is silently empty while the database holds every post. Section 9 keeps
   it as the sharpest known gap; it is follow-up work, not a rehearsal defect.
 - A restore into a *real* disaster - a dead volume, an app pinned to the restored database, DNS and
   TLS back in the picture - was not attempted. This proves the artifacts are readable and the
   commands work, on a healthy host, next to a running site.
 
-## 10. How far this file has actually been checked
+## 11. How far this file has actually been checked
 
 So the record is unambiguous about what is measured and what is written:
 
@@ -360,10 +408,10 @@ So the record is unambiguous about what is measured and what is written:
 - The failure path is executed for real: a refused destination produces one `BACKUP FAILED` line on
   stderr, the next-eyes block, and exit code 1.
 - **The restore was performed on 2026-09-14** against a real backup set taken from the running
-  stack, and every assertion in section 5 and section 6 passed with the numbers recorded in
-  section 9. Two commands in the first version of this file were not runnable as written (the
+stack, and every assertion in section 5 and section 6 passed with the numbers recorded in
+section 10. Two commands in the first version of this file were not runnable as written (the
   `mysqladmin` placeholder in section 2, and the `container_name` collision that section 1 now
   explains); both are fixed here rather than left to the next reader.
-- What that run did **not** cover is listed at the end of section 9, and the headline is that both
+- What that run did **not** cover is listed at the end of section 10, and the headline is that both
   backup sets sit on the same physical disk as the database, so the copy itself is still untested
   against machine loss. `-DryRun` remains a rehearsal of the plan, never of the outcome.
