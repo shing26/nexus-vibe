@@ -63,8 +63,11 @@ __pycache__/
 # Raw probe output from benchmark/observability/drill.ps1. The conclusions are written up in
 # docs/research; the scrape dumps and log tails behind them stay on the machine that ran it.
 benchmark/observability/evidence/
-# Career-facing write-up: it quotes internal assessments and interview framing, so it lives on the
+# A write-up about the project rather than of it, quoting internal assessments. It lives on the
 # machine that runs the project and never in the public remote. Never add it back.
 Nexus-Vibe-项目全量梳理.md
+# Same reasoning, and this one was actually tracked once (added in 6a5312d, still reachable in
+# history). Removed from the tree on 2026-09-14; the local copy now lives outside the repository.
+docs/project-experience-refactored.md
 # Backup sets (scripts/backup.ps1): belong on a second volume, and are never committable - db.sql.gz holds password hashes.
 backups/
