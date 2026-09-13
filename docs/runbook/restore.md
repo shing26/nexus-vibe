@@ -263,28 +263,45 @@ scratch rehearsal you may not know its password, so create a throwaway admin *in
 project only*:
 
 ```powershell
-# 1. register through the scratch app's own loopback
-docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app sh -c `
-  "curl -sS -X POST http://localhost:8080/api/v1/auth/register -H 'Content-Type: application/json' -d '{\"username\":\"reindexdrill\",\"email\":\"reindexdrill@example.invalid\",\"password\":\"Dril1Password9\",\"nickname\":\"Reindex Drill\"}' | head -c 200"
+# Write the two request bodies on the host, in a single-quoted PowerShell string, and copy them in.
+# Passing JSON as an argument through PowerShell, then `docker exec`, then `sh` does not survive the
+# trip - it comes out as `Unterminated quoted string`, which is what the first version of these
+# commands did. A file has to cross only one boundary.
+[IO.File]::WriteAllText("$PWD\target\reg.json", '{"username": "reindexdrill", "email": "reindexdrill@example.invalid", "password": "Dril1Password9", "nickname": "Reindex Drill"}')
+[IO.File]::WriteAllText("$PWD\target\log.json", '{"username": "reindexdrill", "password": "Dril1Password9"}')
+$x = @('-p','nexus-restore-test','-f','docker-compose.yml','-f','docs/runbook/docker-compose.restore-test.yml')
+docker compose @x cp target/reg.json app:/tmp/reg.json
+docker compose @x cp target/log.json app:/tmp/log.json
 
-# 2. promote it in the scratch database (note: scratch db, never the live nexus-db)
-docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T db sh -c `
-  'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus -e "UPDATE sys_user SET role=\"ADMIN\" WHERE username=\"reindexdrill\"" '
+# 1. register, inside the scratch container's own loopback
+docker compose @x exec -T app sh -c "curl -sS -X POST http://localhost:8080/api/v1/auth/register -H 'Content-Type: application/json' --data @/tmp/reg.json | head -c 160"
 
-# 3. log in, then read the role straight out of the JWT so a USER token cannot be mistaken for an admin one
-docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app sh -c `
-  "curl -sS -X POST http://localhost:8080/api/v1/auth/login -H 'Content-Type: application/json' -d '{\"username\":\"reindexdrill\",\"password\":\"Dril1Password9\"}'" |
-    ConvertFrom-Json | ForEach-Object { $_.data.token }
+# 2. promote it in the scratch database - scratch db, never the live nexus-db
+docker exec -t nexus-restore-db sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus -e "UPDATE sys_user SET role=\"ADMIN\" WHERE username=\"reindexdrill\""'
+docker exec -t nexus-restore-db sh -c 'MYSQL_PWD=$MYSQL_ROOT_PASSWORD mysql -N -s -h 127.0.0.1 -uroot nexus_campus -e "SELECT username, role FROM sys_user WHERE role NOT IN (\"USER\",\"AI_AGENT\")"'
 
-# 4. the reindex itself, with the token from step 3
-docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml exec -T app sh -c `
-  "curl -sS -X POST http://localhost:8080/api/v1/admin/search/reindex -H 'Authorization: Bearer $TOKEN'"
+# 3. reindex. The token is still inside the JWT you were handed, so the script below pulls it out in
+#    the container rather than leaking it onto a host command line.
+docker compose @x exec -T app sh /tmp/reindex.sh
 ```
 
-Print the JSON `data` object and read `requested`, `reindexed`, `failed` and `complete` before
-believing any of it.
+`/tmp/reindex.sh` is the whole point of the section, so it is worth keeping as a file. Copy it in with
+`docker compose @x cp reindex.sh app:/tmp/reindex.sh` before step 3:
 
-Read `requested`, `reindexed`, `failed` and `complete` before believing it. `reindexed` is the count of
+```sh
+#!/bin/sh
+set -e
+BASE=http://localhost:8080
+LOGIN=$(curl -sS -X POST "$BASE/api/v1/auth/login" -H 'Content-Type: application/json' --data @/tmp/log.json)
+TOK=$(echo "$LOGIN" | sed -e 's/.*"token":"//' -e 's/".*//')
+echo "role claim: $(echo "$LOGIN" | sed -e 's/.*"role":"//' -e 's/".*//')"
+echo "docs before: $(curl -sS 'http://elasticsearch:9200/_cat/indices/nexus_posts?h=docs.count')"
+echo "reindex:     $(curl -sS -X POST "$BASE/api/v1/admin/search/reindex" -H "Authorization: Bearer $TOK")"
+echo "docs after:  $(curl -sS 'http://elasticsearch:9200/_cat/indices/nexus_posts?h=docs.count')"
+echo "search:      $(curl -sS "$BASE/api/v1/posts?keyword=RAG&page=0&size=1" | cut -c1-320)"
+```
+
+Read `requested`, `reindexed`, `failed` and `complete` before believing any of it. `reindexed` is the count of
 documents Elasticsearch *confirmed*, item by item, out of the `_bulk` response - not the number of rows
 read out of MySQL. Until 2026-09-14 it *was* the row count: the endpoint answered `reindexed: 32` for a
 cluster that rejected all 32, and for one it never contacted at all. That is the failure this section
@@ -293,9 +310,11 @@ file for a month next to an endpoint that had been answering it since August.
 
 Two ways to run it, and they prove different things:
 
-- **Against the scratch project as sections 2-6 leave it** (`app` up, no `elasticsearch`): the honest
-  answer is `esAvailable: false`, `reindexed: 0`, `failed: requested`, `complete: false`. That is the
-  whole point of the check - a restore environment with no search cluster must not report a warm index.
+- **With no search cluster in the project at all**, which is what sections 2-6 leave you with: the
+  honest answer is `esAvailable: false`, `reindexed: 0`, `failed: requested`, `complete: false`, and
+  that is the whole point of the check - a restore environment with no cluster must not report a warm
+  index. This shape is pinned by `PostControllerIntegrationTest`, which runs exactly that way on every
+  CI push; it was not separately typed against a live container, and the numbers below are not from it.
 - **With the scratch cluster actually present**, which is what a real restore looks like:
 
   ```powershell
