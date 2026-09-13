@@ -135,7 +135,7 @@ get the container killed while it is still serving traffic.
 - Unaffected: `db` still goes DOWN when the database is down.
 
 **Files:** `src/main/java/com/nexus/campus/config/health/`,
-`src/main/resources/application-prod.yml`, `frontend/nginx.conf`,
+`src/main/resources/application-prod.yml`, `docker/nginx/nginx.conf`,
 `docs/adr/0007-degraded-status-is-not-unhealthy.md`.
 
 ## T5 - Bootstrap admin and an empty production seed
