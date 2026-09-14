@@ -4,6 +4,14 @@
 评估手段：CodeCompass 静态索引（518 files / 1955 symbols，AST 级调用图）+ 本机实测（`mvn test`、`npm run build`、`docker compose config`、演练日志）。
 所有数字均为本次实测，不是引用。
 
+> **2026-09-14 复核（只改会被读错的地方，不重写正文）**：上面锚定的 HEAD 是 `0284933`，正文数字是当时的实测值，
+> 现在已经全部变大——`mvn -o test` 为 **305 用例 / 45 个测试类**（其中 9 个是 E9 新增的 `_bulk` 计数断言），
+> 演练为 **21 步**，ADR 8 篇，compose 服务 9 个。两处不是数字过期、而是**结论已经反了**的地方在正文里点名：
+> 第 260–262 行说"4 条规则"且"应用整体消失时一声不响"——现在是 6 条，且 `nexus-prometheus-scrape-failed`
+> 专管"抓不到 target"（`noDataState`/`execErrState` 都是 `Alerting`），这条边界已由演练的
+> `app-death-is-not-reported-as-health` 与 `alert-no-data-policy-is-per-rule` 两步在真栈上证过；
+> 另见 `observability-drill-2026-09.md` 第六、八节。
+
 ---
 
 ## 一、总体判断

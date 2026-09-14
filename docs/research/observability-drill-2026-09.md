@@ -233,3 +233,20 @@ pwsh -File benchmark/observability/drill.ps1 -Keep        # 跑完别拆，留�
 脚本里有一个坑值得记：所有 docker 参数都必须以数组形式传入。`Invoke-Compose up -d` 里的 `-d` 会被
 PowerShell 的公共参数 `-Debug` 吃掉，于是 `compose up -d` 变成前台运行的 `compose up`，永不返回；
 `-v` 同理，被 `-Verbose` 吞掉。
+
+## 八、E9 之后再跑一遍（2026-09-14 08:13，`drill-20260914-081339`：21 步 0 失败）
+
+E9 改了 ES 客户端与 admin 端点的返回形状，所以整套重跑一次，不挑步骤。结论仍然是 21/21，
+`pwsh -File benchmark/observability/drill.ps1`（带建镜像），head `bde8a80`。
+
+这一遍有一条不是计划里的：`rollback-swaps-between-two-real-image-tags` 换的两个 tag 里，
+`e9-reindex-drill` 是我在恢复演练第 7 节现场搭 scratch 栈时留下的那个镜像，也就是**带着 E9 新代码的那个**。
+于是这一步顺手证掉了此前没人证过的事——改了 `_bulk` 计数与索引就绪判定的镜像，能在真容器里起来、
+过健康检查、并在回滚两端都答 `200`。它不在断言列表里，是环境自己送上门的证据，记在这里以免被当成"下次也会这样"。
+
+顺带把第 7 节的 scratch 演练也接上了这一遍的口径：那个 tag 现在既是恢复演练的产物，也是回滚演练的产物，
+`docker images` 里还在，别 prune 掉——它是目前唯一同时被两条路径用过的镜像。
+
+这一遍没有暴露新的脚本缺陷，也没有暴露产品缺陷；`05a266b` 与 `bde8a80` 两次 markdown-only push 的 CI 都是
+四个 job 全绿（`34791146413`、`34791584974`），这是 E1 那个门禁自反性断言的第 3、4 次重复——仍然只是"更多数据"，
+不是"证明消失了"。
