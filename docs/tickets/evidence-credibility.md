@@ -7,8 +7,10 @@ North star: **the gate you trust must be trustworthy** — a green build, an ale
 that fires, a backup you have actually restored, a rollback target you can point
 at. Signal volume is not the problem anymore; signal credibility is.
 
-Scope of this round: the 8 tickets below (~5.5 person-days). Deliberately left for
-a later round, with reasons in the discussion doc: error-code catalogue +
+Scope of this round: the 9 tickets below (~6 person-days). E9 was not in the original eight - it
+opened when this round's own docs were corrected against the tree, and it is the same failure mode
+as E1 to E8: a number that looked like evidence and was not. Deliberately left for a later round,
+with reasons in the discussion doc: error-code catalogue +
 `BusinessException` (which also owns the `404`-for-a-parked-post semantics),
 centralized `@RequiresRole`, log aggregation (Loki/ELK), OTel tracing,
 cAdvisor/resource dashboards, a private registry, and CD through the tunnel.
