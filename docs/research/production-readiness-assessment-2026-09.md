@@ -20,7 +20,7 @@
 | "关键告警规则缺失"（P0-6） | 4 条原计划规则 + `up{job="nexus-vibe"}==0`（抓不到 target）+ 99.9% 错误预算快烧；`noDataState` 按规则分别决定 | 演练步 `alert-no-data-policy-is-per-rule`、`app-death-is-not-reported-as-health` |
 | "生产无首个管理员引导路径"（P0-5） | `BOOTSTRAP_ADMIN_PASSWORD` 一次性引导 `admin`；样例账号与样例内容移出生产路径（ADR-0008） | 演练步 `first-install-is-empty-and-administrable` |
 | "前后端响应契约漂移"（P1-3） | 前端 `ApiResponse<T>` 改为后端真实形状 `{ code, message?, data }`，成功由 `code` 派生；`ResponseContractTest` 冒烟 | `mvn -o test -Dtest=ResponseContractTest` |
-| 243 用例 / README 236 | **296 用例**（44 个测试类），ADR 从 6 篇到 8 篇，compose 服务 7 → 9（默认 6 + monitoring 3），命名卷 8 个 | `mvn -o test`、`git ls-files 'src/test/**/*Test.java' | wc -l`、`docker compose config --services` |
+| 243 用例 / README 236 | **307 用例**（46 个测试类），ADR 从 6 篇到 8 篇，compose 服务 7 → 9（默认 6 + monitoring 3），命名卷 8 个 | `mvn -o test`、`git ls-files 'src/test/**/*Test.java' \| wc -l`、`docker compose config --services` |
 
 仍然成立、且本轮**没有**做掉的：错误码体系与 `BusinessException`（P1-2，含"帖子停在待审却回 404"的语义）、
 集中式 `@RequiresRole`（P1-6）、容器非 root（P1-5 的一半）、前端崩溃上报（P1-7）、配置校验（P1-4）、

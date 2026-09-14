@@ -437,7 +437,7 @@ closed** (P0-1 日志、P0-2 指标+监控栈、P0-3 业务指标、P0-4 健康�
 and **two of seven P1** (P1-1 traceId, P1-3 前后端契约). The other five P1 items — error codes,
 config validation, non-root app/web containers, `@RequiresRole`, frontend crash reporting — are
 still open, four of them by this round's explicit choice. Its numbers
-are stale too: 243 test cases (now 296), 28 test classes (now 44), 6 ADRs (now 8),
+are stale too: 243 test cases (now 307), 28 test classes (now 46), 6 ADRs (now 8),
 7 compose services (now 9), "traceId 占位/改造中" (now shipped), "logback 未提交"
 (now committed), and "CI 3 Job 全绿门槛" (currently red on PR #2). Left uncorrected, these are
 the claims a reader can disprove in one command, which is the fastest way to lose an argument

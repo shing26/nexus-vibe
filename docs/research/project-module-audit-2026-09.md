@@ -394,7 +394,8 @@ CodeCompass `scan` 的五个桶，加上我的解读：
 
 **同一份代码的构建验证（本次实测）**
 
-- `mvn test`：`classes=40 tests=284 failures=0 errors=0 skipped=0`。
+- `mvn test`：`classes=40 tests=284 failures=0 errors=0 skipped=0`（2026-09-13 的快照；到本轮结束
+  `mvn -o test` 已是 **307 例 / 46 个测试类**，README 徽章随实测走）。
 - `npm run build`：5.17s 通过；`npm run lint`：1 条 `exhaustive-deps` 警告，0 错误。
 - `docker compose config --services`：6 / 9（profile 前后）。
 - PR #2 状态：`OPEN` / `isDraft: true` / `mergeable: MERGEABLE`，未合并、未 push master。
