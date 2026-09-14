@@ -7,9 +7,12 @@ North star: **the gate you trust must be trustworthy** — a green build, an ale
 that fires, a backup you have actually restored, a rollback target you can point
 at. Signal volume is not the problem anymore; signal credibility is.
 
-Scope of this round: the 9 tickets below (~6 person-days). E9 was not in the original eight - it
+Scope of this round: the 10 tickets below (~6.5 person-days). E9 was not in the original eight - it
 opened when this round's own docs were corrected against the tree, and it is the same failure mode
-as E1 to E8: a number that looked like evidence and was not. Deliberately left for a later round,
+as E1 to E8: a number that looked like evidence and was not. E10 arrived by a different route - the
+cheapest check in this file, which is opening the dashboard and looking at it - and it is the same
+disease as E9 one layer up: an automated signal that passes without anyone observing the thing it
+claims to cover. Deliberately left for a later round,
 with reasons in the discussion doc: error-code catalogue +
 `BusinessException` (which also owns the `404`-for-a-parked-post semantics),
 centralized `@RequiresRole`, log aggregation (Loki/ELK), OTel tracing,
@@ -552,3 +555,115 @@ while the app still believed it was available: `{"requested":32,"reindexed":0,"f
 means putting `BOOTSTRAP_ADMIN_PASSWORD` into a backup tool's argument list, and a reindex nobody
 looked at is not safer than a step in a runbook with a number to check. Index-on-read repair stays
 open as a design question.
+
+## E10 - Nobody had opened the dashboard, and one panel could never have drawn
+
+Status: done on `codex/production-readiness`. Found by doing the one thing the previous two rounds
+never did - rendering the two dashboards in a browser. The drill (21 steps, `drill-20260914-081339`)
+was green the whole time, and it is a real drill: it proves the scrape, the metric names, the rule
+expressions, the alert routing, the edge denials. What it never proves is the question "does the
+picture I would look at at 3am actually show a picture", because no step opens a panel.
+
+**The bug:** the Overview dashboard's "Latency p50 / p95 / p99" panel queries
+`http_server_requests_seconds_bucket`, and that series **did not exist**. Spring Boot publishes
+`count` / `sum` / `max` for an auto-configured Timer and no buckets at all unless
+`management.metrics.distribution.percentiles-histogram[http.server.requests]` is set, and there was
+no `distribution` block anywhere in the repository. `histogram_quantile()` over a missing series
+returns nothing, so the panel was not "empty right now" - it was permanently blank, on every
+deployment, since the day it was committed. Two queries of the real scrape settle it: 12
+`http_server_requests_seconds_count` series, 0 `_bucket` series.
+
+This is E9's shape exactly: a tool reporting a number that was never a measurement, one layer up.
+And it survived two rounds of "we verified observability" because verification stopped at the API.
+
+**The second finding, different in kind:** sweeping every panel expression through the datasource
+proxy, 9 of 24 returned zero series. Five of those are expressible as a number rather than an absence
+- "5xx ratio", "Rate limit rejections", "Lease attempts exhausted", "reconcile repairs", and the
+numerator of "LLM success rate" - rendering `No data` on a system that was fine and quiet. A monitoring surface that shows nine
+grey boxes on a healthy night is one the operator learns to ignore, which is how E3's silent
+no-data problem came back in a different room.
+
+**Scope:**
+- `application.yml`: `percentiles-histogram[http.server.requests]: true`, plus explicit `slo`
+  boundaries `50ms,100ms,200ms,500ms,1s,2s,5s,10s,30s` instead of Micrometer's ~70-bucket default
+  range - buckets multiply by uri x method x status, so an unbounded histogram is a scrape-size
+  decision disguised as a config line. Same ceiling as the LLM timer in `agent/LlmClient`, so the
+  two latency panels agree on what "slow" means.
+- Five dashboard expressions get `... or vector(0)` so a true zero draws `0%` / `0`. Two do **not**:
+  and on the two ratio panels the guard sits on the **numerator only**, which is what keeps "there was
+  no traffic" distinguishable from "there was traffic and none of it was good": with an empty
+  denominator the whole expression still returns nothing. "LLM calls by outcome" gets no guard at all,
+  because `vector(0)` there would invent a series carrying no `outcome` label and draw a phantom
+  category. The two panels still showing `No data` after the fix are exactly those two, for a stack
+  with no LLM traffic, and that is the correct answer rather than unfinished work.
+- `benchmark/observability/check_panels.py`: every provisioned panel expression, executed against
+  the live datasource proxy, exiting non-zero when Prometheus rejects the query itself. Distinguishes
+  `error` from `empty`, because those are different problems - one is a broken expression, the other
+  is a series nobody publishes.
+- `benchmark/observability/render_panels.py`: headless Chromium through the two dashboards, counting
+  painted `<canvas>` elements (a panel showing `No data` paints none), capturing full-page
+  screenshots, and failing on console errors. Grafana 11.1.4 puts no `data-node-id` on panels in this
+  build, so the probe walks canvases and headings rather than trusting a selector that does not exist.
+- `benchmark/observability/docker-compose.render.yml`: the loopback-only override that makes either
+  run possible (the base file pins `container_name`, which `-p` does not scope, and publishes no host
+  port for the monitoring stack). Separate from `docker-compose.drill.yml` on purpose: the drill
+  proves provisioning, this exists so a browser can look.
+
+**Numbers, all from the same scratch stack (`-p nexus-render`, image `e9b-histogram`):**
+- Sweep before the fix: `ok=15 empty=9`. After: `ok=22 empty=2`, and the two remaining are the
+  LLM-traffic panels on a stack with no LLM traffic.
+- The prod scrape goes from 0 to **385** `http_server_requests_seconds_bucket` lines.
+- Render: Overview `9/9` canvases painted, `0` "No data"; AI Pipeline `5/5` painted, `2` "No data",
+  both of them the LLM-traffic pair. `console_errors=0`. Screenshots land in
+  `benchmark/observability/evidence/` (gitignored; the conclusion lives in
+  `docs/research/observability-drill-2026-09.md` section 9).
+- p50 / p95 / p99 = `8.8ms` / `20.1ms` / `3.12s` on a 36-request stack.
+
+**What the panel showed the moment it worked,** which is the argument for having fixed it: the only
+request over 2s on that stack is `/actuator/health` (`http_server_requests_seconds_max` = `3.16s`) -
+the endpoint `Dockerfile:38` calls every 30s with `--timeout=10s`. So a third of the healthcheck's
+budget was being spent by a probe nobody was watching, on the one URL whose failure restarts the
+container. It is not a bug today and there is no measurement of it under real load; it is now
+something an operator can see instead of a fact that had no way of arriving.
+
+**One more, found by promoting these scripts rather than leaving them in `target/`:** the first run
+of the promoted renderer failed with `TypeError: Failed to fetch` on a cold Grafana, which was mid
+sqlite migration. That is the same race the drill documented for its single `/api/health` probe
+(section 6, item 3), and the fix is the same shape - the script now blocks on `/api/health` until
+`database: ok`, verified by re-running against a forced `docker restart nexus-render-grafana`:
+`grafana ready` then `RENDER OK`, `console_errors=0`. The console-error gate was not loosened.
+
+**Acceptance:**
+- `HttpMetricsHistogramContractTest` (2 cases) reads the shipped YAML and asserts both the histogram
+  flag and the explicit SLO boundaries. It was proven to bite: flipping the flag to `false` makes it
+  fail with `expected "true" but was "false"`, which is what stops the next person trimming an
+  "unused" config line from blanking the panel again.
+- Full suite: `mvn -o test` 307 cases, 0 failures (was 305 before this ticket).
+- `python benchmark/observability/check_panels.py` exits 0 with `error=0`, and the only `EMPTY`
+  lines are the two LLM-traffic expressions.
+- `python benchmark/observability/render_panels.py` exits 0 on the 9/9 + 5/5 result above.
+- The 21-step drill re-run with this change in the image: `drill-20260914-093857`, **21/21**, and its
+  rollback step happened to swap through `e9b-histogram`, i.e. the histogram build itself, with the API
+  answering on both ends. Recorded in `docs/research/observability-drill-2026-09.md` section 9.
+- Unaffected: alert rules and their expressions (they query `_count`, which always existed), nginx's
+  actuator denial, `/actuator/prometheus` exposure, and the frontend.
+
+**Files:** `src/main/resources/application.yml`,
+`src/test/java/com/nexus/campus/config/HttpMetricsHistogramContractTest.java`,
+`docker/observability/grafana/provisioning/dashboards/json/nexus-overview.json`,
+`docker/observability/grafana/provisioning/dashboards/json/nexus-ai-pipeline.json`,
+`benchmark/observability/check_panels.py`, `benchmark/observability/render_panels.py`,
+`benchmark/observability/docker-compose.render.yml`,
+`docs/research/observability-drill-2026-09.md`, `README.md`, `CHANGELOG.md`,
+`docs/plans/pre-deployment-checklist.md`.
+
+**Rejected:**
+- Filtering `uri="/actuator/health"` out of the latency panel so the percentiles describe only user
+  traffic. Tempting and partly right, but the health probe is the endpoint whose slowness can get a
+  container restarted, and hiding it in the dashboard is the move this round exists to stop making.
+  Recorded above as a caveat instead.
+- Micrometer's default bucket range: ~70 series per timer, multiplied by uri x method x status, on a
+  box whose `mem_limit` this round had to size from measurements.
+- Adding the panel sweep to the drill script. It needs a browser and a published Grafana; the drill
+  deliberately publishes neither. Keeping them as two scripts with two override files is less tidy
+  and much less likely to make the drill host-dependent.

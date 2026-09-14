@@ -403,7 +403,10 @@ CodeCompass `scan` 的五个桶，加上我的解读：
 
 - 真实飞书送达未验（缺可用 webhook，需人工确认）。
 - 规则真的进 pending/firing 未验（5m/15m 持续条件超出演练窗口）。
-- Grafana 面板渲染未看（两个 dashboard JSON 画不画得出图要人打开确认）。
+- ~~Grafana 面板渲染未看（两个 dashboard JSON 画不画得出图要人打开确认）~~ → **已闭合（E10）**：这一看
+  就看出 `Latency p50/p95/p99` 查的 `http_server_requests_seconds_bucket` 从来没被发布过，那块图从提交起
+  就是空的，而 21 步演练全绿。现在两张 dashboard 会被无头浏览器真渲染并断言画出的 canvas 数，
+  数字与残留未证项见演练报告第九节。
 - `ai_review_lease_attempts_exhausted_total` 未演练（要把预算耗到 5 次才出现）。
 - 日志滚动的量化上限未验证（appender 图由单测断言，未真写满 1GB）。
 - 磁盘满 / OOM / MySQL 主从抖动不在本轮；前端短编号显示属人工验收。

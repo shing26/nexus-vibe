@@ -200,6 +200,20 @@ management:
       # rule silently sits in its noDataState: an alert that can never fire still looks green in
       # the UI. Bound to the application name rather than a literal so the two cannot drift.
       application: ${spring.application.name}
+    distribution:
+      percentiles-histogram:
+        # Boot publishes count/sum/max for an auto-configured Timer and nothing else. The Overview
+        # dashboard's p50/p95/p99 panel queries http_server_requests_seconds_bucket, which therefore
+        # did not exist at all: the panel rendered "No data" on a stack whose provisioning, scrape and
+        # alert rules were all verified green, because nothing had ever looked at a panel. Buckets are
+        # what histogram_quantile needs; this line is the difference between a latency panel and a
+        # framed rectangle.
+        "[http.server.requests]": true
+      # Explicit boundaries rather than Micrometer's ~70-bucket default, because buckets are emitted
+      # per uri x status x method and the default would multiply the scrape. Same shape and ceiling as
+      # the LLM timer in agent/LlmClient, so the two latency panels agree on what "slow" means.
+      slo:
+        "[http.server.requests]": 50ms,100ms,200ms,500ms,1s,2s,5s,10s,30s
   endpoint:
     health:
       # Two levels: the top-level answer is one word wide and safe to wire to a container

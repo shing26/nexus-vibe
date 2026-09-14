@@ -75,7 +75,17 @@
       上面那句"16 步全绿"只描述 09-13 的那个版本，不能拿来证明这一版。
 - [ ] 配好 `FEISHU_ALERT_WEBHOOK` / `FEISHU_ALERT_SECRET` 后，人工发一条测试告警到群里确认真的收得到——
       演练只能证明"告警到得了桥、桥失败时会喊出来"。
+- [x] 面板真的被打开看过（E10）：`check_panels.py` 逐条表达式过 datasource 代理，`render_panels.py`
+      用无头浏览器渲染两张 dashboard。scratch 栈上的结果 `ok=22 / empty=2`（那两条是没 LLM 流量的
+      LLM 面板，故意不置零）、Overview 9/9 canvas 全画、AI Pipeline 5/5 全画、`console_errors=0`。
+      这一步不是形式：修之前 `Latency p50/p95/p99` 查的 `http_server_requests_seconds_bucket` 根本不存在，
+      面板从提交起就没画过图，而 21 步演练一直是绿的。渲染栈只把 Grafana 绑在 `127.0.0.1:3000`，
+      部署形态依旧不映射任何监控端口。
+      带着这项改动重跑演练：`drill-20260914-093857`，**21/21**。
 - [ ] 上线 24 小时后回看 `/app/logs`（卷 `app-logs`）：确认滚动按 100MB / 7 天 / 1GB 收口，`docker logs` 侧 10m x 3 也没漏。
+- [ ] 同一次回看顺手看一眼延迟面板上的 p99：scratch 栈里唯一超过 2s 的请求是 `/actuator/health`
+      （max `3.16s`），而它是 healthcheck 每 30s 调的 URL、`--timeout=10s`。真负载下这个余量是变小还是
+      吃掉一半，现在看得见，也就必须有人看。
 
 ## 备份与恢复（E5，2026-09-14，分支 `codex/production-readiness`）
 

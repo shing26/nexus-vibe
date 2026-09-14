@@ -5,6 +5,8 @@
 > 结论：**21/21 PASS**，逐条证据在第六节。上一版结论是 2026-09-13 14:17 的 16/16（12:41 的 15 步与 13:19 的 16 步同样全绿）；
 > 第一到第五节保留那一版的原文与原文里的错，因为它描述的是当时那个版本 —— 本分支在那之后改了告警面与公网健康面，
 > 改完之后的重跑与纠偏全部记在第六节。
+> 第八、九节是 E9 与 E10 之后的两次重跑（各 21/21）。第九节里有一件必须放在开头的事：在那之前，
+> 全套演练没有任何一步打开过面板，而面板里有一张从提交起就永远画不出图。
 
 # 可观测性故障演练报告
 
@@ -158,6 +160,8 @@ mock：`benchmark/observability/llm-mock/mock_llm.py` 按设计只回一句 `OK`
   "会响"这一步仍未验证。
 - **Grafana 界面**：只验证 provisioning 文件挂载、`/api/health`、以及 provisioning API 里的规则与
   contact point，没有看面板渲染——dashboard 的两个 JSON 是否真画得出图，要人打开看一眼。
+  **这一条在第九节被改掉了**：面板现在真的渲染并被断言，而这一看就看出一个永远画不出图的面板。
+  原文保留，因为"当时没人看过面板"这件事本身是结论的一部分。
 - **`ai_review_lease_attempts_exhausted_total`**：要把一篇帖子的重试预算耗到 5 次才会出现，未演练。
 - **日志滚动的量化上限**（单件 100MB / 7 天 / 总量 1GB）：appender 图由
   `LogbackStructuredOutputTest` 断言，本轮没有真的写满 1GB。
@@ -250,3 +254,100 @@ E9 改了 ES 客户端与 admin 端点的返回形状，所以整套重跑一次
 这一遍没有暴露新的脚本缺陷，也没有暴露产品缺陷；`05a266b` 与 `bde8a80` 两次 markdown-only push 的 CI 都是
 四个 job 全绿（`34791146413`、`34791584974`），这是 E1 那个门禁自反性断言的第 3、4 次重复——仍然只是"更多数据"，
 不是"证明消失了"。
+
+## 九、把面板打开看了一眼（E10，2026-09-14）
+
+第一到第八节里所有关于 Grafana 的断言问的都是 API：规则装载了吗、contact point 注册了吗、表达式里的
+指标名在同一份 scrape 里找得到吗。没有任何一步问过"我半夜会去看的那张图，画得出来吗"。这一节就是去问
+了这句话，代价是一眼看出一个从提交那天起就没画过图的面板。
+
+### 两个性质不同的问题
+
+1. **`Latency p50 / p95 / p99` 永远画不出图。** 它查的是 `http_server_requests_seconds_bucket`，而这条
+   序列根本不存在：Spring Boot 对自动配置的 Timer 只发 `count`/`sum`/`max`，除非显式打开
+   `management.metrics.distribution.percentiles-histogram[http.server.requests]`，而仓库里没有任何
+   `distribution` 配置。`histogram_quantile()` 对不存在的序列返回空。真 scrape 上的证据是
+   **12 条 `_count` 序列、0 条 `_bucket` 序列**。所以这不是"现在没数据"，是"任何时候都没数据"。
+2. **24 个面板表达式里 9 个返回 0 条序列。** 其中 4 个的真值其实是"零"（5xx 比率、限流拒绝、lease 耗尽、
+   对账修复数），3 个是上面那条 `_bucket` 缺失连带的（p50/p95/p99），剩下 2 个（LLM 成功率、按 outcome
+   分类）空得对——那个栈里确实没有 LLM 流量。一套健康的系统在安静的夜里显示 9 个 `No data`，运营者就
+   学会不信这块面板了；这正是 E3 修过的"缺数据看起来像健康"，只是换了一个房间。
+   修后 `empty` 从 9 到 2，账目是 `3` 由 histogram 补回、`4` 由 guard 补回、`2` 故意留着。
+
+### 改法，以及故意不改的两处
+
+- 5 个表达式加 `or vector(0)`：真零画 `0%` / `0`，不再画灰框。
+- **比率类面板的 guard 只加在分子上。** 这样"这段时间根本没有流量"和"有流量、一个都没成"还分得开：
+  分母为空时整个表达式依然不返回序列，面板照旧 `No data`，而那是正确答案，不是没修完。
+- **`LLM calls by outcome` 不加 guard。** 这里 `vector(0)` 会凭空造出一条没有 `outcome` 标签的序列，
+  图上就多出一个不存在的分类。修完之后仍然空着的那两个面板正是这两处，原因是这个 scratch 栈里没有 LLM 流量。
+- `application.yml` 打开 histogram 的同时给了显式 `slo` 边界
+  （`50ms,100ms,200ms,500ms,1s,2s,5s,10s,30s`）而不是用 Micrometer 默认的 ~70 桶：桶数按
+  uri x method x status 相乘，这是一次伪装成配置行的抓取体积决策。上界与 `agent/LlmClient` 的 LLM
+  timer 一致，两张延迟图对"慢"的定义因此相同。
+- 回归保护是一个读 YAML 的契约测试（`HttpMetricsHistogramContractTest`，2 例）。它被验证过会咬人：
+  把开关改成 `false` 就红，报 `expected "true" but was "false"`——防的是下一个人把这行"没用的配置"清掉。
+
+### 新增的两个检查，各管一层
+
+| 脚本 | 问的问题 | 为什么不能合并成一个 |
+|---|---|---|
+| `benchmark/observability/check_panels.py` | 每个面板的表达式过 datasource 代理，到底有没有序列 | 区分 `error` 与 `empty`：一个是表达式写坏，一个是没人发布那条序列 |
+| `benchmark/observability/render_panels.py` | 浏览器真的把两个 dashboard 打开，画出几个 canvas | 表达式有返回不等于面板画得出来；反之面板上的灰框也不会被 API 检查看到 |
+
+数 canvas 而不是数选择器，是因为这个 Grafana 构建（11.1.4）不在面板元素上放 `data-node-id`；而"显示
+`No data` 的面板不会画 canvas"这件事不会说谎。渲染需要 Grafana 发布到宿主 loopback，所以另有一个
+`docker-compose.render.yml`，与演练的 override 分开——演练故意不发布任何监控端口，不该为了截图把它改掉。
+
+```powershell
+$env:APP_TAG="<本轮镜像>"
+docker compose -p nexus-render -f docker-compose.yml `
+  -f benchmark/observability/docker-compose.render.yml --profile monitoring up -d db redis elasticsearch ollama app prometheus grafana
+python benchmark/observability/check_panels.py
+python benchmark/observability/render_panels.py
+docker compose -p nexus-render -f docker-compose.yml `
+  -f benchmark/observability/docker-compose.render.yml --profile monitoring down -v
+```
+
+`up` 那一步点名服务是有原因的：`web` 在基础文件里发布宿主 8080，而那是本机正在跑的栈的入口，
+不加名单就会 `Bind for 0.0.0.0:8080 failed`。渲染不需要 `web`。
+
+### 同一套 scratch 栈上的数字（`-p nexus-render`，prod 形态镜像 `e9b-histogram`）
+
+- 表达式普查：修前 `ok=15 empty=9`；修后 `ok=22 empty=2`，剩的两个正是上面故意不改的那对。
+- prod scrape 里的 `http_server_requests_seconds_bucket` 行数：0 → **385**。
+- 渲染：Overview **9/9 canvas 全画、0 个 `No data`**；AI Pipeline **5/5 全画、2 个 `No data`**（无 LLM
+  流量的两条 LLM 面板）；`console_errors=0`。截图与 `report.json` 落在 `evidence/`（gitignore）。
+- 面板活过来之后第一个读到的数：p50 / p95 / p99 = `8.8ms` / `20.1ms` / `3.12s`（36 次请求的样本）。
+  唯一超过 2s 的请求是 `/actuator/health`（`http_server_requests_seconds_max = 3.16s`），也就是
+  `Dockerfile:38` 每 30s 调一次、`--timeout=10s` 的那个 URL——healthcheck 预算的三分之一花在一个
+  此前没人看得见的地方。今天它还不至于把容器判死，也没有真负载下的样本；变化在于这件事从"没有渠道
+  发生"变成"能被看到"。
+
+### 这一节里演练工具自己的错
+
+冷启动的 Grafana 还在跑 sqlite 迁移时，第一次渲染吃了一句 `TypeError: Failed to fetch`，于是新加的
+console-error 门禁红了——而面板其实是好的。这和第六节第 3 条是同一类错误：**断言在和自己的启动赛跑**。
+修法是渲染前轮询 `/api/health` 直到 `database: ok`，而不是放宽门禁；并用一次强制
+`docker restart nexus-render-grafana` 复验：`grafana ready` → `RENDER OK`、`console_errors=0`。
+
+### 带着这项改动重跑了一遍完整演练
+
+改的是 app 自己的配置（多一组 histogram 桶）与 dashboard JSON，所以 21 步整套重跑，不挑步骤：
+`drill-20260914-093857`（09:38:57 → 09:54:24），**21 步 0 失败**。`metrics-registered` 这一步现在的话是
+"5 条序列齐、SLO 桶与 `application` 标签到位"。
+
+这一遍又白捡一条证据：回滚那一步这次换的 tag 里包含 `e9b-histogram`，也就是**带着本节 histogram 改动的
+那个构建**——`prerelease-20260913 → e9b-histogram → prerelease-20260913`，每一步都读容器自己的镜像名核对，
+两端 `/api/v1/posts` 都答 200。它证的是"多发一组桶之后镜像仍然起得来、过健康检查、并且是一个可回滚目标"，
+不证这些桶在语义上够用——那是本节前面那 385 行序列的事，不是这一步的事。
+
+### 这一节仍然没有覆盖的
+
+- 真实飞书群里的送达；规则真的进入 pending/firing；`ai_review_lease_attempts_exhausted_total`
+  仍要把一篇帖子的重试预算耗到 5 次才会出现，未演练。
+- 渲染断言的是"这个时刻画得出图"，不是"图上的数是对的"——p99 那类数值要不要设 SLO 门，是个产品决定，
+  本轮没有替它做。
+- 本节的数字来自一次 36 请求的 scratch 栈。它们证明面板会画、序列存在，不证明容量。
+- 演练重跑用的是本机 scratch 栈与本机 Docker daemon；它不证明部署机上那一版 `.env`、那一版 nginx、
+  那一份真实流量会给出同样的图。

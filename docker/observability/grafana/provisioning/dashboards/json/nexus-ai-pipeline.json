@@ -65,7 +65,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(rate(llm_chat_completions_total{outcome=\"success\"}[10m])) / sum(rate(llm_chat_completions_total[10m]))",
+          "expr": "(sum(rate(llm_chat_completions_total{outcome=\"success\"}[10m])) or vector(0)) / sum(rate(llm_chat_completions_total[10m]))",
           "legendFormat": "success"
         }
       ]
@@ -121,7 +121,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(ai_review_lease_attempts_exhausted_total[24h]))",
+          "expr": "sum(increase(ai_review_lease_attempts_exhausted_total[24h])) or vector(0)",
           "legendFormat": "last 24h"
         }
       ]
@@ -181,7 +181,7 @@
         },
         {
           "refId": "B",
-          "expr": "sum by (kind) (increase(ai_review_reconcile_repairs_total[10m]))",
+          "expr": "(sum by (kind) (increase(ai_review_reconcile_repairs_total[10m]))) or vector(0)",
           "legendFormat": "repairs {{kind}}"
         }
       ]

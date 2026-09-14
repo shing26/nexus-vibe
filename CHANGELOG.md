@@ -11,7 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- **Evidence credibility round (E1–E8 — `docs/tickets/evidence-credibility.md`)**: the previous round built
+- **Evidence credibility round (E1–E10 — `docs/tickets/evidence-credibility.md`)**: the previous round built
   the observability surface; this round attacked whether its signals can be trusted.
   - **The test gate stops being a coin flip**: all four `@Scheduled` jobs used to run inside every
     `@SpringBootTest` (`@EnableScheduling` was declared twice), and `AiReviewReconcileTask`'s
@@ -66,6 +66,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the wrong analyzer, the call asks for `refresh=true`, and its timeout went 10s → 60s because a
     whole-site reindex is one request. 9 new unit tests plus a controller test that reads the body
     instead of asserting `notNullValue()`; 305 JUnit cases green.
+  - **E10 - the dashboard had never been looked at**: every Grafana assertion in the previous two rounds
+    went through an API (rules loaded, contact point registered, metric names present in the scrape), and
+    not one opened a panel. Doing that found `Latency p50 / p95 / p99` querying
+    `http_server_requests_seconds_bucket` — a series Spring Boot does not publish for an auto-configured
+    Timer unless `percentiles-histogram` is enabled, and no `distribution` config existed anywhere. So the
+    panel had rendered nothing, on every deployment, since it was committed (measured: 12 `_count` series,
+    0 `_bucket`). Sweeping all 24 expressions found 9 returning no series: 3 from the missing buckets,
+    4 where the honest answer is a plain zero (5xx ratio, rate-limit rejections, lease attempts
+    exhausted, reconcile repairs) and are now drawn with `or vector(0)`. On the two ratio panels the
+    guard sits on the numerator only, so "there was no traffic at all" still renders `No data` instead
+    of a fabricated "0% success" — which is why `LLM success rate` is one of the two panels left empty.
+    `application.yml` gains the histogram plus explicit SLO buckets (`50ms` … `30s`) rather than
+    Micrometer's ~70-bucket default,
+    pinned by `HttpMetricsHistogramContractTest` (2 cases, verified to fail when the flag is flipped);
+    `check_panels.py` and `render_panels.py` keep the two layers honest — expression answers a query,
+    browser paints a canvas. Post-fix on one scratch prod stack: sweep `15/9` → `22/2 empty`,
+    0 → 385 bucket lines, Overview 9/9 canvases with 0 "No data", AI Pipeline 5/5 with the 2 expected,
+    `console_errors=0`; and the first thing the working latency panel revealed is that the slowest
+    endpoint is `/actuator/health` itself (max `3.16s`), which the container healthcheck calls against a
+    10s timeout every 30s. 307 JUnit cases green, and the 21-step drill re-run with the change in the
+    image (`drill-20260914-093857`, 21/21) — whose rollback step swapped through the histogram build itself.
 
 - **Observability round (P0-1..P0-6, P1-1, P1-3 — `docs/tickets/production-readiness.md`)**
   - **Structured log to disk**: `logback-spring.xml` gives prod a `LogstashEncoder` file appender on the
@@ -144,16 +165,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Testing
 
-- 305 JUnit cases in 45 classes (was 243 before this round, 284 after the observability tickets, 296
-  after the evidence round's first eight): first tests to touch actuator at all, plus health
+- 307 JUnit cases in 46 classes (was 243 before this round, 284 after the observability tickets, 296
+  after the evidence round's first eight, 305 after E9): first tests to touch actuator at all, plus health
   semantics, trace propagation across the async hop, log JSON shape, seed gating, bootstrap
-  idempotency, the scheduling gate, the Grafana alert file parsed the way the engine parses it, and
-  what a `_bulk` response actually confirms; the alert-bridge ships 17 Python tests pinning the
-  Feishu signature and the body it is computed over
+  idempotency, the scheduling gate, the Grafana alert file parsed the way the engine parses it, what a
+  `_bulk` response actually confirms, and the single YAML key a latency panel silently depends on; the
+  alert-bridge ships 17 Python tests pinning the Feishu signature and the body it is computed over
 - Not yet proven, stated plainly: an alert arriving in a **real** Feishu group (the drill delivers to a
-  signature-verifying stand-in), Grafana panel rendering, an A→B→A rollback driven through the real
+  signature-verifying stand-in), an alert rule actually reaching `firing` (each one needs 5m/15m of the
+  condition holding, longer than the drill window), an A→B→A rollback driven through the real
   public entry point, and a backup copy that survives the death of its host disk — see the drill
   report's honest-list section and `docs/runbook/restore.md` section 9
+- Panel rendering was on that list until E10 rendered it (9/9 and 5/5 canvases painted, screenshots in
+  `docs/research/observability-drill-2026-09.md` section 9); what that check still does not do is say
+  whether the numbers on the panels are *correct*, only that they arrive
 
 ### Security
 

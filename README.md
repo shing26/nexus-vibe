@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-305%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-307%20passing-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -255,6 +255,14 @@ Prometheus 与 Grafana 都不映射宿主端口，演练时用 `docker compose e
 `benchmark/observability/drill.ps1` 会把上面这套真跑一遍故障（独立 compose project 与独立卷，不会碰正在跑的栈），
 结论见 [docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
 
+演练证的是抓取、指标名、规则表达式与告警链路，它不看面板；面板由另两个脚本负责：
+`benchmark/observability/check_panels.py` 把每个面板的表达式过一遍 datasource 代理（区分"表达式写坏"和
+"没人发布这条序列"），`render_panels.py` 用无头浏览器真的把两张 dashboard 打开、数被画出来的 canvas。
+它们需要 Grafana 发布到宿主 loopback，所以有独立的 `docker-compose.render.yml`，默认不启用。
+之所以补这一步：`Latency p50/p95/p99` 那张图从提交起就没画出来过——Boot 不打开
+`percentiles-histogram` 就不发 `_bucket` 序列，而 `histogram_quantile()` 对不存在的序列返回空。
+结论在同一份报告的第九节。
+
 ### Release, Rollback, Backup
 
 | 事项 | 做法 | 状态 |
@@ -322,11 +330,13 @@ curl http://localhost:8081/api/v1/users/2/summary
 ## Testing
 
 ```bash
-mvn test                      # 305 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
+mvn test                      # 307 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 17 tests: Feishu sign + body
 pwsh -File benchmark/observability/drill.ps1      # 21 步故障演练，另起 compose project，~10-20 分钟，需 Docker
+python benchmark/observability/check_panels.py    # 每个面板表达式查一遍：error / empty / 有序列
+python benchmark/observability/render_panels.py   # 无头浏览器真的渲染两张 dashboard，需先起 render 栈
 ```
 
 CI（`.github/workflows/maven.yml`）只跑 `mvn test`：告警桥的 Python 单测与演练脚本都在本地跑，
