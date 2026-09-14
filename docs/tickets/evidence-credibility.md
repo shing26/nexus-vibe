@@ -41,6 +41,11 @@ not evidence that it is fixed. The real evidence is the gate itself — `Schedul
 that no job bean exists in the test context, which is why the mechanism cannot come back without a
 test going red. E1's acceptance asked for 3–5 repeats; that is a calendar matter now, not a work item.
 
+Repeats kept landing, and they are still data rather than proof. Two more at the end of this round:
+`34ea05d` (E10's code + docs, run `34797873913`) and `71a7853` (markdown only, run
+`34798554753`) are each green on all four jobs. The second one is the case that matters for this
+ticket: a commit that cannot change a test outcome, on the gate that used to flip on those.
+
 Mechanism, verified in the current tree:
 
 - `@EnableScheduling` is declared twice (`NexusCampusApplication:12` and
