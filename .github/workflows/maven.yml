@@ -107,7 +107,12 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # R3's test step needs this. jsdom 30 declares
+          # `^22.22.2 || ^24.15.0 || >=26.0.0` and its undici calls
+          # `webidl.util.markAsUncloneable`, which Node 20 does not have: on "20" every
+          # test file died at collection with 6 errors and "no tests", which is the
+          # loudest possible version of a suite that silently runs nothing.
+          node-version: "24"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
