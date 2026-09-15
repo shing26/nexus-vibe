@@ -70,33 +70,4 @@ public class ApiResponse<T> implements Serializable {
     public static <T> ApiResponse<T> error(BusinessException failure) {
         return error(failure.getStatus(), failure.getMessage());
     }
-
-    /**
-     * Transitional. The sixteen controller sites that pass a literal still answer
-     * {@code 200} over the wire while claiming otherwise in the body, and deleting
-     * this overload before they are migrated would leave the branch uncompilable
-     * for several commits. It goes away in the same commit that makes an unmigrated
-     * site a compile error, which is the check this whole ticket is built to have.
-     */
-    public static <T> ApiResponse<T> error(int code, String message) {
-        ApiResponse<T> response = new ApiResponse<>();
-        response.code = code;
-        response.message = message;
-        if (code >= 500) {
-            response.traceId = TraceIds.current();
-        }
-        return response;
-    }
-
-    public static <T> ApiResponse<T> unauthorized(String message) {
-        return error(HttpStatus.UNAUTHORIZED, message);
-    }
-
-    public static <T> ApiResponse<T> forbidden(String message) {
-        return error(HttpStatus.FORBIDDEN, message);
-    }
-
-    public static <T> ApiResponse<T> notFound(String message) {
-        return error(HttpStatus.NOT_FOUND, message);
-    }
 }

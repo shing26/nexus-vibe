@@ -97,13 +97,21 @@ public class GlobalExceptionHandler {
     }
 
     /**
-     * Expected business errors (validation, permission, state) carry a safe,
-     * user-facing message and map to HTTP 400.
+     * An {@link IllegalArgumentException} that is not a {@link BusinessException} is
+     * an argument somebody rejected without saying how, so it stays a 400 — but the
+     * message is no longer repeated back. It used to be, which meant anything a
+     * library threw with an internal string in it reached the client: a JDBC
+     * constraint name, an upstream response body, a filesystem path.
+     *
+     * <p>{@link IllegalStateException} is not handled here any more. Once every
+     * known refusal had been given a status of its own, an ISE left on a request
+     * path was by definition unmapped, and unmapped means the 500 side, where the
+     * full stack is logged and the client is told nothing.</p>
      */
-    @ExceptionHandler({IllegalArgumentException.class, IllegalStateException.class})
+    @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<ApiResponse<Void>> handleBusinessError(RuntimeException e) {
-        log.warn("Business exception: {}", e.getMessage());
-        return failure(HttpStatus.BAD_REQUEST, e.getMessage());
+        log.warn("Unmapped argument failure: {}", e.getMessage());
+        return failure(HttpStatus.BAD_REQUEST, "Request could not be processed. Check the submitted values.");
     }
 
     /**

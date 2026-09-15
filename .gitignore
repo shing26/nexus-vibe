@@ -71,3 +71,6 @@ Nexus-Vibe-项目全量梳理.md
 docs/project-experience-refactored.md
 # Backup sets (scripts/backup.ps1): belong on a second volume, and are never committable - db.sql.gz holds password hashes.
 backups/
+
+# One-off probe scripts written while migrating controller statuses. They read the tree and
+# print a count; the conclusions they reached live in the tickets and docs/research instead.
