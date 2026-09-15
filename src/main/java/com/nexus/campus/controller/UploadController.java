@@ -1,9 +1,11 @@
 package com.nexus.campus.controller;
 
 import com.nexus.campus.dto.ApiResponse;
+import com.nexus.campus.exception.BusinessException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -53,21 +55,21 @@ public class UploadController {
     @PostMapping("/image")
     public ApiResponse<String> uploadImage(@RequestParam("file") MultipartFile file) {
         if (file == null || file.isEmpty()) {
-            return ApiResponse.error(400, "File is empty.");
+            throw BusinessException.badRequest("File is empty.");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
-            return ApiResponse.error(400, "File size exceeds 5MB limit.");
+            throw BusinessException.badRequest("File size exceeds 5MB limit.");
         }
 
         String extension = detectImageExtension(file);
         if (extension == null || !originalNameAllowed(file.getOriginalFilename(), extension)) {
-            return ApiResponse.error(400, "Only JPG, PNG, GIF, and WebP images are allowed.");
+            throw BusinessException.badRequest("Only JPG, PNG, GIF, and WebP images are allowed.");
         }
 
         String filename = UUID.randomUUID() + "." + extension;
         Path targetPath = uploadPath.resolve(filename).normalize();
         if (!targetPath.startsWith(uploadPath)) {
-            return ApiResponse.error(400, "Invalid upload path.");
+            throw BusinessException.badRequest("Invalid upload path.");
         }
 
         try {
@@ -76,7 +78,9 @@ public class UploadController {
             return ApiResponse.success("Image uploaded.", "/uploads/" + filename);
         } catch (IOException e) {
             log.error("[NEXUS-UPLOAD] Upload failed", e);
-            return ApiResponse.error(500, "File upload failed.");
+            // A disk that will not take the file is the server's problem, and the
+            // 5xx-ratio alert can only see it now that the status says 500.
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "File upload failed.");
         }
     }
 

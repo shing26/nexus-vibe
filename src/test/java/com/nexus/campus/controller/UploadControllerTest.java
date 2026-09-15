@@ -1,6 +1,8 @@
 package com.nexus.campus.controller;
 
 import com.nexus.campus.dto.ApiResponse;
+import com.nexus.campus.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -58,9 +60,8 @@ class UploadControllerTest {
                 "file", "x.html", "image/png",
                 "<html><script>alert(1)</script></html>".getBytes(StandardCharsets.UTF_8));
 
-        ApiResponse<String> result = controller.uploadImage(file);
-
-        assertEquals(400, result.getCode());
+        BusinessException thrown = assertThrows(BusinessException.class, () -> controller.uploadImage(file));
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatus());
         assertEmptyUploadDir();
     }
 
@@ -70,9 +71,8 @@ class UploadControllerTest {
         byte[] jpeg = new byte[]{(byte) 0xFF, (byte) 0xD8, (byte) 0xFF, (byte) 0xE0, 0x00, 0x10};
         MockMultipartFile file = new MockMultipartFile("file", "photo.png", "image/png", jpeg);
 
-        ApiResponse<String> result = controller.uploadImage(file);
-
-        assertEquals(400, result.getCode());
+        BusinessException thrown = assertThrows(BusinessException.class, () -> controller.uploadImage(file));
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatus());
         assertEmptyUploadDir();
     }
 
@@ -82,9 +82,8 @@ class UploadControllerTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "notes.txt", "text/plain", "hello".getBytes(StandardCharsets.UTF_8));
 
-        ApiResponse<String> result = controller.uploadImage(file);
-
-        assertEquals(400, result.getCode());
+        BusinessException thrown = assertThrows(BusinessException.class, () -> controller.uploadImage(file));
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatus());
         assertEmptyUploadDir();
     }
 
@@ -95,9 +94,8 @@ class UploadControllerTest {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "big.png", "image/png", big);
 
-        ApiResponse<String> result = controller.uploadImage(file);
-
-        assertEquals(400, result.getCode());
+        BusinessException thrown = assertThrows(BusinessException.class, () -> controller.uploadImage(file));
+        assertEquals(HttpStatus.BAD_REQUEST, thrown.getStatus());
         assertEmptyUploadDir();
     }
 

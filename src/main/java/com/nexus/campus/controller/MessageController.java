@@ -3,6 +3,7 @@ package com.nexus.campus.controller;
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.MessageVo;
 import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.service.SysMessageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -40,7 +41,7 @@ public class MessageController {
             @RequestAttribute("currentUserId") Long userId) {
         boolean marked = sysMessageService.markAsRead(id, userId);
         if (!marked) {
-            return ApiResponse.notFound("Message not found.");
+            throw BusinessException.notFound("Message not found.");
         }
         return ApiResponse.successMessage("Message marked as read.");
     }

@@ -100,7 +100,7 @@ class AiLogControllerIntegrationTest {
         String token = jwtUtil.generateToken(2L, "shing", "USER");
         mockMvc.perform(get("/api/v1/agent-logs")
                         .header("Authorization", "Bearer " + token))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code", is(403)));
     }
 
