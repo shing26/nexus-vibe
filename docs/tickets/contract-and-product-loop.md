@@ -3,12 +3,15 @@
 Source: the product-manager review of 2026-09-15, and the gap list left over
 from [production-readiness-assessment-2026-09.md](../research/production-readiness-assessment-2026-09.md).
 North star: the API says one thing in two places and they disagree, the repo
-has 309 backend tests and zero frontend tests, and a phone cannot reach the
+has 310 backend tests and zero frontend tests, and a phone cannot reach the
 message page. This round fixes what is measurable about those three.
 
-Baseline measured at the start of this round: **309 tests across 48 test
-classes**, 0 failures, 0 errors, 0 skipped (`mvn test`, 2026-09-15). The
-previous ticket's 307/46 was true when it was written and has since moved.
+Baseline before R1: **307 tests across 46 test classes**, 0 failures, 0 errors,
+0 skipped. R1 ends at 310 with its three new cases. My first read of this number
+was 309/48, obtained by summing `target/surefire-reports/*.txt`, and it was
+wrong: that directory keeps reports from earlier filtered runs. The run summary
+line is the only trustworthy source here, and it agrees with the 307/46 the
+previous ticket recorded.
 
 Order is R1 -> R2 -> R3 -> R4 -> R5 -> R6. R1 goes first not because it is
 bigger but because it changes the same controller files with **no wire change
@@ -21,7 +24,9 @@ objects and throw instead; **no `ErrorCode` catalogue this round**.
 
 ## R1 - Responses stop serialising persistence entities
 
-Status: open.
+Status: done on `codex/http-contract-and-product-loop`. 310 tests green, and the
+reflection scan came back with an empty offender list, so no handler anywhere
+mentions an entity type.
 
 **Scope:** make "an entity field reaches the internet" impossible by
 structure rather than by memory, without changing a single response body
@@ -54,7 +59,7 @@ request DTOs are untouched.
 - The scan test is red the moment an entity type name reappears in a
   controller signature, and there is no allowlist.
 - Unaffected: `PostPageVo`, `UserPublicVo`, `AiLogVo`, `UserProfileSummary`
-  paths, which already returned VOs; the 309 baseline tests; request DTOs;
+  paths, which already returned VOs; the 307 tests that existed before R1; request DTOs;
   the database schema.
 
 **Files:** `src/main/java/com/nexus/campus/dto/{CommentVo,MessageVo,TagVo,ChannelVo,ProfileVo}.java`,
@@ -123,7 +128,7 @@ but wrong:
 - Unaffected: the 9 `401` assertions that come from `JwtAuthFilter` and
   already carried a real status; the validation-handler 400s and the 405
   handler, which were already honest; `RateLimitInterceptor`, which already
-  writes a real 429; envelope key set; the 309 baseline count.
+  writes a real 429; envelope key set; the 310 test count R1 left behind.
 - This round does not add `ErrorCode`. `HttpStatus` absorbs the 27 magic
   numbers, and the assessment's other justification - that the frontend
   branches on message text - turned out to be false: all 13 frontend uses of
@@ -141,7 +146,7 @@ affected tests under `src/test/java/com/nexus/campus/controller/`.
 
 Status: open.
 
-**Scope:** 309 backend tests, 17 alert-bridge tests, 0 frontend. The one place
+**Scope:** 310 backend tests, 17 alert-bridge tests, 0 frontend. The one place
 a user can actually be hurt has no gate.
 
 - vitest + jsdom + `@testing-library/react`; `npm run test` joins the CI

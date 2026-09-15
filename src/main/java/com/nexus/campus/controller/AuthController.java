@@ -5,6 +5,7 @@ import com.nexus.campus.dto.JwtResponse;
 import com.nexus.campus.dto.LoginRequest;
 import com.nexus.campus.dto.RefreshTokenRequest;
 import com.nexus.campus.dto.RegisterRequest;
+import com.nexus.campus.dto.ProfileVo;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.service.SysUserService;
 import com.nexus.campus.util.JwtUtil;
@@ -44,12 +45,11 @@ public class AuthController {
     }
 
     @GetMapping("/profile")
-    public ApiResponse<?> getProfile(@RequestAttribute("currentUserId") Long userId) {
+    public ApiResponse<ProfileVo> getProfile(@RequestAttribute("currentUserId") Long userId) {
         SysUser user = sysUserService.getUserById(userId);
-        if (user != null) {
-            user.setPassword(null);
-        }
-        return ApiResponse.success(user);
+        // A deleted-but-still-tokened user used to answer 200 with data:null; the
+        // null check lives in ProfileVo.from so that shape is unchanged.
+        return ApiResponse.success(ProfileVo.from(user));
     }
 
     @PostMapping("/refresh")

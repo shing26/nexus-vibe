@@ -3,6 +3,7 @@ package com.nexus.campus.controller;
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.PasswordChangeRequest;
 import com.nexus.campus.dto.ProfileUpdateRequest;
+import com.nexus.campus.dto.ProfileVo;
 import com.nexus.campus.dto.UserProfileSummary;
 import com.nexus.campus.dto.UserPublicVo;
 import com.nexus.campus.entity.SysUser;
@@ -67,17 +68,16 @@ public class UserController {
     }
 
     @GetMapping("/profile")
-    public ApiResponse<SysUser> getProfile(@RequestAttribute("currentUserId") Long userId) {
+    public ApiResponse<ProfileVo> getProfile(@RequestAttribute("currentUserId") Long userId) {
         SysUser user = sysUserService.getUserById(userId);
         if (user == null) {
             return ApiResponse.notFound("User not found.");
         }
-        user.setPassword(null);
-        return ApiResponse.success(user);
+        return ApiResponse.success(ProfileVo.from(user));
     }
 
     @PutMapping("/profile")
-    public ApiResponse<SysUser> updateProfile(
+    public ApiResponse<ProfileVo> updateProfile(
             @Valid @RequestBody ProfileUpdateRequest request,
             @RequestAttribute("currentUserId") Long userId) {
         SysUser user = sysUserService.getUserById(userId);
@@ -97,8 +97,7 @@ public class UserController {
             user.setBio(request.getBio());
         }
         sysUserService.updateUser(user);
-        user.setPassword(null);
-        return ApiResponse.success("Profile updated.", user);
+        return ApiResponse.success("Profile updated.", ProfileVo.from(user));
     }
 
     @PutMapping("/password")

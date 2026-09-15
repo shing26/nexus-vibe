@@ -1,6 +1,7 @@
 package com.nexus.campus.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -20,6 +21,13 @@ public class SysUser implements Serializable {
 
     private String email;
 
+    /**
+     * Write-only: the hash is an input to the service layer and must never come
+     * back out in a response body. Before this annotation the protection was
+     * three hand-written setPassword(null) calls in three controllers, which a
+     * fourth endpoint returning SysUser could silently skip.
+     */
+    @JsonProperty(access = JsonProperty.Access.WRITE_ONLY)
     private String password;
 
     private String nickname;
