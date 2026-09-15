@@ -102,7 +102,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(post_created_total{application=\"nexus-vibe\"}[7d])) or vector(0)",
+          "expr": "sum(increase(post_submitted_total{application=\"nexus-vibe\"}[7d])) or vector(0)",
           "legendFormat": "submitted"
         }
       ]
@@ -118,7 +118,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum by (status) (increase(post_created_total{application=\"nexus-vibe\"}[1d]))",
+          "expr": "sum by (status) (increase(post_submitted_total{application=\"nexus-vibe\"}[1d]))",
           "legendFormat": "{{status}}"
         }
       ]
@@ -149,7 +149,7 @@
       "targets": [
         {
           "refId": "A",
-          "expr": "sum(increase(comment_created_total{application=\"nexus-vibe\"}[1d])) or vector(0)",
+          "expr": "sum(increase(comment_submitted_total{application=\"nexus-vibe\"}[1d])) or vector(0)",
           "legendFormat": "comments"
         },
         {

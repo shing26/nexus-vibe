@@ -22,6 +22,16 @@ import java.util.Map;
  *
  * <p>Labels are closed sets derived from enums, never free text or ids — a counter
  * tagged with a post id is a memory leak that reports to Prometheus.</p>
+ *
+ * <p>Meter names are not the same strings the scrape shows. The Prometheus naming convention
+ * reserves the {@code _created} suffix (client_golang publishes a counter's start timestamp as
+ * {@code <name>_created}), so it strips a trailing {@code created} token from the meter name
+ * before appending {@code _total}: a counter named {@code post.created} exports as
+ * {@code post_total}, and {@code comment.created} as {@code comment_total}. Those two names were
+ * what the drill, the panel and the README all asked for, which is how the first real scrape
+ * noticed. Hence {@code *.submitted}. {@code ProductMetricsPrometheusNamesTest} renders the four
+ * through a real {@code PrometheusMeterRegistry} because a {@code SimpleMeterRegistry} keeps the
+ * name verbatim and cannot see this at all.</p>
  */
 @Component
 public class ProductMetrics {
@@ -47,7 +57,7 @@ public class ProductMetrics {
         // as a probe, so getOrDefault(null, ...) throws. A metering line that can throw
         // is one that can fail a request which had already succeeded.
         String label = status == null ? "other" : POST_CREATED_LABELS.getOrDefault(status, "other");
-        counter("post.created", "status", label).increment();
+        counter("post.submitted", "status", label).increment();
     }
 
     /**
@@ -60,7 +70,7 @@ public class ProductMetrics {
     }
 
     public void recordCommentCreated() {
-        counter("comment.created", null, null).increment();
+        counter("comment.submitted", null, null).increment();
     }
 
     private Counter counter(String name, String tag, String value) {

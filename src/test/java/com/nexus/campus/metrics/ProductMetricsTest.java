@@ -32,7 +32,7 @@ class ProductMetricsTest {
     }
 
     @Test
-    @DisplayName("post_created splits on a lifecycle label, never a status integer")
+    @DisplayName("post_submitted splits on a lifecycle label, never a status integer")
     void postCreatedCarriesTheStatusLabel() {
         metrics.recordPostCreated(1);
         metrics.recordPostCreated(1);
@@ -40,12 +40,12 @@ class ProductMetricsTest {
         metrics.recordPostCreated(3);
         metrics.recordPostCreated(null);
 
-        assertThat(count("post.created", "status", "published")).isEqualTo(2.0);
-        assertThat(count("post.created", "status", "pending-review")).isEqualTo(1.0);
-        assertThat(count("post.created", "status", "rejected")).isEqualTo(1.0);
+        assertThat(count("post.submitted", "status", "published")).isEqualTo(2.0);
+        assertThat(count("post.submitted", "status", "pending-review")).isEqualTo(1.0);
+        assertThat(count("post.submitted", "status", "rejected")).isEqualTo(1.0);
         // A status the enum does not know about lands in `other` instead of throwing
         // on a request path that had already written its row.
-        assertThat(count("post.created", "status", "other")).isEqualTo(1.0);
+        assertThat(count("post.submitted", "status", "other")).isEqualTo(1.0);
     }
 
     @Test
@@ -60,11 +60,11 @@ class ProductMetricsTest {
     }
 
     @Test
-    @DisplayName("comment_created_total is its own meter, not a tag on post_created")
+    @DisplayName("comment_submitted_total is its own meter, not a tag on post_submitted")
     void commentCreated() {
         metrics.recordCommentCreated();
 
-        assertThat(registry.get("comment.created").counter().count()).isEqualTo(1.0);
-        assertThat(registry.find("post.created").counter()).isNull();
+        assertThat(registry.get("comment.submitted").counter().count()).isEqualTo(1.0);
+        assertThat(registry.find("post.submitted").counter()).isNull();
     }
 }
