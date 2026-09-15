@@ -228,13 +228,27 @@ shows the server's sentence. Better copy, different branch.
 
 ## R4 - The product loop becomes countable
 
-Status: done on `codex/http-contract-and-product-loop` except for the drill leg, which
-runs with R5's. 328 tests green (from R2's 317: 4 in `ProductMetricsTest`, 4 in
-`FunnelAggregateTaskTest`, 3 in `FunnelAggregateIntegrationTest`).
+Status: done, and the drill leg ran on 2026-09-16 — where it went red and turned out to be
+right. Four counters plus two gauges plus a panel, but the two `*.created` counters never
+reached Prometheus under the names this ticket, the panel and the drill all used: the
+Prometheus naming convention reserves the `_created` suffix and eats a trailing `created`
+token, so `post.created` exported as `post_total` and `comment.created` as `comment_total`.
+The meters were registered and incremented; only the exported name was wrong, which is why
+`ProductMetricsTest` stayed green the whole time — a `SimpleMeterRegistry` keeps meter names
+verbatim. The two counters are now `post.submitted` / `comment.submitted`, exporting
+`post_submitted_total{status}` and `comment_submitted_total`, with the panel and the drill
+following. `ProductMetricsPrometheusNamesTest` renders all four through a real
+`PrometheusMeterRegistry` and asserts both the four expected names and the absence of the two
+mangled ones, because that naming layer is the third dialect this round had no test in. The
+drill's own presence check stopped conflating "absent" with "zero" — `-not 0` is true in
+PowerShell — and now fails separately for a meter that never appeared and one that never moved.
+331 tests green (from R2's 317: 4 in `ProductMetricsTest`, 2 in
+`ProductMetricsPrometheusNamesTest`, 4 in `FunnelAggregateTaskTest`, 3 in
+`FunnelAggregateIntegrationTest`, and the two contract scans from R1/R2).
 
 Four counters in `metrics/ProductMetrics` (`user_registered_total`,
-`post_created_total{status}`, `post_audited_total{action}`,
-`comment_created_total`) and two daily gauges from `task/FunnelAggregateTask`
+`post_submitted_total{status}`, `post_audited_total{action}`,
+`comment_submitted_total`) and two daily gauges from `task/FunnelAggregateTask`
 (`funnel_activation_ratio`, `funnel_active_content_d7_ratio`), one
 `nexus-product-loop.json` panel set in the existing provider, and a drill step that
 registers, publishes, moderates and replies for real and then reads the scrape back.
@@ -270,6 +284,22 @@ H2 so a typo cannot survive as "the unit test stubs the mapper", and the drill's
 `product-loop-drives-the-counters` step executes them on MySQL while asserting the
 ratios land inside 0..1.
 
+A fourth dialect turned out to be needed for the names themselves, and the drill found that
+too: `post.created` and `comment.created` left the JVM as `post_total` and `comment_total`
+because the Prometheus naming convention reserves a trailing `created` token. The meters were
+registered and incremented — `SimpleMeterRegistry` kept the names verbatim, so the unit test was
+true about a dialect nothing deployed speaks. The two counters are now `post.submitted` /
+`comment.submitted`, the panel and the drill follow those names, and
+`ProductMetricsPrometheusNamesTest` renders all four through a real `PrometheusMeterRegistry`,
+asserting both the four expected names and the absence of the two mangled ones.
+
+One more thing the first real ratios gave away: the denominators counted `AiAgent` (id 999,
+`role = AI_AGENT`), the account `DataPreloader` creates for itself. It can never appear in a
+numerator, so it is a permanent floor under "nobody uses this" — on the drill's database the
+activation ratio read 0.33 where the honest number is 0.5, on a site whose whole population is
+three accounts. Both reads now exclude that role, and the integration test pins the exclusion
+against the fixture that ships the agent.
+
 **Scope:** the seven existing metrics are all operational. Nothing answers
 "did the thing we built get used".
 
@@ -296,13 +326,24 @@ ratios land inside 0..1.
 **Files:** `src/main/java/com/nexus/campus/task/FunnelAggregateTask.java`,
 metric lines in `src/main/java/com/nexus/campus/service/impl/*`,
 `docker/observability/grafana/provisioning/dashboards/json/nexus-product-loop.json`,
-`benchmark/observability/drill.ps1`.
+`benchmark/observability/drill.ps1`,
+`src/test/java/com/nexus/campus/metrics/ProductMetricsPrometheusNamesTest.java`.
 
 ## R5 - Containers: non-root, and nginx that starts without luck
 
-Status: code done on `codex/http-contract-and-product-loop`; the drill steps
-(`non-root-app-and-the-root-owned-volume-upgrade` plus the R4 funnel step) run in one
-pass at the end of the round, so this line is not yet a verified claim.
+Status: done, with one claim this ticket made turned out to be false and now fixed. The drill
+step `non-root-app-and-the-root-owned-volume-upgrade` ran on 2026-09-16 and went red exactly
+where it was designed to bite: the app, started against a deliberately root-owned `app-logs`,
+did not "degrade quietly with a logback warning" — it never started. Spring Boot escalates any
+error status recorded while configuring logback into an `IllegalStateException` during
+`prepareEnvironment`, so the container restart-looped (10 restarts in four minutes,
+`/actuator/health` never answering, the public site down) — the false premise was in the step's
+own comment as well as the checklist. The entry point now probes the log directory before the
+JVM starts and falls back to `/tmp/nexus-logs` with a stderr `WARN`, which keeps the site
+serving and costs durability for that window; the step asserts the warning, the fallback file,
+and — after the documented chown and a restart — that `/app/logs/nexus-vibe.json`'s mtime
+actually advances, because a plain read would pass on the line the first boot wrote. Uploads
+still fail while the volume is root-owned, which the step proves on purpose.
 
 `Dockerfile` builds `appuser` at uid/gid 10001 (`--no-create-home`, `nologin`), copies
 the jar `--chown`, pre-creates and owns `/app/uploads` and `/app/logs`, and switches

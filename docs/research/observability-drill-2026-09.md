@@ -351,3 +351,129 @@ console-error 门禁红了——而面板其实是好的。这和第六节第 3 
 - 本节的数字来自一次 36 请求的 scratch 栈。它们证明面板会画、序列存在，不证明容量。
 - 演练重跑用的是本机 scratch 栈与本机 Docker daemon；它不证明部署机上那一版 `.env`、那一版 nginx、
   那一份真实流量会给出同样的图。
+
+## 十、第六轮：演练第一次跑 23 步，抓出两个单测结构上看不见的 bug（2026-09-16）
+
+第六轮（R1–R6，契约真实性与产品闭环）落完，演练从 21 步长到 23 步：R4 的
+`product-loop-drives-the-counters` 与 R5 的 `non-root-app-and-the-root-owned-volume-upgrade`。
+这两步不是"又多两块绿"——它们第一次执行就红了，红得对。当天跑了四次，前三次跑完：
+`drill-20260916-012459`（23 步 3 红）、`-021256`（1 红）、`-024325`（0 红）。第四次
+`drill-20260916-025928` 带着最后一条分母口径的改动跑到第 15 步时被操作者中断（不是失败），
+它跑到哪儿、证了什么，写在"跑完的那一次全绿"后半段。按发现顺序记，因为三条都值得记。
+
+### 先说证据的边界：这一节的镜像不是 `docker build .` 出来的
+
+这台机器构建不了仓库里那个多阶段 Dockerfile：`mvn` 阶段与 `npm ci` 阶段在容器里下依赖会
+`ECONNRESET`，而宿主机上同样的 `mvn package` / `npm run build` 都成功；同一个文件在 CI 里两分半建完，
+PR #3 的 image job 是绿的——"能从源码构建"由 CI 代证。演练跑的是**宿主机产物 + 真实第二阶段层**
+拼出来的运行镜像：`FROM eclipse-temurin:21-jre`、仓库 `Dockerfile` 里那套 curl / uid 10001 /
+HEALTHCHECK / entry point、宿主机 `mvn` 出来的 jar；web 侧同理用真实的 `docker/nginx/nginx.conf`。
+所以这一节证的是**运行时形状**（进程身份、卷属主、指标出口、nginx 转发、告警链路、健康语义），
+不证"容器里能不能下载包"。脚手架 Dockerfile 留在 `scratch/`，不进仓库，也不假装它是交付物。
+
+### 第一个红：R4 的计数器没按它自己的名字出来
+
+症状：注册、发帖、评论、审核四步全部 200，抓回来的 scrape 里 `user_registered_total=1`、
+`post_audited_total=1`，另外两个名字整个不存在。查进程实际导出了什么：
+
+```
+# HELP post_total Product-loop event: post.created
+# TYPE post_total counter
+post_total{application="nexus-vibe",status="published"} 1.0
+```
+
+根因不在埋点，在名字：Prometheus 把 `_created` 当保留后缀（client_golang 会为每个 counter 另发一条
+`<name>_created` 起始时间戳），Micrometer 在拼 `_total` 之前先把结尾的 `created` token 剥掉，于是
+`post.created` → `post_total`、`comment.created` → `comment_total`，而 `user.registered` 与
+`post.audited` 安然无事。票面、README、面板 expr、演练断言四处在同一件没存在过的事上达成一致。
+
+为什么 317→328 条单测全绿也看不见：`ProductMetricsTest` 用的是 `SimpleMeterRegistry`，**它原样保留
+meter 名**。这一轮此前已经撞到两层方言（H2 vs MySQL、jsdom vs 真浏览器），这是第三层：
+Micrometer 名 vs Prometheus 导出名。
+
+改法：两个 meter 改名 `post.submitted` / `comment.submitted`（导出 `post_submitted_total{status}`、
+`comment_submitted_total`），面板与演练跟着改；新增 `ProductMetricsPrometheusNamesTest`，用真
+`PrometheusMeterRegistry` 渲染四个 counter，正向钉四个该出现的名字，反向钉 `post_total` /
+`comment_total` 这两个被吃掉的名字不许回来。
+
+顺带修掉演练自己的一个口径错误：`Get-MetricSum` 找不到时返回 `$null`，但 PowerShell 里 `-not 0`
+也为真，所以"抓到一个值为 0 的 counter"会被报成"根本没这个指标"。现在 presence 与 movement
+是两条断言、两条消息——否则下一次红会再次把两类不同的故障合成同一句话。
+
+### 第二个红：R5 的前提是错的，而且错的方向是"整站下线"
+
+这一步自己把两个卷 chown 回 root 再 `up -d app`，然后 240 秒等不到 `/actuator/health`。
+`docker inspect`：`RestartCount=10`、`status=restarting`、`exit=1`。容器日志第一行：
+
+```
+IllegalStateException: Logback configuration error detected:
+ERROR in ...RollingFileAppender[FILE_JSON] - openFile(/app/logs/nexus-vibe.json,true) call failed.
+java.io.FileNotFoundException: /app/logs/nexus-vibe.json (Permission denied)
+```
+
+票面和这一步的注释都写着"logback 打不开文件只是一条 warning，不是 crash"。这句是错的：Spring Boot
+会把 logback 配置期记录下来的 error 状态升级成异常，在 `prepareEnvironment` 抛出，JVM 在 Tomcat 绑端口
+之前就退出。而 Docker 只在命名卷**为空**时用镜像里的属主初始化它，所以任何跑过这套栈的老主机，
+升级即整站不可用，现场还长得像"应用起不来"而不像"日志目录是 root 的"。
+
+改法：entry point 在拉起 JVM 之前先探一次目标目录，不可写就把 `LOG_DIR` 换成 `/tmp/nexus-logs`
+并在 stderr 打一条带 uid 和清单命令的 WARN，然后照常启动。这是 ADR-0007 的口径用在日志文件上：
+一个可以降级、不该致命的依赖。代价写清楚——那段时间的 JSON 日志不跨容器存活；上传目录不可写仍然
+是运行时 500（演练继续断言这一条，因为它需要被看见）。清单里那条一次性 `chown` 从"建议"改成
+"升级前先跑"。
+
+这一步补了三条真断言，都是原来没有的：WARN 必须出现在容器日志里；fallback 目录里必须有 JSON 行；
+migration 之后不看"文件是否存在"而看 **mtime 是否前进**——那文件从第一次启动就躺在盘上，只读一眼
+会把旧行当新证据。
+
+### 第三个红：回滚那一步挑了一个不能回的目标（演练的口径问题，不是产品的）
+
+修完上面两条重跑，22/23，红在 `rollback-swaps-between-two-real-image-tags`：换 tag 之后
+`/actuator/health` 答了 200，紧接着 `/api/v1/posts` 变成"连接被拒"。
+
+因为这一步的目标是"本地镜像库里剩下的那个 tag"随便挑的，而这台机器上剩的是上一轮的构建，它带的是
+ADR-0008 之前的启动种子逻辑：`DataPreloader` 坚持插一个 username=`admin` 的样例账号，撞上本轮
+`BootstrapAdminInitializer` 已经写进库的那一行，runner 抛异常。而 **Tomcat 在 `CommandLineRunner`
+跑完之前就开始监听**，所以"探活成功"与"进程已死"之间只隔一个请求。
+
+这一步原来的注释要求"两个真正不同的构建，retag 同一个构建两次只证明 compose 会拼字符串"，但它只比了
+tag 字符串。现在：目标由 `-RollbackTag` 显式给出（没给就取最新的另一个 tag，并把选到谁写进证据）；两个
+tag 必须解析出**不同的 image id**；每侧 `/api/v1/posts` 连探两次、间隔 12 秒，任一次不是 `0/200` 就把
+目标 tag 与容器最后 12 行日志写进证据再失败。
+
+这条同时给出"回滚"这个能力真正的边界，已写进 README 与部署清单：**换 image tag 只在数据兼容窗口内
+成立**。本轮没动表结构，所以两个 round-six 构建之间可滚；pre-ADR-0008 的构建无法在写过 bootstrap
+admin 的库上启动。至于"滚回一个坏版本把它救回来"，仍然没有样本。
+
+### 跑完的那一次全绿（`drill-20260916-024325`，23 步 0 失败）
+
+| 步骤 | 实测 |
+|---|---|
+| product-loop-drives-the-counters | 4 counters moved; activation=0.333, active_content_d7=0.333（那时分母仍把 `AiAgent` 算成注册用户，见下） |
+| non-root-app-and-the-root-owned-volume-upgrade | uid 10001；root 属主的 `/app/logs` 起来并告警、日志落 `/tmp`，uploads 失败；chown 后 uploads 免重启恢复、JSON 日志重启后 mtime 前进 |
+| rollback-swaps-between-two-real-image-tags | `round6-local (50b7b59c750b) -> buildprobe (ba3fc571dafc) -> round6-local`，两个不同 image id，两侧各两次 `0/200` |
+
+其余 20 步与第九节那次同构：首次安装是空的且可管理、prod 容器里有 OS 指标、JSON 日志一行一对象且
+traceId 从响应头走到盘、LLM 打死后帖子进 `pending-llm` 且 `llm_circuit_breaker_open=1` 而
+`/actuator/health` 仍是 200/DEGRADED、容器不被判 unhealthy、限流被拒计数、6 条规则被引擎装载且
+`noDataState` 逐条、桥没有靶子就拒绝启动、告警走到会验签的假收件人、对账在 LLM 回来后重跑、
+公网五个 actuator 探测全 404、公网 health 只回答可服务性。
+
+第四次运行（`drill-20260916-025928`）只为验证最后一条口径改动：`funnel_*` 的两个分母原先把
+`AiAgent`（id 999，`role=AI_AGENT`，由 `DataPreloader` 自己创建）也算成"注册用户"。它永远不可能
+进入分子，所以是在"没人用"这个数下面垫一块永久地板：三次注册人口的小库里 activation 读成 0.33，
+剔掉机器账号后是 0.5。它跑到第 15 步被中断，中断之前 `product-loop-drives-the-counters` 已经通过，
+比例正是 0.5 / 0.5——剔掉一个永不发帖的账号应得的结果。所以这条改动的证据是"H2 上的
+`FunnelAggregateIntegrationTest` + 一次真 MySQL 上的比例变化"，**不是**一次完整演练：
+"改完分母之后仍然 23 步全绿"这件事还没有被跑过一遍，下一次有人跑演练就会知道。演练栈在中断后
+由人工 `down -v` 收掉，没有留下容器或卷。
+
+### 这一节仍然没有覆盖的
+
+- 多阶段构建本身由 CI 代证；`drill.ps1`（不带 `-SkipBuild`）在这台机器仍会死在 `npm ci`。
+- 真实飞书群送达、规则进入 firing、"滚回一个坏版本能救回来"——第五节那三条老白点一条没少。
+- 面板仍只断言"画得出图、序列存在"（`check_panels.py` / `render_panels.py` 现在会读第三张
+  dashboard），不判断图上的数是否合理。
+- "分母该排除哪些角色"是产品口径而不是技术事实。这次剔了 `AI_AGENT`，以后再出现别的系统账号
+  （导入机器人、迁移服务账号）它们会重新混进分母，这一点没有任何约束，只有一个测试记住当前这一条。
+- 23 步的耗时约 20 分钟，主要花在等 LLM 熔断冷却、健康探针缓存与对账周期，不是花在断言上。

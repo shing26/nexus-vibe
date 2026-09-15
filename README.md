@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-310%20passing-brightgreen)
+![Tests](https://img.shields.io/badge/tests-331%20Java%20%2B%2025%20frontend-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -229,6 +229,7 @@ docker compose exec ollama ollama pull qwen2.5:7b
 |----|------|------|
 | 日志 | `docker logs` + 卷 `app-logs` 下的 `/app/logs` | prod 额外把 JSON 落盘（单件 100MB / 保留 7 天 / 总量 1GB，异步写入），重建容器不丢历史；每行带 `traceId` |
 | 指标 | `GET /actuator/prometheus`（仅 compose 内网） | JVM / HTTP 之外是 AI 链路自己的数：`llm_chat_completions_total{outcome}`、`llm_chat_completion_duration_seconds`、`llm_circuit_breaker_open`、`rate_limit_rejected_total{path}`、`ai_review_pending_posts`、`ai_review_reconcile_repairs_total{kind}` |
+| 产品漏斗 | 同上 | 机器之外还有"东西有没有人用"：`user_registered_total`、`post_submitted_total{status}`、`post_audited_total{action}`、`comment_submitted_total`，加两个由 MySQL 每日聚合的 gauge `funnel_activation_ratio`（注册后 7 日内发出首帖的占比）与 `funnel_active_content_d7_ratio`（近 7 日有内容行为的注册用户占比）；面板 `nexus-product-loop` |
 | 告警 | Grafana 规则 → `alert-bridge` → 飞书自定义机器人 | 6 条：熔断打开、评审积压、5xx 比率、限流突增、抓不到 target、99.9% 错误预算快烧；webhook 与加签密钥只进 `.env` |
 
 监控栈挂在 profile 上，默认 `docker compose up` 不启动它，公网面仍然只有 nginx:80：
@@ -252,6 +253,11 @@ Prometheus 与 Grafana 都不映射宿主端口，演练时用 `docker compose e
 每个请求一个 16 位十六进制追踪号：日志字段 `traceId`、响应头 `X-Trace-Id`、5xx 响应体里的 `traceId`，
 跨线程池和定时任务都跟着走；前端错误提示显示前 8 位，用户报障时只需要给这个数。
 
+产品漏斗的两个 ratio 是**快照**而不是抓取时查询（和 `ai_review_pending_posts` 同一个理由：Prometheus 每
+15 秒抓一次，用 `COUNT` 回应抓取等于让监控栈去压数据库），默认每天 03:17 重算一次并在启动时先跑一次，
+所以面板上的数最长滞后一天。窗口与 cron 在 `campus.metrics.funnel.*`（`FUNNEL_METRICS_CRON` /
+`FUNNEL_METRICS_WINDOW_DAYS`）。活跃口径是**内容行为**：只浏览不发帖的回访测不到，这是写明的取舍。
+
 `benchmark/observability/drill.ps1` 会把上面这套真跑一遍故障（独立 compose project 与独立卷，不会碰正在跑的栈），
 结论见 [docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
 
@@ -267,8 +273,8 @@ Prometheus 与 Grafana 都不映射宿主端口，演练时用 `docker compose e
 
 | 事项 | 做法 | 状态 |
 |------|------|------|
-| 发布 | 改 `.env` 的 `APP_TAG` → `docker compose up -d --build` | 演练里真构建并起过两个标签的镜像，A→B→A 两侧 `/api/v1/posts` 都 200；没证的是"这套流程在真实公网入口上跑过一次完整发布" |
-| 回滚 | `APP_TAG` 改回上一个值 → `docker compose up -d --no-build` | A→B→A 已在演练里跑通（换完读容器自身的 `Config.Image`，两侧 `/api/v1/posts` 都 200）；它没证的是"回滚能救一个坏版本" |
+| 发布 | 改 `.env` 的 `APP_TAG` → `docker compose up -d --build` | 演练里真起过两个标签的镜像，A→B→A 两侧 `/api/v1/posts` 都 200（多阶段构建本身由 CI 的 image job 代证，本机演练用的是宿主机产物+同一套运行时层）；没证的是"这套流程在真实公网入口上跑过一次完整发布" |
+| 回滚 | `APP_TAG` 改回上一个值 → `docker compose up -d --no-build` | A→B→A 已在演练里跑通：比对两个 tag 背后的 image id，换完读容器自身的 `Config.Image`，`/api/v1/posts` 每侧间隔 12 秒连探两次。2026-09-16 演练量出一条边界——Tomcat 在 `CommandLineRunner` 之前就开始监听，旧构建的样例账号又会在启动器里撞上本轮的 bootstrap `admin`，于是"探活 200、下一个请求连接被拒"；回滚只在数据兼容窗口内成立，而"滚回去救一个坏版本"仍然没有样本 |
 | 备份 | `pwsh scripts/backup.ps1 -Destination <第二块盘>`（周计划任务）：mysqldump + uploads 打包，逐件校验明文 SHA-256、gzip 与 dump 结束标记，留 `-Keep` 份 | 2026-09-14 对运行中的栈真跑过，产出可恢复的备份集；**但该"第二卷"与数据库在同一块物理盘上**（本机单 NVMe 分区为 C/D/E），脚本现在会打印并记录 `same-physical-disk` 告警，异地/异盘副本仍未做 |
 | 恢复 | [docs/runbook/restore.md](docs/runbook/restore.md)，另起 `-p nexus-restore-test` 项目（配 `docs/runbook/docker-compose.restore-test.yml` 改名容器），不碰生产卷 | **已演练**（2026-09-14）：dump 校验和与 manifest 一致、导入退出码 0、10 张表行数逐项相等（32 帖 / 10 用户 / 957 评审日志）、中文标题无乱码、恢复出的应用以 `200` 提供还原后的上传文件且哈希一致。仍未证的是异盘副本；`es-data` 不在任何 dump 里，恢复后必须跑 runbook 第 7 节的全量重建索引（`POST /api/v1/admin/search/reindex`），否则搜索静默返回空 |
 
@@ -327,16 +333,30 @@ curl http://localhost:8081/api/v1/agent-logs/post/100/latest
 curl http://localhost:8081/api/v1/users/2/summary
 ```
 
+**响应契约**：HTTP 状态码是唯一真相源，信封里的 `code` 由它派生（`{ code, message, data }`，5xx 多带一个
+`traceId`），所以"状态 200 但 body 说 401"这类事在类型上证不了假。失败一律走
+`BusinessException(HttpStatus, safeMessage)`，controller 不再自己拼错误对象；`GlobalExceptionHandler`
+是唯一决定状态码的地方。本轮**没有** `ErrorCode` 枚举：`HttpStatus` 吸收了那 27 个魔法数字，而评估文档里
+"前端按 message 分支"的动机查证为假（前端 13 处 `message` 全是展示兜底，`code` 一处都不读）。
+
 ## Testing
 
+2026-09-16 实测：后端 **331 用例 / 53 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **25 用例 / 6 个文件**，告警桥 **17 条** Python 单测。
+
+后端除了 H2 集成与 Mockito 单测，还有三条"读源码"的契约扫描：controller 签名不许出现 entity、测试不许把 `isOk()` 和非 200 的 `code` 配成一对、每个 `apiClient.` 调用都要落在有 `catch` 的 `try` 或 react-query 里。前端拦截器那 7 条走真实 axios，只把 `adapter` 换成假的，所以 401 刷新、单飞、重放、5xx 追踪号都是真跑；并且用两次变异验证过它们不是摆设：把 `if (!refreshPromise)` 改成 `if (true)` 只红那一条并发刷新的用例，塞一个裸 `apiClient.get` 会让扫描报出文件名与行号。
+
 ```bash
-mvn test                      # 310 tests: unit + H2 integration (lease claims, drift repair, repair-parse)
+mvn test                      # 331 tests: unit + H2 integration + the three source-scanning contract checks
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
+cd frontend && npm run test   # 25 tests: axios interceptor, login page, AI review panel, call-site scan
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 17 tests: Feishu sign + body
-pwsh -File benchmark/observability/drill.ps1      # 21 步故障演练，另起 compose project，~10-20 分钟，需 Docker
+```
+
+```bash
+pwsh -File benchmark/observability/drill.ps1      # 23 步故障演练，另起 compose project，~15-25 分钟，需 Docker
 python benchmark/observability/check_panels.py    # 每个面板表达式查一遍：error / empty / 有序列
-python benchmark/observability/render_panels.py   # 无头浏览器真的渲染两张 dashboard，需先起 render 栈
+python benchmark/observability/render_panels.py   # 无头浏览器真的渲染三张 dashboard，需先起 render 栈
 ```
 
 CI（`.github/workflows/maven.yml`）只跑 `mvn test`：告警桥的 Python 单测与演练脚本都在本地跑，
