@@ -5,6 +5,14 @@
 
 name: nexus-vibe
 
+# Container stdout is the only copy of the daemon's logs, and json-file is unbounded by default:
+# one noisy prod run can fill the host disk. Cap every service at 3 x 10m.
+x-default-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "3"
+
 networks:
   nexus-net:
     driver: bridge
@@ -14,7 +22,11 @@ volumes:
   redis-data:
   es-data:
   app-uploads:
+  app-logs:
   ollama-data:
+  # Only created by the monitoring profile; absent from a plain `up`.
+  prometheus-data:
+  grafana-data:
 
 services:
 
@@ -22,6 +34,12 @@ services:
     image: mysql:8.0
     container_name: nexus-db
     restart: unless-stopped
+    logging: *default-logging
+    # Measured: 185 MiB at idle. The cap exists because this is the only container holding a
+    # copy of data nothing else has, and an uncapped InnoDB inside a 7.65 GiB Docker VM competes
+    # with two other projects on this host. Headroom over a mysqldump (E5) is the point of 1536m
+    # rather than 512m: the dump runs in this container's memory. Takes effect on the next up -d.
+    mem_limit: 1536m
     environment:
       MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       MYSQL_DATABASE: nexus_campus
@@ -45,6 +63,11 @@ services:
     image: redis:7-alpine
     container_name: nexus-redis
     restart: unless-stopped
+    logging: *default-logging
+    # Measured: 10 MiB. The working set is like counts plus a sliding-window rate-limit key per
+    # client, so it grows with active users, not with content. 512m is a generous ceiling that
+    # still cannot take the VM down with it.
+    mem_limit: 512m
     volumes:
       - redis-data:/data
     networks:
@@ -60,10 +83,17 @@ services:
     image: elasticsearch:7.17.24
     container_name: nexus-es
     restart: unless-stopped
+    logging: *default-logging
     environment:
       - discovery.type=single-node
       - ES_JAVA_OPTS=-Xms512m -Xmx512m
       - TZ=Asia/Shanghai
+    # The app's JVM sizes its heap as a percentage of mem_limit, so a cap there is a contract.
+    # This one does not negotiate: the 512m heap is pinned by ES_JAVA_OPTS and the cap has to
+    # cover the rest ES grows into on its own (direct buffers, mmap'd segments). Uncapped, that
+    # growth is VM-wide and the OOM killer picks the victim. Measured: 653 MiB, so 1g = the
+    # 512m heap plus the off-heap ES actually uses.
+    mem_limit: 1g
     volumes:
       - es-data:/usr/share/elasticsearch/data
     networks:
@@ -79,6 +109,17 @@ services:
     image: ollama/ollama:latest
     container_name: nexus-ollama
     restart: unless-stopped
+    logging: *default-logging
+    # The least self-limiting process in the stack: weights load into RAM on first request plus a
+    # KV cache that grows with context length and concurrency. Sized from what is actually here,
+    # not from an assumed model: `ollama list` shows qwen2.5:3b (1.9 GB) and the container idles at
+    # 52 MiB, so 3g covers the loaded model and its cache. prod does not use this path at all --
+    # application-prod.yml:78 points LLM_ENDPOINT at a hosted OpenAI-compatible API (ADR-0006), so
+    # ollama is the local fallback. The ceiling that matters is the Docker Desktop VM: 7.65 GiB,
+    # shared with two other projects on this host, and every other cap in this file is set to fit
+    # under it. Pulling a 7-8B model here is the wrong way to find that out; raise the VM
+    # allocation in Docker Desktop first, then this number.
+    mem_limit: 3g
     volumes:
       - ollama-data:/root/.ollama
     networks:
@@ -94,8 +135,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Release identity (E4): every build is tagged, so an image outlives its container and a
+    # release is an object you can point at. Release = bump APP_TAG in .env, then
+    # `docker compose up -d --build app`; rollback = APP_TAG back to the previous value, then
+    # `docker compose up -d app` with no build — the old image is still on the host.
+    # Keep the last two tags' images: never `docker image prune -a` or
+    # `docker compose down --rmi all` against this project, that deletes the rollback target.
+    image: nexus-vibe-app:${APP_TAG:?APP_TAG must be set in .env}
     container_name: nexus-app
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       db:
         condition: service_healthy
@@ -116,6 +165,8 @@ services:
       REDIS_PORT: "6379"
       ES_URI: ${ES_URI:-http://elasticsearch:9200}
       TZ: Asia/Shanghai
+      # Where logback/prod-file-appender.xml writes the structured JSON log (rotated, capped).
+      LOG_DIR: /app/logs
       # Heap = 75% of the 768m container limit (~576m); G1 + rotating GC log
       # under /tmp for post-load analysis (see docs/research/).
       JAVA_OPTS: >-
@@ -125,6 +176,8 @@ services:
     mem_limit: 768m
     volumes:
       - app-uploads:/app/uploads
+      # A rebuilt container loses its stdout history; the JSON log survives restarts on this volume.
+      - app-logs:/app/logs
     expose:
       - "8080"
     networks:
@@ -134,11 +187,96 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+    # Same APP_TAG as app: SPA and API are released and rolled back as one pair.
+    image: nexus-vibe-web:${APP_TAG:?APP_TAG must be set in .env}
+    # nginx here only terminates the tunnel, serves static files and proxies. Measured: 9 MiB.
+    # Capping it keeps the public entry point from being the thing that starves the app.
+    mem_limit: 128m
     container_name: nexus-web
     restart: unless-stopped
+    logging: *default-logging
     depends_on:
       - app
     ports:
       - "${WEB_PORT:-8080}:80"
     networks:
       - nexus-net
+
+  # ---------------------------------------------------------------------------
+  # Monitoring profile only: docker compose --profile monitoring up
+  #
+  # These services are deliberately outside the default `up`, and none of them
+  # maps a host port. The public side stays nginx:80; dashboards are reached
+  # from inside nexus-net during the drill.
+  # ---------------------------------------------------------------------------
+
+  prometheus:
+    image: prom/prometheus:v2.53.2
+    container_name: nexus-prometheus
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    volumes:
+      - prometheus-data:/prometheus
+      - ./docker/observability/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    expose:
+      - "9090"
+    networks:
+      - nexus-net
+    depends_on:
+      - app
+
+  grafana:
+    image: grafana/grafana:11.1.4
+    container_name: nexus-grafana
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    environment:
+      # Sign-ups and anonymous access stay off. The box is only reachable from
+      # nexus-net, but it still holds the alert rules and the webhook target.
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      # Not `${GRAFANA_ADMIN_PASSWORD:?...}`: compose interpolates every service regardless of
+      # profile, so a required variable here would break a plain `docker compose up` too.
+      # Override it in .env before exposing Grafana anywhere but nexus-net.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+    volumes:
+      - grafana-data:/var/lib/grafana
+      # One mount is enough: the dashboards provider reads
+      # /etc/grafana/provisioning/dashboards/json, so the dashboard JSON lives
+      # in git next to the provider that points at it.
+      - ./docker/observability/grafana/provisioning:/etc/grafana/provisioning:ro
+    expose:
+      - "3000"
+    networks:
+      - nexus-net
+    depends_on:
+      - prometheus
+
+  alert-bridge:
+    build:
+      context: ./docker/observability/alert-bridge
+    image: nexus-alert-bridge:local
+    container_name: nexus-alert-bridge
+    restart: unless-stopped
+    profiles: ["monitoring"]
+    logging: *default-logging
+    environment:
+      # Both stay empty by default, and the bridge treats that as fatal: it refuses to start and
+      # names FEISHU_ALERT_WEBHOOK, which restart: unless-stopped turns into a visible crash loop.
+      # A monitoring profile that cannot notify is worse than no monitoring profile, because the
+      # dashboard still reads green. The drill overrides both with an in-network sink.
+      FEISHU_ALERT_WEBHOOK: ${FEISHU_ALERT_WEBHOOK:-}
+      FEISHU_ALERT_SECRET: ${FEISHU_ALERT_SECRET:-}
+    expose:
+      - "8080"
+    networks:
+      - nexus-net
+    depends_on:
+      - grafana

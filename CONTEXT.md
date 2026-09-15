@@ -38,6 +38,15 @@ _Avoid_: Format Check, Output Validation
 Safety Check Agent 在 LLM 不可用或输出无法解析时的保守策略：帖子进入人工审核队列（PENDING_REVIEW）并记录 pending-llm 标记，LLM 恢复后由对账任务自动重跑。
 _Avoid_: Fail-safe, Fallback
 
+**Degraded（降级可服务）**:
+依赖（Redis / Elasticsearch / LLM）不可用但主链路仍能服务用户时的健康状态：HTTP 200，容器不被判 unhealthy，解释只在 /actuator/health/deps 里给（ADR-0007）。与 Fail-closed 分属两层——Degraded 是进程对自身的陈述，Fail-closed 是安全路径写入的策略。
+_Avoid_: Unhealthy, Partially Down, Degradation
+
+**Servable（可服务性）**:
+顶层 /actuator/health 唯一回答的问题：还能不能服务。只由真实存储决定——db DOWN 才算不可服务，其余依赖最多把总状态压到 Degraded。
+对外它是一个具名组 `servable`（只含 db）：公网 `/actuator/health` 由 nginx 转到它，容器 HEALTHCHECK 仍问聚合文档，同一个状态码不再同时回答两个问题（见 ADR-0007 修订段）。
+_Avoid_: Healthy, Liveness, Readiness
+
 **Reconciliation（对账任务）**:
 每 5 分钟扫描卡在 REVIEWING、FAILED 或 pending-llm 状态的帖子并重新触发 Agent 事件的定时任务；重跑前先用轻量探针确认 LLM 健康。
 _Avoid_: Retry Job, Cleanup Task
@@ -57,6 +66,15 @@ _Avoid_: CodeBlock, Attachment
 **VibeComment**:
 对 VibePost 的回复，包含普通用户评论和 AI Agent 自动生成的审查评论。
 _Avoid_: BbsComment, Reply
+
+**Bootstrap Admin（引导管理员）**:
+生产（DEMO_SEED_ENABLED=false）下由 BOOTSTRAP_ADMIN_PASSWORD 一次性创建的 `admin` 账号，仅当库中还没有任何 ADMIN。创建后就是普通账号：重启不重置、不重建，密码需尽快轮换（ADR-0008）。
+_Avoid_: Default Admin, Superuser, Root Account
+
+**Trace ID（追踪号）**:
+一次请求（或一次定时任务运行）的 16-hex 标识，随 MDC 跨过同步/异步边界，出现在日志、`X-Trace-Id` 响应头与 5xx 响应体里；前端错误提示展示前 8 位，供用户报障时复述。
+**生成**形状是 16-hex；**接收**外部值时只接受 `^[0-9a-zA-Z-]{1,64}$`，且默认不接收：要 `campus.trace.trust-inbound-header=true` 才沿用外部值，那是独立于 `trust-forwarded-headers`（客户端 IP 真伪）的另一项信任决定，公网 nginx 还会先把该头清空。四个 `@Scheduled` 任务每次运行都拥有一个。
+_Avoid_: Request ID, Correlation Id, Span
 
 ## Channels
 

@@ -4,6 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.springframework.boot.web.client.ClientHttpRequestFactories;
 import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import lombok.extern.slf4j.Slf4j;
@@ -14,6 +18,7 @@ import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -42,6 +47,16 @@ public class LlmClient {
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
     private final AtomicLong circuitOpenUntil = new AtomicLong();
 
+    /**
+     * {@code llm_chat_completions_total{outcome}} counts logical calls, i.e. one per withRetry
+     * exit, so the success rate answers "did the caller get an answer". The duration histogram
+     * records each provider attempt instead: three 11s timeouts are three 11s samples, which is
+     * what makes a slow provider look slow rather than looking rare. {@link #isHealthy()} feeds
+     * neither; a probe is not a completion.
+     */
+    private final MeterRegistry meterRegistry;
+    private final Timer completionTimer;
+
     public LlmClient(
             @Value("${campus.ai.llm.endpoint}") String endpoint,
             @Value("${campus.ai.llm.api-key:}") String apiKey,
@@ -50,13 +65,26 @@ public class LlmClient {
             @Value("${campus.ai.llm.breaker.failure-threshold:3}") int breakerFailureThreshold,
             @Value("${campus.ai.llm.breaker.open-seconds:60}") long breakerOpenSeconds,
             @Value("${campus.ai.llm.response-format:json_schema}") String responseFormat,
-            @Value("${campus.ai.llm.thinking-disabled:true}") boolean thinkingDisabled) {
+            @Value("${campus.ai.llm.thinking-disabled:true}") boolean thinkingDisabled,
+            MeterRegistry meterRegistry) {
         this.model = model;
         this.breakerFailureThreshold = breakerFailureThreshold;
         this.breakerOpenMillis = breakerOpenSeconds * 1000;
         this.responseFormat = responseFormat;
         this.thinkingDisabled = thinkingDisabled;
         this.objectMapper = new ObjectMapper();
+        this.meterRegistry = meterRegistry;
+        // Buckets follow the timeout ladder rather than a percentile histogram: the default
+        // campus.ai.llm.timeout is 30s, so anything past 30s is a timeout, not a slow answer.
+        this.completionTimer = Timer.builder("llm.chat.completion.duration")
+                .description("Duration of a single LLM completion attempt")
+                .serviceLevelObjectives(
+                        Duration.ofMillis(500), Duration.ofSeconds(1), Duration.ofSeconds(2),
+                        Duration.ofSeconds(5), Duration.ofSeconds(10), Duration.ofSeconds(30))
+                .register(meterRegistry);
+        Gauge.builder("llm.circuit.breaker.open", this, LlmClient::circuitOpenGauge)
+                .description("1 while the LLM circuit breaker is open")
+                .register(meterRegistry);
         ClientHttpRequestFactorySettings settings = ClientHttpRequestFactorySettings.DEFAULTS
                 .withConnectTimeout(timeout)
                 .withReadTimeout(timeout);
@@ -272,18 +300,21 @@ public class LlmClient {
     private <T> T withRetry(CheckedSupplier<T> action, String operation) {
         if (isCircuitOpen()) {
             log.warn("LLM circuit breaker open, failing fast for {}", operation);
+            countCompletion("circuit_open");
             return null;
         }
         for (int attempt = 1; ; attempt++) {
             try {
-                T result = action.get();
+                T result = timedAttempt(action);
                 recordSuccess();
+                countCompletion("success");
                 return result;
             } catch (RestClientResponseException e) {
                 if (e.getStatusCode().is4xxClientError()
                         && e.getStatusCode().value() != 429) {
                     log.warn("LLM {} rejected ({}), not retrying: {}", operation, e.getStatusCode(), e.getMessage());
                     recordFailure();
+                    countCompletion("failure");
                     return null;
                 }
                 log.warn("LLM {} failed (attempt {}/{}): {}", operation, attempt, MAX_ATTEMPTS, e.getMessage());
@@ -292,6 +323,7 @@ public class LlmClient {
             }
             if (attempt >= MAX_ATTEMPTS || isCircuitOpen()) {
                 recordFailure();
+                countCompletion("failure");
                 return null;
             }
             try {
@@ -299,9 +331,32 @@ public class LlmClient {
             } catch (InterruptedException ie) {
                 Thread.currentThread().interrupt();
                 recordFailure();
+                countCompletion("failure");
                 return null;
             }
         }
+    }
+
+    private <T> T timedAttempt(CheckedSupplier<T> action) throws Exception {
+        long startedAt = System.nanoTime();
+        try {
+            return action.get();
+        } finally {
+            completionTimer.record(System.nanoTime() - startedAt, TimeUnit.NANOSECONDS);
+        }
+    }
+
+    private void countCompletion(String outcome) {
+        // register() returns the existing meter for the same name and tags, so the three outcomes
+        // share one counter instance instead of needing three fields.
+        Counter.builder("llm.chat.completions")
+                .tag("outcome", outcome)
+                .register(meterRegistry)
+                .increment();
+    }
+
+    private double circuitOpenGauge() {
+        return isCircuitOpen() ? 1.0 : 0.0;
     }
 
     private boolean isCircuitOpen() {

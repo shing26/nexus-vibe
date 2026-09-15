@@ -20,6 +20,8 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
 import static org.hamcrest.Matchers.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
@@ -409,16 +411,37 @@ class PostControllerIntegrationTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/admin/search/reindex should rebuild the ES index for admin")
+    @DisplayName("POST /api/v1/admin/search/reindex reports what ES confirmed, not what MySQL held")
     void reindexSearch_admin_shouldReturnCounts() throws Exception {
         String adminToken = jwtUtil.generateToken(1L, "admin", "ADMIN");
 
-        mockMvc.perform(post("/api/v1/admin/search/reindex")
+        MvcResult result = mockMvc.perform(post("/api/v1/admin/search/reindex")
                         .header("Authorization", "Bearer " + adminToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(200)))
                 .andExpect(jsonPath("$.data.reindexed", notNullValue()))
-                .andExpect(jsonPath("$.data.esAvailable", notNullValue()));
+                .andExpect(jsonPath("$.data.requested", notNullValue()))
+                .andExpect(jsonPath("$.data.failed", notNullValue()))
+                .andExpect(jsonPath("$.data.complete", notNullValue()))
+                .andExpect(jsonPath("$.data.esAvailable", notNullValue()))
+                .andReturn();
+
+        // No Elasticsearch on the H2 test context, so the honest answer is "nothing was indexed,
+        // everything that was asked for failed". Reading the row count back as a success number is
+        // the bug this assertion pins: it is what let a restore claim a warm index over an empty one.
+        var data = objectMapper.readTree(result.getResponse().getContentAsString(java.nio.charset.StandardCharsets.UTF_8))
+                .path("data");
+        int reindexed = data.path("reindexed").asInt();
+        int requested = data.path("requested").asInt();
+        int failed = data.path("failed").asInt();
+
+        assertEquals(requested, reindexed + failed, "requested must split into indexed plus failed");
+        assertFalse(data.path("complete").asBoolean() && failed > 0,
+                "complete() cannot be true while documents went unaccounted for");
+        if (!data.path("esAvailable").asBoolean()) {
+            assertEquals(0, reindexed, "with ES unavailable nothing may be reported as indexed");
+            assertEquals(requested, failed);
+        }
     }
 
     @Test

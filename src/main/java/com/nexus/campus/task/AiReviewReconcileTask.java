@@ -9,6 +9,11 @@ import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
+import com.nexus.campus.util.TraceIds;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.Gauge;
+import io.micrometer.core.instrument.MeterRegistry;
+import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
@@ -18,6 +23,7 @@ import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Reconciliation task for the AI agent pipeline.
@@ -61,14 +67,38 @@ public class AiReviewReconcileTask {
     @Value("${campus.ai.safety.enabled:true}")
     private boolean safetyEnabled;
 
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    /**
+     * Last observed review backlog, exposed as {@code ai_review_pending_posts}. A snapshot rather
+     * than a scrape-time query: Prometheus scrapes every 15s, and an endpoint that answered a
+     * scrape with a COUNT over vibe_post would let the monitoring stack load the database.
+     */
+    private final AtomicLong reviewBacklog = new AtomicLong();
+
+    @PostConstruct
+    void registerBacklogGauge() {
+        Gauge.builder("ai.review.pending.posts", reviewBacklog, AtomicLong::doubleValue)
+                .description("Posts in a non-terminal AI review state")
+                .register(meterRegistry);
+    }
+
     /**
      * Every 5 minutes, sweep stale AI review/safety states and re-trigger them.
      */
     @Scheduled(cron = "0 3/5 * * * ?")
     public void reconcile() {
+        TraceIds.runAsJob("ai-review-reconcile", this::reconcileOnce);
+    }
+
+    private void reconcileOnce() {
         if (!reviewEnabled && !safetyEnabled) {
             return;
         }
+        // Backlog first, before any gate: an LLM outage is exactly the moment this number has to
+        // be visible, and the health check below is where an unhealthy cycle returns early.
+        refreshReviewBacklog();
         // Budget-exhausted sweep runs regardless of LLM health: those posts
         // are unclaimable dead state that no retry path will ever touch.
         if (reviewEnabled) {
@@ -96,7 +126,37 @@ public class AiReviewReconcileTask {
                 log.info("[AI-RECONCILE] Re-running safety check for post {}", post.getId());
                 eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getTitle(), post.getContent(), post.getUserId()));
             }
+            countRepair("safety", pendingSafety.size());
         }
+    }
+
+    /**
+     * Publishing the gauge must never cost the reconcile cycle itself, so a failed count degrades
+     * to "last value stands" with a warning rather than aborting the sweep.
+     */
+    private void refreshReviewBacklog() {
+        try {
+            reviewBacklog.set(vibePostMapper.countReviewsAwaitingWork());
+        } catch (Exception e) {
+            log.warn("[AI-RECONCILE] Failed to refresh review backlog gauge: {}", e.getMessage());
+        }
+    }
+
+    private void countRepair(String kind, int amount) {
+        if (amount <= 0) {
+            return;
+        }
+        Counter.builder("ai.review.reconcile.repairs")
+                .tag("kind", kind)
+                .register(meterRegistry)
+                .increment(amount);
+    }
+
+    private void countLeaseAttemptsExhausted() {
+        Counter.builder("ai.review.lease.attempts.exhausted")
+                .description("Reviews retired because the attempt budget was spent")
+                .register(meterRegistry)
+                .increment();
     }
 
     /**
@@ -107,6 +167,7 @@ public class AiReviewReconcileTask {
      */
     private void sweepBudgetExhaustedReviews() {
         List<VibePost> stuck = vibePostMapper.selectReviewingBudgetExhausted(maxAttempts, BATCH_LIMIT);
+        int retired = 0;
         for (VibePost post : stuck) {
             int updated = vibePostMapper.update(null, new LambdaUpdateWrapper<VibePost>()
                     .eq(VibePost::getId, post.getId())
@@ -115,8 +176,11 @@ public class AiReviewReconcileTask {
             if (updated > 0) {
                 log.info("[AI-RECONCILE] Post {} REVIEWING with exhausted budget, retired to FAILED", post.getId());
                 notifyBudgetExhausted(post);
+                retired++;
+                countLeaseAttemptsExhausted();
             }
         }
+        countRepair("budget_exhausted", retired);
     }
 
     private void notifyBudgetExhausted(VibePost post) {
@@ -141,6 +205,7 @@ public class AiReviewReconcileTask {
             log.info("[AI-RECONCILE] Re-triggering {} review for post {}", status, post.getId());
             eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), post.getUserId(), true));
         }
+        countRepair(status.name().toLowerCase(), stalePosts.size());
         return stalePosts.size();
     }
 

@@ -1,0 +1,45 @@
+# Rendering-check overrides. Nothing here belongs in a deployment, and it is deliberately separate
+# from docker-compose.drill.yml: the drill proves the *provisioning* (does the engine load the rules),
+# and this file exists only so a browser can look at the panels, which the drill never does.
+#
+#   docker compose -p nexus-render -f docker-compose.yml `
+#     -f benchmark/observability/docker-compose.render.yml --profile monitoring up -d
+#
+# Two changes, both necessary for the same reason the restore override exists: the base file pins
+# container_name (not project-scoped), and it publishes no host port for the monitoring stack - a
+# deployment keeps Grafana and Prometheus inside nexus-net. Here they are bound to the loopback
+# interface only, never to a public one, so the panels can be screenshotted from this machine.
+services:
+  db:
+    container_name: nexus-render-db
+
+  redis:
+    container_name: nexus-render-redis
+
+  elasticsearch:
+    container_name: nexus-render-es
+
+  ollama:
+    container_name: nexus-render-ollama
+
+  app:
+    container_name: nexus-render-app
+
+  web:
+    container_name: nexus-render-web
+
+  prometheus:
+    container_name: nexus-render-prometheus
+
+  grafana:
+    container_name: nexus-render-grafana
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: ${RENDER_GRAFANA_PASSWORD:-render-grafana}
+    ports:
+      - "127.0.0.1:3000:3000"
+
+  alert-bridge:
+    container_name: nexus-render-alert-bridge
+    environment:
+      FEISHU_ALERT_WEBHOOK: ${DRILL_FEISHU_WEBHOOK:-http://webhook-sink:9000/notify}
+      FEISHU_ALERT_SECRET: ${DRILL_FEISHU_SECRET:-drill-shared-secret}

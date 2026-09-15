@@ -37,6 +37,11 @@
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
+        <!-- Prometheus text format for /actuator/prometheus. Version comes from the Boot BOM. -->
+        <dependency>
+            <groupId>io.micrometer</groupId>
+            <artifactId>micrometer-registry-prometheus</artifactId>
+        </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-aop</artifactId>
@@ -128,11 +133,11 @@
             <artifactId>jackson-databind</artifactId>
         </dependency>
 
-        <!-- Logstash -->
+        <!-- Logstash JSON encoder (8.x targets the logback 1.5 line that Boot 3.3 pulls in) -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
-            <version>7.4</version>
+            <version>8.0</version>
         </dependency>
 
         <!-- HTML sanitization (whitelist-based XSS defense) -->
@@ -176,24 +181,59 @@
                     </excludes>
                 </configuration>
             </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <configuration>
+                    <!--
+                      No cron clock inside @SpringBootTest. AiReviewReconcileTask fires on
+                      wall-clock minutes and writes a five-minute LLM health verdict into a
+                      shared cache; a sweep landing between two test methods used to fail every
+                      later post closed, which is how a docs-only commit turned CI red.
+
+                      This is a system property rather than the `test` profile on purpose: nothing
+                      in the repository ever activates that profile (no @ActiveProfiles, no
+                      spring.profiles.active), so src/test/resources/application-test.yml is dead
+                      config, and switching it on now would also apply its ErrorMvcAutoConfiguration
+                      exclude to every suite.
+                    -->
+                    <systemPropertyVariables>
+                        <campus.scheduling.enabled>false</campus.scheduling.enabled>
+                    </systemPropertyVariables>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
 
     <profiles>
         <profile>
-            <id>ci-linux</id>
-            <activation>
-                <os>
-                    <family>unix</family>
-                </os>
-            </activation>
+            <!--
+              Formerly id `ci-linux`, activated implicitly by an os family of `unix`. Two problems:
+              the name claimed linux while macOS matched it too, and a build flag that switches
+              itself on according to the operating system is invisible in CI logs. It was reported
+              twice in review as "CI never uses this profile", which was wrong, and the wrongness
+              was the point. It is now opt-in from the workflow that needs it
+              (.github/workflows/maven.yml), so the flag is either visible in the command line or
+              genuinely absent. It is a unix-only flag: measured on Windows, HotSpot rejects
+              -XX:-UseContainerSupport outright ("Could not create the Java Virtual Machine", forked
+              VM dies before a single test runs), so running this profile locally on Windows is an
+              error, not a no-op. That asymmetry is the reason the old implicit activation existed,
+              and it belongs in a comment rather than in a hidden condition.
+
+              Note if coverage tooling ever lands here: argLine replaces rather than appends, so a
+              future JaCoCo agent must be threaded through this same value, not set alongside it.
+            -->
+            <id>surefire-without-container-support</id>
             <build>
                 <plugins>
                     <plugin>
                         <groupId>org.apache.maven.plugins</groupId>
                         <artifactId>maven-surefire-plugin</artifactId>
                         <configuration>
-                            <!-- JDK 18 crashes on runners without cgroup info (e.g. GitHub Actions). -->
+                            <!-- Maven merges this configuration into the surefire block under
+                                 build/plugins (different children, so the systemPropertyVariables
+                                 there survive this profile). Runners without full cgroup info used
+                                 to crash the test JVM here. -->
                             <argLine>-XX:-UseContainerSupport</argLine>
                         </configuration>
                     </plugin>

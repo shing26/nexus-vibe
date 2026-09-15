@@ -79,7 +79,7 @@
 - **OpenAI：不可行于境内**。官方支持国家列表不含中国大陆，且 2024-07-09 起对大陆开发者**主动切断 API**（[官方列表](https://developers.openai.com/api/docs/supported-countries)、[Reuters 报道](https://www.reuters.com/technology/artificial-intelligence/openai-cut-access-tools-developers-china-other-regions-chinese-state-media-says-2024-06-25/)）。
 - **Gemini：境内同样不可直连**（Google 服务在大陆不可达；且 2.0 Flash 已宣布弃用）。
 - **DeepSeek / Qwen 百炼：境内直连**，数据不出境；本地 Ollama 隐私最优但质量垫底。
-- 作品集语境的权衡：校园/开发者社区帖子的内容敏感度低，但"数据出境"仍是答辩时的必问项——**境内托管 + 可切换本地**是最稳的故事线。
+- 本项目的取舍：校园/开发者社区帖子的内容敏感度低，但"数据出境"仍是部署前必须回答的问题——**境内托管 + 可切换本地**是最稳的一条线。
 
 ## 六、迁移工作量评估：零代码改动
 

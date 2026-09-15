@@ -51,6 +51,70 @@
 - [x] 新增认证边界测试：用户资料接口未带 token 返回 401，agent 日志接口区分公开/管理员。
 - [x] 回归 `mvn test` 188 全绿、前端 `npm run build` 与 `npm run lint` 通过；Playwright 验证登录、Agent Logs、首页计数、375px 溢出、Dashboard、Playground 替换均正常。
 
+## 可观测性与生产种子（2026-09-13，分支 `codex/production-readiness`）
+
+- [x] 日志落盘：prod 用 `logback-spring.xml` 把 JSON 写进 `/app/logs`（命名卷 `app-logs`，单件 100MB / 7 天 / 总量 1GB），外层 `AsyncAppender`；compose 全部服务 json-file 上限 10m x 3，重建容器不再丢日志。
+- [x] 指标暴露：`/actuator/prometheus` 只在 compose 内网可达，prod 暴露 `health,info,prometheus`；去掉 `SystemMetricsAutoConfiguration` 的 exclude 以恢复 OS/磁盘指标（由容器演练验证）。
+- [x] AI 链路埋点：`llm_chat_completions_total{outcome}`、`llm_chat_completion_duration_seconds`、`llm_circuit_breaker_open`、`rate_limit_rejected_total{path}`、`ai_review_pending_posts`、`ai_review_reconcile_repairs_total{kind}`、`ai_review_lease_attempts_exhausted_total`。
+- [x] 告警闭环：Grafana 6 条规则（熔断打开、评审积压、5xx 比率、限流突增、抓不到 target、99.9% 错误预算快烧）→ `alert-bridge` → 飞书自定义机器人（HMAC-SHA256 加签）；webhook 与密钥只进 `.env`。
+- [x] 监控栈（prometheus / grafana / alert-bridge）挂在 `monitoring` profile 下且不映射宿主端口；不开 profile 时 `docker compose up` 行为不变，公网面仍只有 nginx:80。
+- [x] 部署命令写死在这里，别让"要不要开监控"变成一次临场决定：
+      `APP_TAG=<新值> docker compose --profile monitoring up -d --build`（默认 6 个服务 + prometheus/grafana/alert-bridge 3 个）。
+      开 profile 就必须先填 `FEISHU_ALERT_WEBHOOK`：`alert-bridge` 在没有收件人时直接拒绝启动（`restart: unless-stopped` 会把它变成明显的重启循环），
+      没有飞书机器人就整个去掉 `--profile monitoring`，别留一个绿色但没人收信的面板。
+- [x] 健康语义：`DEGRADED` 显式映射 200，`/actuator/health` 只回答可服务性，细节在 `/actuator/health/deps`；nginx 对其余 actuator 路径显式 404（ADR-0007）。
+- [x] 生产账号与种子：`DEMO_SEED_ENABLED=false` 时既不写样例账号也不写样例内容，`init.sql` 只留 schema + 频道/标签；`BOOTSTRAP_ADMIN_PASSWORD` 一次性引导 `admin`（ADR-0008）。
+- [x] traceId 贯穿：过滤器生成 16-hex 写 MDC 并回写 `X-Trace-Id`，异步池与定时任务继承/新建，5xx 响应体带 `traceId`，前端错误 toast 显示前 8 位追踪号。
+- [ ] 部署前 `.env` 必填：`BOOTSTRAP_ADMIN_PASSWORD`、`FEISHU_ALERT_WEBHOOK`、`FEISHU_ALERT_SECRET`、`GRAFANA_ADMIN_PASSWORD`。
+- [x] 上线前跑 `benchmark/observability/drill.ps1` 并把结论写进 `docs/research/observability-drill-2026-09.md`：
+      2026-09-13 13:19 那次 16 步全绿（真容器、真断流、真打满限流），演练脚本本身修掉 4 处，产品侧暴露并修掉 1 个真 bug
+      （告警规则依赖的 `application` 指标标签缺失）。
+- [x] 同一件事在本轮重做了一遍：E3/E6 之后演练是 21 步，且断言换了对象（告警规则要经 Grafana 引擎读回、
+      告警要走到会验签的假收件人、回滚要读容器自己的镜像名）。2026-09-14 05:25 那次 **21/21 PASS**，
+      逐条证据与本轮纠偏记录在 `docs/research/observability-drill-2026-09.md` 第六节；
+      上面那句"16 步全绿"只描述 09-13 的那个版本，不能拿来证明这一版。
+- [ ] 配好 `FEISHU_ALERT_WEBHOOK` / `FEISHU_ALERT_SECRET` 后，人工发一条测试告警到群里确认真的收得到——
+      演练只能证明"告警到得了桥、桥失败时会喊出来"。
+- [x] 面板真的被打开看过（E10）：`check_panels.py` 逐条表达式过 datasource 代理，`render_panels.py`
+      用无头浏览器渲染两张 dashboard。scratch 栈上的结果 `ok=22 / empty=2`（那两条是没 LLM 流量的
+      LLM 面板，故意不置零）、Overview 9/9 canvas 全画、AI Pipeline 5/5 全画、`console_errors=0`。
+      这一步不是形式：修之前 `Latency p50/p95/p99` 查的 `http_server_requests_seconds_bucket` 根本不存在，
+      面板从提交起就没画过图，而 21 步演练一直是绿的。渲染栈只把 Grafana 绑在 `127.0.0.1:3000`，
+      部署形态依旧不映射任何监控端口。
+      带着这项改动重跑演练：`drill-20260914-093857`，**21/21**。
+- [ ] 上线 24 小时后回看 `/app/logs`（卷 `app-logs`）：确认滚动按 100MB / 7 天 / 1GB 收口，`docker logs` 侧 10m x 3 也没漏。
+- [ ] 同一次回看顺手看一眼延迟面板上的 p99：scratch 栈里唯一超过 2s 的请求是 `/actuator/health`
+      （max `3.16s`），而它是 healthcheck 每 30s 调的 URL、`--timeout=10s`。真负载下这个余量是变小还是
+      吃掉一半，现在看得见，也就必须有人看。
+
+## 备份与恢复（E5，2026-09-14，分支 `codex/production-readiness`）
+
+- [x] `scripts/backup.ps1` 真跑通：对运行中的栈导出备份集，逐件校验明文 SHA-256 / gzip / dump 结束标记，`manifest.json` 记行数与卷清单（本机 8 个声明卷里 5 个存在）。
+      过程里修掉两处会让脚本一步都跑不动的问题：`docker compose ls` 不接受 Go 模板（改 `--format json`），以及 `-p` 只管卷不管 `container_name`（新增 `docs/runbook/docker-compose.restore-test.yml` 把演练容器改名为 `nexus-restore-*`）。
+- [x] 按 `docs/runbook/restore.md` 把一次真实恢复演练做完（2026-09-14）：dump 哈希与 manifest 一致 → 导入退出码 0 → 10 张表行数逐项相等 → 中文标题可读 → `migrate-0005/6/7` 的对象都在 → 恢复出的 app 以 `200 70` 提供还原后的上传文件且三处哈希一致；演练后 6 个临时卷清干净、生产栈 `Up 2 days` 未被碰。
+- [x] 演练暴露的两处文字坑就地改掉：section 2 的 `mysqladmin` 占位命令原本不可执行（容器 `healthy` 早于 TCP 可连，第一次导入死在 `ERROR 2003`），section 1 补上"容器名不是 project-scoped"这条前提。
+- [ ] **换一块真正的异盘或异机副本**：本机是单块 NVMe 分区成 C/D/E，所谓"第二卷"和数据库同盘，盘坏即一起没。脚本现在会把这件事打印出来并写进 `manifest.json` -> `warnings`，但没人替你把副本搬走。
+- [x] `es-data` 的全量重建索引写进恢复流程（E9 + `restore.md` 第 7 节）：索引不在任何 dump 里，恢复后必须调 `POST /api/v1/admin/search/reindex` 并核对 `requested/reindexed/failed/complete`，否则搜索静默返回空且不报错。
+      顺带纠正一个本轮自己写进仓库的错误断言：文档曾称"代码里根本没有全量重建路径"，而该端点自 `9c4b002`（2026-08-14）就在；真正的缺陷是 `rebuildIndex` 返回它从 MySQL 读到的行数，ES 全拒或根本没起也照样报 `reindexed: 32`——现在计数来自 `_bulk` 响应里逐项 2xx，解析不了按 0 计（fail-closed）。
+- [x] 第 7 节的两条 reindex 路径都在真集群上跑过（2026-09-14 第二遍，scratch 里补起 `elasticsearch`）：
+      重建返回 `{"requested":32,"reindexed":32,"failed":0,"complete":true}`，`nexus_posts` 的 `docs.count` 从 0 变 32，
+      用 dump 之前就存在的老帖子关键词 `RAG` 搜得回来，`_analyze` 对 `构建教程` 切出 `构建/建教/教程` 二元组（证明确实带上了 CJK mapping，不是自动建的默认索引）；
+      再把集群中途 `docker stop`，同一个端点如实返回 `{"requested":32,"reindexed":0,"failed":32,"complete":false}` —— 被替换掉的实现在这一枪下报的是 `reindexed: 32`。
+- [ ] 决定 `es-data` 的读时修复策略（E9 的遗留项）：ES 宕机期间写的帖子只在下一次成功写入时补索引，没有谁去扫差额；全量重建是把钝刀，要不要定时跑还没人拍板。
+- [ ] 装上周计划任务并确认它真的在跑（`Get-ScheduledTask`），第一次触发后回看 `manifest.json` 的 `complete` 与 `warnings`。
+
+## 发布与回滚（E4，2026-09-14，分支 `codex/production-readiness`）
+
+- [x] compose 的 `app`/`web` 不再匿名：`image: nexus-vibe-app:${APP_TAG:?}` 与 `nexus-vibe-web:${APP_TAG:?}`（`alert-bridge` 本来就有 tag）。缺 `APP_TAG` 时 `docker compose config` 直接报错，而不是留下一个没有回滚目标的 latest。本机 `.env` 若还没有这个键，先补一行 `APP_TAG=dev`。
+- [x] `.env.example` 写清 `APP_TAG` 语义：每个发布值唯一标识一次构建（git short SHA 或 `20260914-01`）；发布 = 改 tag 后带 `--build` 起，回滚 = 改回旧值后不带 build 起。
+- [x] 内存上限补齐：`elasticsearch` 1g、`ollama` 8g（原先全栈只有 `app` 有 `mem_limit`）。这两个不自我封顶——app 的堆按容器上限自适应，ES 的堆钉死在 `ES_JAVA_OPTS`、Ollama 按模型体积增长；没有上限时，OOM killer 随机挑的受害者可能是 MySQL。
+- [x] CI 在 master push 用 `actions/upload-artifact@v4` 落 `target/nexus-campus.jar` 与 `frontend/dist`（private registry 按票面 Rejected，先要一个可指认的对象）；同时后端 job 换到 JDK 21（运行时），镜像 job 对 `Dockerfile`、`frontend/Dockerfile`、`pom.xml`、`src/main/**` 的 PR 变更做构建验证，master push 构建后真 `docker run` 探 `/actuator/health`。
+- [ ] 发布纪律：宿主机上始终保留最近两个 `APP_TAG` 的镜像；回滚窗口内禁止 `docker image prune -a` 和 `docker compose down --rmi all`（E4 票面的 Rejected 段已把 registry 出圈，旧 tag 不 prune 是回滚唯一还活着的前提）。
+- [x] 回滚一条命令（A→B→A 已在演练里跑通：换 `APP_TAG` 后不带 `--build` 起，读容器自己的 `Config.Image` 确认换到的就是目标 tag，两侧 `/api/v1/posts` 都 200）：
+      `APP_TAG=<上一个值> docker compose up -d app web`（不带 `--build`，直接用留在宿主机上的旧镜像），
+      随后 `curl -s http://localhost:8080/api/v1/posts` 确认真的答回来了，再把该值写回 `.env`，防止下次 `up` 又漂回新版本。
+- [ ] 发布与回滚都动 `app` + `web` 两个服务、共用同一个 `APP_TAG` 值：SPA 和 API 是一组，不拆开滚。
+
 ## 待执行（需用户确认）
 
 - [ ] 部署暂不执行，不 push；确认后再按 `deployment-and-blog-plan.md` 走提交、CI 与本机 Docker + Cloudflare Tunnel 上线。

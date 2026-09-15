@@ -1,5 +1,7 @@
 package com.nexus.campus.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.nexus.campus.util.TraceIds;
 import lombok.Data;
 
 import java.io.Serializable;
@@ -12,6 +14,14 @@ public class ApiResponse<T> implements Serializable {
     private int code;
     private String message;
     private T data;
+
+    /**
+     * Present only on a server-side failure, and only so that what the user can
+     * read, what the header carries and what the log holds are the same string.
+     * A success envelope keeps its exact previous shape.
+     */
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    private String traceId;
 
     private ApiResponse() {}
 
@@ -42,6 +52,9 @@ public class ApiResponse<T> implements Serializable {
         ApiResponse<T> response = new ApiResponse<>();
         response.code = code;
         response.message = message;
+        if (code >= 500) {
+            response.traceId = TraceIds.current();
+        }
         return response;
     }
 

@@ -34,7 +34,15 @@ public class LlmHealthCache {
     public boolean isHealthy() {
         long now = System.currentTimeMillis();
         if (now - lastHealthCheckAt > HEALTH_CACHE_MILLIS) {
-            lastHealthy = llmClient.isHealthy();
+            boolean previous = lastHealthy;
+            boolean probed = llmClient.isHealthy();
+            if (probed != previous) {
+                // The publish-time safety gate reads this verdict without probing, so a flip is
+                // the only moment that explains a run of posts landing in PENDING_REVIEW.
+                log.warn("LLM health verdict flipped: {} -> {} (next refresh in {} ms)",
+                        previous, probed, HEALTH_CACHE_MILLIS);
+            }
+            lastHealthy = probed;
             lastHealthCheckAt = now;
         }
         return lastHealthy;

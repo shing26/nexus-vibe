@@ -1,6 +1,7 @@
 package com.nexus.campus.task;
 
 import com.nexus.campus.mapper.VibePostMapper;
+import com.nexus.campus.util.TraceIds;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -41,6 +42,10 @@ public class LikeSyncTask {
      */
     @Scheduled(cron = "0 0/5 * * * ?")
     public void syncLikes() {
+        TraceIds.runAsJob("like-sync", this::syncLikesOnce);
+    }
+
+    private void syncLikesOnce() {
         if (redisTemplate == null) {
             log.debug("[LIKE-SYNC] Redis unavailable, skipping sync.");
             return;

@@ -1,0 +1,90 @@
+# Drill-only overrides. Nothing here belongs in a real deployment: it points the app at a
+# refused port to break the LLM on purpose, at a canned mock to bring it back, and at a sink that
+# stands in for the Feishu bot so an alert can be delivered to something the drill can read back.
+#
+#   docker compose -f docker-compose.yml -f benchmark/observability/docker-compose.drill.yml `
+#     --profile monitoring --profile drill up -d
+#
+# drill.ps1 also runs it as its own project (`-p nexus-drill`), which is what makes the
+# container_name overrides below necessary: the base file pins container names, so a second
+# project cannot share them. Same reason on the public port - the drill publishes 18080.
+#
+# A separate project also means separate named volumes, so the drill always starts from a
+# first-install database: that is the only way to check what init.sql and the seed switch
+# actually leave behind.
+services:
+  db:
+    container_name: nexus-drill-db
+
+  redis:
+    container_name: nexus-drill-redis
+
+  elasticsearch:
+    container_name: nexus-drill-es
+
+  ollama:
+    container_name: nexus-drill-ollama
+
+  app:
+    container_name: nexus-drill-app
+    environment:
+      # The drill sets this: a refused port to break the LLM, http://llm-mock:8000/v1 to
+      # heal it. It has to be an compose-level environment entry because overriding the
+      # env_file value from the host does not work.
+      LLM_ENDPOINT: ${DRILL_LLM_ENDPOINT:-http://ollama:11434/v1}
+      # Posts older than this count as lost to the reconciliation sweep, so the recovery
+      # step does not have to wait out the production 10-minute window.
+      AI_RECONCILE_STALE_MINUTES: ${DRILL_STALE_MINUTES:-1}
+      # The drill proves the production shape: no demo accounts, no sample content, and one
+      # bootstrap administrator.
+      DEMO_SEED_ENABLED: "false"
+      DEMO_ENDPOINTS_ENABLED: "false"
+      BOOTSTRAP_ADMIN_PASSWORD: ${DRILL_BOOTSTRAP_PASSWORD:-DrillAdmin123}
+
+  web:
+    container_name: nexus-drill-web
+
+  llm-mock:
+    build:
+      context: ./benchmark/observability/llm-mock
+    image: nexus-llm-mock:drill
+    container_name: nexus-drill-llm-mock
+    profiles: ["drill"]
+    expose:
+      - "8000"
+    networks:
+      - nexus-net
+
+  prometheus:
+    container_name: nexus-drill-prometheus
+
+  grafana:
+    container_name: nexus-drill-grafana
+    environment:
+      # The drill authenticates against the provisioning API to prove the alert rules are
+      # actually loaded, so it has to know the admin password. A fresh grafana-data volume means
+      # this is the initial password, not a changed one.
+      GF_SECURITY_ADMIN_PASSWORD: ${DRILL_GRAFANA_PASSWORD:-drill-grafana}
+
+  alert-bridge:
+    container_name: nexus-drill-alert-bridge
+    environment:
+      # The bridge refuses to start with no target (see alert_bridge.main), so a drill that wants to
+      # exercise delivery has to give it one. The sink recomputes the signature with the matching
+      # secret below, which is what turns "the bridge said 200" into "a receiver accepted a signed
+      # alert". A deployment never gets these values; they are drill addresses.
+      FEISHU_ALERT_WEBHOOK: ${DRILL_FEISHU_WEBHOOK:-http://webhook-sink:9000/notify}
+      FEISHU_ALERT_SECRET: ${DRILL_FEISHU_SECRET:-drill-shared-secret}
+
+  webhook-sink:
+    build:
+      context: ./benchmark/observability/webhook-sink
+    image: nexus-webhook-sink:drill
+    container_name: nexus-drill-webhook-sink
+    profiles: ["drill"]
+    environment:
+      SINK_FEISHU_SECRET: ${DRILL_FEISHU_SECRET:-drill-shared-secret}
+    expose:
+      - "9000"
+    networks:
+      - nexus-net

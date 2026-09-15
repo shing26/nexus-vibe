@@ -9,6 +9,177 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Evidence credibility round (E1–E10 — `docs/tickets/evidence-credibility.md`)**: the previous round built
+  the observability surface; this round attacked whether its signals can be trusted.
+  - **The test gate stops being a coin flip**: all four `@Scheduled` jobs used to run inside every
+    `@SpringBootTest` (`@EnableScheduling` was declared twice), and `AiReviewReconcileTask`'s
+    `0 3/5 * * * ?` fires on the wall clock. A reconcile tick landing outside a stub's window read
+    Mockito's default `false` from `LlmHealthCache`, pinned "LLM unhealthy" for five minutes, and the
+    next post failed closed into `PENDING_REVIEW` — which is how PR #2 went red on a markdown-only
+    commit. `campus.scheduling.enabled` now gates the job beans (off in surefire's `systemPropertyVariables`),
+    the duplicate annotation is gone, and a health-cache flip logs at INFO with its TTL
+  - **`traceId` finished**: the hourly hot-ranking recalculation is wrapped like the other three jobs,
+    `TRUST_FORWARDED_HEADERS` is split in two (nginx strips the inbound `X-Trace-Id` it does not own,
+    a reverse proxy still gets to pass one through), and an absent trace id renders as absent rather
+    than the literal string `null`
+  - **`rules.yaml` that Grafana cannot parse now fails loudly and early**: `noDataState: ALERTING` was
+    an unusable spelling, and a provisioned parse error aborts Grafana's start, so the whole
+    monitoring profile was a restart loop; `GrafanaAlertProvisioningTest` checks the four accepted
+    values and the routing chain in 0.3s, and the drill's `grafana-provisioning-loaded` step reads
+    them back from the engine API. The six `errorState` keys are gone — provisioning has two state
+    knobs, and a third parsed, was dropped, and let a comment claim a policy that never existed
+  - **Alerts cannot go missing quietly**: `noDataState` is per rule instead of a blanket `OK`
+    (blindness on the gauge and scrapability rules, `OK` on the volume-guarded ratios), plus a
+    `nexus-prometheus-scrape-failed` rule that pages 3–4 minutes after the app stops being scraped,
+    and `alert-bridge` refuses to start when there is nowhere to deliver — its own comment said
+    "answers 502 when unconfigured", which is not what it does
+  - **Two audiences, two health documents**: nginx's public `/actuator/health` now proxies the
+    `servable` group (storage only), the container healthcheck keeps the aggregate, and
+    `/actuator/metrics` came back to dev while prod keeps its exact allowlist — that loss had been
+    pinned in a test, so `ActuatorExposureContractTest` now asserts the prod shape only
+  - **A release with a name**: `app`/`web` carry `image: nexus-vibe-{app,web}:${APP_TAG:?}`,
+    `mem_limit` per container sized from measured usage (the compose file set no memory ceiling at
+    all on a 7.65 GiB Docker VM shared with two other projects), and CI uploads the jar and `dist`
+  - **A backup that has now been restored**: `scripts/backup.ps1` (mysqldump + uploads with
+    SHA-256 and end-marker verification, retention, optional alert-bridge notification) and
+    `docs/runbook/restore.md`. `es-data` is in no dump, so the runbook now carries the reindex as a
+    restore step (E9); a restored site that skips it serves an empty search index with a `200`. The
+    rehearsal ran on 2026-09-14
+    and passed every assertion (dump sha256 against the manifest, load exit 0, all ten table row
+    counts equal, Chinese titles legible, restored app serving the restored upload at `200` with a
+    matching hash); it also found two commands that did not work as written — `docker compose ls`
+    rejects the Go template `backup.ps1` asked it for, and `-p` does not scope `container_name:`, so
+    the scratch project collided with the live `nexus-db` until
+    `docs/runbook/docker-compose.restore-test.yml` renamed its containers. What stays unproven: the
+    "second volume" is a partition of the same physical NVMe, so there is still no off-box copy
+  - **E9 - the reindex stopped grading its own homework**: this round's own docs claimed "there is no
+    bulk reindex path anywhere in the code", which was false when written — `POST
+    /api/v1/admin/search/reindex` and `PostSearchService.rebuildIndex` shipped in `9c4b002`
+    (2026-08-14) with tests. The real defect was the number: `rebuildIndex` returned the size of the
+    row list it had read from MySQL and the endpoint published it as `reindexed`, so a cluster that
+    rejected every document — or was not running — reported `reindexed: 32`. `bulkIndex` now returns
+    `BulkResult(submitted, indexed, failed)` counted from the `_bulk` body's per-item 2xx statuses
+    (an unreadable body counts as zero, the same fail-closed stance as ADR-0004), `createIndexIfNotExists`
+    reports whether the index is really ready so a rebuild cannot bulk into an auto-created index with
+    the wrong analyzer, the call asks for `refresh=true`, and its timeout went 10s → 60s because a
+    whole-site reindex is one request. 9 new unit tests plus a controller test that reads the body
+    instead of asserting `notNullValue()`; 305 JUnit cases green.
+  - **E10 - the dashboard had never been looked at**: every Grafana assertion in the previous two rounds
+    went through an API (rules loaded, contact point registered, metric names present in the scrape), and
+    not one opened a panel. Doing that found `Latency p50 / p95 / p99` querying
+    `http_server_requests_seconds_bucket` — a series Spring Boot does not publish for an auto-configured
+    Timer unless `percentiles-histogram` is enabled, and no `distribution` config existed anywhere. So the
+    panel had rendered nothing, on every deployment, since it was committed (measured: 12 `_count` series,
+    0 `_bucket`). Sweeping all 24 expressions found 9 returning no series: 3 from the missing buckets,
+    4 where the honest answer is a plain zero (5xx ratio, rate-limit rejections, lease attempts
+    exhausted, reconcile repairs) and are now drawn with `or vector(0)`. On the two ratio panels the
+    guard sits on the numerator only, so "there was no traffic at all" still renders `No data` instead
+    of a fabricated "0% success" — which is why `LLM success rate` is one of the two panels left empty.
+    `application.yml` gains the histogram plus explicit SLO buckets (`50ms` … `30s`) rather than
+    Micrometer's ~70-bucket default,
+    pinned by `HttpMetricsHistogramContractTest` (2 cases, verified to fail when the flag is flipped);
+    `check_panels.py` and `render_panels.py` keep the two layers honest — expression answers a query,
+    browser paints a canvas. Post-fix on one scratch prod stack: sweep `15/9` → `22/2 empty`,
+    0 → 385 bucket lines, Overview 9/9 canvases with 0 "No data", AI Pipeline 5/5 with the 2 expected,
+    `console_errors=0`; and the first thing the working latency panel revealed is that the slowest
+    endpoint is `/actuator/health` itself (max `3.16s`), which the container healthcheck calls against a
+    10s timeout every 30s. 307 JUnit cases green, and the 21-step drill re-run with the change in the
+    image (`drill-20260914-093857`, 21/21) — whose rollback step swapped through the histogram build itself.
+
+- **Observability round (P0-1..P0-6, P1-1, P1-3 — `docs/tickets/production-readiness.md`)**
+  - **Structured log to disk**: `logback-spring.xml` gives prod a `LogstashEncoder` file appender on the
+    `app-logs` volume (size+time rolling, 100MB/7d/1GB cap) wrapped in an `AsyncAppender` with
+    `discardingThreshold=0` so nothing is dropped; dev/console keeps `%X{traceId}` in the pattern;
+    `logstash-logback-encoder` moved 7.4 → 8.0 to match logback 1.5.11
+  - **Prometheus endpoint + opt-in monitoring stack**: `micrometer-registry-prometheus`, prod exposes
+    `health,info,prometheus`; `docker/observability/` ships Prometheus, Grafana (datasource, 6 alert
+    rules, 2 dashboards) and a Feishu `alert-bridge`, all under the `monitoring` profile — no host
+    port mapping, so the public surface stays nginx-only and the stack runs unchanged without the
+    profile
+  - **Business metrics instrumented by hand** (no `@Timed` AOP): `llm_chat_completions_total{outcome}`,
+    `llm_chat_completion_duration_seconds` (SLO buckets on the timeout ladder),
+    `llm_circuit_breaker_open`, `rate_limit_rejected_total{path}`, `ai_review_pending_posts` (a snapshot
+    gauge, so a scrape never turns into a `COUNT` on the database), `ai_review_reconcile_repairs_total`,
+    `ai_review_lease_attempts_exhausted_total`
+  - **Trace ID across every boundary**: `TraceIdFilter` at
+    `HIGHEST_PRECEDENCE - 1` mints a 16-hex id and echoes `X-Trace-Id`; `MdcCopyingTaskDecorator`
+    carries MDC into both async pools; `TraceIds.runAsJob` gives the AI-review reconcile, like-sync,
+    and drift sweeps their own id per run (E2 added the hourly hot-ranking recalculation);
+    the same helper wraps the fourth job, and `PostRankingJobTraceTest` keeps it from drifting back;
+    5xx bodies repeat the traceId (`@JsonInclude(NON_NULL)`, normal responses unchanged) and the error
+    toast shows the first 8 characters so a user can quote it
+  - **Bootstrap admin, empty production seed (ADR-0008)**: prod no longer inserts demo accounts —
+    `DataPreloader` keeps only the functional `AiAgent(999)`; `BootstrapAdminInitializer` creates
+    `admin` from `BOOTSTRAP_ADMIN_PASSWORD` once when no ADMIN exists; demo posts/comments/messages move
+    to `DemoContentSeeder` behind `DEMO_SEED_ENABLED`, so a first boot cannot produce content owned by
+    nobody
+
+### Changed
+
+- **Two-level health semantics (ADR-0007)**: a degraded dependency is no longer an unhealthy container.
+  Boot's `redis`/`elasticsearch` indicators are switched off and replaced with ours that map to
+  `DEGRADED` (plus a new `llm` one reusing `LlmHealthCache`, so probing never feeds the breaker);
+  `degraded` ranks above `up` but maps to HTTP **200**, only `db` can still go DOWN, details move to
+  the `deps` group with `show-details: always`
+  (E6 split the two questions by group: the public URL answers `servable`, the container healthcheck
+  keeps the aggregate; ADR-0007 carries the amendment, including the fact that its first version
+  offered one endpoint to two audiences)
+- **`SystemMetricsAutoConfiguration` exclude removed** — the original crash came from the CI profile's
+  `-XX:-UseContainerSupport`, not from cgroup v2; OS metrics now verified present in a prod container,
+  and unit tests assert only `jvm_*` so no runner crash returns. E7 made that profile explicit rather
+  than OS-inferred (`-P surefire-without-container-support` in CI, because an implicit
+  `<os><family>unix</family>` activation is invisible in a build log) and moved the gate to JDK 21,
+  the LTS the Dockerfile actually runs — it used to compile and test on 18, which nothing else uses
+- **Per-container memory ceilings**: `mem_limit` on all six always-on services, sized from what the
+  running stack holds (app 400MiB of its 768MiB, es 653MiB); the three `monitoring`-profile
+  containers still have none. This is a capacity decision rather than a disk-hygiene one: the only
+  bound before it was the 7.65 GiB Docker Desktop VM, shared with two unrelated projects' live
+  containers, so the limit is about one stack starving another rather than about filling a disk.
+- **Frontend response contract matched to the backend**: `ApiResponse<T>` is now
+  `{ code, message?, data }` with success derived from `code`; the never-read `success` field is gone
+  from the type rather than bolted onto the API
+- **nginx actuator lockdown**: `location /actuator/ { return 404; }` before the SPA fallback, keeping the
+  single exact `/actuator/health` forward — "accidentally safe" becomes explicitly denied
+
+### Fixed
+
+- **Compose log rotation on every service**: all services now share a `json-file` anchor with
+  `max-size: 10m` / `max-file: 3`; container stdout was previously unbounded on the host disk
+- **`migrate-0005` told its reader to load into a database that does not exist** (`nexus_vibe`; the real
+  name is `nexus_campus`, which `0006` and `0007` already use). The numbering starting at `0005` is now
+  written down too: `0001`–`0004` have never existed in any commit, and all three migrations are already
+  inside `init.sql`, so replaying them on a fresh volume is a `Duplicate column name` error — which is
+  what a 3am restore would otherwise have turned into
+
+### Documentation
+
+- Failure drill `benchmark/observability/drill.ps1` (21 steps, real container stack, dead-port LLM
+  mock, and a signature-verifying webhook sink standing in for Feishu) with results and — equally —
+  its own false-red and false-green history in
+  `docs/research/observability-drill-2026-09.md`; module/completion audit in
+  `docs/research/project-module-audit-2026-09.md`; the readiness assessment archived to
+  `docs/research/production-readiness-assessment-2026-09.md`; `CONTEXT.md` gains **Degraded**,
+  **Servable**, **Bootstrap Admin**, **Trace ID**
+
+### Testing
+
+- 307 JUnit cases in 46 classes (was 243 before this round, 284 after the observability tickets, 296
+  after the evidence round's first eight, 305 after E9): first tests to touch actuator at all, plus health
+  semantics, trace propagation across the async hop, log JSON shape, seed gating, bootstrap
+  idempotency, the scheduling gate, the Grafana alert file parsed the way the engine parses it, what a
+  `_bulk` response actually confirms, and the single YAML key a latency panel silently depends on; the
+  alert-bridge ships 17 Python tests pinning the Feishu signature and the body it is computed over
+- Not yet proven, stated plainly: an alert arriving in a **real** Feishu group (the drill delivers to a
+  signature-verifying stand-in), an alert rule actually reaching `firing` (each one needs 5m/15m of the
+  condition holding, longer than the drill window), an A→B→A rollback driven through the real
+  public entry point, and a backup copy that survives the death of its host disk — see the drill
+  report's honest-list section and `docs/runbook/restore.md` section 9
+- Panel rendering was on that list until E10 rendered it (9/9 and 5/5 canvases painted, screenshots in
+  `docs/research/observability-drill-2026-09.md` section 9); what that check still does not do is say
+  whether the numbers on the panels are *correct*, only that they arrive
+
 ### Security
 
 Audit-driven hardening of the AI pipeline (ADR-0003/0004/0005 review + product walkthrough, 2026-09-06):

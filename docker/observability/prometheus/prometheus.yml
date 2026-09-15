@@ -1,0 +1,25 @@
+# Prometheus scrape config for the Nexus-Vibe monitoring profile.
+#
+# It scrapes the app over the compose network only. Nothing here is reachable from outside:
+# the prometheus service maps no host port either, so browsing it needs
+# `docker compose exec` or a temporary port publish during the drill.
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    stack: nexus-vibe
+
+scrape_configs:
+  # Spring Boot actuator endpoint exposed by the prod profile
+  # (management.endpoints.web.exposure.include: health,info,prometheus).
+  - job_name: nexus-vibe
+    metrics_path: /actuator/prometheus
+    static_configs:
+      - targets: ["app:8080"]
+        labels:
+          service: backend
+
+  - job_name: prometheus
+    static_configs:
+      - targets: ["localhost:9090"]

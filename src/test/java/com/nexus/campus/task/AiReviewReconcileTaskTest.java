@@ -1,6 +1,8 @@
 package com.nexus.campus.task;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmClient;
@@ -10,7 +12,9 @@ import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -18,11 +22,13 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -50,8 +56,28 @@ class AiReviewReconcileTaskTest {
     @InjectMocks
     private AiReviewReconcileTask task;
 
+    /**
+     * Real registry, not a mock: the point of these tests is the numbers that land on the meters,
+     * and a mock records calls without ever holding a value.
+     */
+    private final SimpleMeterRegistry meterRegistry = new SimpleMeterRegistry();
+
+    /**
+     * The sweep builds a {@code LambdaUpdateWrapper}, which resolves columns from a MyBatis-Plus
+     * cache that a Spring context normally fills. These tests build no context, so running this
+     * class alone used to fail with "can not find lambda cache for this entity" and only passed
+     * inside a full run because another class had booted a context in the same JVM. Warming the
+     * cache here makes the class order-independent.
+     */
+    @BeforeAll
+    static void initLambdaColumnCache() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""), VibePost.class);
+    }
+
     @BeforeEach
     void enableFeatures() {
+        ReflectionTestUtils.setField(task, "meterRegistry", meterRegistry);
         ReflectionTestUtils.setField(task, "reviewEnabled", true);
         ReflectionTestUtils.setField(task, "safetyEnabled", true);
         ReflectionTestUtils.setField(task, "maxAttempts", 5);
@@ -79,6 +105,9 @@ class AiReviewReconcileTaskTest {
 
         task.reconcile();
 
+        // The backlog gauge is refreshed before the health gate, otherwise an outage - the one
+        // situation where the backlog actually grows - would freeze the gauge at its last value.
+        verify(vibePostMapper).countReviewsAwaitingWork();
         // the sweep still ran (before the gate) but nothing is re-triggered
         verifyNoInteractions(eventPublisher);
     }
@@ -160,5 +189,33 @@ class AiReviewReconcileTaskTest {
         task.reconcile();
 
         verify(llmClient, times(1)).isHealthy();
+    }
+
+    @Test
+    @DisplayName("One cycle publishes the backlog gauge plus repair and lease-exhaustion counters")
+    void shouldPublishReconcileMetrics() {
+        task.registerBacklogGauge();
+        when(llmClient.isHealthy()).thenReturn(true);
+        when(vibePostMapper.countReviewsAwaitingWork()).thenReturn(7L);
+        when(vibePostMapper.selectReviewingBudgetExhausted(5, 10)).thenReturn(List.of(post(9L)));
+        when(vibePostMapper.update(any(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        when(vibePostMapper.selectStaleAiReviewPosts(eq(AiReviewStatus.REVIEWING.getCode()), any(), anyInt(), anyInt()))
+                .thenReturn(List.of(post(1L), post(2L)));
+        when(vibePostMapper.selectStaleAiReviewPosts(eq(AiReviewStatus.FAILED.getCode()), any(), anyInt(), anyInt()))
+                .thenReturn(List.of(post(3L)));
+        when(vibePostMapper.selectPostsPendingSafetyRecheck(any(), anyInt())).thenReturn(List.of(post(4L)));
+
+        task.reconcile();
+
+        assertThat(meterRegistry.get("ai.review.pending.posts").gauge().value()).isEqualTo(7.0);
+        assertThat(repairs("reviewing")).isEqualTo(2.0);
+        assertThat(repairs("failed")).isEqualTo(1.0);
+        assertThat(repairs("safety")).isEqualTo(1.0);
+        assertThat(repairs("budget_exhausted")).isEqualTo(1.0);
+        assertThat(meterRegistry.get("ai.review.lease.attempts.exhausted").counter().count()).isEqualTo(1.0);
+    }
+
+    private double repairs(String kind) {
+        return meterRegistry.get("ai.review.reconcile.repairs").tag("kind", kind).counter().count();
     }
 }

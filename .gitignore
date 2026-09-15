@@ -55,3 +55,19 @@ node_modules/
 hs_err_pid*.log
 replay_pid*.log
 .qa_tmp/
+
+# Python bytecode from the alert-bridge unit tests run on the host
+__pycache__/
+*.pyc
+
+# Raw probe output from benchmark/observability/drill.ps1. The conclusions are written up in
+# docs/research; the scrape dumps and log tails behind them stay on the machine that ran it.
+benchmark/observability/evidence/
+# A write-up about the project rather than of it, quoting internal assessments. It lives on the
+# machine that runs the project and never in the public remote. Never add it back.
+Nexus-Vibe-项目全量梳理.md
+# Same reasoning, and this one was actually tracked once (added in 6a5312d, still reachable in
+# history). Removed from the tree on 2026-09-14; the local copy now lives outside the repository.
+docs/project-experience-refactored.md
+# Backup sets (scripts/backup.ps1): belong on a second volume, and are never committable - db.sql.gz holds password hashes.
+backups/
