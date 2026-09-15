@@ -69,7 +69,22 @@ request DTOs are untouched.
 
 ## R2 - HTTP status is the truth, and errors are thrown
 
-Status: open.
+Status: done on `codex/http-contract-and-product-loop`. 317 tests green, 0 failures,
+0 errors, 0 skipped (from R1's 310: six cases in `ErrorSemanticsTest`, one in
+`NoStaleStatusAssertionTest`). `ApiResponse.error(int, String)` and the three
+`unauthorized` / `forbidden` / `notFound` shorthands are deleted, so the only way a
+controller can answer a failure is to throw something with a status attached.
+
+What the last two commits turned out to be carrying: `handleBusinessError` used to
+answer every `IllegalArgumentException` **and** `IllegalStateException` with `400`
+and `e.getMessage()` verbatim. That is the leak the assessment under-described - it
+is not limited to the register race, any library at any depth that throws an IAE
+with an internal string in it was quoting it back to the client. An unmapped IAE
+now keeps the 400 and loses the message; an ISE is no longer mapped at all, which
+puts it on the 500 side where the stack is logged and the client hears nothing.
+`ErrorSemanticsTest` probes both with strings copied from real failures
+(`Duplicate entry 'shing' for key 'sys_user.uk_username'`, an upstream LLM error
+body) so the assertion is about the leak, not about the class name.
 
 **Scope:** 33 controller sites answer `200 OK` while their envelope says 401,
 403, 404 or 400. `POST /api/v1/auth/login` with a wrong password returns
@@ -144,7 +159,32 @@ affected tests under `src/test/java/com/nexus/campus/controller/`.
 
 ## R3 - A frontend test surface that can fail
 
-Status: open.
+Status: done on `codex/http-contract-and-product-loop`. **15 tests in 4 files**,
+`npm run test` green, and the step now sits between Lint and Build in the CI
+frontend job, which until this commit was lint and `tsc` only.
+
+Two of the acceptance checks were proven by breaking the thing under test rather
+than by reading the green run. With `if (!refreshPromise)` replaced by `if (true)`,
+exactly one test goes red - `shares one refresh across concurrent 401s` - so the
+single-flight is pinned, not merely exercised. With a new
+`src/__probe.tsx` holding one bare `await apiClient.get(...)`, the scan reports
+`src/__probe.tsx:4 - no enclosing try`. Both probes were reverted; the file is gone.
+
+The interceptor tests drive real axios with a fake `adapter` on both `apiClient`
+and the global instance, so the request interceptor, the 401 branch, the refresh,
+and the replay all execute, and the rejection is a genuine `AxiosError` carrying
+genuine `AxiosHeaders`. One harness detail earned its comment: the first version
+kept the config objects it had seen and asserted on their `Authorization` header,
+and passed for the wrong reason - the interceptor retries by mutating that same
+headers object, so both entries reported the post-refresh token. It records
+snapshots now.
+
+R2's fallout is fixed here as planned: `serverErrorMessage(error, fallback)` reads
+the envelope and is the only thing the three admin panels use, so
+`Request failed with status code 403` cannot reach a user. `PostCard`'s fork reads
+`postId` behind a check instead of throwing its way into its own `catch`.
+LoginPage's first test is the proof of the whole chain: the sentence
+`Invalid username or password.` was not reachable from that page before round six.
 
 **Scope:** 310 backend tests, 17 alert-bridge tests, 0 frontend. The one place
 a user can actually be hurt has no gate.

@@ -117,6 +117,12 @@ jobs:
       - name: Lint
         run: npm run lint
 
+      # Round six: the job used to be lint and tsc only, which is a guarantee
+      # that the code compiles, not that it works. 310 backend tests were green
+      # beside 0 frontend ones; that ratio is the reason this step exists.
+      - name: Unit tests
+        run: npm run test
+
       - name: Build
         run: npm run build
 

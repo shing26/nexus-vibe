@@ -94,8 +94,17 @@ export default function PostCard({ post }: PostCardProps) {
     setForking(true);
     try {
       const res = await apiClient.post('/posts/' + post.id + '/fork');
+      const postId = res.data?.data?.postId;
+      // Checked rather than assumed. This used to read `res.data.data.postId`
+      // straight, so an envelope with a null body reached its catch by throwing a
+      // TypeError, which reported "Fork failed" for a response the server said was
+      // fine and would have kept doing so if the shape ever changed again.
+      if (!postId) {
+        addToast('Fork failed', 'error');
+        return;
+      }
       addToast('Template forked', 'success');
-      navigate('/post/' + res.data.data.postId);
+      navigate('/post/' + postId);
     } catch {
       addToast('Fork failed', 'error');
     } finally {

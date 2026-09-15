@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
+import { serverErrorMessage } from '../api/serverErrorMessage';
 
 interface PendingPost {
   id: number;
@@ -113,7 +114,7 @@ export default function AuditPage() {
         <div className="bg-red-900/30 border border-red-500/40 rounded-lg p-6 text-center">
           <p className="text-red-400 font-mono text-sm">Failed to load pending posts</p>
           <p className="text-red-500 text-xs font-mono mt-1">
-            {(error as Error)?.message || 'An unexpected error occurred'}
+            {serverErrorMessage(error, 'An unexpected error occurred')}
           </p>
         </div>
       </div>
