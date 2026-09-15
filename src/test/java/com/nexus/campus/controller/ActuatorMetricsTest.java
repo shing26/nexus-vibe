@@ -50,6 +50,12 @@ class ActuatorMetricsTest {
                 .andExpect(status().isOk())
                 .andExpect(content().string(containsString("# TYPE jvm_memory_used_bytes gauge")))
                 .andExpect(content().string(containsString("http_server_requests_seconds_count")))
+                // The product-loop gauges are declared with dotted Micrometer names, so the
+                // underscored spelling below is their Prometheus side. Asserting it here is what
+                // notices when a rename stops matching the dashboard: a panel selecting on a
+                // series nobody publishes renders "No data", and the scrape stays silent about it.
+                .andExpect(content().string(containsString("# TYPE funnel_activation_ratio gauge")))
+                .andExpect(content().string(containsString("# TYPE funnel_active_content_d7_ratio gauge")))
                 // Every alert rule selects on application="nexus-vibe". Boot 3.3 does not add that
                 // tag by itself, so this is the line that fails if the binding is dropped: the rules
                 // would match nothing and still look healthy in their noDataState.

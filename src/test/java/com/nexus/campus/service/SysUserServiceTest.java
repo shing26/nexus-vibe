@@ -5,6 +5,7 @@ import com.nexus.campus.dto.LoginRequest;
 import com.nexus.campus.dto.RegisterRequest;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.mapper.SysUserMapper;
+import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.service.impl.SysUserServiceImpl;
 import com.nexus.campus.util.JwtUtil;
 import org.junit.jupiter.api.BeforeEach;
@@ -35,6 +36,10 @@ class SysUserServiceTest {
 
     @Mock
     private PasswordEncoder passwordEncoder;
+
+    /** The registration counter; see CommentServiceTest for why it is a mock at all. */
+    @Mock
+    private ProductMetrics productMetrics;
 
     @InjectMocks
     private SysUserServiceImpl sysUserService;

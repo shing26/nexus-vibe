@@ -1,0 +1,163 @@
+{
+  "uid": "nexus-product-loop",
+  "title": "Nexus-Vibe Product Loop",
+  "description": "Whether the thing that was built is being used: registrations, first posts, submissions by review state, audit decisions, replies, and the two funnel ratios that tie them together.",
+  "tags": ["nexus-vibe", "product"],
+  "timezone": "Asia/Shanghai",
+  "editable": true,
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-7d", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Activated within 7 days",
+      "description": "Share of the accounts registered in the recent cohort that published something within a week. Recomputed daily, so it moves once a day and holds still in between; a value of exactly 0 on an install with no traffic is the empty-database reading, not a failure.",
+      "datasource": { "type": "prometheus", "uid": "nexus-prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.1 },
+              { "color": "green", "value": 0.3 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(funnel_activation_ratio{application=\"nexus-vibe\"})",
+          "legendFormat": "activation"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Publishing in the last 7 days",
+      "description": "Share of everybody who has ever registered that posted or commented in the last week. Content is the definition of active here, so a visitor who only reads is not counted; that is a stated limitation of the metric, not a gap in the panel.",
+      "datasource": { "type": "prometheus", "uid": "nexus-prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 6, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 0.05 },
+              { "color": "green", "value": 0.2 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "max(funnel_active_content_d7_ratio{application=\"nexus-vibe\"})",
+          "legendFormat": "active d7"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Registrations (7d)",
+      "datasource": { "type": "prometheus", "uid": "nexus-prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 12, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(user_registered_total{application=\"nexus-vibe\"}[7d])) or vector(0)",
+          "legendFormat": "registered"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Submissions (7d)",
+      "description": "Posts created, not posts published: a submission parked in the review queue is counted at creation.",
+      "datasource": { "type": "prometheus", "uid": "nexus-prometheus" },
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(post_created_total{application=\"nexus-vibe\"}[7d])) or vector(0)",
+          "legendFormat": "submitted"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Submissions by review state at creation",
+      "description": "published went out under the DFA rules; pending-review entered the AI queue; rejected and other are counted the same way so a new status cannot disappear from this chart.",
+      "datasource": { "type": "prometheus", "uid": "nexus-prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 0, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (status) (increase(post_created_total{application=\"nexus-vibe\"}[1d]))",
+          "legendFormat": "{{status}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "Human audit decisions",
+      "description": "Only the admin queue. An AI approval changes the same column in the database and is measured by the AI Pipeline dashboard instead, so the two series must not be added together.",
+      "datasource": { "type": "prometheus", "uid": "nexus-prometheus" },
+      "gridPos": { "h": 9, "w": 12, "x": 12, "y": 5 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (action) (increase(post_audited_total{application=\"nexus-vibe\"}[1d]))",
+          "legendFormat": "{{action}}"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "Replies vs new registrations",
+      "datasource": { "type": "prometheus", "uid": "nexus-prometheus" },
+      "gridPos": { "h": 9, "w": 24, "x": 0, "y": 14 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(comment_created_total{application=\"nexus-vibe\"}[1d])) or vector(0)",
+          "legendFormat": "comments"
+        },
+        {
+          "refId": "B",
+          "expr": "sum(increase(user_registered_total{application=\"nexus-vibe\"}[1d])) or vector(0)",
+          "legendFormat": "registrations"
+        }
+      ]
+    }
+  ]
+}

@@ -347,7 +347,8 @@ Step 'grafana-provisioning-loaded' {
     # provisioning directory reached the container at all.
     $files = Invoke-Compose -Cmd @('exec', '-T', 'grafana', 'ls', '-R', '/etc/grafana/provisioning')
     Write-Evidence 'grafana provisioning tree' $files
-    foreach ($needed in @('rules.yaml', 'contact-points.yaml', 'policies.yaml', 'nexus-overview.json', 'nexus-ai-pipeline.json')) {
+    foreach ($needed in @('rules.yaml', 'contact-points.yaml', 'policies.yaml',
+                          'nexus-overview.json', 'nexus-ai-pipeline.json', 'nexus-product-loop.json')) {
         if ($files -notmatch [regex]::Escape($needed)) { throw "$needed not mounted" }
     }
 
@@ -425,6 +426,76 @@ Step 'os-metrics-in-prod-container' {
         throw "no OS/disk metrics in the prod container: $($missing -join ', ')"
     }
     return 'system_cpu_usage, disk_free_bytes, process_uptime present without the exclude'
+}
+
+Step 'product-loop-drives-the-counters' {
+    # R4 claims the meters move when the product is used, so this uses the product:
+    # register, publish, moderate, reply. Nothing else in a drill run registers an
+    # account and the container has been up since the stack came up, so each of these
+    # counters is read from zero and an exact number means something.
+    $suffix = Get-Random -Maximum 99999
+    $username = "drill$suffix"
+
+    $registered = Invoke-AppHttp POST '/api/v1/auth/register' -Body (@{
+        username = $username
+        password = 'Drill1234x'
+        email    = "$username@drill.local"
+        nickname = "Drill $suffix"
+    } | ConvertTo-Json -Compress)
+    if ($registered.Code -ne '200') { throw "register answered $($registered.Code): $($registered.Body)" }
+    $token = ($registered.Body | ConvertFrom-Json).data.token
+    if (-not $token) { throw "register returned no token: $($registered.Body)" }
+
+    $created = Invoke-AppHttp POST '/api/v1/posts' -Token $token -Body (@{
+        title      = "Drill post $suffix"
+        content    = 'A drill post carrying a python block: int x = 1'
+        categoryId = 2
+    } | ConvertTo-Json -Compress)
+    if ($created.Code -ne '200') { throw "create post answered $($created.Code): $($created.Body)" }
+    $postId = (($created.Body | ConvertFrom-Json).data).postId
+
+    $commented = Invoke-AppHttp POST '/api/v1/comments' -Token $token -Body (@{
+        postId  = [long]$postId
+        content = 'a drill comment on the drill post'
+    } | ConvertTo-Json -Compress)
+    if ($commented.Code -ne '200') { throw "create comment answered $($commented.Code): $($commented.Body)" }
+
+    $adminLogin = Invoke-AppHttp POST '/api/v1/auth/login' -Body (@{
+        username = 'admin'
+        password = 'DrillAdmin123'
+    } | ConvertTo-Json -Compress)
+    if ($adminLogin.Code -ne '200') { throw "admin login answered $($adminLogin.Code): $($adminLogin.Body)" }
+    $adminToken = ($adminLogin.Body | ConvertFrom-Json).data.token
+    $approved = Invoke-AppHttp POST "/api/v1/admin/audit/posts/$postId/approve" -Token $adminToken
+    if ($approved.Code -ne '200') { throw "approve answered $($approved.Code): $($approved.Body)" }
+
+    $scrape = Get-Scrape
+    $observed = [ordered]@{
+        user_registered_total = Get-MetricSum -Scrape $scrape -Pattern 'user_registered_total'
+        post_created_total    = Get-MetricSum -Scrape $scrape -Pattern 'post_created_total'
+        post_audited_total    = Get-MetricSum -Scrape $scrape -Pattern 'post_audited_total'
+        comment_created_total = Get-MetricSum -Scrape $scrape -Pattern 'comment_created_total'
+    }
+    Write-Evidence 'product-loop counters' (($observed.GetEnumerator() |
+        ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "`n")
+    $absent = @($observed.Keys | Where-Object { -not $observed[$_] })
+    if ($absent) { throw "counters absent from the scrape after their code path ran: $($absent -join ', ')" }
+
+    # The ratios come from MySQL rather than from these counters, so they need the sweep
+    # to have run since. docker-compose.drill.yml moves it from production's 03:17 to
+    # every minute; the wait is one cycle plus a scrape interval, not a guess.
+    Wait-For 'the funnel sweep to publish a non-zero activation ratio' {
+        $value = Get-MetricSum -Scrape (Get-Scrape) -Pattern 'funnel_activation_ratio'
+        $null -ne $value -and $value -gt 0
+    } -TimeoutSec 150 -IntervalSec 10
+    $scrape = Get-Scrape
+    $activation = Get-MetricSum -Scrape $scrape -Pattern 'funnel_activation_ratio'
+    $activeD7 = Get-MetricSum -Scrape $scrape -Pattern 'funnel_active_content_d7_ratio'
+    Write-Evidence 'funnel gauges' "activation=$activation active_content_d7=$activeD7"
+    foreach ($pair in @(@('activation', $activation), @('active_content_d7', $activeD7))) {
+        if ($pair[1] -lt 0 -or $pair[1] -gt 1) { throw "$($pair[0]) ratio outside 0..1: $($pair[1])" }
+    }
+    return "4 counters moved; activation=$activation, active_content_d7=$activeD7"
 }
 
 Step 'structured-json-log-lands-on-the-volume' {

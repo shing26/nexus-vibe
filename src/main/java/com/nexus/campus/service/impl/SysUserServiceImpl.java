@@ -6,6 +6,7 @@ import com.nexus.campus.dto.RegisterRequest;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.SysUserMapper;
+import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.service.SysUserService;
 import com.nexus.campus.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -30,6 +31,9 @@ public class SysUserServiceImpl implements SysUserService {
 
     @Autowired
     private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private ProductMetrics productMetrics;
 
     @Override
     public JwtResponse login(LoginRequest request) {
@@ -95,6 +99,8 @@ public class SysUserServiceImpl implements SysUserService {
             // unauthenticated endpoint, inside "Registration failed: ...".
             throw BusinessException.conflict("Username or email is already registered.");
         }
+
+        productMetrics.recordRegistration();
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());

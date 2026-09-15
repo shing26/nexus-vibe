@@ -228,7 +228,47 @@ shows the server's sentence. Better copy, different branch.
 
 ## R4 - The product loop becomes countable
 
-Status: open.
+Status: done on `codex/http-contract-and-product-loop` except for the drill leg, which
+runs with R5's. 328 tests green (from R2's 317: 4 in `ProductMetricsTest`, 4 in
+`FunnelAggregateTaskTest`, 3 in `FunnelAggregateIntegrationTest`).
+
+Four counters in `metrics/ProductMetrics` (`user_registered_total`,
+`post_created_total{status}`, `post_audited_total{action}`,
+`comment_created_total`) and two daily gauges from `task/FunnelAggregateTask`
+(`funnel_activation_ratio`, `funnel_active_content_d7_ratio`), one
+`nexus-product-loop.json` panel set in the existing provider, and a drill step that
+registers, publishes, moderates and replies for real and then reads the scrape back.
+
+Three things this ticket turned up that were not on it:
+
+- `SysUserMapper.selectRecentActiveUsers` was `DATEADD('DAY', -7, CURRENT_TIMESTAMP)
+  JOIN … SELECT DISTINCT u.* … ORDER BY p.create_time`. Both halves are H2-only: MySQL
+  has no `DATEADD`, and its `ONLY_FULL_GROUP_BY` refuses an ordering on a column the
+  projection does not carry. `GET /api/v1/stats/active-users` is a public endpoint, so
+  the deployment answers 500 there today while all 317 tests stayed green. Fixed by
+  binding the cutoff from Java and replacing the join with `EXISTS` plus an aliased
+  ranking column.
+- `Map.of(...).getOrDefault(null, "other")` throws — immutable maps refuse null probes
+  even as keys. That was one line into `recordPostCreated`, on the request path of a
+  post that had already been written. `ProductMetricsTest` is what caught it; the mock
+  `MeterRegistry` most tests would have used could not have.
+- One Chinese validation message survived R2's rule that envelope text is English
+  (`RegisterRequest:32`). It is now English, matching its 20 siblings and the copy the
+  register page already shows.
+
+Decisions worth keeping: the activation window is a 30-day cohort rather than all-time,
+because a lifetime denominator buries this week's registrations under last year's demo
+accounts; a ratio whose numerator outsteps the denominator (content whose author was
+deleted, since `vibe_post.user_id` is no foreign key) clamps to 1.0 and logs the
+disagreement; and the sweep runs once at boot as well as daily, so the gauges cannot
+read a zero that means "nobody has looked yet". The boot run is gated on
+`campus.scheduling.enabled`, which surefire sets false, so no test context queries a
+database it is about to change.
+
+Two dialects, two proofs: `FunnelAggregateIntegrationTest` executes the three reads on
+H2 so a typo cannot survive as "the unit test stubs the mapper", and the drill's
+`product-loop-drives-the-counters` step executes them on MySQL while asserting the
+ratios land inside 0..1.
 
 **Scope:** the seven existing metrics are all operational. Nothing answers
 "did the thing we built get used".

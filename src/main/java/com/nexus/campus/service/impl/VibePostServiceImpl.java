@@ -13,6 +13,7 @@ import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
 import com.nexus.campus.agent.AiReviewLog;
 import com.nexus.campus.agent.AiReviewLogMapper;
+import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.service.VibePostService;
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.enums.AiReviewStatus;
@@ -97,6 +98,9 @@ public class VibePostServiceImpl implements VibePostService {
     @Autowired
     private ApplicationEventPublisher eventPublisher;
 
+    @Autowired
+    private ProductMetrics productMetrics;
+
    @Value("${campus.ai.review.enabled:true}")
    private boolean aiReviewEnabled;
 
@@ -180,6 +184,11 @@ public class VibePostServiceImpl implements VibePostService {
         if (aiReviewEnabled && post.getStatus() == 1) {
             publishSafetyEventSafely(post, userId);
         }
+
+        // Recorded after the row exists and after the pipeline has been told: the
+        // funnel asks how many submissions entered the queue, and a post that never
+        // got as far as an insert is not one.
+        productMetrics.recordPostCreated(post.getStatus());
 
         return post;
     }
@@ -593,6 +602,7 @@ public class VibePostServiceImpl implements VibePostService {
                 postSearchService.indexPost(fullPost);
             }
             notifyAuthor(post, "你的帖子《" + post.getTitle() + "》已通过人工审核并发布。");
+            productMetrics.recordPostAudited("approve");
         }
         return updated;
     }
@@ -606,6 +616,7 @@ public class VibePostServiceImpl implements VibePostService {
         boolean updated = vibePostMapper.updateById(post) > 0;
         if (updated) {
             notifyAuthor(post, "你的帖子《" + post.getTitle() + "》未通过人工审核，已被下架。如有疑问请联系管理员。");
+            productMetrics.recordPostAudited("reject");
         }
         return updated;
     }

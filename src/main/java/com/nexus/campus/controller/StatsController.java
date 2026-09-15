@@ -16,12 +16,16 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/stats")
 public class StatsController {
+
+    /** How far back "active" reaches for {@code /stats/active-users}. */
+    private static final int ACTIVE_USER_WINDOW_DAYS = 7;
 
     @Autowired
     private VibePostMapper vibePostMapper;
@@ -53,7 +57,8 @@ public class StatsController {
     @GetMapping("/active-users")
     public ApiResponse<List<UserPublicVo>> getActiveUsers(
             @RequestParam(defaultValue = "10") int limit) {
-        List<SysUser> users = sysUserMapper.selectRecentActiveUsers(limit);
+        LocalDateTime since = LocalDateTime.now().minusDays(ACTIVE_USER_WINDOW_DAYS);
+        List<SysUser> users = sysUserMapper.selectRecentActiveUsers(since, limit);
         List<UserPublicVo> vos = users.stream().map(this::convertToUserVo).collect(Collectors.toList());
         return ApiResponse.success(vos);
     }

@@ -29,7 +29,8 @@ public class RegisterRequest implements Serializable {
 
     @NotBlank(message = "Password is required")
     @Size(min = 8, max = 20, message = "Password must be 8-20 characters")
-    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,20}$", message = "密码必须包含大小写字母和数字，长度8-20位")
+    @Pattern(regexp = "^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d).{8,20}$",
+             message = "Password must contain uppercase, lowercase and a number, 8-20 characters")
     private String password;
 
     @NotBlank(message = "Nickname is required")

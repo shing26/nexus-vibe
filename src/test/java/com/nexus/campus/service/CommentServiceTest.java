@@ -8,6 +8,7 @@ import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
+import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.service.impl.VibeCommentServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -43,6 +44,10 @@ class CommentServiceTest {
 
     @Mock
     private SensitiveWordService sensitiveWordService;
+
+    /** Records the funnel event; the assertions here are about the comment, not the meter. */
+    @Mock
+    private ProductMetrics productMetrics;
 
     @InjectMocks
     private VibeCommentServiceImpl commentService;

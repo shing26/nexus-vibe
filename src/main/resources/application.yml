@@ -111,6 +111,16 @@ campus:
     trust-inbound-header: ${TRUST_INBOUND_TRACE_ID:false}
   cache:
     ttl: 1h
+  metrics:
+    funnel:
+      # Product-loop gauges. Daily by default: the numbers are percentages whose unit
+      # of interest is a point, and the sweep reads them with three indexed queries.
+      # The drill moves this to every minute to force an aggregation without waiting
+      # for a night that never comes.
+      cron: ${FUNNEL_METRICS_CRON:0 17 3 * * ?}
+      # How far back the activation cohort reaches. A lifetime denominator would bury
+      # this week's registrations under last year's demo accounts.
+      window-days: ${FUNNEL_METRICS_WINDOW_DAYS:30}
   demo:
     password: ${DEMO_PASSWORD:123456}
     seed-enabled: true
