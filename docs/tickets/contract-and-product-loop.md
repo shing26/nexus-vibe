@@ -359,7 +359,40 @@ race by crashing and being restarted.
 
 ## R6 - A phone can reach the message page
 
-Status: open.
+Status: done on `codex/http-contract-and-product-loop`. 25 frontend tests green in
+6 files (from R3's 15: 5 in `MobileTabBar.test.tsx`, 5 in
+`serverErrorMessage.test.ts`), and the two claims that CSS carries rather than the
+test suite were checked in a real browser at 390x844.
+
+`MobileTabBar` is mounted in `MainLayout` under `lg:hidden`: Home, Search, Post,
+Messages, and a fifth tab that opens a menu carrying profile, Drafts, Settings and
+logout. The plan's second tab was 频道 and it became Search: there is no channels
+index route - the channel grid *is* the home page, one tap from Home already - so a
+Channels tab would have pointed at nothing, and search behind `Cmd+K` is precisely
+the thing a phone has no keyboard for.
+
+Two things the browser pass caught that the component test could not:
+
+- The bottom padding first went on `<main>`, which cleared the feed and left the
+  **footer** underneath the fixed bar - the same defect one element further down. It
+  is on the wrapper now, and the check is a bounding-box comparison at the bottom of
+  the scroll, not a guess: footer bottom 763.75 against bar top 789.
+- The code-block fix had to be confirmed to land on the box that actually scrolls.
+  `react-syntax-highlighter` is configured with `PreTag="div"`, so `customStyle` is
+  applied to a div and `overflow-x: auto` there is what does the work; the probe read
+  `overflow-x: auto` off that node, then forced a 400-character line into it and got
+  `scrollWidth 2911 / clientWidth 356 / scrollLeft 500` - it scrolls. Before this the
+  block sat inside `TerminalWindow`'s `overflow-hidden`, so a long line on a phone was
+  simply gone.
+
+`touch-action: manipulation` is scoped to `(hover: none) and (pointer: coarse)` and to
+interactive elements, so double-tap zoom survives on text.
+
+Not verified, and not claimed: jsdom applies no media queries, so the test asserts
+that the wrapper carries `lg:hidden` and that each destination points where it should.
+The desktop layout at `lg` and above was not re-measured in a browser this round.
+Admin pages keep `AdminLayout` and get no tab bar - they were already a desktop tool,
+and bolting navigation onto them would have been a bigger change than this ticket.
 
 **Scope:** not cosmetics. There is no hamburger in `Navbar` at all: below
 `sm` the message and settings links are hidden, below `md` the username is

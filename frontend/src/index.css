@@ -73,6 +73,16 @@
      background-size: 24px 24px;
    }
  }
+
+ /* A tap on a touch screen used to wait ~300ms for a possible second tap, which on
+    the bottom bar reads as the interface not answering. Double-tap zoom is not a
+    gesture this layout offers anywhere an interactive element lives, so the delay
+    is pure cost. Scope is deliberate: text stays zoomable. */
+ @media (hover: none) and (pointer: coarse) {
+   a, button, [role="button"], input, select, textarea {
+     touch-action: manipulation;
+   }
+ }
  
  @keyframes border-beam {
    100% {
