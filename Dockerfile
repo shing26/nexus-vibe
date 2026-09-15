@@ -58,4 +58,18 @@ USER appuser
 # heap percentage, GC choice, GC log rotation. Empty by default.
 ENV JAVA_OPTS=""
 
-ENTRYPOINT ["sh", "-c", "java $JAVA_OPTS -jar nexus-campus.jar"]
+# A log directory the JVM cannot open used to take the whole container down. Not a logback
+# quirk: Spring Boot escalates any error status recorded while it configures logback, so
+# RollingFileAppender's failed openFile becomes IllegalStateException during
+# prepareEnvironment and the JVM exits 1. Measured on 2026-09-16 by the drill's
+# non-root-app-and-the-root-owned-volume-upgrade step, which started the app against a
+# deliberately root-owned volume: ten restarts in four minutes, /actuator/health never
+# answering, and the public site down. That is the exact shape of the upgrade this image
+# ships into, because Docker seeds a named volume from the image only while the volume is
+# empty - every host that ran this stack before uid 10001 has a root-owned /app/logs.
+#
+# So the entry point asks the directory, not the logback config, and falls back to a path it
+# can write while saying so on stderr. The site keeps serving with durable logging lost and a
+# loud warning, which is ADR-0007's rule applied to the log file: a dependency you can do
+# without degrades, it does not kill.
+ENTRYPOINT ["sh", "-c", "want=${LOG_DIR:-/app/logs}; if touch \"$want/.writability-probe\" 2>/dev/null; then rm -f \"$want/.writability-probe\"; else rm -f \"$want/.writability-probe\" 2>/dev/null; echo \"WARN: $want is not writable by uid $(id -u); JSON file logging falls back to /tmp/nexus-logs - a host with pre-existing volumes needs the one-time chown in docs/plans/pre-deployment-checklist.md\" >&2; want=/tmp/nexus-logs; mkdir -p \"$want\"; fi; export LOG_DIR=\"$want\"; exec java $JAVA_OPTS -jar nexus-campus.jar"]
