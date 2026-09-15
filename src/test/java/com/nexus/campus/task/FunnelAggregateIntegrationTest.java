@@ -8,6 +8,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.jdbc.Sql;
 
 import java.time.LocalDateTime;
@@ -33,6 +34,9 @@ class FunnelAggregateIntegrationTest {
     @Autowired
     private FunnelMapper funnelMapper;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @Test
     @DisplayName("The cohort read returns registrations with their first-post timestamps")
     void cohortReadMapsBothTimestamps() {
@@ -47,6 +51,24 @@ class FunnelAggregateIntegrationTest {
         // has to carry a first-post time. Without this the MIN() subquery could return
         // null for everybody and the ratio would read a permanent, plausible zero.
         assertThat(cohort).anySatisfy(row -> assertThat(row.getFirstPostAt()).isNotNull());
+    }
+
+    @Test
+    @DisplayName("The account the app creates for itself is not a registration")
+    void machineAccountIsOutOfTheDenominators() {
+        // test-users.sql carries the AiAgent row (id 999, role AI_AGENT) that
+        // DataPreloader ensures at boot. It cannot ever appear in a numerator, so
+        // counting it as a registrant puts a permanent floor under "nobody uses this"
+        // — on a database with three accounts, a third of the metric.
+        long everyone = jdbcTemplate.queryForObject("SELECT COUNT(*) FROM sys_user", Long.class);
+        long machines = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM sys_user WHERE role = 'AI_AGENT'", Long.class);
+
+        assertThat(machines).as("the fixture really has the machine account").isPositive();
+        assertThat(funnelMapper.countUsers()).isEqualTo(everyone - machines);
+        assertThat(funnelMapper.selectRegistrationCohort(LocalDateTime.now().minusYears(1)))
+                .extracting(RegistrationCohort::getUserId)
+                .doesNotContain(999L);
     }
 
     @Test

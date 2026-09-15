@@ -20,10 +20,17 @@ public interface FunnelMapper {
     /**
      * Registrations in the cohort window with each author's first post, which is
      * null when they never published. The seven-day comparison happens in Java.
+     *
+     * <p>{@code AI_AGENT} is filtered out because it is not a registration: the app
+     * creates that account itself ({@code DataPreloader.ensureAiAgent}, id 999) and it
+     * can never reach the numerator, so leaving it in the denominator shifts both ratios
+     * down by a fixed amount forever. On the drill's database — bootstrap admin, one
+     * registrant who posted, the agent — it is the difference between an activation ratio
+     * of 0.5 and 0.33, on a site where three accounts is the whole population.</p>
      */
     @Select("SELECT u.id AS user_id, u.create_time AS registered_at, " +
             "(SELECT MIN(p.create_time) FROM vibe_post p WHERE p.user_id = u.id) AS first_post_at " +
-            "FROM sys_user u WHERE u.create_time >= #{since}")
+            "FROM sys_user u WHERE u.create_time >= #{since} AND u.role <> 'AI_AGENT'")
     List<RegistrationCohort> selectRegistrationCohort(@Param("since") LocalDateTime since);
 
     /**
@@ -41,7 +48,12 @@ public interface FunnelMapper {
             "SELECT user_id FROM vibe_comment WHERE create_time >= #{since}) content_authors")
     long countContentAuthorsSince(@Param("since") LocalDateTime since);
 
-    /** Denominator for the active-content ratio: everybody who has ever registered. */
-    @Select("SELECT COUNT(*) FROM sys_user")
+    /**
+     * Denominator for the active-content ratio: everybody who has ever registered,
+     * machine account excluded for the same reason as above. {@code role} is
+     * {@code NOT NULL DEFAULT 'USER'} in the schema, so {@code <>} cannot drop rows
+     * through a null comparison.
+     */
+    @Select("SELECT COUNT(*) FROM sys_user WHERE role <> 'AI_AGENT'")
     long countUsers();
 }
