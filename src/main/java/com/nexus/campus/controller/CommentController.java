@@ -4,6 +4,7 @@ import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.CommentCreateRequest;
 import com.nexus.campus.dto.CommentVo;
 import com.nexus.campus.entity.VibeComment;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.service.VibeCommentService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -42,7 +43,7 @@ public class CommentController {
             @RequestAttribute("currentRole") String role) {
         boolean deleted = vibeCommentService.deleteComment(id, userId, role);
         if (!deleted) {
-            return ApiResponse.notFound("Comment not found.");
+            throw BusinessException.notFound("Comment not found.");
         }
         return ApiResponse.successMessage("Comment deleted.");
     }

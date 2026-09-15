@@ -52,7 +52,8 @@ public interface VibePostService {
 
     PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size);
 
-    boolean pinPost(Long postId);
+    /** Throws 404 when the post is absent and 409 when it is not pinnable. */
+    void pinPost(Long postId);
 
-    boolean unpinPost(Long postId);
+    void unpinPost(Long postId);
 }

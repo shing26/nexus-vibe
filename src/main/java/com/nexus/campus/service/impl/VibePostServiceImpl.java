@@ -9,6 +9,7 @@ import com.nexus.campus.dto.PageResult;
 import com.nexus.campus.dto.PostUpdateRequest;
 import com.nexus.campus.dto.PostVersionVo;
 import com.nexus.campus.entity.*;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
 import com.nexus.campus.agent.AiReviewLog;
 import com.nexus.campus.agent.AiReviewLogMapper;
@@ -136,7 +137,7 @@ public class VibePostServiceImpl implements VibePostService {
         if (channel != null && "announcements".equals(channel.getSlug())) {
             SysUser user = sysUserMapper.selectById(userId);
             if (user == null || !"ADMIN".equals(user.getRole())) {
-                throw new IllegalArgumentException("只有管理员才能在公告频道发帖");
+                throw BusinessException.forbidden("Only admins can post in the announcements channel.");
             }
         }
 
@@ -189,12 +190,12 @@ public class VibePostServiceImpl implements VibePostService {
     public VibePost updatePost(Long postId, PostUpdateRequest request, Long userId) {
         VibePost post = vibePostMapper.selectById(postId);
         if (post == null) {
-            throw new IllegalArgumentException("Post not found.");
+            throw BusinessException.notFound("Post not found.");
         }
         SysUser user = sysUserMapper.selectById(userId);
         boolean isAdmin = user != null && "ADMIN".equals(user.getRole());
         if (!isAdmin && !post.getUserId().equals(userId)) {
-            throw new IllegalStateException("Only the author can edit this post.");
+            throw BusinessException.forbidden("Only the author can edit this post.");
         }
         String previousContent = post.getContent();
         if (request.getTitle() != null && !request.getTitle().isBlank()) {
@@ -203,10 +204,10 @@ public class VibePostServiceImpl implements VibePostService {
         if (request.getCategoryId() != null) {
             Channel channel = channelMapper.selectById(request.getCategoryId());
             if (channel == null) {
-                throw new IllegalArgumentException("Channel not found.");
+                throw BusinessException.notFound("Channel not found.");
             }
             if ("announcements".equals(channel.getSlug()) && !isAdmin) {
-                throw new IllegalArgumentException("只有管理员才能在公告频道发帖");
+                throw BusinessException.forbidden("Only admins can post in the announcements channel.");
             }
             post.setCategoryId(request.getCategoryId());
         }
@@ -263,13 +264,13 @@ public class VibePostServiceImpl implements VibePostService {
     public VibePost forkPrompt(Long postId, Long userId) {
         VibePost source = vibePostMapper.selectById(postId);
         if (source == null) {
-            throw new IllegalArgumentException("Source template not found.");
+            throw BusinessException.notFound("Source template not found.");
         }
         if (!"prompt".equals(source.getPostType())) {
-            throw new IllegalArgumentException("Only prompt templates can be forked.");
+            throw BusinessException.conflict("Only prompt templates can be forked.");
         }
         if (source.getStatus() == null || source.getStatus() != 1) {
-            throw new IllegalArgumentException("Template is not active.");
+            throw BusinessException.conflict("Template is not active.");
         }
 
         VibePost fork = new VibePost();
@@ -334,7 +335,7 @@ public class VibePostServiceImpl implements VibePostService {
         SysUser user = sysUserMapper.selectById(userId);
         boolean isAdmin = user != null && "ADMIN".equals(user.getRole());
         if (!isAdmin && !post.getUserId().equals(userId)) {
-            throw new IllegalStateException("Only the author can restore versions.");
+            throw BusinessException.forbidden("Only the author can restore versions.");
         }
         PromptVersion target = promptVersionMapper.selectOne(
                 new LambdaQueryWrapper<PromptVersion>()
@@ -374,7 +375,7 @@ public class VibePostServiceImpl implements VibePostService {
         SysUser user = sysUserMapper.selectById(userId);
         boolean isAdmin = user != null && "ADMIN".equals(user.getRole());
         if (!isAdmin && !post.getUserId().equals(userId)) {
-            throw new IllegalStateException("Only the author can delete this post.");
+            throw BusinessException.forbidden("Only the author can delete this post.");
         }
 
         promptVersionMapper.delete(new LambdaQueryWrapper<PromptVersion>().eq(PromptVersion::getPostId, postId));
@@ -501,26 +502,36 @@ public class VibePostServiceImpl implements VibePostService {
 
     @Override
     @Transactional
-    public boolean pinPost(Long postId) {
+    public void pinPost(Long postId) {
         VibePost post = vibePostMapper.selectById(postId);
-        if (post == null || post.getStatus() != 1) return false;
-        int rows = vibePostMapper.pinPost(postId);
-        if (rows > 0) {
-            log.info("Post {} pinned", postId);
+        if (post == null) {
+            throw BusinessException.notFound("Post not found.");
         }
-        return rows > 0;
+        // A boolean return could not tell these two apart, which is why the
+        // controller's only available sentence was "not found or cannot be
+        // pinned" - one answer to two different questions.
+        if (post.getStatus() != 1) {
+            throw BusinessException.conflict("Only a published post can be pinned.");
+        }
+        int rows = vibePostMapper.pinPost(postId);
+        if (rows <= 0) {
+            throw BusinessException.conflict("Post could not be pinned.");
+        }
+        log.info("Post {} pinned", postId);
     }
 
     @Override
     @Transactional
-    public boolean unpinPost(Long postId) {
+    public void unpinPost(Long postId) {
         VibePost post = vibePostMapper.selectById(postId);
-        if (post == null) return false;
-        int rows = vibePostMapper.unpinPost(postId);
-        if (rows > 0) {
-            log.info("Post {} unpinned", postId);
+        if (post == null) {
+            throw BusinessException.notFound("Post not found.");
         }
-        return rows > 0;
+        int rows = vibePostMapper.unpinPost(postId);
+        if (rows <= 0) {
+            throw BusinessException.conflict("Post could not be unpinned.");
+        }
+        log.info("Post {} unpinned", postId);
     }
 
     @Override

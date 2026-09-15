@@ -101,7 +101,7 @@ class PostControllerIntegrationTest {
     @DisplayName("GET /api/v1/posts/{id} should return 404 for nonexistent post")
     void getPostDetail_nonexistent_shouldReturn404() throws Exception {
         mockMvc.perform(get(POSTS_URL + "/999999999"))
-                .andExpect(status().isOk())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is(404)));
     }
 
@@ -224,11 +224,11 @@ class PostControllerIntegrationTest {
 
         mockMvc.perform(put(POSTS_URL + "/" + postId)
                         .header("Authorization", "Bearer " + authToken)
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(objectMapper.writeValueAsString(updateRequest)))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code", is(400)))
-                .andExpect(jsonPath("$.message", containsString("只有管理员才能在公告频道发帖")));
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(objectMapper.writeValueAsString(updateRequest)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", is(403)))
+                .andExpect(jsonPath("$.message", containsString("Only admins can post in the announcements channel.")));
     }
 
     @Test
@@ -371,19 +371,19 @@ class PostControllerIntegrationTest {
                 .andExpect(jsonPath("$.code", is(200)));
 
         mockMvc.perform(get(POSTS_URL + "/" + postId))
-                .andExpect(status().isOk())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is(404)));
     }
 
     @Test
     @DisplayName("DELETE /api/v1/posts/{id} should reject a non-author")
-    void deletePost_otherUsersPost_shouldReturn400() throws Exception {
+    void deletePost_otherUsersPost_shouldReturn403() throws Exception {
         String otherUserToken = jwtUtil.generateToken(3L, "alice", "USER");
 
         mockMvc.perform(delete(POSTS_URL + "/1")
                         .header("Authorization", "Bearer " + otherUserToken))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code", is(400)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", is(403)))
                 .andExpect(jsonPath("$.message", containsString("author")));
     }
 
@@ -406,7 +406,7 @@ class PostControllerIntegrationTest {
     void getAdminDashboard_nonAdmin_shouldReturn403() throws Exception {
         mockMvc.perform(get("/api/v1/admin/dashboard")
                         .header("Authorization", "Bearer " + authToken))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code", is(403)));
     }
 
@@ -449,7 +449,7 @@ class PostControllerIntegrationTest {
     void reindexSearch_nonAdmin_shouldReturn403() throws Exception {
         mockMvc.perform(post("/api/v1/admin/search/reindex")
                         .header("Authorization", "Bearer " + authToken))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code", is(403)));
     }
 
@@ -470,7 +470,7 @@ class PostControllerIntegrationTest {
 
         mockMvc.perform(post(POSTS_URL + "/" + postId + "/pin")
                         .header("Authorization", "Bearer " + authToken))
-                .andExpect(status().isOk())
+                .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code", is(403)));
 
         mockMvc.perform(post(POSTS_URL + "/" + postId + "/pin")
@@ -499,7 +499,7 @@ class PostControllerIntegrationTest {
                 .path("data").path("postId").asText();
 
         mockMvc.perform(get(POSTS_URL + "/" + postId))
-                .andExpect(status().isOk())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is(404)));
 
         mockMvc.perform(get(POSTS_URL).param("userId", "2"))
@@ -528,7 +528,7 @@ class PostControllerIntegrationTest {
                 .andExpect(jsonPath("$.code", is(200)));
 
         mockMvc.perform(get(POSTS_URL + "/" + postId))
-                .andExpect(status().isOk())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is(404)));
     }
 

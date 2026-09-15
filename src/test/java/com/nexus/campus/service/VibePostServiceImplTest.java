@@ -6,6 +6,7 @@ import com.nexus.campus.dto.PostUpdateRequest;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.entity.PromptVersion;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.PromptVersionMapper;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.mapper.SysUserMapper;
@@ -15,6 +16,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -116,8 +118,9 @@ class VibePostServiceImplTest {
     @Test
     @DisplayName("Fork regular post -> rejected")
     void forkPrompt_onRegularPost_shouldFail() {
-        IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
+        BusinessException error = assertThrows(BusinessException.class,
                 () -> VibePostService.forkPrompt(1L, testUserId));
+        assertEquals(HttpStatus.CONFLICT, error.getStatus());
         assertTrue(error.getMessage().contains("prompt templates"));
     }
 
@@ -188,8 +191,9 @@ class VibePostServiceImplTest {
 
         VibePost created = VibePostService.createPost(request, testUserId);
 
-        IllegalStateException error = assertThrows(IllegalStateException.class,
+        BusinessException error = assertThrows(BusinessException.class,
                 () -> VibePostService.deletePost(created.getId(), 3L));
+        assertEquals(HttpStatus.FORBIDDEN, error.getStatus());
         assertTrue(error.getMessage().contains("author"));
         assertNotNull(VibePostMapper.selectById(created.getId()));
     }

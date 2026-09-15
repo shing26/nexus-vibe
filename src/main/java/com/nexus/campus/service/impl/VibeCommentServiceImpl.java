@@ -3,6 +3,7 @@ package com.nexus.campus.service.impl;
 import com.nexus.campus.dto.CommentCreateRequest;
 import com.nexus.campus.dto.PostAuditResult;
 import com.nexus.campus.entity.*;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
 import com.nexus.campus.service.SensitiveWordService;
 import com.nexus.campus.service.VibeCommentService;
@@ -93,7 +94,7 @@ public class VibeCommentServiceImpl implements VibeCommentService {
         }
         boolean isAdmin = "ADMIN".equals(role);
         if (!isAdmin && !comment.getUserId().equals(userId)) {
-            throw new IllegalStateException("Only the author or an admin can delete this comment.");
+            throw BusinessException.forbidden("Only the author or an admin can delete this comment.");
         }
         boolean deleted = vibeCommentMapper.deleteById(commentId) > 0;
         if (deleted && comment.getPostId() != null) {
