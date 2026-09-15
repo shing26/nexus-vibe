@@ -74,3 +74,9 @@ backups/
 
 # One-off probe scripts written while migrating controller statuses. They read the tree and
 # print a count; the conclusions they reached live in the tickets and docs/research instead.
+
+# Throwaway build inputs and console logs from work done on this machine: host-built jars,
+# images assembled when a container build could not reach its package mirror, and the drill's
+# own stdout. Same rule as the evidence directory - the conclusions are written up in docs/,
+# the bytes behind them stay here.
+scratch/
