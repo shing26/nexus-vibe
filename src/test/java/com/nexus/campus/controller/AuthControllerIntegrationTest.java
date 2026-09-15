@@ -53,7 +53,7 @@ class AuthControllerIntegrationTest {
 
     @Test
     @DisplayName("Register with an existing username → 400")
-    void registerDuplicateUser_shouldReturn400() throws Exception {
+    void registerDuplicateUser_shouldReturn409() throws Exception {
         RegisterRequest request = new RegisterRequest();
         request.setUsername("admin"); // admin exists in seed data so registration should fail
         request.setEmail("admin@example.com");
@@ -63,8 +63,8 @@ class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code", is(400)));
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code", is(409)));
     }
 
     @Test
@@ -87,6 +87,8 @@ class AuthControllerIntegrationTest {
     @Test
     @DisplayName("Login with wrong password → 401")
     void loginWrongPassword_shouldReturn401() throws Exception {
+        // The method name has claimed 401 since it was written; the assertion
+        // disagreed with it by expecting 200 until the status became the truth.
         LoginRequest request = new LoginRequest();
         request.setUsername("shing");
         request.setPassword("wrongpassword");
@@ -94,7 +96,7 @@ class AuthControllerIntegrationTest {
         mockMvc.perform(post("/api/v1/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(objectMapper.writeValueAsString(request)))
-                .andExpect(status().isOk())
+                .andExpect(status().isUnauthorized())
                 .andExpect(jsonPath("$.code", is(401)));
     }
 

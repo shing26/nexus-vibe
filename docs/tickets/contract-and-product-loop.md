@@ -155,14 +155,26 @@ a user can actually be hurt has no gate.
   401, plain reject on 4xx, toast carrying the trace id on 5xx); `LoginPage`
   surfacing the server message rather than `Login failed`;
   `AiReviewTerminal`'s three states; and a source scan asserting every
-  `apiClient.` call sits inside a `try` or a `queryFn`/`mutationFn`. The
-  census says all 30 do today; the test exists to keep it true.
+  `apiClient.` call sits inside a `try` **whose block has a `catch`**, or a
+  `queryFn`/`mutationFn`. A `try`/`finally` without a `catch` does not swallow
+  a rejection, it re-throws, so "is it in a try" is the wrong question - that
+  was the first version of this census and it had to be redone. Re-scanned the
+  right way: 41 call sites, none unguarded. The test therefore guards against a
+  future bare call, not against anything R2 introduces.
 - R2's own fallout, fixed here because R2 causes it: `AuditPage`,
   `AgentLogsPage` and `DashboardPage` render `(error as Error)?.message`,
   which for an `AxiosError` is `Request failed with status code 403`. Those
   endpoints answer 200 today, so the query never enters its error state and
   nobody has seen that string yet. `PostCard`'s `res.data.data.postId` reaches
   its catch by throwing a TypeError; it becomes an explicit check.
+
+What R2 does *not* do is create an unhandled rejection anywhere: every awaited
+call is already inside a `catch`-bearing `try` or a react-query function that
+captures rejection as `isError`. What changes is which branch renders. Today a
+`200` carrying `code:401` makes `res.data.data` null, the next line throws a
+TypeError into the same `catch`, `err.response` is undefined, and the UI shows
+its own fallback string; after the switch the `catch` sees a real response and
+shows the server's sentence. Better copy, different branch.
 
 **Acceptance:**
 - `npm run test` runs in CI and fails on a deliberately broken interceptor.
