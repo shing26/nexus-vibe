@@ -116,9 +116,30 @@
 - [ ] **回滚只在数据兼容窗口内成立**（2026-09-16 演练撞出来的边界）。演练把 `APP_TAG` 换成上一轮的构建后，第一次探活是 200，隔一会儿再请求就成了"连接被拒"：Tomcat 在 `CommandLineRunner` 跑完之前就开始监听，而旧构建的 `DataPreloader` 坚持要插一个用户名为 `admin` 的样例账号，撞上 `BootstrapAdminInitializer` 已经写进库里的那一行，runner 抛异常 → Spring 关掉上下文。**"换完镜像 health 变绿"不等于回滚成功**，要看下一个请求。因此：回滚目标必须是仍能在当前库上启动的构建（本轮没有改表结构，所以前后两个 round-six 构建之间可滚；pre-ADR-0008 的构建不可），演练的 `rollback-swaps-between-two-real-image-tags` 现在用 `-RollbackTag` 显式指定目标、比对两个 tag 背后的 image id、并对每侧连探两次（间隔 12 秒）。真实的一次"滚到坏版本"仍然没有样本。
 - [ ] 发布与回滚都动 `app` + `web` 两个服务、共用同一个 `APP_TAG` 值：SPA 和 API 是一组，不拆开滚。
 
+## 部署执行记录（2026-09-16，本机全栈）
+
+> 范围：把 master（`538dd9e`，PR #2 + PR #3 都已合并）真正起成本机部署形态，并逐条验收。
+> 结论：**应用层部署形态已验证通过；公网可达与飞书告警送达仍未完成**，原因都是外部条件而不是代码。
+
+- [x] 发布 tag 定为 `20260916-01`，`.env` 里 `APP_TAG` 与两个镜像 tag 一致；`app`/`web` 容器读到的 `Config.Image` 就是这两个 tag。
+- [x] 本机 Docker 多阶段构建仍然卡在容器内依赖下载（buildx CPU 长时间不动，与 09-15 记录的同一条环境问题一致），所以镜像由宿主机构建的构件装配：`mvn -DskipTests package`（BUILD SUCCESS，24.5s）+ `npm run build`（6.0s），运行时形态与提交的 Dockerfile 第二段一致（temurin 21 JRE + curl + uid 10001 + 同一条 entrypoint）。**这条不能当成"提交的 Dockerfile 已验证"**，CI 的 Docker image build job 才是那份证据。
+- [x] 一次性卷属主迁移已执行：`nexus-vibe_app-uploads` / `nexus-vibe_app-logs` 从 root 改为 `10001:10001`，`docker compose exec app id -u` 出 `10001`，`touch /app/uploads/probe` 成功，`/app/logs/nexus-vibe.json` 由 `appuser` 写入。
+- [x] 日志：prod 走 JSON 行，字段含 `@timestamp`/`level`/`logger_name`/`thread_name`/`traceId`/`app`；实测一行示例 `{"...","message":"Business rejection 404: Post not found.","traceId":"523c98ccb8a874a1","app":"nexus-vibe"}`。
+- [x] 公网面收敛：`/actuator/health` → 200 `{"status":"UP"}`；`/actuator/prometheus`、`/actuator/health/deps`、`/actuator/info` → 全部 404。
+- [x] 指标：`jvm_memory_used_bytes`、`http_server_requests_seconds_count`、`process_cpu_usage`、`system_cpu_usage`、`disk_free_bytes` 在 prod 容器里都有序列；`CgroupV2Subsystem` NPE 未复现，`SystemMetricsAutoConfiguration` 的 exclude 可以保持删除状态。
+- [x] Prometheus 抓取 `app:8080/actuator/prometheus`，`up{job="nexus-vibe"}=1`；Grafana 11.1.4 健康，三张 dashboard（Overview / AI Pipeline / Product Loop）与 6 条 alert rule 都已 provisioning。
+- [x] 产品闭环真跑一遍：注册（带 nickname/email）→ 登录 → 在「代码急诊室」发帖 → 异步 AI 评审写回评分 8，日志里事件监听线程 `agent-llm-1` 与请求线程共享同一个 `traceId`。
+- [x] 埋点随之递增：`post_submitted_total{status="published"}=1`、`llm_chat_completions_total{outcome="success"}=2`、`llm_chat_completion_duration_seconds_count=2`、`ai_review_pending_posts=0`、`funnel_activation_ratio` 有值。
+- [x] 契约抽查：404 与 400 响应体都是 `{code,message,data}`，`X-Trace-Id` 响应头存在，body 不带 `traceId`（只有 5xx 才带，符合 R2/T6）。
+- [x] `alert-bridge` 在 `FEISHU_ALERT_WEBHOOK` 为空时按设计拒绝启动并打印原因，`docker compose ps` 显示 `Restarting`。
+- [ ] **飞书告警送达**：需要在 `.env` 填 `FEISHU_ALERT_WEBHOOK`（有加签再填 `FEISHU_ALERT_SECRET`），然后人工触发一条告警确认群里真的收到。
+- [ ] **公网可达**：本机 `cert.pem` 与 `~/.cloudflared/config.yml` 都不存在，`cloudflared tunnel login` / `tunnel create` / DNS 路由这三步必须由域名持有者本人完成。
+- [ ] **生产数据基线**：当前库还是开发库，里面有 demo 账号 `shing`/`alice`/`bob`/`testuser` 和旧 `admin`（id=1，密码不来自本轮 `BOOTSTRAP_ADMIN_PASSWORD`）。公网发布前要么清库让 `BootstrapAdminInitializer` 从 `.env` 建唯一管理员，要么明确保留这份数据。**未执行任何删除。**
+- [ ] `GRAFANA_ADMIN_PASSWORD` 目前与 `BOOTSTRAP_ADMIN_PASSWORD` 是同一个值，上线前应各自轮换。
+
 ## 待执行（需用户确认）
 
-- [ ] 部署暂不执行，不 push；确认后再按 `deployment-and-blog-plan.md` 走提交、CI 与本机 Docker + Cloudflare Tunnel 上线。
+- [x] 部署已按上面这一节在本机执行（应用层）；仍需用户提供飞书 webhook 并完成 Cloudflare Tunnel 登录后，公网发布才算完成。
 
 ## 容器与升级路径（R5，2026-09-15，分支 `codex/http-contract-and-product-loop`）
 
