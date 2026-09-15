@@ -27,6 +27,10 @@ PASSWORD = os.environ.get("RENDER_GRAFANA_PASSWORD", "render-grafana")
 FILES = [
     ROOT / "docker/observability/grafana/provisioning/dashboards/json/nexus-overview.json",
     ROOT / "docker/observability/grafana/provisioning/dashboards/json/nexus-ai-pipeline.json",
+    # Added with the round that added the panel: a dashboard nobody asks Prometheus about is how the
+    # latency panel shipped broken, and a fourth file in provisioning that these scripts never read
+    # is the same blind spot wearing a new label.
+    ROOT / "docker/observability/grafana/provisioning/dashboards/json/nexus-product-loop.json",
 ]
 
 jar = CookieJar()

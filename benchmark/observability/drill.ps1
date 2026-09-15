@@ -52,6 +52,12 @@
     How long to wait for the reconcile sweep after the LLM comes back. The breaker cool-down
     and the five-minute health cache are shipped values, so this has to be generous.
 
+.PARAMETER RollbackTag
+    The image tag the rollback step swaps to. Set it: a rollback target has to be a build that
+    can actually boot against the database this build wrote, and "whatever other tag happens to
+    be in the local image store" cannot promise that. Unset, the step takes the newest other tag
+    and says which it picked.
+
 .EXAMPLE
     pwsh -File benchmark/observability/drill.ps1
 #>
@@ -61,7 +67,8 @@ param(
     [switch]$Keep,
     [int]$WebPort = 18080,
     [int]$StartupTimeoutSec = 240,
-    [int]$RecoveryTimeoutSec = 600
+    [int]$RecoveryTimeoutSec = 600,
+    [string]$RollbackTag = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -478,15 +485,26 @@ Step 'product-loop-drives-the-counters' {
 
     $scrape = Get-Scrape
     $observed = [ordered]@{
-        user_registered_total = Get-MetricSum -Scrape $scrape -Pattern 'user_registered_total'
-        post_created_total    = Get-MetricSum -Scrape $scrape -Pattern 'post_created_total'
-        post_audited_total    = Get-MetricSum -Scrape $scrape -Pattern 'post_audited_total'
-        comment_created_total = Get-MetricSum -Scrape $scrape -Pattern 'comment_created_total'
+        user_registered_total   = Get-MetricSum -Scrape $scrape -Pattern 'user_registered_total'
+        post_submitted_total    = Get-MetricSum -Scrape $scrape -Pattern 'post_submitted_total'
+        post_audited_total      = Get-MetricSum -Scrape $scrape -Pattern 'post_audited_total'
+        comment_submitted_total = Get-MetricSum -Scrape $scrape -Pattern 'comment_submitted_total'
     }
     Write-Evidence 'product-loop counters' (($observed.GetEnumerator() |
         ForEach-Object { "$($_.Key)=$($_.Value)" }) -join "`n")
-    $absent = @($observed.Keys | Where-Object { -not $observed[$_] })
-    if ($absent) { throw "counters absent from the scrape after their code path ran: $($absent -join ', ')" }
+    # Absent and zero are different failures and used to read as one: `-not 0` is true in
+    # PowerShell, so a meter exported at 0 was reported as absent. The first run of this step hit
+    # the other case for a reason nothing above the scrape could see - the process really did
+    # count the events, but it published them as `post_total` and `comment_total`, because the
+    # Prometheus naming convention eats a trailing `created` token and a SimpleMeterRegistry
+    # keeps names verbatim. Presence is $null; movement is the sum.
+    $absent = @($observed.Keys | Where-Object { $null -eq $observed[$_] })
+    if ($absent) { throw "counters absent from the scrape under these names: $($absent -join ', ')" }
+    $still = @($observed.Keys | Where-Object { [double]$observed[$_] -le 0 })
+    if ($still) {
+        throw 'counters present but never moved: ' +
+              (($still | ForEach-Object { "$_=$($observed[$_])" }) -join ', ')
+    }
 
     # The ratios come from MySQL rather than from these counters, so they need the sweep
     # to have run since. docker-compose.drill.yml moves it from production's 03:17 to
@@ -913,15 +931,33 @@ Step 'non-root-app-and-the-root-owned-volume-upgrade' {
         (Invoke-AppHttp GET '/actuator/health').Code -in @('200', '503')
     } -TimeoutSec $StartupTimeoutSec -IntervalSec 5
 
-    # A volume it cannot write must not take the container down: the healthcheck is a
-    # TCP answer, and an unopenable log file is a logback warning, not a crash. What it
-    # does do is fail uploads and stop the JSON log - both asserted below, because an
-    # operator only gets one chance to notice before this becomes the production host.
+    # A volume it cannot write must not take the container down. Until 2026-09-16 it did: Spring
+    # Boot turns logback's failed openFile into an IllegalStateException during
+    # prepareEnvironment, so the app restart-looped here and never answered /actuator/health at
+    # all - ten restarts in four minutes, and the public site down for a reason no operator would
+    # read as "the log directory is root-owned". The entry point probes the directory now, so the
+    # two failures left are the honest ones: uploads break, and file logging moves somewhere
+    # non-durable. Both are asserted below, because an operator only gets one chance to notice
+    # before this becomes the production host.
     $probe = Invoke-ComposeTolerant -Cmd @('exec', '-T', 'app', 'touch', '/app/uploads/r5-probe')
     Write-Evidence 'write probe on a root-owned volume' "exit=$($probe.Code) $($probe.Out)"
     if ($probe.Code -eq 0) {
         throw 'a non-root app wrote to a root-owned uploads volume; the ownership was never actually root,' +
               ' so this step proved nothing about the upgrade path'
+    }
+
+    # The fallback has to be loud, or a deployment loses its durable logs quietly.
+    $startup = Invoke-Compose -Cmd @('logs', '--tail', '60', 'app')
+    Write-Evidence 'entry-point warning' (($startup -split "`n" |
+        Where-Object { $_ -match 'not writable by uid' } | Select-Object -First 1))
+    if ($startup -notmatch 'not writable by uid 10001') {
+        throw 'the app came up against a root-owned /app/logs without warning about it'
+    }
+    $fallback = Invoke-ComposeTolerant -Cmd @('exec', '-T', 'app', 'tail', '-n', '1',
+                                              '/tmp/nexus-logs/nexus-vibe.json')
+    Write-Evidence 'fallback json log' "exit=$($fallback.Code)"
+    if ($fallback.Code -ne 0) {
+        throw 'the JSON log did not land in the fallback directory either; file logging is simply off'
     }
 
     # The documented migration from docs/plans/pre-deployment-checklist.md, run while the
@@ -930,31 +966,43 @@ Step 'non-root-app-and-the-root-owned-volume-upgrade' {
     Repair-VolumeOwner -Spec '10001:10001'
 
     # Uploads recover without a restart: a fresh FileOutputStream only needs a writable
-    # directory. The JSON log is the opposite case - logback opens its file once at
-    # configuration - so it needs the restart, and this is the line that says so.
+    # directory. The JSON log is the opposite case - logback opens its file once, at
+    # configuration, and the entry point had already chosen /tmp - so it needs the restart.
+    # The mtime comparison is the load-bearing part: the file exists from the first boot, so a
+    # bare read would pass on a line written before the migration happened.
     Invoke-Compose -Cmd @('exec', '-T', 'app', 'touch', '/app/uploads/r5-probe') | Out-Null
+    $logMtime = (Invoke-Compose -Cmd @('exec', '-T', 'app', 'stat', '-c', '%Y',
+                                       '/app/logs/nexus-vibe.json')).Trim()
     Invoke-Compose -Cmd @('restart', 'app') | Out-Null
     Wait-For 'app answering after the chown migration' {
         (Invoke-AppHttp GET '/actuator/health').Code -in @('200', '503')
     } -TimeoutSec $StartupTimeoutSec -IntervalSec 5
-    Wait-For 'the JSON log to be written again by uid 10001' {
-        (Invoke-ComposeTolerant -Cmd @('exec', '-T', 'app', 'tail', '-n', '1',
-            '/app/logs/nexus-vibe.json')).Code -eq 0
+    Wait-For 'the JSON log to be written again on the volume, by uid 10001' {
+        $now = (Invoke-ComposeTolerant -Cmd @('exec', '-T', 'app', 'stat', '-c', '%Y',
+                                              '/app/logs/nexus-vibe.json')).Out.Trim()
+        ($now -match '^\d+$') -and ([long]$now -gt [long]$logMtime)
     } -TimeoutSec 90 -IntervalSec 5
 
     $sentinel = Invoke-Compose -Cmd @('exec', '-T', 'app', 'ls', '/app/uploads')
     if ($sentinel -notmatch 'pre-r5-sentinel') { throw 'the pre-R5 sentinel is gone; the migration touched the wrong volume' }
     $uidAfter = (Invoke-Compose -Cmd @('exec', '-T', 'app', 'stat', '-c', '%u:%g', '/app/uploads')).Trim()
     Write-Evidence 'after migration' "uid=$uidAfter uploads listing: $($sentinel -replace "`n", ' ')"
-    return "uid 10001; root-owned volume breaks writes (proven), checklist chown restores uploads without a restart and the JSON log with one"
+    return "uid 10001; root-owned /app/logs serves with a warning and logs in /tmp (proven), uploads fail; checklist chown restores uploads without a restart and the JSON log with one (mtime advanced)"
 }
 
 Step 'rollback-swaps-between-two-real-image-tags' {
     # E4's acceptance line, and the one thing a named tag has to be able to do. Two genuinely
     # different images are required: retagging one build twice would prove that compose can
-    # interpolate a string, which nobody doubted. The assertion is what the running container
-    # actually reports as its image, plus the API answering afterwards, so "rolled back" cannot
-    # mean "compose printed the old tag and left the new container in place".
+    # interpolate a string, which nobody doubted — so the ids behind the two tags are compared
+    # now, not just the strings. The assertion is what the running container reports as its
+    # image plus the API answering twice a few seconds apart, so "rolled back" cannot mean
+    # "compose printed the old tag and left the new container in place" and cannot mean "the
+    # container answered once and then exited". The second shape is what this step hit on
+    # 2026-09-16 with a pre-ADR-0008 tag: Tomcat starts before CommandLineRunner finishes, so
+    # /actuator/health answered 200, the old build's demo seeder then collided on username
+    # `admin` with the row BootstrapAdminInitializer had already written, and the next request
+    # was refused because the context had closed. A swap that lands on a container that dies is
+    # not a rollback, which is why the target is a parameter rather than a leftover tag.
     $tagA = ''
     foreach ($line in (Get-Content '.env' -ErrorAction SilentlyContinue)) {
         if ($line -match '^APP_TAG=(.+)$') { $tagA = $Matches[1].Trim() }
@@ -962,10 +1010,28 @@ Step 'rollback-swaps-between-two-real-image-tags' {
     if (-not $tagA) { throw 'no APP_TAG in .env, so there is no release tag to roll back to' }
     $tags = @((Invoke-Docker -Cmd @('images', 'nexus-vibe-app', '--format', '{{.Tag}}')) -split "`n" |
               ForEach-Object { $_.Trim() } | Where-Object { $_ -and $_ -ne '<none>' })
-    $tagB = @($tags | Where-Object { $_ -ne $tagA } | Select-Object -First 1)
-    if (-not $tagB) { throw "only tag '$tagA' exists for nexus-vibe-app; build a second one first ($($tags -join ', '))" }
-    $tagB = "$tagB"
-    Write-Evidence 'rollback tags' "A=$tagA B=$tagB present=$(($tags | Sort-Object) -join ', ')"
+    if ($RollbackTag) {
+        $tagB = $RollbackTag
+        if ($tags -notcontains $tagB) {
+            throw "rollback target '$tagB' is not in the local image store (have: $($tags -join ', '))"
+        }
+    } else {
+        # `docker images` lists newest first, so this is the most recent other build rather
+        # than an accident of dictionary order.
+        $tagB = "$(@($tags | Where-Object { $_ -ne $tagA } | Select-Object -First 1))"
+        if (-not $tagB) {
+            throw "only tag '$tagA' exists for nexus-vibe-app; build a second one or pass -RollbackTag ($($tags -join ', '))"
+        }
+    }
+    if ($tagB -eq $tagA) { throw 'the rollback target is the release tag itself' }
+    $ids = [ordered]@{}
+    foreach ($t in @($tagA, $tagB)) {
+        $ids[$t] = (Invoke-Docker -Cmd @('images', "nexus-vibe-app:$t", '--format', '{{.ID}}')).Trim()
+    }
+    Write-Evidence 'rollback tags' "A=$tagA ($($ids[$tagA])) B=$tagB ($($ids[$tagB])) present=$(($tags | Sort-Object) -join ', ')"
+    if ($ids[$tagA] -eq $ids[$tagB]) {
+        throw "$tagA and $tagB are the same image id ($($ids[$tagA])); the swap would prove tag interpolation, not rollback"
+    }
 
     $seen = @()
     foreach ($tag in @($tagB, $tagA)) {
@@ -976,14 +1042,27 @@ Step 'rollback-swaps-between-two-real-image-tags' {
         } -TimeoutSec $StartupTimeoutSec -IntervalSec 5
         # Config.Image is what the container was created from, not what the host now calls latest.
         $running = (Invoke-Docker -Cmd @('inspect', '-f', '{{.Config.Image}}', 'nexus-drill-app')).Trim()
-        $posts = Invoke-AppHttp GET '/api/v1/posts?page=1&size=1'
-        $seen += "APP_TAG=$tag -> $running, /api/v1/posts=$($posts.Code)"
         if ($running -ne "nexus-vibe-app:$tag") { throw "asked for $tag, the container reports $running" }
-        if ($posts.Code -ne '200') { throw "post list answered $($posts.Code) on $tag" }
+        # Two probes with a gap: the first one a runner-killed process can still win.
+        $codes = @()
+        foreach ($attempt in 1..2) {
+            $answer = Invoke-ComposeTolerant -Cmd @('exec', '-T', 'app', 'curl', '-sS', '-o', '/dev/null',
+                                                    '-w', '%{http_code}',
+                                                    'http://localhost:8080/api/v1/posts?page=1&size=1')
+            $codes += "$($answer.Code)/$($answer.Out.Trim())"
+            if ($attempt -eq 1) { Start-Sleep -Seconds 12 }
+        }
+        $seen += "APP_TAG=$tag -> $running, /api/v1/posts exit/code = $($codes -join ' , ')"
+        if (@($codes | Where-Object { $_ -ne '0/200' }).Count) {
+            $tail = Invoke-ComposeTolerant -Cmd @('logs', '--tail', '12', 'app')
+            Write-Evidence "rollback failure on $tag" $tail.Out
+            throw "the post list did not answer twice on $tag (tries: $($codes -join ' , ')); " +
+                  "the container's last log lines are in the evidence file"
+        }
     }
     Write-Evidence 'rollback sequence' ($seen -join "`n")
     if ($seen.Count -ne 2) { throw 'the A-B-A sequence did not run twice' }
-    return "$tagA -> $tagB -> $tagA by container image, API answering on both; $tagA last"
+    return "$tagA ($($ids[$tagA])) -> $tagB ($($ids[$tagB])) -> $tagA by container image, two different ids, post list answering twice on both; $tagA last"
 }
 
 # --------------------------------------------------------------------------- report
