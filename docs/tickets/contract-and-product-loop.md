@@ -1,0 +1,273 @@
+# Contract Truthfulness and the Product Loop
+
+Source: the product-manager review of 2026-09-15, and the gap list left over
+from [production-readiness-assessment-2026-09.md](../research/production-readiness-assessment-2026-09.md).
+North star: the API says one thing in two places and they disagree, the repo
+has 309 backend tests and zero frontend tests, and a phone cannot reach the
+message page. This round fixes what is measurable about those three.
+
+Baseline measured at the start of this round: **309 tests across 48 test
+classes**, 0 failures, 0 errors, 0 skipped (`mvn test`, 2026-09-15). The
+previous ticket's 307/46 was true when it was written and has since moved.
+
+Order is R1 -> R2 -> R3 -> R4 -> R5 -> R6. R1 goes first not because it is
+bigger but because it changes the same controller files with **no wire change
+at all**, so R2's commits only have to carry one idea each.
+
+Decided before these tickets were written, and not open for re-litigation:
+HTTP status is the single source of truth and `code` is derived from it;
+no new machine-readable response field; controllers stop building error
+objects and throw instead; **no `ErrorCode` catalogue this round**.
+
+## R1 - Responses stop serialising persistence entities
+
+Status: open.
+
+**Scope:** make "an entity field reaches the internet" impossible by
+structure rather than by memory, without changing a single response body
+except one key that was always `null`.
+
+Today nine response points serialise a MyBatis entity. Only one of them can
+leak anything: `SysUser.password`, and it is held back by three hand-written
+`user.setPassword(null)` calls that a fourth call site can forget. The other
+four entity types carry no secret - `VibeComment`, `SysMessage`, `VibeTag`,
+`Channel` expose at worst internal lifecycle integers. So the value of this
+ticket is the boundary, not the fix, and it is sold as that.
+
+- New `CommentVo`, `MessageVo`, `TagVo`, `ChannelVo`, `ProfileVo`, mapped by
+  hand like `PostPageVo`, copying field names and values **verbatim** so the
+  JSON is byte-identical. `ProfileVo` omits `password`.
+- `SysUser.password` becomes `@JsonProperty(access = WRITE_ONLY)`, and the
+  three `setPassword(null)` lines are deleted with it.
+- A scan test asserts no controller signature or return generic mentions
+  `com.nexus.campus.entity.*`.
+
+The one intentional wire change: `GET /users/profile`, `PUT /users/profile`
+and `GET /auth/profile` lose a `password` key whose value was always `null`.
+Nothing in `frontend/src` reads a response `password` (checked), and the
+request DTOs are untouched.
+
+**Acceptance:**
+- The three profile endpoints return the same field names and values as
+  before minus `password`; comment, message, tag and channel responses are
+  unchanged key for key.
+- The scan test is red the moment an entity type name reappears in a
+  controller signature, and there is no allowlist.
+- Unaffected: `PostPageVo`, `UserPublicVo`, `AiLogVo`, `UserProfileSummary`
+  paths, which already returned VOs; the 309 baseline tests; request DTOs;
+  the database schema.
+
+**Files:** `src/main/java/com/nexus/campus/dto/{CommentVo,MessageVo,TagVo,ChannelVo,ProfileVo}.java`,
+`src/main/java/com/nexus/campus/entity/SysUser.java`,
+`src/main/java/com/nexus/campus/controller/{UserController,AuthController,CommentController,MessageController,TagController,CategoryController}.java`,
+`src/test/java/com/nexus/campus/contract/NoEntityInControllerTest.java`.
+
+## R2 - HTTP status is the truth, and errors are thrown
+
+Status: open.
+
+**Scope:** 33 controller sites answer `200 OK` while their envelope says 401,
+403, 404 or 400. `POST /api/v1/auth/login` with a wrong password returns
+`200 {"code":401}` on the live deployment today; so does a missing post with
+`404`. Everything downstream - nginx logs, `http_server_requests_*`, any
+client that behaves differently per status, the "5xx ratio" alert rule - is
+reading a number that is not the one the envelope holds.
+
+Mechanism first, then migrate by controller, then delete the escape hatch:
+
+- `BusinessException(HttpStatus status, String safeMessage)`.
+- `ApiResponse.error` takes `HttpStatus` only; `code` comes from
+  `status.value()` and `traceId` from `status.is5xxServerError()`. A code that
+  disagrees with its status is no longer expressible, which is why no test
+  pairs them endpoint by endpoint.
+- `GlobalExceptionHandler` returns `ResponseEntity<ApiResponse<Void>>` so it
+  is the only place that sets a status. Controller success paths keep their
+  existing `ApiResponse<T>` signatures.
+- `handleBusinessError` stops echoing `e.getMessage()`. The service-layer
+  `IllegalArgumentException`/`IllegalStateException` throws on a request path
+  each become a `BusinessException` with an explicit status.
+- Eight commits, one per controller group, then a final commit that deletes
+  the `ApiResponse.error(int, String)` overload so anything unmigrated stops
+  compiling.
+
+E2: the mechanical mapping is `status = the current code value`. Beyond that, a
+closed list of corrections where the current status is not merely mislabelled
+but wrong:
+
+- `PostController` pin: "not found" stays 404, "exists but cannot be pinned"
+  becomes 409.
+- `CommentController` delete-as-stranger and `PostController` edit-as-stranger:
+  400 -> 403. It is an authorisation refusal, not a malformed request.
+- `VibePostServiceImpl` not-found throws -> 404; the fork and template-state
+  throws -> 409.
+- `AuthController` login/register and `AdminController` reset-password lose
+  their `catch (RuntimeException)`. Register is the one that matters: the
+  service throws a bare `RuntimeException("Username already exists.")`, so the
+  coarse catch is currently load-bearing for the message, and when `insert`
+  wins a race against the pre-check the MySQL constraint name and SQL fragment
+  reach an unauthenticated public client inside `"Registration failed: ..."`.
+  That is reachable today, not theoretical. The duplicate-key path becomes an
+  explicit `BusinessException(CONFLICT)`.
+- `UploadController` IO failure -> real 500 with a trace id.
+- The two Chinese-language messages become English, matching the other 31.
+
+**Acceptance:**
+- Every migrated site answers with its real status; the 11 assertions that
+  pair `status().isOk()` with a non-200 `$.code` are updated in the same
+  commits, and a scan test keeps that count at zero afterwards.
+- Two assertions move from 400 to 403 with the semantics they describe.
+- `ResponseContractTest.bodyOf` takes the expected status; 4xx carries no
+  `traceId` and 5xx does, asserted both directions.
+- A wrong password yields `401` and the login page shows the server's message
+  instead of its own fallback.
+- Unaffected: the 9 `401` assertions that come from `JwtAuthFilter` and
+  already carried a real status; the validation-handler 400s and the 405
+  handler, which were already honest; `RateLimitInterceptor`, which already
+  writes a real 429; envelope key set; the 309 baseline count.
+- This round does not add `ErrorCode`. `HttpStatus` absorbs the 27 magic
+  numbers, and the assessment's other justification - that the frontend
+  branches on message text - turned out to be false: all 13 frontend uses of
+  `message` are display fallbacks, and nothing reads `code` at all.
+
+**Files:** `src/main/java/com/nexus/campus/exception/BusinessException.java`,
+`src/main/java/com/nexus/campus/dto/ApiResponse.java`,
+`src/main/java/com/nexus/campus/config/GlobalExceptionHandler.java`,
+`src/main/java/com/nexus/campus/controller/*`,
+`src/main/java/com/nexus/campus/service/impl/{VibePostServiceImpl,VibeCommentServiceImpl}.java`,
+`src/main/java/com/nexus/campus/service/impl/SysUserServiceImpl.java`,
+affected tests under `src/test/java/com/nexus/campus/controller/`.
+
+## R3 - A frontend test surface that can fail
+
+Status: open.
+
+**Scope:** 309 backend tests, 17 alert-bridge tests, 0 frontend. The one place
+a user can actually be hurt has no gate.
+
+- vitest + jsdom + `@testing-library/react`; `npm run test` joins the CI
+  frontend job, which until now was lint and tsc only.
+- Four cases: the response interceptor (single-flight refresh and retry on
+  401, plain reject on 4xx, toast carrying the trace id on 5xx); `LoginPage`
+  surfacing the server message rather than `Login failed`;
+  `AiReviewTerminal`'s three states; and a source scan asserting every
+  `apiClient.` call sits inside a `try` or a `queryFn`/`mutationFn`. The
+  census says all 30 do today; the test exists to keep it true.
+- R2's own fallout, fixed here because R2 causes it: `AuditPage`,
+  `AgentLogsPage` and `DashboardPage` render `(error as Error)?.message`,
+  which for an `AxiosError` is `Request failed with status code 403`. Those
+  endpoints answer 200 today, so the query never enters its error state and
+  nobody has seen that string yet. `PostCard`'s `res.data.data.postId` reaches
+  its catch by throwing a TypeError; it becomes an explicit check.
+
+**Acceptance:**
+- `npm run test` runs in CI and fails on a deliberately broken interceptor.
+- The three admin error panels show the server's sentence, not axios's.
+- Unaffected: no component's rendered markup on the happy path; the lint and
+  build steps; the backend suite.
+
+**Files:** `frontend/package.json`, `frontend/vitest.config.ts`,
+`frontend/src/api/client.ts`, `frontend/src/pages/{LoginPage,AuditPage,AgentLogsPage,DashboardPage}.tsx`,
+`frontend/src/components/PostCard.tsx`, new tests under `frontend/src/**.test.tsx`.
+
+## R4 - The product loop becomes countable
+
+Status: open.
+
+**Scope:** the seven existing metrics are all operational. Nothing answers
+"did the thing we built get used".
+
+- Counters in the service methods that are the events: `user.registered`,
+  `post.created{status}`, `post.audited{action}`, `comment.created`.
+- `FunnelAggregateTask`, daily, two gauges from MySQL:
+  `funnel.activation.ratio` - share of registrations that published a first
+  post within 7 days - and `funnel.active_content_d7.ratio`, computed from
+  `vibe_post`/`vibe_comment` activity rather than a new column. There is no
+  `last_login` or `last_active_at` on `SysUser`, and adding one to write it on
+  every authenticated request is a schema change plus hot-path write
+  amplification bought for a number that content activity already gives
+  better. The cost is stated plainly: a visitor who reads and never posts is
+  invisible to this.
+- One `nexus-product-loop.json` dashboard in the existing provider.
+
+**Acceptance:**
+- The drill registers, posts and approves, then asserts the counters moved and
+  that a forced aggregation leaves both ratios inside `0..1`.
+- On an empty database the task publishes `0`, not NaN and not absent.
+- Unaffected: the 7 operational metrics; the 4 alert rules; the monitoring
+  profile's opt-in behaviour.
+
+**Files:** `src/main/java/com/nexus/campus/task/FunnelAggregateTask.java`,
+metric lines in `src/main/java/com/nexus/campus/service/impl/*`,
+`docker/observability/grafana/provisioning/dashboards/json/nexus-product-loop.json`,
+`benchmark/observability/drill.ps1`.
+
+## R5 - Containers: non-root, and nginx that starts without luck
+
+Status: open.
+
+**Scope:** the JVM runs as root, and nginx currently survives its own startup
+race by crashing and being restarted.
+
+- `appuser` uid 10001 in the runtime stage, `chown` on `/app`, `/app/uploads`,
+  `/app/logs`.
+- Docker seeds a named volume from the image only while the volume is empty.
+  Both volumes already exist on this machine and are root-owned, so the upgrade
+  path needs a one-time `chown`. It goes in the deployment checklist, and the
+  drill gains a step that starts against a root-owned volume on purpose.
+  Without that step the change is only proven on a fresh install, which is not
+  where it will first break.
+- nginx: `resolver 127.0.0.11 valid=10s` with a variable `proxy_pass` replaces
+  the `upstream { server app:8080; }` block, so config load no longer needs
+  `app` to resolve. `web` keeps `depends_on: service_started`.
+  `service_healthy` would also stop the crash loop, and would additionally take
+  the static site down whenever the API is down; a 502 on `/api/` with the SPA
+  still served is the better failure.
+- Not this round: `nginx-unprivileged`. It moves the listen port, the compose
+  mapping and the log paths, and wants its own verification pass.
+
+**Acceptance:**
+- `id -u` inside the app container is 10001, uploads and JSON logs still
+  succeed, and the healthcheck still passes.
+- A cold `up --build` reaches a serving nginx without a restart counted by
+  `docker inspect`.
+- Unaffected: published ports (nginx:80 stays the only one); the monitoring
+  profile; mem limits; the health groups.
+
+**Files:** `Dockerfile`, `docker/nginx/nginx.conf`, `docker-compose.yml`,
+`docs/plans/pre-deployment-checklist.md`, `benchmark/observability/drill.ps1`.
+
+## R6 - A phone can reach the message page
+
+Status: open.
+
+**Scope:** not cosmetics. There is no hamburger in `Navbar` at all: below
+`sm` the message and settings links are hidden, below `md` the username is
+gone, so a logged-in phone user sees logo, search, theme, New Post, Logout and
+cannot reach messages, settings or their own profile. Navigation exists only
+as the home channel grid and the back button, and `Cmd+K` needs a keyboard.
+
+- A `lg:hidden` bottom tab bar: home, channels, post, messages, profile. The
+  profile tab carries settings and logout.
+- `touch-action: manipulation` on the interactive shell, to drop the 300ms
+  double-tap zoom delay.
+- The code-block container on `PostDetailPage` goes `overflow-hidden` ->
+  `overflow-x-auto`, so a long line on a phone can be read instead of lost.
+
+**Acceptance:**
+- At 390px every previously unreachable destination is reachable in one tap
+  from the home page, asserted by a rendered-component test.
+- The tab bar does not cover content: the last list item clears it at the
+  narrowest tested height.
+- Unaffected: desktop header and layout at `lg` and above; the existing
+  Cmd+K palette.
+
+**Files:** `frontend/src/components/MobileTabBar.tsx`,
+`frontend/src/components/layout/MainLayout.tsx`,
+`frontend/src/components/CodeBlock.tsx`, `frontend/src/index.css`.
+
+## Out of scope this round
+
+Centralised `@RequiresRole`, Flyway-ised migrations, frontend crash reporting,
+`web` running unprivileged, cAdvisor, Loki, OpenTelemetry, Alertmanager, and an
+`ErrorCode` catalogue. Session-based retention (a browse-only visit is not
+counted) is a stated limitation of R4, not an oversight.
