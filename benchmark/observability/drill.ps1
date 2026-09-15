@@ -142,6 +142,13 @@ function Invoke-DockerTolerant {
     return [pscustomobject]@{ Code = $LASTEXITCODE; Out = ($output -join "`n") }
 }
 
+function Invoke-ComposeTolerant {
+    param([Parameter(Mandatory)][string[]]$Cmd)
+    # Same contract, with the project, the two compose files and the profiles attached, so a
+    # compose subcommand can fail on purpose without a hand-repeated argument list.
+    return Invoke-DockerTolerant -Cmd (@($composeArgs) + @($Cmd))
+}
+
 function Get-PlainText {
     param($Content)
     # PowerShell 7 hands back a byte[] for content types it does not recognise as text, and the
@@ -862,6 +869,84 @@ Step 'app-death-is-not-reported-as-health' {
         } -TimeoutSec 300 -IntervalSec 5 | Out-Null
     }
     return $detail
+}
+
+Step 'non-root-app-and-the-root-owned-volume-upgrade' {
+    # R5 has two claims. The app runs as uid 10001, and a host that already has the
+    # old root-owned volumes can still upgrade. The second is the one that cannot be
+    # checked by a fresh install: Docker seeds a named volume from the image only
+    # while the volume is empty, so every machine that ran this stack before R5 keeps
+    # root:root directories that a non-root JVM cannot write into.
+    $uid = (Invoke-Compose -Cmd @('exec', '-T', 'app', 'id', '-u')).Trim()
+    Write-Evidence 'container uid' $uid
+    if ($uid -ne '10001') { throw "the app process runs as uid $uid, expected 10001" }
+
+    # Locate the volumes themselves rather than guessing the names: a wrong guess makes
+    # `docker run -v` create an empty volume and the rest of the step would prove
+    # nothing at all while passing.
+    $volumes = @{}
+    foreach ($mount in @(@('uploads', 'app-uploads'), @('logs', 'app-logs'))) {
+        $found = @((Invoke-Docker -Cmd @('volume', 'ls', '--filter', "name=$($mount[1])",
+                                         '--format', '{{.Name}}')) -split "`n" |
+                   ForEach-Object { $_.Trim() } | Where-Object { $_ -match "^nexus-drill_$($mount[1])$" })
+        if ($found.Count -ne 1) { throw "expected exactly one nexus-drill_$($mount[1]) volume, found $($found.Count)" }
+        $volumes[$mount[0]] = $found[0]
+    }
+
+    # Rewrite both volumes. The sentinel file matters: Docker seeds a named volume from
+    # the image only while it is empty, so a volume with content in it is guaranteed to
+    # keep whatever ownership it is given, which is the state a machine that ran this
+    # stack before R5 is actually in.
+    function Repair-VolumeOwner {
+        param([string]$Spec)
+        Invoke-Docker -Cmd @('run', '--rm',
+            '-v', "$($volumes['uploads']):/uploads",
+            '-v', "$($volumes['logs']):/logs",
+            'alpine', 'sh', '-c',
+            "chown -R $Spec /uploads /logs && touch /uploads/pre-r5-sentinel /logs/pre-r5-sentinel") | Out-Null
+    }
+
+    Invoke-Compose -Cmd @('stop', 'app') | Out-Null
+    Repair-VolumeOwner -Spec '0:0'
+    Invoke-Compose -Cmd @('up', '-d', '--no-build', '--no-deps', 'app') | Out-Null
+    Wait-For 'app answering /actuator/health against root-owned volumes' {
+        (Invoke-AppHttp GET '/actuator/health').Code -in @('200', '503')
+    } -TimeoutSec $StartupTimeoutSec -IntervalSec 5
+
+    # A volume it cannot write must not take the container down: the healthcheck is a
+    # TCP answer, and an unopenable log file is a logback warning, not a crash. What it
+    # does do is fail uploads and stop the JSON log - both asserted below, because an
+    # operator only gets one chance to notice before this becomes the production host.
+    $probe = Invoke-ComposeTolerant -Cmd @('exec', '-T', 'app', 'touch', '/app/uploads/r5-probe')
+    Write-Evidence 'write probe on a root-owned volume' "exit=$($probe.Code) $($probe.Out)"
+    if ($probe.Code -eq 0) {
+        throw 'a non-root app wrote to a root-owned uploads volume; the ownership was never actually root,' +
+              ' so this step proved nothing about the upgrade path'
+    }
+
+    # The documented migration from docs/plans/pre-deployment-checklist.md, run while the
+    # app is up, because that is how an operator reaches for it: the container is already
+    # running and failing, and a share-able named volume can be rewritten underneath it.
+    Repair-VolumeOwner -Spec '10001:10001'
+
+    # Uploads recover without a restart: a fresh FileOutputStream only needs a writable
+    # directory. The JSON log is the opposite case - logback opens its file once at
+    # configuration - so it needs the restart, and this is the line that says so.
+    Invoke-Compose -Cmd @('exec', '-T', 'app', 'touch', '/app/uploads/r5-probe') | Out-Null
+    Invoke-Compose -Cmd @('restart', 'app') | Out-Null
+    Wait-For 'app answering after the chown migration' {
+        (Invoke-AppHttp GET '/actuator/health').Code -in @('200', '503')
+    } -TimeoutSec $StartupTimeoutSec -IntervalSec 5
+    Wait-For 'the JSON log to be written again by uid 10001' {
+        (Invoke-ComposeTolerant -Cmd @('exec', '-T', 'app', 'tail', '-n', '1',
+            '/app/logs/nexus-vibe.json')).Code -eq 0
+    } -TimeoutSec 90 -IntervalSec 5
+
+    $sentinel = Invoke-Compose -Cmd @('exec', '-T', 'app', 'ls', '/app/uploads')
+    if ($sentinel -notmatch 'pre-r5-sentinel') { throw 'the pre-R5 sentinel is gone; the migration touched the wrong volume' }
+    $uidAfter = (Invoke-Compose -Cmd @('exec', '-T', 'app', 'stat', '-c', '%u:%g', '/app/uploads')).Trim()
+    Write-Evidence 'after migration' "uid=$uidAfter uploads listing: $($sentinel -replace "`n", ' ')"
+    return "uid 10001; root-owned volume breaks writes (proven), checklist chown restores uploads without a restart and the JSON log with one"
 }
 
 Step 'rollback-swaps-between-two-real-image-tags' {

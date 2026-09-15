@@ -118,3 +118,21 @@
 ## 待执行（需用户确认）
 
 - [ ] 部署暂不执行，不 push；确认后再按 `deployment-and-blog-plan.md` 走提交、CI 与本机 Docker + Cloudflare Tunnel 上线。
+
+## 容器与升级路径（R5，2026-09-15，分支 `codex/http-contract-and-product-loop`）
+
+- [x] `Dockerfile` 运行时阶段建 `appuser`（uid/gid 10001，`--no-create-home`、`nologin`），jar 用 `--chown` 落盘，`/app`、`/app/uploads`、`/app/logs` 一并 `chown`，最后 `USER appuser`。8080 不是特权端口，非 root 不需要任何额外放行。
+- [x] `docker/nginx/nginx.conf` 去掉 `upstream { server app:8080; }`：那串名字是在**配置加载期**解析的，冷启动时 app 容器还没建出来，nginx 就以 `host not found in upstream` 退出，全靠 `restart: unless-stopped` 把自己救回来——静态站跟着一起消失。改成 `resolver 127.0.0.11 valid=10s` + 变量 `proxy_pass`，解析发生在请求期。代价写进了配置文件：OSS nginx 对变量后端用不了 `keepalive`，每个代理请求新建一条到 app 的连接。
+- [ ] **一次性卷属主迁移（升级必做，全新安装不需要）**：Docker 只在命名卷**为空**时用镜像里的属主初始化它。开发机与任何已部署主机上的 `nexus-vibe_app-uploads` / `nexus-vibe_app-logs` 都是 root:root，换镜像不会改它们，结果是非 root 的 JVM 写不进日志与上传目录（日志是静默降级：logback 打不开文件只往 console 写一行；上传是运行时 500）。在项目所在主机上跑一次，`<project>` 是 compose 项目名（默认目录名 `nexus-vibe`，演练里是 `nexus-drill`）：
+      ```
+      docker compose stop app
+      docker run --rm \
+        -v <project>_app-uploads:/uploads \
+        -v <project>_app-logs:/logs \
+        alpine sh -c 'chown -R 10001:10001 /uploads /logs'
+      docker compose up -d app
+      ```
+      验证：`docker compose exec -T app id -u` 出 `10001`；`docker compose exec -T app touch /app/uploads/probe && docker compose exec -T app rm /app/uploads/probe` 不报错；发一条请求后 `docker compose exec -T app tail -n 1 /app/logs/nexus-vibe.json` 有带 `traceId` 的 JSON 行。
+      这一段是 `benchmark/observability/drill.ps1` 的 `non-root-app-and-the-root-owned-volume-upgrade` 步骤真跑过的路径，不是推演；它故意先把卷 chown 回 root 再按上面的命令修回来。
+- [ ] `web` 的 `depends_on` 保持 `service_started`，**不要**改 `service_healthy`：那也能消掉 nginx 的启动竞态，但代价是 app 真死的时候连静态页一起起不来，正是 ADR-0007 要避免的失败形态。
+- [ ] 本轮不动 `nginx-unprivileged`：它要换监听端口（80→8080）、compose 映射、日志路径三处，值得单独一轮带验证的改动，而不是顺路捎带。`web` 容器仍以 root 运行 nginx master（worker 是 `nginx` 用户），这一条如实记为未完成。

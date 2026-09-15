@@ -300,7 +300,31 @@ metric lines in `src/main/java/com/nexus/campus/service/impl/*`,
 
 ## R5 - Containers: non-root, and nginx that starts without luck
 
-Status: open.
+Status: code done on `codex/http-contract-and-product-loop`; the drill steps
+(`non-root-app-and-the-root-owned-volume-upgrade` plus the R4 funnel step) run in one
+pass at the end of the round, so this line is not yet a verified claim.
+
+`Dockerfile` builds `appuser` at uid/gid 10001 (`--no-create-home`, `nologin`), copies
+the jar `--chown`, pre-creates and owns `/app/uploads` and `/app/logs`, and switches
+`USER` after the `HEALTHCHECK` line. 10001 rather than 1000 because uid 1000 on a real
+host is usually somebody's account, and a container that can write mounted volumes as
+that uid can pass as them.
+
+nginx drops the `upstream { server app:8080; }` block for
+`resolver 127.0.0.11 valid=10s` plus a variable `proxy_pass`, and the `/actuator/health`
+location rewrites to `/actuator/health/servable` before proxying because a variable
+backend cannot carry a path. The cost is in the file's own header comment, not hidden:
+OSS nginx cannot `keepalive` a per-request-resolved backend, so proxied requests now
+open their own connection to Tomcat. `web` keeps `service_started`; the reasoning for
+refusing `service_healthy` is recorded there too.
+
+What R5 cannot ship without is the upgrade path, and that is the part a fresh install
+never tests: Docker seeds a named volume from the image only while the volume is empty,
+so this machine's `nexus-vibe_app-uploads` and `app-logs` are still root:root and a
+non-root JVM cannot write them. The one-time `chown` is in
+`docs/plans/pre-deployment-checklist.md`, and the drill step performs it for real —
+including the negative proof, which throws if a non-root app *can* write a volume that
+the step just handed to root, because that would mean the premise was never established.
 
 **Scope:** the JVM runs as root, and nginx currently survives its own startup
 race by crashing and being restarted.
