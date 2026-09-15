@@ -4,6 +4,8 @@ import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.PostAuditResult;
 import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.entity.VibePost;
+import com.nexus.campus.exception.BusinessException;
+import org.springframework.http.HttpStatus;
 import com.nexus.campus.event.MessageEvent;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.*;
@@ -88,7 +90,8 @@ public class DemoShowcaseController {
     @PostMapping("/add-sensitive-word")
     public ApiResponse<String> addSensitiveWord(@RequestParam String word) {
         if (stringRedisTemplate == null) {
-            return ApiResponse.error(503, "Redis not available. Demo requires Redis for hot-reload.");
+            throw new BusinessException(HttpStatus.SERVICE_UNAVAILABLE,
+                    "Redis not available. Demo requires Redis for hot-reload.");
         }
 
         stringRedisTemplate.opsForSet().add("sys:sensitive:words", word);

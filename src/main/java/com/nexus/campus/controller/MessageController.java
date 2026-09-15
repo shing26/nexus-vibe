@@ -1,7 +1,9 @@
 package com.nexus.campus.controller;
 
 import com.nexus.campus.dto.ApiResponse;
+import com.nexus.campus.dto.MessageVo;
 import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.service.SysMessageService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.web.bind.annotation.*;
@@ -9,6 +11,7 @@ import org.springframework.web.bind.annotation.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/messages")
@@ -18,8 +21,11 @@ public class MessageController {
     private SysMessageService sysMessageService;
 
     @GetMapping
-    public ApiResponse<List<SysMessage>> getMessages(@RequestAttribute("currentUserId") Long userId) {
-        return ApiResponse.success(sysMessageService.getMessagesByUserId(userId));
+    public ApiResponse<List<MessageVo>> getMessages(@RequestAttribute("currentUserId") Long userId) {
+        List<MessageVo> vos = sysMessageService.getMessagesByUserId(userId).stream()
+                .map(MessageVo::from)
+                .collect(Collectors.toList());
+        return ApiResponse.success(vos);
     }
 
     @GetMapping("/unread/count")
@@ -35,7 +41,7 @@ public class MessageController {
             @RequestAttribute("currentUserId") Long userId) {
         boolean marked = sysMessageService.markAsRead(id, userId);
         if (!marked) {
-            return ApiResponse.notFound("Message not found.");
+            throw BusinessException.notFound("Message not found.");
         }
         return ApiResponse.successMessage("Message marked as read.");
     }

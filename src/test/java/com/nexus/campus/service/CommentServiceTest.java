@@ -6,7 +6,9 @@ import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.SysUser;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
+import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.service.impl.VibeCommentServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -16,6 +18,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 
 import java.util.Arrays;
 import java.util.List;
@@ -41,6 +44,10 @@ class CommentServiceTest {
 
     @Mock
     private SensitiveWordService sensitiveWordService;
+
+    /** Records the funnel event; the assertions here are about the comment, not the meter. */
+    @Mock
+    private ProductMetrics productMetrics;
 
     @InjectMocks
     private VibeCommentServiceImpl commentService;
@@ -257,8 +264,11 @@ class CommentServiceTest {
         comment.setUserId(authorUserId);
         when(vibeCommentMapper.selectById(1L)).thenReturn(comment);
 
-        assertThrows(IllegalStateException.class,
+        BusinessException thrown = assertThrows(BusinessException.class,
                 () -> commentService.deleteComment(1L, userId, "USER"));
+        // An IllegalStateException said "the request was malformed"; this is an
+        // authorisation refusal, and the test now names the status the client sees.
+        assertEquals(HttpStatus.FORBIDDEN, thrown.getStatus());
         verify(vibeCommentMapper, never()).deleteById(anyLong());
     }
 }

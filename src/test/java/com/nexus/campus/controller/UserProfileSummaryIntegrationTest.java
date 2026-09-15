@@ -59,7 +59,7 @@ class UserProfileSummaryIntegrationTest {
     @DisplayName("GET user summary should return 404-style null for a missing user")
     void getUserSummary_missingUser_shouldReturn404() throws Exception {
         mockMvc.perform(get("/api/v1/users/999999999/summary"))
-                .andExpect(status().isOk())
+                .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is(404)))
                 .andExpect(jsonPath("$.data", nullValue()));
     }

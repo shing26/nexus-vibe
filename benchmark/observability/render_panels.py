@@ -64,6 +64,7 @@ OUT = (sys.argv[1] if len(sys.argv) > 1 else
 DASHBOARDS = [
     ("nexus-overview", "overview"),
     ("nexus-ai-pipeline", "ai-pipeline"),
+    ("nexus-product-loop", "product-loop"),
 ]
 
 PROBE = """() => {
@@ -131,4 +132,4 @@ if bad:
 if errors:
     print(f"RENDER FAILED: {len(errors)} console errors")
     sys.exit(1)
-print("RENDER OK: both dashboards drew painted canvases with no console errors")
+print(f"RENDER OK: all {len(DASHBOARDS)} dashboards drew painted canvases with no console errors")

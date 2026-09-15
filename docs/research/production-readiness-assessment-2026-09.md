@@ -189,6 +189,16 @@
 **缺口**
 
 1. **没有错误码体系**。`ApiResponse.error(400, "...")` 直接写魔法数字，共 **27 处**调用点（`GlobalExceptionHandler` 11、`UploadController` 5、`AuthController` 5、`AdminController` 4、`UserController` 1、`DemoShowcaseController` 1）。**没有枚举、没有业务码**（如 `NX-1001 内容违规` / `NX-2003 租约冲突`）。前端只能靠匹配 message 文案判断分支——**文案一改，前端逻辑就断**。
+
+   > **订正（2026-09-15，R2 实施时查证）**：这一段的两条论据都不成立，P1-2 的最终形态因此比这里写的更小。
+   > 其一，"前端只能靠匹配 message 文案判断分支"是错的：`frontend/src` 里 13 处用到 `message` 全在写
+   > `err.response?.data?.message || 'Login failed'` 这类**展示兜底**，没有一处拿它做分支判断；`code` 前端
+   > 一处都不读（唯一命中的 `preview.code` 是剪贴板里的代码片段，与此无关）。所以"救前端"这半边动机是虚构的。
+   > 其二，`HttpStatus` 一旦成为状态的唯一来源，`code` 由它派生，27 处魔法数字就自动消失了，不需要一份枚举目录来消灭它们。
+   > 真正被低估的是别的东西：`AuthController.register` 为拿到那句文案而 `catch (RuntimeException)`，导致注册
+   > 撞唯一键时 MySQL 的约束名与 SQL 片段会以 `"Registration failed: …"` 回到一个免认证的公网端点。**这条当时没写进
+   > 本清单，而它是这一票真正的理由。** 见 [contract-and-product-loop.md](../tickets/contract-and-product-loop.md) 的 R2。
+
 2. **没有自定义业务异常类**。全仓库 grep `extends RuntimeException` **零匹配** → 业务语义全靠 JDK 内置的 `IllegalArgumentException` / `IllegalStateException` 承载。粒度太粗，导致：
    - **409 冲突被压成 400**：重复邮箱、并发点赞冲突、重复审核都没有 Conflict 语义；
    - **404 资源不存在被压成 400**：`IllegalStateException("post not found")` 也返回 400，HTTP 语义失真；
@@ -221,7 +231,7 @@
 | # | 差距 | 现状依据 | 改进方案 | 工作量 |
 |---|------|----------|----------|--------|
 | P1-1 | **无请求链路追踪** | grep `MDC/traceId` 零匹配 | 过滤器生成 `traceId` 写入 MDC，`taskDecorator` 传递到异步池；LLM 日志带上 traceId 与耗时 | 0.5 人日 |
-| P1-2 | **无错误码体系、无业务异常类** | 27 处魔法数字；grep `extends RuntimeException` 零匹配 | 建 `ErrorCode` 枚举 + `BusinessException`（携带 code + HTTP 状态）；补 `404/409` 专用 handler；前端改为按 code 分支 | 1–2 人日 |
+| P1-2 | **无错误码体系、无业务异常类** | 27 处魔法数字；grep `extends RuntimeException` 零匹配 | ~~建 `ErrorCode` 枚举 + `BusinessException`（携带 code + HTTP 状态）；补 `404/409` 专用 handler；前端改为按 code 分支~~ **实际做成**：`BusinessException(HttpStatus, msg)` + `ApiResponse.error(HttpStatus,…)` 派生 `code` + handler 一处写状态 + 逐条语义归位；**不做 `ErrorCode`**，**前端不按 `code` 分支**（上方订正） | 1–2 人日 |
 | P1-3 | **前后端响应契约漂移** | 前端声明 `success`，后端返回 `code` | 对齐 TS 类型定义，或后端补 `success` 字段；加一个契约冒烟测试 | 0.5 人日 |
 | P1-4 | **配置无校验、dev 弱默认值** | `application.yml:92` 硬编码 JWT 密钥；`seed-enabled: true` | 改 `@ConfigurationProperties + @Validated`；dev JWT 密钥改为必需注入或启动打印告警；`seed-enabled` dev 默认改 `false` | 0.5–1 人日 |
 | P1-5 | **容器以 root 运行、compose 编排细节不足** | `Dockerfile:17-44` 无 `USER`；`app` 服务未显式 healthcheck；`web` 的 `depends_on: app` 非 `service_healthy` | 加非 root 用户；`app` 显式声明 healthcheck；`web` 改 `condition: service_healthy` | 0.5 人日 |

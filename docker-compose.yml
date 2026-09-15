@@ -196,6 +196,12 @@ services:
     restart: unless-stopped
     logging: *default-logging
     depends_on:
+      # service_started, and deliberately not service_healthy. A health condition here
+      # would also have solved nginx's cold-start DNS race by ordering the two, and
+      # would have made the static site disappear whenever the API went down - the
+      # failure ADR-0007 exists to prevent. The race is solved in nginx.conf instead,
+      # where the app is resolved per request: the SPA and its 502 on /api/ survive an
+      # app that is not up.
       - app
     ports:
       - "${WEB_PORT:-8080}:80"

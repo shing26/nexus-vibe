@@ -35,6 +35,11 @@ services:
       # Posts older than this count as lost to the reconciliation sweep, so the recovery
       # step does not have to wait out the production 10-minute window.
       AI_RECONCILE_STALE_MINUTES: ${DRILL_STALE_MINUTES:-1}
+      # The product-loop gauges aggregate daily in production. A drill cannot wait for
+      # midnight, and the alternative - an endpoint that forces a sweep - is a knob the
+      # deployment would have to carry for the test's benefit. Every minute instead,
+      # and the funnel step waits one cycle out.
+      FUNNEL_METRICS_CRON: ${DRILL_FUNNEL_CRON:-0 * * * * ?}
       # The drill proves the production shape: no demo accounts, no sample content, and one
       # bootstrap administrator.
       DEMO_SEED_ENABLED: "false"

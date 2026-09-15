@@ -3,6 +3,7 @@ import { Outlet, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
 import Navbar from '../Navbar';
 import Footer from '../Footer';
+import MobileTabBar from '../MobileTabBar';
 import BackButton from '../BackButton';
 
 export default function MainLayout() {
@@ -13,7 +14,11 @@ export default function MainLayout() {
   }, [pathname]);
 
   return (
-    <div className="min-h-screen flex flex-col">
+    /* The tab bar is fixed over the page, so the padding has to be on the wrapper:
+       on <main> alone it would clear the feed but leave the footer underneath the bar,
+       which is the same defect one element further down. pb-20 covers the 55px bar
+       plus a row of air; lg:pb-0 restores the desktop layout exactly. */
+    <div className="min-h-screen flex flex-col pb-20 lg:pb-0">
       <Navbar />
      <main className="flex-1">
        <motion.div
@@ -30,6 +35,7 @@ export default function MainLayout() {
        </motion.div>
      </main>
       <Footer />
+      <MobileTabBar />
     </div>
   );
 }

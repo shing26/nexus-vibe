@@ -7,6 +7,7 @@ import com.nexus.campus.dto.ResetPasswordRequest;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.SysUser;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.service.VibePostService;
 import com.nexus.campus.service.PostSearchService;
 import com.nexus.campus.service.SysUserService;
@@ -52,26 +53,23 @@ public class AdminController {
     public ApiResponse<Map<String, Object>> resetPassword(
             @RequestBody ResetPasswordRequest request,
             @RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         if (request == null || request.getUsername() == null || request.getUsername().isBlank()) {
-            return ApiResponse.error(400, "Missing 'username' field.");
+            throw BusinessException.badRequest("Missing 'username' field.");
         }
-        try {
-            String tempPassword = sysUserService.resetPassword(request.getUsername().trim());
-            Map<String, Object> data = new HashMap<>();
-            data.put("username", request.getUsername().trim());
-            data.put("tempPassword", tempPassword);
-            return ApiResponse.success("Temporary password generated. Deliver it to the user out-of-band and ask them to change it after login.", data);
-        } catch (RuntimeException e) {
-            return ApiResponse.error(404, e.getMessage());
-        }
+        // No catch: the service names its own status now, so a missing account is
+        // 404 and a write that failed is 500. Echoing e.getMessage() here used to
+        // report the second as the first.
+        String tempPassword = sysUserService.resetPassword(request.getUsername().trim());
+        Map<String, Object> data = new HashMap<>();
+        data.put("username", request.getUsername().trim());
+        data.put("tempPassword", tempPassword);
+        return ApiResponse.success("Temporary password generated. Deliver it to the user out-of-band and ask them to change it after login.", data);
     }
 
     @GetMapping("/pending-posts")
     public ApiResponse<List<PostPageVo>> getPendingPosts(@RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         List<PostPageVo> posts = vibePostService.getPendingAuditPosts();
         if (posts == null) {
             posts = Collections.emptyList();
@@ -84,10 +82,9 @@ public class AdminController {
             @PathVariable Long id,
             @RequestBody AuditRequest request,
             @RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         if (request == null || request.getAction() == null) {
-            return ApiResponse.error(400, "Missing 'action' field.");
+            throw BusinessException.badRequest("Missing 'action' field.");
         }
         switch (request.getAction().toUpperCase()) {
             case "APPROVED":
@@ -97,14 +94,13 @@ public class AdminController {
                 vibePostService.rejectPost(id);
                 return ApiResponse.successMessage("Post rejected.");
             default:
-                return ApiResponse.error(400, "Invalid action: " + request.getAction());
+                throw BusinessException.badRequest("Invalid action: " + request.getAction());
         }
     }
 
     @GetMapping("/stats")
     public ApiResponse<Map<String, Object>> getStats(@RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         Map<String, Object> stats = new HashMap<>();
         stats.put("totalUsers", sysUserMapper.selectCount(null));
         stats.put("totalPosts", vibePostMapper.selectCount(null));
@@ -115,8 +111,7 @@ public class AdminController {
 
     @GetMapping("/dashboard")
     public ApiResponse<Map<String, Object>> getDashboard(@RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         Map<String, Object> dashboard = new HashMap<>();
         dashboard.put("totalPosts", vibePostMapper.selectCount(null));
         dashboard.put("pendingAudits", vibePostMapper.selectPendingAuditPosts().size());
@@ -126,31 +121,27 @@ public class AdminController {
 
     @GetMapping("/audit/posts")
     public ApiResponse<List<PostPageVo>> getPendingAuditPosts(@RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         return ApiResponse.success(vibePostService.getPendingAuditPosts());
     }
 
     @PostMapping("/audit/posts/{id}/approve")
     public ApiResponse<Void> approvePost(@PathVariable Long id, @RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         vibePostService.approvePost(id);
         return ApiResponse.successMessage("Post approved and published.");
     }
 
     @PostMapping("/audit/posts/{id}/reject")
     public ApiResponse<Void> rejectPost(@PathVariable Long id, @RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         vibePostService.rejectPost(id);
        return ApiResponse.successMessage("Post rejected.");
    }
 
     @PostMapping("/search/reindex")
     public ApiResponse<Map<String, Object>> reindexSearch(@RequestAttribute("currentRole") String role) {
-        ApiResponse check = checkAdmin(role);
-        if (check != null) return check;
+        requireAdmin(role);
         List<VibePost> posts = vibePostMapper.selectActivePostsOrdered();
         PostSearchService.BulkResult result = postSearchService.rebuildIndex(posts);
         Map<String, Object> data = new HashMap<>();
@@ -163,10 +154,15 @@ public class AdminController {
         return ApiResponse.success(data);
     }
 
-    private ApiResponse checkAdmin(String role) {
+    /**
+     * The old shape returned an error envelope or null and left every caller to
+     * remember a two-line check, which is how an authorisation refusal ended up
+     * travelling as a 200. There is nothing to forward now, so there is nothing
+     * to forward wrongly.
+     */
+    private void requireAdmin(String role) {
         if (!"ADMIN".equals(role)) {
-            return ApiResponse.forbidden("Access denied. Admin privileges required.");
+            throw BusinessException.forbidden("Access denied. Admin privileges required.");
         }
-        return null;
     }
 }

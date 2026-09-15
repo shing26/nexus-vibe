@@ -4,10 +4,14 @@ import com.nexus.campus.dto.JwtResponse;
 import com.nexus.campus.dto.LoginRequest;
 import com.nexus.campus.dto.RegisterRequest;
 import com.nexus.campus.entity.SysUser;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.SysUserMapper;
+import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.service.SysUserService;
 import com.nexus.campus.util.JwtUtil;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.dao.DuplicateKeyException;
+import org.springframework.http.HttpStatus;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
@@ -28,6 +32,9 @@ public class SysUserServiceImpl implements SysUserService {
     @Autowired
     private PasswordEncoder passwordEncoder;
 
+    @Autowired
+    private ProductMetrics productMetrics;
+
     @Override
     public JwtResponse login(LoginRequest request) {
         SysUser user = sysUserMapper.selectOne(
@@ -36,11 +43,13 @@ public class SysUserServiceImpl implements SysUserService {
         );
 
         if (user == null || !verifyPassword(request.getPassword(), user.getPassword())) {
-            throw new RuntimeException("Invalid username or password.");
+            throw BusinessException.unauthorized("Invalid username or password.");
         }
 
         if (user.getStatus() == 0) {
-            throw new RuntimeException("Account has been deactivated.");
+            // The credentials were right and the identity is known; what is
+            // refused is permission to use it. That is 403, not 401.
+            throw BusinessException.forbidden("Account has been deactivated.");
         }
 
         // Upgrade legacy SHA-256 hashes to BCrypt on successful login.
@@ -62,14 +71,14 @@ public class SysUserServiceImpl implements SysUserService {
                         .eq(SysUser::getUsername, request.getUsername())
         );
         if (existing != null) {
-            throw new RuntimeException("Username already exists.");
+            throw BusinessException.conflict("Username already exists.");
         }
         SysUser existingEmail = sysUserMapper.selectOne(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<SysUser>()
                         .eq(SysUser::getEmail, request.getEmail())
         );
         if (existingEmail != null) {
-            throw new RuntimeException("Email already exists.");
+            throw BusinessException.conflict("Email already exists.");
         }
 
         SysUser user = new SysUser();
@@ -82,7 +91,16 @@ public class SysUserServiceImpl implements SysUserService {
         user.setLevel(1);
         user.setStatus(1);
 
-        sysUserMapper.insert(user);
+        try {
+            sysUserMapper.insert(user);
+        } catch (DuplicateKeyException race) {
+            // The pre-checks above are not a lock. Whoever loses the race used to
+            // have MySQL's constraint name and SQL fragment handed to it over an
+            // unauthenticated endpoint, inside "Registration failed: ...".
+            throw BusinessException.conflict("Username or email is already registered.");
+        }
+
+        productMetrics.recordRegistration();
 
         String token = jwtUtil.generateToken(user.getId(), user.getUsername(), user.getRole());
         String refreshToken = jwtUtil.generateRefreshToken(user.getId());
@@ -121,12 +139,12 @@ public class SysUserServiceImpl implements SysUserService {
     public String resetPassword(String username) {
         SysUser user = getUserByUsername(username);
         if (user == null) {
-            throw new RuntimeException("User not found.");
+            throw BusinessException.notFound("User not found.");
         }
         String tempPassword = generateTempPassword();
         user.setPassword(passwordEncoder.encode(tempPassword));
         if (sysUserMapper.updateById(user) <= 0) {
-            throw new RuntimeException("Failed to reset password.");
+            throw new BusinessException(HttpStatus.INTERNAL_SERVER_ERROR, "Failed to reset password.");
         }
         return tempPassword;
     }

@@ -9,6 +9,7 @@ import com.nexus.campus.dto.AiLogVo;
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.PageResult;
 import com.nexus.campus.entity.VibePost;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.AiReviewDetailService;
 import org.springframework.beans.BeanUtils;
@@ -55,7 +56,7 @@ public class AiLogController {
             @RequestParam(required = false) Long postId,
             @RequestAttribute(value = "currentRole", required = false) String role) {
         if (!isAdmin(role)) {
-            return ApiResponse.forbidden("Access denied. Admin privileges required.");
+            throw BusinessException.forbidden("Access denied. Admin privileges required.");
         }
         LambdaQueryWrapper<AiReviewLog> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(reviewer)) {
@@ -126,7 +127,7 @@ public class AiLogController {
     public ApiResponse<Map<String, Object>> getStats(
             @RequestAttribute(value = "currentRole", required = false) String role) {
         if (!isAdmin(role)) {
-            return ApiResponse.forbidden("Access denied. Admin privileges required.");
+            throw BusinessException.forbidden("Access denied. Admin privileges required.");
         }
         List<AiReviewLog> logs = aiReviewLogMapper.selectList(null);
         long total = logs.size();

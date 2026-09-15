@@ -3,9 +3,11 @@ package com.nexus.campus.controller;
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.PasswordChangeRequest;
 import com.nexus.campus.dto.ProfileUpdateRequest;
+import com.nexus.campus.dto.ProfileVo;
 import com.nexus.campus.dto.UserProfileSummary;
 import com.nexus.campus.dto.UserPublicVo;
 import com.nexus.campus.entity.SysUser;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.SysUserMapper;
 import com.nexus.campus.service.SysUserService;
 import com.nexus.campus.service.UserProfileSummaryService;
@@ -46,7 +48,7 @@ public class UserController {
     public ApiResponse<UserPublicVo> getUserById(@PathVariable Long id) {
         SysUser user = sysUserService.getUserById(id);
         if (user == null) {
-            return ApiResponse.notFound("User not found.");
+            throw BusinessException.notFound("User not found.");
         }
         return ApiResponse.success(convertToPublicVo(user));
     }
@@ -55,7 +57,7 @@ public class UserController {
     public ApiResponse<UserProfileSummary> getUserProfileSummary(@PathVariable Long id) {
         UserProfileSummary summary = userProfileSummaryService.getSummary(id);
         if (summary == null) {
-            return ApiResponse.notFound("User not found.");
+            throw BusinessException.notFound("User not found.");
         }
         return ApiResponse.success(summary);
     }
@@ -67,22 +69,21 @@ public class UserController {
     }
 
     @GetMapping("/profile")
-    public ApiResponse<SysUser> getProfile(@RequestAttribute("currentUserId") Long userId) {
+    public ApiResponse<ProfileVo> getProfile(@RequestAttribute("currentUserId") Long userId) {
         SysUser user = sysUserService.getUserById(userId);
         if (user == null) {
-            return ApiResponse.notFound("User not found.");
+            throw BusinessException.notFound("User not found.");
         }
-        user.setPassword(null);
-        return ApiResponse.success(user);
+        return ApiResponse.success(ProfileVo.from(user));
     }
 
     @PutMapping("/profile")
-    public ApiResponse<SysUser> updateProfile(
+    public ApiResponse<ProfileVo> updateProfile(
             @Valid @RequestBody ProfileUpdateRequest request,
             @RequestAttribute("currentUserId") Long userId) {
         SysUser user = sysUserService.getUserById(userId);
         if (user == null) {
-            return ApiResponse.notFound("User not found.");
+            throw BusinessException.notFound("User not found.");
         }
         if (request.getNickname() != null && !request.getNickname().isBlank()) {
             user.setNickname(request.getNickname());
@@ -97,8 +98,7 @@ public class UserController {
             user.setBio(request.getBio());
         }
         sysUserService.updateUser(user);
-        user.setPassword(null);
-        return ApiResponse.success("Profile updated.", user);
+        return ApiResponse.success("Profile updated.", ProfileVo.from(user));
     }
 
     @PutMapping("/password")
@@ -107,7 +107,7 @@ public class UserController {
             @RequestAttribute("currentUserId") Long userId) {
         SysUser user = sysUserService.getUserById(userId);
         if (user == null) {
-            return ApiResponse.notFound("User not found.");
+            throw BusinessException.notFound("User not found.");
         }
         boolean oldPasswordOk = passwordEncoder.matches(request.getOldPassword(), user.getPassword());
         if (!oldPasswordOk && SysUserServiceImpl.isLegacySha256(user.getPassword())) {
@@ -115,7 +115,7 @@ public class UserController {
                     .equalsIgnoreCase(SysUserServiceImpl.encryptPassword(request.getOldPassword()));
         }
         if (!oldPasswordOk) {
-            return ApiResponse.error(400, "Old password is incorrect.");
+            throw BusinessException.badRequest("Old password is incorrect.");
         }
         user.setPassword(passwordEncoder.encode(request.getNewPassword()));
         sysUserService.updateUser(user);

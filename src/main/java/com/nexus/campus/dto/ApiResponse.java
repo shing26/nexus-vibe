@@ -1,8 +1,10 @@
 package com.nexus.campus.dto;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.util.TraceIds;
 import lombok.Data;
+import org.springframework.http.HttpStatus;
 
 import java.io.Serializable;
 
@@ -48,25 +50,24 @@ public class ApiResponse<T> implements Serializable {
         return response;
     }
 
-    public static <T> ApiResponse<T> error(int code, String message) {
+    /**
+     * The only way to build a failure envelope: {@code code} is read off the
+     * status, so an envelope that disagrees with the HTTP line it travelled on
+     * is not expressible. Before this, callers passed a bare int and thirty-three
+     * of them passed one that the transport did not match.
+     */
+    public static <T> ApiResponse<T> error(HttpStatus status, String message) {
         ApiResponse<T> response = new ApiResponse<>();
-        response.code = code;
+        response.code = status.value();
         response.message = message;
-        if (code >= 500) {
+        if (status.is5xxServerError()) {
             response.traceId = TraceIds.current();
         }
         return response;
     }
 
-    public static <T> ApiResponse<T> unauthorized(String message) {
-        return error(401, message);
-    }
-
-    public static <T> ApiResponse<T> forbidden(String message) {
-        return error(403, message);
-    }
-
-    public static <T> ApiResponse<T> notFound(String message) {
-        return error(404, message);
+    /** Build the failure envelope a {@link BusinessException} describes. */
+    public static <T> ApiResponse<T> error(BusinessException failure) {
+        return error(failure.getStatus(), failure.getMessage());
     }
 }

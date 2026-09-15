@@ -6,6 +6,7 @@ import com.nexus.campus.dto.PostCreateRequest;
 import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.dto.PostUpdateRequest;
 import com.nexus.campus.dto.PostVersionVo;
+import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.entity.Channel;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.service.ChannelService;
@@ -38,12 +39,11 @@ public class PostController {
     public ApiResponse<Void> pinPost(@PathVariable Long id,
                                      @RequestAttribute("currentRole") String role) {
         if (!"ADMIN".equals(role)) {
-            return ApiResponse.forbidden("Access denied. Admin privileges required.");
+            throw BusinessException.forbidden("Access denied. Admin privileges required.");
         }
-        boolean success = vibePostService.pinPost(id);
-        if (!success) {
-            return ApiResponse.notFound("Post not found or cannot be pinned.");
-        }
+        // The service now distinguishes "no such post" from "not pinnable", so the
+        // one message that had to cover both is gone.
+        vibePostService.pinPost(id);
         return ApiResponse.successMessage("Post pinned.");
     }
  
@@ -51,12 +51,9 @@ public class PostController {
     public ApiResponse<Void> unpinPost(@PathVariable Long id,
                                        @RequestAttribute("currentRole") String role) {
         if (!"ADMIN".equals(role)) {
-            return ApiResponse.forbidden("Access denied. Admin privileges required.");
+            throw BusinessException.forbidden("Access denied. Admin privileges required.");
         }
-        boolean success = vibePostService.unpinPost(id);
-        if (!success) {
-            return ApiResponse.notFound("Post not found.");
-        }
+        vibePostService.unpinPost(id);
         return ApiResponse.successMessage("Post unpinned.");
     }
 
@@ -110,7 +107,7 @@ public class PostController {
         String changeNote = body != null ? body.get("changeNote") : null;
         boolean success = vibePostService.restorePromptVersion(id, version, userId, changeNote);
         if (!success) {
-            return ApiResponse.notFound("Version not found.");
+            throw BusinessException.notFound("Version not found.");
         }
         return ApiResponse.successMessage("Version restored.");
     }
@@ -176,7 +173,7 @@ public class PostController {
         vibePostService.incrementView(id);
         PostPageVo post = vibePostService.getPostDetail(id);
         if (post == null) {
-            return ApiResponse.notFound("Post not found.");
+            throw BusinessException.notFound("Post not found.");
         }
         fillLikedByMe(Collections.singletonList(post), request);
         return ApiResponse.success(post);
@@ -218,7 +215,7 @@ public class PostController {
             @RequestAttribute("currentUserId") Long userId) {
         boolean success = vibePostService.deletePost(id, userId);
         if (!success) {
-            return ApiResponse.notFound("Post not found.");
+            throw BusinessException.notFound("Post not found.");
         }
         return ApiResponse.successMessage("Post deleted.");
     }

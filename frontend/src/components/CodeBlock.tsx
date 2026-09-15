@@ -102,7 +102,18 @@ export default function CodeBlock({ language, code }: { language: string; code: 
       style={oneDark}
       language={normalized}
       PreTag="div"
-      customStyle={{ margin: 0, borderRadius: 0, fontSize: '0.8rem' }}
+      // R6: the block lives inside a TerminalWindow whose rounded corners come from
+      // overflow-hidden, so a line longer than the viewport used to be clipped with no
+      // way to reach the rest of it - on a phone, permanently. PreTag is a div, so
+      // overflow-x:auto belongs here rather than on a pre that is never rendered.
+      customStyle={{
+        margin: 0,
+        borderRadius: 0,
+        fontSize: '0.8rem',
+        maxWidth: '100%',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
+      }}
     >
       {code}
     </PrismLight>

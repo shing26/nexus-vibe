@@ -1,6 +1,7 @@
 package com.nexus.campus.controller;
 
 import com.nexus.campus.dto.ApiResponse;
+import com.nexus.campus.dto.ChannelVo;
 import com.nexus.campus.dto.ChannelStatsVo;
 import com.nexus.campus.entity.Channel;
 import com.nexus.campus.mapper.VibePostMapper;
@@ -12,6 +13,7 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1/channels")
@@ -24,8 +26,11 @@ public class CategoryController {
     private VibePostMapper vibePostMapper;
 
     @GetMapping
-    public ApiResponse<List<Channel>> getAllChannels() {
-        return ApiResponse.success(channelService.getAllActiveChannels());
+    public ApiResponse<List<ChannelVo>> getAllChannels() {
+        List<ChannelVo> vos = channelService.getAllActiveChannels().stream()
+                .map(ChannelVo::from)
+                .collect(Collectors.toList());
+        return ApiResponse.success(vos);
     }
 
     @GetMapping("/stats")

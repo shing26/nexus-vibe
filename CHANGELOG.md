@@ -11,6 +11,140 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Contract truthfulness and the product loop (R1–R6 — `docs/tickets/contract-and-product-loop.md`)**: the
+  evidence round asked whether the stack's signals can be trusted. This round asked the same question of the
+  API itself. 33 controller sites answered `200 OK` while their own envelope said 401, 403, 404 or 400; the
+  login page had never once been able to show the server's reason for refusing you; and a phone could not
+  reach the message page at all.
+  - **One place decides the HTTP status**: `BusinessException(HttpStatus, safeMessage)`, and `ApiResponse.error`
+    now accepts *only* an `HttpStatus` — `code` comes from `status.value()`, `traceId` from
+    `status.is5xxServerError()`, so a code that disagrees with its status is no longer expressible.
+    `GlobalExceptionHandler` returns `ResponseEntity<ApiResponse<Void>>` and is the only status writer. The
+    `error(int, String)` overload plus the `unauthorized` / `forbidden` / `notFound` shorthands were deleted in
+    the last migration commit, which turns any unmigrated site into a compile error instead of a review finding.
+    No `ErrorCode` catalogue: `HttpStatus` absorbs the 27 magic numbers, and the assessment's other argument for
+    one — that the frontend branches on message text — measured false (13 uses of `message`, all display
+    fallbacks; nothing reads `code`)
+  - **Five response VOs** (`CommentVo`, `MessageVo`, `TagVo`, `ChannelVo`, `ProfileVo`), mapped by hand like
+    `PostPageVo` with field names and values copied verbatim, replacing entities at nine response points. The
+    value is the boundary rather than the fix: four of the five carried no secret. `SysUser.password` is
+    `@JsonProperty(access = WRITE_ONLY)` and the three hand-written `setPassword(null)` lines a fourth call site
+    could forget are gone. `NoEntityInControllerTest` reads controllers by reflection and fails when an entity
+    type reappears in a signature; there is no allowlist
+  - **Product-loop metrics**: `metrics/ProductMetrics` counts the four events that *are* the product
+    (`user_registered_total`, `post_submitted_total{status}`, `post_audited_total{action}`,
+    `comment_submitted_total`); `task/FunnelAggregateTask` publishes two gauges from MySQL,
+    `funnel_activation_ratio` (30-day registration cohort, first post inside 7 days) and
+    `funnel_active_content_d7_ratio`. Snapshot rather than scrape-time query — same reason as
+    `ai_review_pending_posts` — and a boot run before the first daily one, so neither gauge can read a zero that
+    means "nobody has looked yet". A numerator that outsteps its denominator (content whose author was deleted,
+    since `vibe_post.user_id` is no foreign key) clamps to 1.0 and logs the disagreement. Active means content
+    behaviour: a visitor who reads and never posts is invisible, and that is a stated tradeoff, not a gap. New
+    panel set `nexus-product-loop` in the existing provider
+  - **A frontend test surface that can fail**: vitest + jsdom + Testing Library, `npm run test` sitting between
+    lint and build in the CI frontend job, which until then was lint and `tsc` only. 25 tests, 7 of which drive
+    real axios against a fake `adapter` so the 401 branch, its single-flight, the replay and the 5xx trace id all
+    execute. Two acceptance checks were proven by breaking the thing under test rather than by reading a green
+    run: `if (!refreshPromise)` → `if (true)` reddens exactly one test, the concurrent-refresh one, and a
+    probe file holding one bare `apiClient.get` makes the call-site scan answer `src/__probe.tsx:4 - no enclosing
+    try`. That scan had to be written twice: a `try`/`finally` with no `catch` re-throws, so "is it in a try" was
+    the wrong question. Asked correctly: 41 call sites, none unguarded
+  - **A bottom tab bar below `lg`** (`MobileTabBar`): Home, Search, Post, Messages, and a fifth that opens a menu
+    with profile, Drafts, Settings and logout. `Navbar` has no hamburger, so a logged-in phone user saw a header
+    whose message, settings and profile links were `hidden` — navigation existed only as the home channel grid and
+    the back button. The plan's second tab was Channels and it became Search: there is no channels index route (the
+    grid *is* the home page), and `Cmd+K` is exactly what a phone has no keyboard for
+
+### Changed
+
+- **Round six, mechanically**: 33 error sites moved to a real status, eight commits by controller group, with the
+  semantic corrections kept to a closed list — pinning an existing-but-unpinnable post is 409 not 404 (a missing
+  post stays 404), editing or deleting somebody else's content is 403 not 400, `VibePostServiceImpl` splits
+  not-found (404) from state conflict (409), and an upload IO failure is a real 500 carrying a trace id.
+  `ResponseContractTest`'s `bodyOf()` takes the expected status, and "4xx carries no traceId / 5xx does" is
+  asserted in both directions
+- `handleBusinessError` no longer quotes `e.getMessage()` back at the client. An unmapped
+  `IllegalArgumentException` keeps its 400 and loses its message; an `IllegalStateException` is no longer mapped
+  at all, which puts it on the 500 side where the stack is logged and the client hears nothing. The two Chinese
+  envelope messages became English, matching their 30 siblings
+- The CI frontend job moved to Node 24. It was pinned to 20, where jsdom 30's `engines` refusal surfaced as "6
+  errors, no tests" rather than as a skipped suite
+
+### Fixed
+
+- **Round six, what was actually on fire**: `POST /api/v1/auth/login` with a wrong password returned
+  `200 {"code":401}` on the live deployment, and so did a missing post with `404` — every consumer reading a
+  status (nginx logs, `http_server_requests_*`, the 5xx-ratio alert rule, any HTTP client) was reading a number
+  that is not the one the envelope holds
+- **A reachable information leak on an unauthenticated endpoint**: `AuthController`'s `catch (RuntimeException)`
+  wrapped register, so when `insert` wins a race against the pre-check, the MySQL constraint name and SQL
+  fragment come back inside `"Registration failed: …"` over the public internet. It is now an explicit
+  `BusinessException(CONFLICT)`. The same coarse catch on login and on admin password-reset is gone too
+- `SysUserMapper.selectRecentActiveUsers` was H2-only SQL — MySQL has no `DATEADD`, and its `ONLY_FULL_GROUP_BY`
+  refuses an ordering on a column the projection does not carry. `GET /api/v1/stats/active-users` is public, so
+  the deployment answered 500 there while all 317 tests stayed green. Found while writing R4's integration test,
+  which is the only reason it was found
+- `Map.of(...).getOrDefault(null, "other")` throws: immutable maps refuse null probes even as keys. That sat one
+  line into `recordPostCreated`, on the request path of a post that had already been written
+- `AuditPage`, `AgentLogsPage` and `DashboardPage` rendered `(error as Error)?.message`, which after R2 would
+  have started printing `Request failed with status code 403` to a user; they read the envelope through
+  `serverErrorMessage(error, fallback)` now. `PostCard`'s fork reads `postId` behind a check instead of throwing
+  its way into its own `catch`
+- Long code blocks were unreadable on a phone: the block sat inside `TerminalWindow`'s `overflow-hidden`, so the
+  tail of a line was simply gone. `CodeBlock` carries `overflow-x: auto` (react-syntax-highlighter renders the
+  `pre` as a `div` here, which is the node that scrolls), and `touch-action: manipulation` on coarse pointers
+  drops the double-tap zoom delay without killing double-tap zoom on text
+
+### Security
+
+- **The app container runs as uid 10001**, not root (`appuser`, `--no-create-home`, `nologin`; the jar and
+  `/app/uploads` + `/app/logs` are copied/created with the right ownership). 10001 rather than 1000 because uid
+  1000 on a real host is usually somebody's account, and a container writing mounted volumes as that uid can pass
+  as them. Docker seeds a named volume from the image only while the volume is *empty*, so any machine that ran
+  this stack before the change keeps root-owned volumes a non-root JVM cannot write: the one-time `chown` is in
+  `docs/plans/pre-deployment-checklist.md`, and the drill's
+  `non-root-app-and-the-root-owned-volume-upgrade` step performs it for real, including a negative proof that
+  throws if a non-root app *can* write a volume the step just handed to root
+- nginx stops depending on luck at startup: `upstream { server app:8080; }` resolved DNS at config load, so a
+  cold `up` needed `app` to already exist and nginx recovered by crashing and being restarted. It uses
+  `resolver 127.0.0.11 valid=10s` with a variable `proxy_pass` now. The cost is written in the file rather than
+  hidden: OSS nginx cannot `keepalive` a per-request-resolved backend, so proxied requests open their own
+  connection to Tomcat. `web` deliberately keeps `depends_on: service_started` — `service_healthy` would also
+  stop the crash loop, and would additionally take the static site down whenever the API is down
+- **An unwritable log directory no longer bricks the container.** The claim this round shipped with was that a
+  logback failure to open its file is a warning rather than a crash; measured 2026-09-16, it is a crash — Spring
+  Boot escalates any error status recorded while configuring logback into an `IllegalStateException` inside
+  `prepareEnvironment`, so the app against a root-owned `app-logs` restart-looped (10 restarts in four minutes,
+  `/actuator/health` never answered, whole site down) instead of degrading. The entry point now probes the
+  directory before the JVM starts: writable, it uses it; not writable, it falls back to `/tmp/nexus-logs` and
+  says so on stderr with the checklist command in the message. Degraded-but-serving, per ADR-0007, with durability
+  as the stated cost; the one-time `chown` moved from "recommended" to "run this before you upgrade"
+
+### Testing
+
+- 331 JUnit cases in 53 classes (307/46 when the round started, 310 after R1, 317 after R2, 328 after R4),
+  **25 frontend tests in 6 files where the count was zero**, 17 alert-bridge Python tests unchanged. The new
+  backend cases are the two contract scans, the error-semantics probes — `ErrorSemanticsTest` uses strings copied
+  from real failures, a duplicate-key MySQL message and an upstream LLM error body, so the assertion is about the
+  leak rather than the class name — the funnel aggregate run on H2 so a typo cannot survive as "the unit test
+  stubs the mapper", and the four product counters rendered through a real `PrometheusMeterRegistry`
+- Baseline discipline, written down because it was gotten wrong first: the round's opening number was read as
+  309/48 by summing `target/surefire-reports/*.txt`, and that is not a count — the directory keeps reports from
+  earlier filtered runs. The `mvn test` summary line is the only trustworthy source
+- **A fourth dialect needed its own test.** H2 versus MySQL caught the `DATEADD`, and jsdom caught nothing about
+  CSS; this one is the Micrometer-name versus Prometheus-name layer, and the drill — which reads the scrape, not
+  the registry — is what found it: `post.created` and `comment.created` published as `post_total` and
+  `comment_total`, because the Prometheus naming convention reserves a trailing `created` token. Four green unit
+  tests, an absent metric, and a Grafana panel querying a series that never existed. `ProductMetricsTest` cannot
+  see this at all: `SimpleMeterRegistry` keeps meter names verbatim. `ProductMetricsPrometheusNamesTest` is the
+  missing assertion, and the drill's presence check stopped reading `-not 0` as "absent", so a meter exported at
+  zero and a meter that never appeared are now two different failures with two different messages
+- jsdom applies no media queries, so R6's layout claims were checked in a real browser at 390x844 instead: bar
+  height, the footer clearing the bar at the bottom of the scroll (763.75 against 789), the menu not overlapping,
+  and a 400-character line actually scrolling in the code box. Desktop at `lg` and above was not re-measured
+
+### Added
+
 - **Evidence credibility round (E1–E10 — `docs/tickets/evidence-credibility.md`)**: the previous round built
   the observability surface; this round attacked whether its signals can be trusted.
   - **The test gate stops being a coin flip**: all four `@Scheduled` jobs used to run inside every

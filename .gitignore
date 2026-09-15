@@ -71,3 +71,12 @@ Nexus-Vibe-项目全量梳理.md
 docs/project-experience-refactored.md
 # Backup sets (scripts/backup.ps1): belong on a second volume, and are never committable - db.sql.gz holds password hashes.
 backups/
+
+# One-off probe scripts written while migrating controller statuses. They read the tree and
+# print a count; the conclusions they reached live in the tickets and docs/research instead.
+
+# Throwaway build inputs and console logs from work done on this machine: host-built jars,
+# images assembled when a container build could not reach its package mirror, and the drill's
+# own stdout. Same rule as the evidence directory - the conclusions are written up in docs/,
+# the bytes behind them stay here.
+scratch/

@@ -113,8 +113,27 @@
 - [x] 回滚一条命令（A→B→A 已在演练里跑通：换 `APP_TAG` 后不带 `--build` 起，读容器自己的 `Config.Image` 确认换到的就是目标 tag，两侧 `/api/v1/posts` 都 200）：
       `APP_TAG=<上一个值> docker compose up -d app web`（不带 `--build`，直接用留在宿主机上的旧镜像），
       随后 `curl -s http://localhost:8080/api/v1/posts` 确认真的答回来了，再把该值写回 `.env`，防止下次 `up` 又漂回新版本。
+- [ ] **回滚只在数据兼容窗口内成立**（2026-09-16 演练撞出来的边界）。演练把 `APP_TAG` 换成上一轮的构建后，第一次探活是 200，隔一会儿再请求就成了"连接被拒"：Tomcat 在 `CommandLineRunner` 跑完之前就开始监听，而旧构建的 `DataPreloader` 坚持要插一个用户名为 `admin` 的样例账号，撞上 `BootstrapAdminInitializer` 已经写进库里的那一行，runner 抛异常 → Spring 关掉上下文。**"换完镜像 health 变绿"不等于回滚成功**，要看下一个请求。因此：回滚目标必须是仍能在当前库上启动的构建（本轮没有改表结构，所以前后两个 round-six 构建之间可滚；pre-ADR-0008 的构建不可），演练的 `rollback-swaps-between-two-real-image-tags` 现在用 `-RollbackTag` 显式指定目标、比对两个 tag 背后的 image id、并对每侧连探两次（间隔 12 秒）。真实的一次"滚到坏版本"仍然没有样本。
 - [ ] 发布与回滚都动 `app` + `web` 两个服务、共用同一个 `APP_TAG` 值：SPA 和 API 是一组，不拆开滚。
 
 ## 待执行（需用户确认）
 
 - [ ] 部署暂不执行，不 push；确认后再按 `deployment-and-blog-plan.md` 走提交、CI 与本机 Docker + Cloudflare Tunnel 上线。
+
+## 容器与升级路径（R5，2026-09-15，分支 `codex/http-contract-and-product-loop`）
+
+- [x] `Dockerfile` 运行时阶段建 `appuser`（uid/gid 10001，`--no-create-home`、`nologin`），jar 用 `--chown` 落盘，`/app`、`/app/uploads`、`/app/logs` 一并 `chown`，最后 `USER appuser`。8080 不是特权端口，非 root 不需要任何额外放行。
+- [x] `docker/nginx/nginx.conf` 去掉 `upstream { server app:8080; }`：那串名字是在**配置加载期**解析的，冷启动时 app 容器还没建出来，nginx 就以 `host not found in upstream` 退出，全靠 `restart: unless-stopped` 把自己救回来——静态站跟着一起消失。改成 `resolver 127.0.0.11 valid=10s` + 变量 `proxy_pass`，解析发生在请求期。代价写进了配置文件：OSS nginx 对变量后端用不了 `keepalive`，每个代理请求新建一条到 app 的连接。
+- [ ] **一次性卷属主迁移（升级必做，全新安装不需要）**：Docker 只在命名卷**为空**时用镜像里的属主初始化它。开发机与任何已部署主机上的 `nexus-vibe_app-uploads` / `nexus-vibe_app-logs` 都是 root:root，换镜像不会改它们。后果在 2026-09-16 被演练量出来，比这一条原先写的严重：JVM 打不开 `/app/logs/nexus-vibe.json` 时，Spring Boot 会把 logback 记录下来的失败升级成 `IllegalStateException`，在 `prepareEnvironment` 阶段退出——容器不是降级，是四分钟重启十次、`/actuator/health` 一次都没答过、公网整站消失。现在的镜像在 entry point 里先探一次目录：可写就用 `/app/logs`，不可写就退回 `/tmp/nexus-logs` 并在 stderr 打一条 `WARN: /app/logs is not writable by uid 10001 …`，站点照常服务，代价是那段时间的 JSON 日志不跨容器存活；上传目录不可写仍然是运行时 500。所以这一步不是可选清理，而是升级之前应该先跑的那一步。在项目所在主机上跑一次，`<project>` 是 compose 项目名（默认目录名 `nexus-vibe`，演练里是 `nexus-drill`）：
+      ```
+      docker compose stop app
+      docker run --rm \
+        -v <project>_app-uploads:/uploads \
+        -v <project>_app-logs:/logs \
+        alpine sh -c 'chown -R 10001:10001 /uploads /logs'
+      docker compose up -d app
+      ```
+      验证：`docker compose exec -T app id -u` 出 `10001`；`docker compose exec -T app touch /app/uploads/probe && docker compose exec -T app rm /app/uploads/probe` 不报错；发一条请求后 `docker compose exec -T app tail -n 1 /app/logs/nexus-vibe.json` 有带 `traceId` 的 JSON 行。
+      这一段走的是 `benchmark/observability/drill.ps1` 的 `non-root-app-and-the-root-owned-volume-upgrade` 真路径：它先把两个卷 chown 回 root（并留一个哨兵文件证明没修错卷），再按上面的命令修回来，另外断言「退到 `/tmp` 的日志真的在写」和「重启后 `/app/logs` 的 mtime 前进」。该步骤第一次执行（2026-09-16）是红的，红在 crash loop 那一处；entry point 的目录探测是看完现场之后才加的。
+- [ ] `web` 的 `depends_on` 保持 `service_started`，**不要**改 `service_healthy`：那也能消掉 nginx 的启动竞态，但代价是 app 真死的时候连静态页一起起不来，正是 ADR-0007 要避免的失败形态。
+- [ ] 本轮不动 `nginx-unprivileged`：它要换监听端口（80→8080）、compose 映射、日志路径三处，值得单独一轮带验证的改动，而不是顺路捎带。`web` 容器仍以 root 运行 nginx master（worker 是 `nginx` 用户），这一条如实记为未完成。

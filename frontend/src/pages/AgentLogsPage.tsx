@@ -9,6 +9,7 @@ import {
   Layers,
 } from 'lucide-react';
 import { apiClient } from '../api/client';
+import { serverErrorMessage } from '../api/serverErrorMessage';
 import Pagination from '../components/Pagination';
 import EmptyState from '../components/EmptyState';
 import type { AiLog, AiLogStats, PageResponse } from '../types/post';
@@ -295,7 +296,7 @@ export default function AgentLogsPage() {
         <div className="bg-red-900/30 border border-red-500/40 rounded-xl p-6 text-center">
           <p className="text-red-400 font-mono text-sm">Failed to load agent logs</p>
           <p className="text-red-500 text-xs font-mono mt-1">
-            {(error as Error)?.message || 'An unexpected error occurred'}
+            {serverErrorMessage(error, 'An unexpected error occurred')}
           </p>
         </div>
       ) : visibleLogs.length === 0 ? (

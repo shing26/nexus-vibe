@@ -135,8 +135,8 @@ class CommentControllerIntegrationTest {
         String otherUserToken = jwtUtil.generateToken(3L, "alice", "USER");
         mockMvc.perform(delete("/api/v1/comments/" + commentId)
                         .header("Authorization", "Bearer " + otherUserToken))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.code", is(400)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code", is(403)))
                 .andExpect(jsonPath("$.message", containsString("author or an admin")));
     }
 

@@ -11,6 +11,7 @@ import org.springframework.test.context.jdbc.Sql;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
+import org.springframework.test.web.servlet.ResultMatcher;
 
 import java.util.Iterator;
 import java.util.List;
@@ -40,8 +41,14 @@ class ResponseContractTest {
     @Autowired
     private ObjectMapper objectMapper;
 
-    private JsonNode bodyOf(MockHttpServletRequestBuilder request) throws Exception {
-        MvcResult result = mockMvc.perform(request).andExpect(status().isOk()).andReturn();
+    /**
+     * Takes the status it expects. It used to insist on 200 for every request,
+     * the failure case included, which is how this file ended up pinning the very
+     * bug it exists to catch: a missing post answered 200 with a body claiming
+     * 404, and this helper asserted the 200 while the test asserted the 404.
+     */
+    private JsonNode bodyOf(MockHttpServletRequestBuilder request, ResultMatcher expectedStatus) throws Exception {
+        MvcResult result = mockMvc.perform(request).andExpect(expectedStatus).andReturn();
         return objectMapper.readTree(result.getResponse().getContentAsString());
     }
 
@@ -59,27 +66,30 @@ class ResponseContractTest {
     @Test
     @DisplayName("Representative endpoints all answer with code, message and data")
     void successfulResponsesShareOneEnvelope() throws Exception {
-        assertEnvelope(bodyOf(get("/api/v1/posts")));
-        assertEnvelope(bodyOf(get("/api/v1/posts").param("page", "1").param("size", "5")));
-        assertEnvelope(bodyOf(get("/api/v1/channels")));
-        assertEnvelope(bodyOf(get("/api/v1/agent-logs/ticker")));
+        assertEnvelope(bodyOf(get("/api/v1/posts"), status().isOk()));
+        assertEnvelope(bodyOf(get("/api/v1/posts").param("page", "1").param("size", "5"), status().isOk()));
+        assertEnvelope(bodyOf(get("/api/v1/channels"), status().isOk()));
+        assertEnvelope(bodyOf(get("/api/v1/agent-logs/ticker"), status().isOk()));
     }
 
     @Test
-    @DisplayName("A business failure keeps the envelope and adds nothing")
+    @DisplayName("A 4xx keeps the envelope, carries no trace id, and agrees with the status")
     void failureResponsesKeepTheSameKeys() throws Exception {
-        // Missing id: still an ApiResponse, still three keys, still no trace id.
-        JsonNode body = bodyOf(get("/api/v1/posts/999999999"));
+        JsonNode body = bodyOf(get("/api/v1/posts/999999999"), status().isNotFound());
 
         assertEnvelope(body);
-        assertThat(body.get("code").asInt()).isEqualTo(404);
+        // The number the body claims and the status the transport carried are the
+        // same number, which is now true by construction rather than by luck.
+        assertThat(body.get("code").asInt())
+                .as("code mirrors the HTTP status it travelled on")
+                .isEqualTo(404);
         assertThat(body.get("data").isNull()).isTrue();
     }
 
     @Test
     @DisplayName("The envelope has exactly three fields on a success")
     void noUndeclaredFieldsLeakIn() throws Exception {
-        JsonNode body = bodyOf(get("/api/v1/channels"));
+        JsonNode body = bodyOf(get("/api/v1/channels"), status().isOk());
 
         List<String> fields = new java.util.ArrayList<>();
         for (Iterator<String> it = body.fieldNames(); it.hasNext(); ) {
