@@ -17,6 +17,39 @@ Order: OPS-1 and OPS-2 first (they unblock the public launch), then SEC-1 -> DB-
 SEARCH-1 -> FE-1 -> REL-1 -> OPS-3. SEC-1 goes before DB-1 because rewriting the
 authorisation surface touches every controller that a migration would later move.
 
+That sequence was written before the project's direction was settled, and it no longer
+matches. The section below supersedes it; the original is left standing rather than
+edited away so the change can be read off the file.
+
+## Direction: what survives (2026-09-16)
+
+The project's direction was settled on 2026-09-16: it is **a portfolio artifact**, not a
+product being taken to users. Its measure is not user count — it is whether a reader who
+has never seen this repository can say within five minutes what the project is, and wants
+to keep asking. The working plan is
+[portfolio-showcase-plan.md](../plans/portfolio-showcase-plan.md).
+
+That turns this file from a debt list into a filter. One test per ticket: **does it become
+something a reader can see, or is it a prerequisite for the landing page, the real-user
+evidence, or the public address?**
+
+| Ticket | Verdict | Why |
+| --- | --- | --- |
+| OPS-1 Feishu delivery | **do** | Prerequisite for the public address, and so for the landing page that needs somewhere to live. It moves the bridge from "the signature is correct" to "a person received it", and its own negative check — a deliberately wrong secret must be *reported*, not swallowed — says more than a successful send does |
+| OPS-2 Tunnel and public address | **do** | The other half of the same external-credential blocker |
+| OPS-3 Alert and rollback in CI | **do** | An extension of "the gate you trust must be trustworthy", and a demonstrable judgement call. After OPS-1 and OPS-2 |
+| FE-1 Frontend crash reporting | **optional** | Independently reached by the 2026-09-15 frontend design audit, which found `ErrorBoundary` has no `componentDidCatch` and sits alone above the router. FE-1 covers *reporting* only; the layering half is still unowned |
+| SEARCH-1 ES reconciliation policy | **decision only** | The ticket already says it is a decision before it is code. An ADR is an afternoon, and "we chose A, here is what we rejected" is the most persuasive material an interview can draw on. The implementation waits |
+| SEC-1 Centralised role checking | deferred | Internal quality; it produces nothing a reader can see |
+| DB-1 Versioned migrations | deferred | Same, and it is bound to the E5 restore rehearsal — worth little on its own |
+| REL-1 Non-root web container | deferred | Same; the ticket itself already argues it deserves its own verified round |
+
+Revised order: **OPS-1 -> OPS-2 -> OPS-3 -> SEARCH-1's ADR**, with FE-1 optional.
+
+Deferred is not rejected. If the portfolio direction completes and the project is then
+taken toward real users, or extracted as a library, SEC-1, DB-1 and REL-1 come back
+first — that is when their cost starts being paid.
+
 ## OPS-1 - Real Feishu alert delivery
 
 Status: blocked on an external credential. `alert-bridge` refuses to start without
