@@ -48,6 +48,13 @@ campus:
     # Demo accounts are opt-in for production; set DEMO_SEED_ENABLED=true for a public demo.
     seed-enabled: ${DEMO_SEED_ENABLED:false}
     endpoints-enabled: ${DEMO_ENDPOINTS_ENABLED:false}
+  # One already-reviewed post that a visitor can read without signing in. Distinct from
+  # DEMO_SEED_ENABLED on purpose: that switch fills the site with sample users and content, while
+  # this writes a single post authored by a real account (see ShowcasePostSeeder). Leave the
+  # variable unset and nothing is inserted and the landing-page entry does not render.
+  showcase:
+    post-id: ${SHOWCASE_POST_ID:}
+    author-username: ${SHOWCASE_AUTHOR_USERNAME:admin}
   # With seeding off this is the only way into the admin area: BootstrapAdminInitializer
   # creates 'admin' from it once, when the database holds no ADMIN yet.
   bootstrap:

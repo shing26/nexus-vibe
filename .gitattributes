@@ -1,0 +1,4 @@
+# The showcase review is a recording: the bytes are the evidence, so they must not
+# depend on which machine checked the repository out. core.autocrlf=true would
+# otherwise hand a Windows checkout CRLF and a Linux build LF for the same artifact.
+src/main/resources/showcase/* text eol=lf

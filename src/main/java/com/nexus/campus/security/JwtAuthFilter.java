@@ -79,7 +79,10 @@ public class JwtAuthFilter implements Filter {
                 || uri.startsWith("/api/v1/comments")
                 || uri.startsWith("/api/v1/channels")
                 || uri.startsWith("/api/v1/categories")
-                || uri.startsWith("/api/v1/tags")) {
+                || uri.startsWith("/api/v1/tags")
+                // The landing-page pointer to the already-reviewed post exists for the visitor
+                // who has not signed in; requiring a token would defeat its only purpose.
+                || uri.startsWith("/api/v1/showcase")) {
             return true;
         }
         if (uri.equals("/api/v1/users")
