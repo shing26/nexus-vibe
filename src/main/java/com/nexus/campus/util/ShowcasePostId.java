@@ -17,10 +17,6 @@ public final class ShowcasePostId {
     private ShowcasePostId() {
     }
 
-    public static boolean isConfigured(String raw) {
-        return parse(raw) != null;
-    }
-
     public static Long parse(String raw) {
         if (raw == null || raw.isBlank()) {
             return null;

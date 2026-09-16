@@ -10,6 +10,7 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.core.annotation.Order;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +48,12 @@ import java.nio.charset.StandardCharsets;
  * updates a row it did not create, so a reviewer who edits the seed post keeps their
  * edit. That also means re-recording the fixture does not rewrite an already-seeded
  * deployment - delete the three rows first, which is what the drill does.</p>
+ *
+ * <p>The three inserts share one transaction. They used to be three autocommit statements,
+ * which made a half-written seed worse than no seed: the post alone would satisfy the
+ * already-present check on every later start, so a failure between the post and its review
+ * would leave the landing page advertising three findings that were never written, and no
+ * restart would repair it.</p>
  */
 @Component
 @Order(400)
@@ -54,10 +61,13 @@ public class ShowcasePostSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ShowcasePostSeeder.class);
 
-    /** Distinctive and outside the range the snowflake generator issues. */
-    static final long SHOWCASE_POST_ID = ShowcasePostId.DEFAULT;
-    static final long SHOWCASE_COMMENT_ID = 900000000000000002L;
-    static final long SHOWCASE_REVIEW_LOG_ID = 900000000000000003L;
+    /**
+     * The id the shipped configuration uses. Distinctive and outside the range the snowflake
+     * generator issues. The seeder does not insist on it: whatever {@code campus.showcase.post-id}
+     * names is what gets written, because the read endpoint on the other side of this feature
+     * queries that same value and a mismatch would render the landing page empty.
+     */
+    static final long DEFAULT_POST_ID = ShowcasePostId.DEFAULT;
     static final long AI_AGENT_USER_ID = 999L;
 
     static final String COMMENT_RESOURCE = "/showcase/recorded-review-comment.md";
@@ -82,18 +92,29 @@ public class ShowcasePostSeeder implements CommandLineRunner {
     private final boolean enabled;
     private final String datasourceUrl;
     private final String authorUsername;
+    private final long postId;
+    private final long commentId;
+    private final long reviewLogId;
 
     public ShowcasePostSeeder(JdbcTemplate jdbcTemplate,
                               @Value("${campus.showcase.post-id:}") String showcasePostId,
                               @Value("${spring.datasource.url:}") String datasourceUrl,
                               @Value("${campus.showcase.author-username:admin}") String authorUsername) {
         this.jdbcTemplate = jdbcTemplate;
-        this.enabled = ShowcasePostId.isConfigured(showcasePostId);
+        Long configured = ShowcasePostId.parse(showcasePostId);
+        this.enabled = configured != null;
+        // The comment and the log row hang off the post id rather than sitting at fixed
+        // addresses, so pointing the feature at another post id moves the whole chain with it
+        // and two deployments on one database cannot collide.
+        this.postId = configured == null ? 0L : configured;
+        this.commentId = this.postId + 1;
+        this.reviewLogId = this.postId + 2;
         this.datasourceUrl = datasourceUrl;
         this.authorUsername = authorUsername;
     }
 
     @Override
+    @Transactional
     public void run(String... args) {
         seed();
     }
@@ -107,8 +128,8 @@ public class ShowcasePostSeeder implements CommandLineRunner {
             log.debug("[SHOWCASE] Non-MySQL datasource ({}), skipping.", datasourceUrl);
             return;
         }
-        if (exists("SELECT COUNT(*) FROM vibe_post WHERE id = ?", SHOWCASE_POST_ID)) {
-            log.debug("[SHOWCASE] Showcase post {} already present.", SHOWCASE_POST_ID);
+        if (exists("SELECT COUNT(*) FROM vibe_post WHERE id = ?", postId)) {
+            log.debug("[SHOWCASE] Showcase post {} already present.", postId);
             return;
         }
         Long authorId = lookupAuthorId();
@@ -123,7 +144,7 @@ public class ShowcasePostSeeder implements CommandLineRunner {
         insertReviewLog();
         log.info("[SHOWCASE] Seeded showcase post {} for author '{}' with the recorded {}/10 "
                         + "severity {} review.",
-                SHOWCASE_POST_ID, authorUsername, SHOWCASE_SCORE, SHOWCASE_SEVERITY);
+                postId, authorUsername, SHOWCASE_SCORE, SHOWCASE_SEVERITY);
     }
 
     private Long lookupAuthorId() {
@@ -147,7 +168,7 @@ public class ShowcasePostSeeder implements CommandLineRunner {
                                        post_type, create_time)
                 VALUES (?, ?, 6, ?, ?, ?, 0, 0, 1, 1, 0, ?, 1, ?, 0, 'post', NOW())
                 """,
-                SHOWCASE_POST_ID,
+                postId,
                 authorId,
                 "Showcase: reviewing an unbounded cache with a stampede window",
                 SHOWCASE_CONTENT,
@@ -162,7 +183,7 @@ public class ShowcasePostSeeder implements CommandLineRunner {
                 INSERT INTO vibe_comment (id, post_id, user_id, parent_id, target_id, content, status, create_time)
                 VALUES (?, ?, ?, 0, 0, ?, 1, NOW())
                 """,
-                SHOWCASE_COMMENT_ID, SHOWCASE_POST_ID, AI_AGENT_USER_ID, SHOWCASE_REVIEW_COMMENT);
+                commentId, postId, AI_AGENT_USER_ID, SHOWCASE_REVIEW_COMMENT);
     }
 
     private void insertReviewLog() {
@@ -170,7 +191,7 @@ public class ShowcasePostSeeder implements CommandLineRunner {
                 INSERT INTO ai_review_log (id, post_id, reviewer, result_json, severity, is_approved, created_at)
                 VALUES (?, ?, 'code-review-agent', ?, ?, 0, NOW())
                 """,
-                SHOWCASE_REVIEW_LOG_ID, SHOWCASE_POST_ID, SHOWCASE_REVIEW_RESULT_JSON, SHOWCASE_SEVERITY);
+                reviewLogId, postId, SHOWCASE_REVIEW_RESULT_JSON, SHOWCASE_SEVERITY);
     }
 
     static final String SHOWCASE_CODE_SNIPPETS =

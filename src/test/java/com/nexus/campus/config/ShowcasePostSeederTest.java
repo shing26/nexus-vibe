@@ -8,8 +8,11 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -33,7 +36,7 @@ import static org.mockito.Mockito.when;
 class ShowcasePostSeederTest {
 
     private static final String MYSQL = "jdbc:mysql://db:3306/nexus_campus";
-    private static final String POST_ID = String.valueOf(ShowcasePostSeeder.SHOWCASE_POST_ID);
+    private static final String POST_ID = String.valueOf(ShowcasePostSeeder.DEFAULT_POST_ID);
 
     @Mock
     private JdbcTemplate jdbcTemplate;
@@ -61,7 +64,7 @@ class ShowcasePostSeederTest {
     @Test
     @DisplayName("An existing showcase post is never rewritten")
     void isIdempotentByPrimaryKey() {
-        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.SHOWCASE_POST_ID)))
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.DEFAULT_POST_ID)))
                 .thenReturn(1);
 
         seeder(POST_ID).run();
@@ -72,7 +75,7 @@ class ShowcasePostSeederTest {
     @Test
     @DisplayName("A missing author is reported and nothing is inserted")
     void refusesToInventAnAuthor() {
-        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.SHOWCASE_POST_ID)))
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.DEFAULT_POST_ID)))
                 .thenReturn(0);
         when(jdbcTemplate.queryForList(anyString(), eq(Long.class), eq("admin"))).thenReturn(List.of());
 
@@ -84,7 +87,7 @@ class ShowcasePostSeederTest {
     @Test
     @DisplayName("Post, review comment and review log are written together")
     void writesTheWholeChainOnce() {
-        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.SHOWCASE_POST_ID)))
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.DEFAULT_POST_ID)))
                 .thenReturn(0);
         when(jdbcTemplate.queryForList(anyString(), eq(Long.class), eq("admin")))
                 .thenReturn(List.of(1L));
@@ -147,7 +150,7 @@ class ShowcasePostSeederTest {
             return 1;
         }).when(jdbcTemplate).update(anyString(), any(Object[].class));
 
-        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.SHOWCASE_POST_ID)))
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(ShowcasePostSeeder.DEFAULT_POST_ID)))
                 .thenReturn(0);
         when(jdbcTemplate.queryForList(anyString(), eq(Long.class), eq("admin")))
                 .thenReturn(List.of(42L));
@@ -168,7 +171,45 @@ class ShowcasePostSeederTest {
                 });
         // `getArguments()` hands back whatever Mockito received; rather than assume where the
         // varargs array was unpacked, look for the values themselves.
-        assertThat(postInsert).contains((Object) ShowcasePostSeeder.SHOWCASE_POST_ID, (Object) 42L);
+        assertThat(postInsert).contains((Object) ShowcasePostSeeder.DEFAULT_POST_ID, (Object) 42L);
         assertThat(postInsert[postInsert.length - 1]).isEqualTo(ShowcasePostSeeder.SHOWCASE_SCORE);
+    }
+
+    @Test
+    @DisplayName("A configured post id is the id that gets written, comment and log included")
+    void honoursAConfiguredPostId() {
+        // The read endpoint queries campus.showcase.post-id. A seeder that always wrote the
+        // shipped default would seed one post and advertise another, so the landing page would
+        // render nothing while every log line still said the seed had succeeded.
+        long configured = 900000000000000009L;
+        List<Object[]> updates = new ArrayList<>();
+        org.mockito.Mockito.doAnswer(invocation -> {
+            updates.add(invocation.getArguments().clone());
+            return 1;
+        }).when(jdbcTemplate).update(anyString(), any(Object[].class));
+
+        when(jdbcTemplate.queryForObject(anyString(), eq(Integer.class), eq(configured)))
+                .thenReturn(0);
+        when(jdbcTemplate.queryForList(anyString(), eq(Long.class), eq("admin")))
+                .thenReturn(List.of(7L));
+
+        seeder(String.valueOf(configured)).run();
+
+        verify(jdbcTemplate).queryForObject(anyString(), eq(Integer.class), eq(configured));
+        assertThat(updates.stream().flatMap(values -> Arrays.stream(values)).toList())
+                .contains(configured, configured + 1, configured + 2);
+    }
+
+    @Test
+    @DisplayName("The three inserts share a transaction, so a half-written seed cannot persist")
+    void theWholeSeedIsOneTransaction() throws Exception {
+        // Asserted by reflection rather than by provoking a rollback: the seeder deliberately
+        // refuses to run against H2, so a MySQL-only integration test would not run in this
+        // suite. What this pins is that a failure between the post and its review leaves
+        // nothing behind, instead of a post that the already-present check then treats as
+        // finished while its review is missing.
+        Method run = ShowcasePostSeeder.class.getMethod("run", String[].class);
+
+        assertThat(run.isAnnotationPresent(Transactional.class)).isTrue();
     }
 }
