@@ -332,7 +332,7 @@ Audit-driven hardening of the AI pipeline (ADR-0003/0004/0005 review + product w
 
 ### Fixed
 
-Product walkthrough findings (three-persona full-journey report, `产品体验报告/`):
+Product walkthrough findings (three-persona full-journey report, `docs/reviews/`):
 
 - **P0**: re-reviewing a post no longer shows the stale score in the review terminal — the post
   poll reaching `aiReviewed=1` invalidates the 5-minute review-detail cache

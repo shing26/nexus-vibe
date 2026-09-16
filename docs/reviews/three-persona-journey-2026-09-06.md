@@ -1,6 +1,6 @@
 # 产品体验报告：三画像全链路走查（2026-09-06）
 
-> **走查方式**：代码级 trace 推演 + GUI 截图证据比对（`gui-test-screenshots/`）。未实际启动全栈服务，所有结论均给出 `file:line` 证据；无法纯从代码确认的交互细节已标注"需实测确认"。
+> **走查方式**：代码级 trace 推演 + GUI 截图证据比对（`docs/assets/gui-test-screenshots/`）。未实际启动全栈服务，所有结论均给出 `file:line` 证据；无法纯从代码确认的交互细节已标注"需实测确认"。
 > **走查画像**：新手用户（Naive User）· 破坏性用户（Chaos User）· 核心玩家（Power User）
 > **涉及文件**：`frontend/src/pages/CreatePostPage.tsx`、`frontend/src/pages/EditPostPage.tsx`、`frontend/src/pages/DraftsPage.tsx`、`frontend/src/pages/PostDetailPage.tsx`、`frontend/src/components/AiReviewTerminal.tsx`、`src/main/resources/lua/like_toggle.lua`
 
@@ -36,7 +36,7 @@
 | | 内容 |
 |---|---|
 | **Expected** | 头部 "AI Score" 与 AiReviewTerminal 内 Score 始终展示同一次审查结果；重审期间终端应显示进行中状态而非旧结果 |
-| **Actual** | 头部显示 `AI Score: 80/100`，下方终端仍显示 `Score: 30/100 · MEDIUM · Needs Review`（`gui-test-screenshots/t4_edit_rereview_score80.png` 直接取证） |
+| **Actual** | 头部显示 `AI Score: 80/100`，下方终端仍显示 `Score: 30/100 · MEDIUM · Needs Review`（`docs/assets/gui-test-screenshots/t4_edit_rereview_score80.png` 直接取证） |
 
 ### 证据
 - `frontend/src/pages/PostDetailPage.tsx:100-104`：帖子查询在 `aiReviewed === 1` 时停止轮询——重审完成后帖子数据被重新拉取，头部 `post.aiReviewScore` 更新为新分 80。

@@ -26,9 +26,6 @@ Thumbs.db
 *.tmp
 *.bak
 
-*.tmp
-*.bak
-
 # Development / scratch scripts
 fix_*.py
 .scratch/*.pid
@@ -47,9 +44,11 @@ secrets.*
 node_modules/
 
 # Tool session state (security scanner / agent harness)
+.agents/
 .mimosa/
 .workbuddy/
 .zcode/
+.pytest_cache/
 
 # JVM crash logs (belt & suspenders; *.log is already covered)
 hs_err_pid*.log
