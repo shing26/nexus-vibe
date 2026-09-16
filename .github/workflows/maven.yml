@@ -39,6 +39,10 @@ jobs:
               - 'pom.xml'
               - 'src/main/**'
               - 'src/main/resources/**'
+              # The docker job's own definition. Without this, a PR that edits
+              # only this file skips the job entirely -- so the smoke below
+              # could never be fixed or verified in the PR that changes it.
+              - '.github/workflows/maven.yml'
 
       - name: Decide
         id: decide
@@ -190,12 +194,17 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-      # master push only -- and this is why PRs stop at the build: smoke-running
-      # the backend image needs a MySQL with docker/mysql/init.sql applied and a
-      # minute of Spring context startup, so putting it on every PR would make
-      # every branch pay for, and re-run on, a boot nobody asked for. Master is
-      # the only ref whose build becomes an artifact somebody might run, and
-      # even there the smoke is cheap: three containers, no registry, no secrets.
+      # This step used to be `if: github.event_name == 'push'`, on the argument
+      # that booting MySQL + Spring on every PR is a cost nobody asked for. The
+      # argument was wrong, and here is the evidence: the JWT secret below was
+      # committed as a redaction-styled placeholder, so the app could not start,
+      # so this step failed on every master push -- and nobody saw it for four
+      # merges, because PRs were green by construction and master was already red
+      # before anyone looked. A gate that only runs after the merge is an alarm.
+      #
+      # It now runs wherever the docker job runs: any PR that touches the image
+      # inputs (that is the `docker-changes` filter above) and every master push.
+      # It is still only three containers, no registry, no secrets.
       #
       # The DB is the only fatal dependency: DOWN maps to 503 and must kill this
       # step. Redis is present so the happy path is exercised; Elasticsearch and
@@ -203,25 +212,30 @@ jobs:
       # DEGRADED -> HTTP 200, so this step doubles as proof that the degraded-but-serving
       # semantics survive into the packaged image instead of only in tests.
       - name: Smoke-run backend image
-        if: github.event_name == 'push'
         run: |
           set -euo pipefail
           docker network create smoke
           docker run -d --name smoke-db --network smoke \
-            -e MYSQL_ROOT_PASSWORD=smokep...word \
+            -e MYSQL_ROOT_PASSWORD=smoke-root-pw-not-a-secret \
             -e MYSQL_DATABASE=nexus_campus \
             -e TZ=Asia/Shanghai \
             -v "$PWD/docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro" \
             mysql:8.0
           docker run -d --name smoke-redis --network smoke redis:7-alpine
+          # JWT_SECRET must be standard base64 decoding to >= 32 bytes:
+          # JwtUtil.init() base64-decodes it and hands the bytes to
+          # Keys.hmacShaKeyFor(). The literal `ci-...0000` that used to sit below
+          # contains '-' (0x2d), which is not in the base64 alphabet, so the
+          # context died at startup and this step never passed once. The value
+          # below decodes to 'nexus-vibe-ci-smoke-secret-do-not-use' (37 bytes).
           docker run -d --name smoke-app --network smoke -p 8080:8080 \
             -e SPRING_PROFILES_ACTIVE=prod \
             -e DB_URL='jdbc:mysql://smoke-db:3306/nexus_campus?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true' \
             -e DB_USERNAME=root \
-            -e DB_PASSWORD=smokep...word \
+            -e DB_PASSWORD=smoke-root-pw-not-a-secret \
             -e REDIS_HOST=smoke-redis \
             -e REDIS_PORT=6379 \
-            -e JWT_SECRET='ci-...0000' \
+            -e JWT_SECRET='bmV4dXMtdmliZS1jaS1zbW9rZS1zZWNyZXQtZG8tbm90LXVzZQ==' \
             nexus-vibe-app:${{ github.sha }}
           ok=0
           for i in $(seq 1 60); do
