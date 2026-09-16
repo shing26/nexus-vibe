@@ -55,6 +55,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     the back button. The plan's second tab was Channels and it became Search: there is no channels index route (the
     grid *is* the home page), and `Cmd+K` is exactly what a phone has no keyboard for
 
+- **A landing-page entry a stranger can actually read (方向 A · A4/A6 — `docs/plans/portfolio-showcase-plan.md`)**:
+  the most persuasive artifact here is an LLM review that fails closed, repairs malformed output and writes back a
+  score, and it was reachable only by registering and publishing a code block. `GET /api/v1/showcase` now reports
+  one already-reviewed post and `ShowcaseEntry` links to it from the home page under Mission Control. Unconfigured
+  deployments answer `data: null` and render nothing, so nothing changes for anyone who leaves `SHOWCASE_POST_ID`
+  unset.
+  - **The review is a recording, not prose that resembles one.** The first cut hand-wrote both the comment and the
+    `ai_review_log` row, and shipped a page whose Code Quality, Security and Suggestions sections rendered
+    *empty*: the fixture wrote `quality` / `security` / `suggestions`, which parse cleanly and are read by nobody
+    (`AiReviewDetailService` reads `codeQuality` / `securityConcerns` / `optimizationSuggestions`). No test
+    failed, because the test asserted the fixture's own shape against itself. The snippet was then published once
+    through the ordinary publish path against the deployed stack, and the pipeline's comment and log row were
+    copied out verbatim into `src/main/resources/showcase/`. Score and severity are derived by parsing that JSON
+    rather than declared beside it, so the card, the comment and the log row cannot drift into disagreeing. See
+    [ADR-0010](docs/adr/0010-the-showcase-review-is-a-recording.md)
+
 ### Changed
 
 - **Round six, mechanically**: 33 error sites moved to a real status, eight commits by controller group, with the
@@ -94,6 +110,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   tail of a line was simply gone. `CodeBlock` carries `overflow-x: auto` (react-syntax-highlighter renders the
   `pre` as a `div` here, which is the node that scrolls), and `touch-action: manipulation` on coarse pointers
   drops the double-tap zoom delay without killing double-tap zoom on text
+- **AI review comments rendered as a wall of text.** The comment list used a single `<p>{comment.content}</p>`,
+  so every newline collapsed and the one comment this product most wants read printed
+  `## AI Code Review **Overall Score**: 3/10 **Severity**: high` as literal text in one paragraph. Comments go
+  through the `react-markdown` pipeline the post body already used. Found by opening the showcase page as a
+  signed-out visitor, not by a test — which is the argument for having built the page
 
 ### Security
 

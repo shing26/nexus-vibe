@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-331%20Java%20%2B%2025%20frontend-brightgreen)
+![Tests](https://img.shields.io/badge/tests-344%20Java%20%2B%2029%20frontend-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -14,6 +14,11 @@ Nexus-Vibe is a full-stack AI developer community platform — a modern replacem
 ## Live demo
 
 **https://qualifier-discuss-marry.ngrok-free.dev**
+
+No account needed to see what this project is actually about. The home page links one
+already-reviewed post, and `/post/900000000000000001` renders the AI review the live pipeline
+produced for it - score, severity, verdict, findings - to a signed-out visitor. The seed is
+display-only: it is a row set written once, not a fixture the app switches to.
 
 New here? [AGENTS.md](AGENTS.md) is the working contract and [docs/INDEX.md](docs/INDEX.md) maps
 every document in the repository. Both exist because this project has been picked up by several
@@ -34,8 +39,9 @@ Two things worth knowing before you click:
 
 ## Where to look, in the time you have
 
-**30 seconds.** Read [CONTEXT.md](CONTEXT.md) - the project's vocabulary - then open the
-live demo and publish one post containing a code block.
+**30 seconds.** Open the live demo and click the showcase entry on the home page. You are
+reading a real AI review of a real snippet, produced by the same pipeline that reviews
+everything else, without registering. Then read [CONTEXT.md](CONTEXT.md) for the vocabulary.
 
 **10 minutes.** The three decisions the AI pipeline is actually built around:
 
