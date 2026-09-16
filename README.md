@@ -11,6 +11,47 @@
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
 
+## Live demo
+
+**https://qualifier-discuss-marry.ngrok-free.dev**
+
+The whole stack runs on one Windows machine behind an ngrok tunnel: nginx -> Spring Boot ->
+MySQL / Redis / Elasticsearch, with the LLM pointed at a hosted OpenAI-compatible endpoint.
+Registering an account is enough to try it; publish a post containing a code block and an
+AI review appears as a reply within about a minute.
+
+Two things worth knowing before you click:
+
+- ngrok's free tier shows a one-time "Visit Site" warning page the first time a browser
+  sees the domain. It is not part of this project; one click dismisses it for seven days.
+- It is a single home machine. If it is asleep the address stops answering, and every
+  piece of evidence below was measured on the same class of machine rather than in a cloud
+  region.
+
+## Where to look, in the time you have
+
+**30 seconds.** Read [CONTEXT.md](CONTEXT.md) - the project's vocabulary - then open the
+live demo and publish one post containing a code block.
+
+**10 minutes.** The three decisions the AI pipeline is actually built around:
+
+- [Fail-closed moderation](docs/adr/0004-safety-check-fail-closed.md) - when the LLM is
+  unreachable, posts queue for review instead of publishing unreviewed.
+- [Lease-based review claims](docs/adr/0005-lease-based-review-claim.md) - an atomic
+  conditional UPDATE stops two workers from reviewing one post.
+- [Degraded is not unhealthy](docs/adr/0007-degraded-status-is-not-unhealthy.md) - an
+  unreachable dependency degrades the service; it does not take the site down.
+
+**90 minutes.** The measured evidence, in the order it was produced:
+
+| Evidence | What it shows |
+|---|---|
+| [Async pool load test](docs/research/async-pool-loadtest.md) | 201,880 requests, 121,202 backpressure rejections, zero crashes; where the pipeline actually saturates |
+| [Container GC analysis](docs/research/jvm-container-gc-analysis.md) | 768 MB container, 0 full GCs, and why `MaxRAMPercentage=75` is the right ceiling |
+| [Deep pagination](docs/research/late-row-lookup-deep-pagination.md) | A delayed-join optimisation measured 40% *slower* and was rolled back - with the EXPLAIN output kept |
+| [Observability drill](docs/research/observability-drill-2026-09.md) | Scripted failure injections against the real stack, including what the drill cannot prove |
+| [Technical blog](docs/blog/llm-code-review-structured-output-injection-defense.md) | How the structured-output review survives injection attempts and malformed model output |
+
 技术博客：[给论坛接入 LLM 代码评审：结构化输出与注入防御实战](docs/blog/llm-code-review-structured-output-injection-defense.md)
 
 **Engineering notes**（设计决策与实测证据）：
@@ -361,6 +402,40 @@ python benchmark/observability/render_panels.py   # 无头浏览器真的渲染�
 
 CI（`.github/workflows/maven.yml`）只跑 `mvn test`：告警桥的 Python 单测与演练脚本都在本地跑，
 演练结论见 [docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
+
+## Running the live instance
+
+The public demo is this repository's `docker-compose.yml` plus an ngrok tunnel. Nothing about
+the deployed shape is special-cased: `SPRING_PROFILES_ACTIVE=prod`, MySQL/Redis/Elasticsearch
+unpublished, and only nginx reachable from outside.
+
+```bash
+# 1. the stack (needs .env: DB_PASSWORD, JWT_SECRET, BOOTSTRAP_ADMIN_PASSWORD, APP_TAG, CORS_ALLOWED_ORIGINS)
+docker compose up -d
+
+# 2. the tunnel; scripts/tunnel-ngrok.ps1 refuses to start a second copy for the same domain
+pwsh scripts/tunnel-ngrok.ps1
+```
+
+**The address and CORS are a pair.** The backend only answers requests whose `Origin` is on
+`campus.cors.allowed-origins`, so a new tunnel domain must be added to
+`CORS_ALLOWED_ORIGINS` in `.env` and the app restarted, or the SPA will load and every API
+call behind it will return 403. That failure mode is silent in the browser console and looks
+like a broken site, which is why it is written down here rather than discovered later.
+
+Two hand-offs that are not automated yet:
+
+- **Tunnel at logon.** `scripts/tunnel-ngrok.ps1` runs in the foreground. Making it survive a
+  reboot needs a scheduled task, which requires an elevated shell:
+  `schtasks /create /tn Nexus-Vibe-Tunnel /sc onlogon /rl highest /tr "ngrok http 8080 --url qualifier-discuss-marry.ngrok-free.dev"`.
+- **Log-volume ownership.** A host that already ran this stack before uid 10001 has
+  root-owned named volumes. The one-time `chown` is in
+  [docs/plans/pre-deployment-checklist.md](docs/plans/pre-deployment-checklist.md); the image
+  falls back to `/tmp` logging and prints a warning if it is skipped.
+
+The database behind the live demo is the long-lived development database, so it contains the
+earlier load-test posts and a handful of demo accounts. Clearing it would delete that corpus;
+the decision is recorded in the same checklist rather than made implicitly by a script.
 
 ## License
 
