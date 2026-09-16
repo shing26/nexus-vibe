@@ -392,15 +392,15 @@ curl http://localhost:8081/api/v1/users/2/summary
 
 ## Testing
 
-2026-09-16 实测：后端 **331 用例 / 53 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **25 用例 / 6 个文件**，告警桥 **17 条** Python 单测。
+2026-09-17 实测：后端 **344 用例 / 55 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **29 用例 / 7 个文件**，告警桥 **17 条** Python 单测。
 
 后端除了 H2 集成与 Mockito 单测，还有三条"读源码"的契约扫描：controller 签名不许出现 entity、测试不许把 `isOk()` 和非 200 的 `code` 配成一对、每个 `apiClient.` 调用都要落在有 `catch` 的 `try` 或 react-query 里。前端拦截器那 7 条走真实 axios，只把 `adapter` 换成假的，所以 401 刷新、单飞、重放、5xx 追踪号都是真跑；并且用两次变异验证过它们不是摆设：把 `if (!refreshPromise)` 改成 `if (true)` 只红那一条并发刷新的用例，塞一个裸 `apiClient.get` 会让扫描报出文件名与行号。
 
 ```bash
-mvn test                      # 331 tests: unit + H2 integration + the three source-scanning contract checks
+mvn test                      # 344 tests: unit + H2 integration + the three source-scanning contract checks
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 25 tests: axios interceptor, login page, AI review panel, call-site scan
+cd frontend && npm run test   # 29 tests: axios interceptor, login page, AI review panel, call-site scan
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 17 tests: Feishu sign + body
 ```
 
