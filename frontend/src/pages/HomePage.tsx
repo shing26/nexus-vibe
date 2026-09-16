@@ -5,6 +5,7 @@ import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import PostCard from '../components/PostCard';
 import EmptyState from '../components/EmptyState';
+import ShowcaseEntry from '../components/ShowcaseEntry';
 import { Terminal, Palette, Cpu, Zap, Bug, GitFork, ArrowRight, Megaphone, FolderOpen } from 'lucide-react';
 import type { ChannelStats } from '../types/post';
 
@@ -179,6 +180,9 @@ export default function HomePage() {
           })}
         </div>
       </div>
+
+      {/* Curated entry for a signed-out visitor: the product's claim, one click away */}
+      <ShowcaseEntry />
 
       {/* Channel Grid — full-width, no sidebar */}
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">

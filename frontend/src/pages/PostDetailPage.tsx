@@ -615,7 +615,13 @@ export default function PostDetailPage() {
                         {isAi && <span className="text-[10px] font-mono text-vibe-purple bg-vibe-purple/10 border border-vibe-purple/30 rounded px-1">AI</span>}
                         <span className="text-[10px] font-mono text-slate-600">{timeAgo(comment.createTime)}</span>
                       </div>
-                      <p className="text-xs font-mono text-slate-400 leading-relaxed">{comment.content}</p>
+                      {/* Comments are markdown, and the AI reviewer writes headings, bold and a
+                          trailing rule. Rendering them as a single <p> collapsed every newline
+                          and printed "## AI Code Review" literally, which is what the one comment
+                          this product most wants read actually looks like. */}
+                      <div className="text-xs font-mono text-slate-400 prose prose-invert prose-sm max-w-none prose-headings:text-slate-200 prose-headings:font-mono prose-headings:text-xs prose-headings:mt-3 prose-headings:mb-1.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-strong:text-slate-200 prose-code:text-vibe-cyan prose-code:bg-vibe-card prose-code:px-1 prose-code:py-0.5 prose-code:text-[11px] prose-code:before:content-none prose-code:after:content-none prose-hr:my-3">
+                        <ReactMarkdown remarkPlugins={[remarkGfm]}>{comment.content}</ReactMarkdown>
+                      </div>
                     </div>
                   </div>
                 </motion.div>
