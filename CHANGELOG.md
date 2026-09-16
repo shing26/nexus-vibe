@@ -70,6 +70,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     copied out verbatim into `src/main/resources/showcase/`. Score and severity are derived by parsing that JSON
     rather than declared beside it, so the card, the comment and the log row cannot drift into disagreeing. See
     [ADR-0010](docs/adr/0010-the-showcase-review-is-a-recording.md)
+  - **The recording is reproducible, not asserted.** `benchmark/showcase/record-showcase-review.py` publishes the
+    snippet, polls for the review, writes both resources and prints the SQL that clears the three seeded rows. It
+    is in the repository for the same reason the fixture was not: "copied out verbatim" is a claim, and a claim
+    without a reproducible path does not go in
+  - **Two defects the review found rather than the tests.** The seeder kept only a boolean from
+    `campus.showcase.post-id` and always wrote the shipped default, while the read endpoint queried the configured
+    value, so any non-default id seeded one post and advertised another and the entry rendered nothing; the post
+    id now drives the write and the comment and log row follow it. And the three inserts were autocommit
+    statements, so a failure between the post and its review left a post that the already-present check then
+    treated as finished on every later start; they share one transaction now
 
 ### Changed
 
@@ -113,8 +123,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **AI review comments rendered as a wall of text.** The comment list used a single `<p>{comment.content}</p>`,
   so every newline collapsed and the one comment this product most wants read printed
   `## AI Code Review **Overall Score**: 3/10 **Severity**: high` as literal text in one paragraph. Comments go
-  through the `react-markdown` pipeline the post body already used. Found by opening the showcase page as a
-  signed-out visitor, not by a test — which is the argument for having built the page
+  through the `react-markdown` pipeline the post body already used, behind `CommentBody` so the rendering has a
+  seam four tests hold. Found by opening the showcase page as a signed-out visitor, not by a test — which is the
+  argument for having built the page
 
 ### Security
 

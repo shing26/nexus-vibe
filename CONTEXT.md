@@ -76,6 +76,11 @@ _Avoid_: Default Admin, Superuser, Root Account
 **生成**形状是 16-hex；**接收**外部值时只接受 `^[0-9a-zA-Z-]{1,64}$`，且默认不接收：要 `campus.trace.trust-inbound-header=true` 才沿用外部值，那是独立于 `trust-forwarded-headers`（客户端 IP 真伪）的另一项信任决定，公网 nginx 还会先把该头清空。四个 `@Scheduled` 任务每次运行都拥有一个。
 _Avoid_: Request ID, Correlation Id, Span
 
+**Showcase Post（展示帖）**:
+生产部署（DEMO_SEED_ENABLED=false）下首页指向的唯一一篇已带 AI 评审的帖子，让未登录访客先读到真实评审，再决定要不要注册。它写入的评审是一条**录制**：脚本真实走一遍发帖，把管线写回的评论与 ai_review_log 行逐字复制进 `src/main/resources/showcase/`，评分与严重度从那份 JSON 里解析出来，不是手写文案。因此它证明的是"管线当时输出了什么"，不证明模型此刻可达（ADR-0010）。
+与 demo seed 是两件事：它只写一篇，作者必须是库里已存在的账号，且没有配置 `campus.showcase.post-id` 时什么都不做。
+_Avoid_: Showcase Channel, Demo Post, Sample Content, Fixture Post
+
 ## Channels
 
 - **announcements**: 系统公告、更新日志（仅管理员发帖）

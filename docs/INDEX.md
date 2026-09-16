@@ -53,6 +53,7 @@ alternatives that were rejected.
 | [evidence-credibility](tickets/evidence-credibility.md) | Making the CI gate and the ops evidence trustworthy |
 | [contract-and-product-loop](tickets/contract-and-product-loop.md) | HTTP contract truthfulness, frontend regression tests, product funnels, mobile reach |
 | [next-cycle-backlog](tickets/next-cycle-backlog.md) | Deferred work, refiltered by the portfolio direction — a backlog, not a plan |
+| [portfolio-showcase](tickets/portfolio-showcase.md) | A4/A6: the landing-page review a signed-out visitor reads, and why it is a recording |
 
 ## Plans — `docs/plans/`
 

@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-344%20Java%20%2B%2029%20frontend-brightgreen)
+![Tests](https://img.shields.io/badge/tests-346%20Java%20%2B%2033%20frontend-brightgreen)
 ![License](https://img.shields.io/badge/license-MIT-blue)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -16,9 +16,11 @@ Nexus-Vibe is a full-stack AI developer community platform — a modern replacem
 **https://qualifier-discuss-marry.ngrok-free.dev**
 
 No account needed to see what this project is actually about. The home page links one
-already-reviewed post, and `/post/900000000000000001` renders the AI review the live pipeline
-produced for it - score, severity, verdict, findings - to a signed-out visitor. The seed is
-display-only: it is a row set written once, not a fixture the app switches to.
+already-reviewed post, and `/post/900000000000000001` renders the AI review recorded from a
+real pipeline run - score, severity, verdict, findings - to a signed-out visitor. It is a
+recording rather than a live call, and `benchmark/showcase/` holds the script that produced it
+so the claim is reproducible rather than asserted. The seed is display-only: a row set written
+once, not a fixture the app switches to.
 
 New here? [AGENTS.md](AGENTS.md) is the working contract and [docs/INDEX.md](docs/INDEX.md) maps
 every document in the repository. Both exist because this project has been picked up by several
@@ -392,15 +394,15 @@ curl http://localhost:8081/api/v1/users/2/summary
 
 ## Testing
 
-2026-09-17 实测：后端 **344 用例 / 55 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **29 用例 / 7 个文件**，告警桥 **17 条** Python 单测。
+2026-09-17 实测：后端 **346 用例 / 55 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **33 用例 / 8 个文件**，告警桥 **17 条** Python 单测。
 
 后端除了 H2 集成与 Mockito 单测，还有三条"读源码"的契约扫描：controller 签名不许出现 entity、测试不许把 `isOk()` 和非 200 的 `code` 配成一对、每个 `apiClient.` 调用都要落在有 `catch` 的 `try` 或 react-query 里。前端拦截器那 7 条走真实 axios，只把 `adapter` 换成假的，所以 401 刷新、单飞、重放、5xx 追踪号都是真跑；并且用两次变异验证过它们不是摆设：把 `if (!refreshPromise)` 改成 `if (true)` 只红那一条并发刷新的用例，塞一个裸 `apiClient.get` 会让扫描报出文件名与行号。
 
 ```bash
-mvn test                      # 344 tests: unit + H2 integration + the three source-scanning contract checks
+mvn test                      # 346 tests: unit + H2 integration + the three source-scanning contract checks
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 29 tests: axios interceptor, login page, AI review panel, call-site scan
+cd frontend && npm run test   # 33 tests: axios interceptor, login page, AI review panel, comment body, call-site scan
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 17 tests: Feishu sign + body
 ```
 
