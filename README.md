@@ -15,6 +15,10 @@ Nexus-Vibe is a full-stack AI developer community platform — a modern replacem
 
 **https://qualifier-discuss-marry.ngrok-free.dev**
 
+New here? [AGENTS.md](AGENTS.md) is the working contract and [docs/INDEX.md](docs/INDEX.md) maps
+every document in the repository. Both exist because this project has been picked up by several
+different agents, and "where does this go" kept being re-decided.
+
 The whole stack runs on one Windows machine behind an ngrok tunnel: nginx -> Spring Boot ->
 MySQL / Redis / Elasticsearch, with the LLM pointed at a hosted OpenAI-compatible endpoint.
 Registering an account is enough to try it; publish a post containing a code block and an
