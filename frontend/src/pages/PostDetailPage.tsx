@@ -10,6 +10,7 @@ import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import Avatar from '../components/Avatar';
+import CommentBody from '../components/CommentBody';
 import CodeBlock from '../components/CodeBlock';
 import { AiReviewTerminal } from '../components/AiReviewTerminal';
  import { DecryptedText } from '../components/ui/DecryptedText';
@@ -615,7 +616,7 @@ export default function PostDetailPage() {
                         {isAi && <span className="text-[10px] font-mono text-vibe-purple bg-vibe-purple/10 border border-vibe-purple/30 rounded px-1">AI</span>}
                         <span className="text-[10px] font-mono text-slate-600">{timeAgo(comment.createTime)}</span>
                       </div>
-                      <p className="text-xs font-mono text-slate-400 leading-relaxed">{comment.content}</p>
+                      <CommentBody content={comment.content} />
                     </div>
                   </div>
                 </motion.div>

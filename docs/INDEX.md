@@ -22,6 +22,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0007](adr/0007-degraded-status-is-not-unhealthy.md) | A degraded dependency degrades the service; it does not fail the container |
 | [0008](adr/0008-bootstrap-admin-and-empty-production-seed.md) | The production seed is empty and the administrator is bootstrapped once from the environment |
 | [0009](adr/0009-scope-is-done-at-deployment.md) | The deliverable stops at a completed deployment |
+| [0010](adr/0010-the-showcase-review-is-a-recording.md) | The landing page shows a recorded pipeline run, not prose that resembles one |
 
 ## Measurements — `docs/research/`
 
@@ -52,6 +53,7 @@ alternatives that were rejected.
 | [evidence-credibility](tickets/evidence-credibility.md) | Making the CI gate and the ops evidence trustworthy |
 | [contract-and-product-loop](tickets/contract-and-product-loop.md) | HTTP contract truthfulness, frontend regression tests, product funnels, mobile reach |
 | [next-cycle-backlog](tickets/next-cycle-backlog.md) | Deferred work, refiltered by the portfolio direction — a backlog, not a plan |
+| [portfolio-showcase](tickets/portfolio-showcase.md) | A4/A6: the landing-page review a signed-out visitor reads, and why it is a recording |
 
 ## Plans — `docs/plans/`
 
