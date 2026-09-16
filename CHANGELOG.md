@@ -98,6 +98,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The Docker smoke gate had never passed once, and its own condition is what hid it.**
+  `.github/workflows/maven.yml` passed `-e JWT_SECRET='ci-...0000'`: a redaction-styled placeholder
+  committed as a real value. `JwtUtil.init()` base64-decodes that string before `Keys.hmacShaKeyFor`
+  sees it, and `-` (0x2d) is not in the base64 alphabet, so the application context died at startup
+  (`java.lang.IllegalArgumentException: Illegal base64 character 2d`; reproduced locally with
+  `scratch/smoke-repro.ps1`). All six master pushes from `0f7860f` to `70143fc` failed at that step
+  and no other, while every PR was green by construction — the step carried
+  `if: github.event_name == 'push'`, so the only ref it ran on was already red before anyone looked,
+  and four merges inherited it. The secret is now standard base64 decoding to 37 bytes; the step runs
+  wherever the docker job runs, which on a PR means the image inputs moved; and
+  `.github/workflows/maven.yml` joined the `docker-changes` filter, so a PR that edits only the
+  workflow still builds and smokes the image. The two `smokep...word` placeholders beside it were
+  harmless — any string is a valid MySQL password — and are gone for the same reason. What this does
+  not prove: the smoke covers boot and `/actuator/health` on the `prod` profile with Elasticsearch
+  and Ollama absent. It is a liveness check, not a functional test
 - **Round six, what was actually on fire**: `POST /api/v1/auth/login` with a wrong password returned
   `200 {"code":401}` on the live deployment, and so did a missing post with `404` — every consumer reading a
   status (nginx logs, `http_server_requests_*`, the 5xx-ratio alert rule, any HTTP client) was reading a number
