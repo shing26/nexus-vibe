@@ -137,3 +137,33 @@
       这一段走的是 `benchmark/observability/drill.ps1` 的 `non-root-app-and-the-root-owned-volume-upgrade` 真路径：它先把两个卷 chown 回 root（并留一个哨兵文件证明没修错卷），再按上面的命令修回来，另外断言「退到 `/tmp` 的日志真的在写」和「重启后 `/app/logs` 的 mtime 前进」。该步骤第一次执行（2026-09-16）是红的，红在 crash loop 那一处；entry point 的目录探测是看完现场之后才加的。
 - [ ] `web` 的 `depends_on` 保持 `service_started`，**不要**改 `service_healthy`：那也能消掉 nginx 的启动竞态，但代价是 app 真死的时候连静态页一起起不来，正是 ADR-0007 要避免的失败形态。
 - [ ] 本轮不动 `nginx-unprivileged`：它要换监听端口（80→8080）、compose 映射、日志路径三处，值得单独一轮带验证的改动，而不是顺路捎带。`web` 容器仍以 root 运行 nginx master（worker 是 `nginx` 用户），这一条如实记为未完成。
+
+## 公网部署（2026-09-16，方向 A · 面试作品）
+
+> 结论：**已上线**。地址 `https://qualifier-discuss-marry.ngrok-free.dev`，
+> 本机 `docker compose` 全栈 + ngrok 隧道。下面每条都是实测，不是计划。
+
+- [x] **选 ngrok 而不是 Cloudflare Tunnel 的原因**：`cloudflared tunnel create` 需要先 `login`，
+  而命名隧道要往 `nexus-vibe.shing26.is-a.dev` 写一条 CNAME——本机没有该子域的 DNS 编辑权
+  （`cert.pem` 与 `~/.cloudflared/config.yml` 都不存在，且 is-a.dev 公共注册库里查不到 `shing26.json`）。
+  ngrok 免费层提供账号绑定的固定 dev domain，重启不变，且完全不碰 DNS。
+- [x] **代价如实记下**：该域名与 `nexus-vibe.shing26.is-a.dev`、`localhost:8080` 一起写进
+  `CORS_ALLOWED_ORIGINS`，少了任何一项前端都会"页面能开、所有 API 403"。这条已写进 README，
+  因为浏览器控制台里它长得像站点坏了。
+- [x] **ngrok 免费层的插页实测清楚了**：一个从没见过该域名的浏览器会先看到 ngrok 的
+  "Visit Site" 警告页（2900 字节，标题为空），点一次后写入 `abuse_interstitial` cookie，
+  7 天内不再出现。API 客户端不受影响；浏览器导航**无法**用
+  `ngrok-skip-browser-warning` 头绕过，因为导航不能带自定义头。
+- [x] 公网暴露面：`/` 200、`/api/v1/channels` 200 且返回真实 JSON、`/actuator/health` 200；
+  `/actuator/prometheus`、`/actuator/health/deps`、`/actuator/info` 全部 **404**。
+- [x] 真实浏览器端到端（Playwright，公网地址）：过掉插页 → 首页标题 `Nexus-Vibe`（29913 字节真实页面）
+  → 浏览器 `fetch('/api/v1/channels')` 拿到真实数据 → 注册 → 登录 → **发帖成功**
+  → 跳到 `/post/2100108239693271041` → 异步 **AI 评审写回评分 5**，
+  日志里 `agent-llm-1` 与请求线程共享同一 `traceId`。
+- [x] 隧道常驻脚本入库：`scripts/tunnel-ngrok.ps1`（同一域名不会起第二份）。
+- [ ] **开机自启未做**：`Register-ScheduledTask` 被系统拒绝（需要管理员权限，我没有自行提权），
+  所以隧道目前是手工进程。机器重启后需重跑 `pwsh scripts/tunnel-ngrok.ps1`，
+  或由管理员执行 README 里那条 `schtasks` 命令。
+- [ ] **落地页 / 免登录示例档案（A4）未做**：访客能看到首页，但看不到一份被策展的 AI 评审样本——
+  本项目最有说服力的产物仍要自己注册发帖才看得到。
+- [ ] **真人实证（A5）未做**：这是方向 A 里唯一"没有新数据产生"的一项，按 ADR-0009 维持不做。
