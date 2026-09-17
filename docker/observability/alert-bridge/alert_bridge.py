@@ -51,6 +51,28 @@ def feishu_sign(timestamp, secret):
     return base64.b64encode(digest).decode("ascii")
 
 
+def alert_value(alert):
+    """The reading behind an alert, from either wire shape, or None when there is none.
+
+    Grafana's webhook sends `"values": {"A": 44.23, "C": 1}` -- plain numbers keyed by refId. Some
+    other senders nest the same reading as `{"A": {"value": 44.23}}`. This used to assume the nested
+    shape everywhere and call `.get("value")` on whatever it found, which raised AttributeError for
+    any scalar that was not 0. That is the worst possible mask: `0` is falsy, so `up == 0` -- the
+    shape of a *failing* target -- sailed through while `up == 1` crashed the translation before
+    send() was ever reached. The alert never left the process and Feishu was never asked.
+
+    `0` comes back as 0, not None: a zero reading is a reading. See
+    docs/research/alert-bridge-values-shape-2026-09.md for the live evidence.
+    """
+    values = alert.get("values")
+    if not isinstance(values, dict):
+        return None
+    value = values.get("A")
+    if isinstance(value, dict):
+        return value.get("value")
+    return value
+
+
 def render_text(payload):
     state = payload.get("state") or "alerting"
     alerts = payload.get("alerts") or []
@@ -59,7 +81,7 @@ def render_text(payload):
     for alert in alerts:
         labels = alert.get("labels") or {}
         annotations = alert.get("annotations") or {}
-        value = ((alert.get("values") or {}).get("A") or {}).get("value")
+        value = alert_value(alert)
         detail = annotations.get("summary") or annotations.get("description") or ""
         line = "- %s (%s)" % (labels.get("alertname", "alert"), labels.get("severity", "-"))
         if value is not None:
@@ -170,8 +192,13 @@ class Handler(BaseHTTPRequestHandler):
             reply = deliver(payload)
             self._respond(200, reply)
         except Exception as error:
-            # A forward that fails must report why rather than drop the alert silently: Grafana
-            # keeps the notification state, and an unlogged 502 is how alerts go missing.
+            # The reason has to reach the log, not only the response body. Grafana keeps the
+            # notification state and records nothing but "webhook response status 502"; it shows
+            # the body to nobody. A reason that lives only in the body is a reason nobody reads,
+            # which is the failure this branch always claimed to prevent. 2026-09-17: a scalar
+            # `values` map raised here, and the bridge answered 502 every five minutes for the rest
+            # of the day with nothing in its log but the status code.
+            print("[alert-bridge] refused: %s" % error, flush=True)
             self._respond(502, json.dumps({"error": str(error)}).encode("utf-8"))
 
     def do_GET(self):

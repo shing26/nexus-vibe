@@ -4,14 +4,22 @@ The signature is the part that fails in production and succeeds in a manual curl
 specified by a vendor page rather than by a type system. Both the algorithm and the request body
 are therefore pinned against a fixed key and a fixed timestamp.
 
-The rest of the file covers the two ways this bridge can lose an alert without saying so: an empty
-FEISHU_ALERT_WEBHOOK, and Feishu answering HTTP 200 with a refusal in the body.
+The rest of the file covers the ways this bridge can lose an alert without saying so: an empty
+FEISHU_ALERT_WEBHOOK, Feishu answering HTTP 200 with a refusal in the body, and -- learned the hard
+way on 2026-09-17 -- a payload whose shape the translation assumed instead of recording. The last
+one has its evidence in docs/research/alert-bridge-values-shape-2026-09.md.
 
 Run: python -m pytest docker/observability/alert-bridge -q
 """
 
+import contextlib
+import io
 import json
+import threading
 import unittest
+import unittest.mock as mock
+import urllib.error
+import urllib.request
 
 import alert_bridge
 
@@ -39,7 +47,11 @@ GRAFANA_PAYLOAD = {
             "annotations": {
                 "summary": "The breaker is open, so every AI review is failing fast.",
             },
-            "values": {"A": {"value": 1}},
+            # Grafana's documented webhook shape: plain numbers keyed by refId, not the
+            # {"A": {"value": 1}} nesting this fixture used to carry. That nesting is a shape some
+            # other senders use, and it is kept working by ValueShapeTest below -- but it is not
+            # what Grafana sends, and pretending it was cost an afternoon of undelivered alerts.
+            "values": {"A": 1},
         }
     ],
 }
@@ -75,15 +87,73 @@ class BodyTest(unittest.TestCase):
         self.assertNotIn("timestamp", body)
 
     def test_resolved_state_survives_the_translation(self):
-        payload = {"state": "resolved", "title": "all clear", "alerts": []}
+        # The 2026-09-17 outage in one payload. The old version of this test carried `alerts: []`,
+        # so it asserted the state prefix and never touched the line that broke: a resolved
+        # notification is a real alert whose value is non-zero (`up == 1`), and the translation
+        # raised AttributeError on it before send() was reached. A test named for the failure that
+        # cannot reach it is worse than no test, because it reads as coverage.
+        payload = {
+            "state": "ok",
+            "title": "[RESOLVED] Prometheus has not been able to scrape the app for 2m",
+            "alerts": [
+                {
+                    "status": "resolved",
+                    "labels": {
+                        "alertname": "Prometheus has not been able to scrape the app for 2m",
+                        "severity": "critical",
+                    },
+                    "annotations": {"summary": "the target came back"},
+                    "values": {"A": 1},
+                }
+            ],
+        }
         body = alert_bridge.build_body(payload, FIXED_TIMESTAMP, FIXED_SECRET)
-        self.assertEqual("[Nexus-Vibe] resolved: all clear", body["content"]["text"])
+        self.assertEqual(
+            "[Nexus-Vibe] ok: [RESOLVED] Prometheus has not been able to scrape the app for 2m\n"
+            "- Prometheus has not been able to scrape the app for 2m (critical) current=1: "
+            "the target came back",
+            body["content"]["text"],
+        )
 
     def test_empty_payload_does_not_raise(self):
         # Grafana can post a notification with no alerts (e.g. a recovered group); a crash here
         # would answer 502 and hide the fact that the rule actually recovered.
         body = alert_bridge.build_body({}, FIXED_TIMESTAMP, FIXED_SECRET)
         self.assertEqual("[Nexus-Vibe] alerting: 0 alert(s)", body["content"]["text"])
+
+
+class ValueShapeTest(unittest.TestCase):
+    """`values` is the field that took the bridge down, so every shape it must survive is pinned."""
+
+    def render(self, values):
+        return alert_bridge.render_text({
+            "state": "ok",
+            "title": "t",
+            "alerts": [{"labels": {"alertname": "A", "severity": "critical"},
+                        "annotations": {}, "values": values}],
+        })
+
+    def test_grafana_scalars_render(self):
+        # The documented Grafana shape, and the one that raised whenever the number was not 0.
+        self.assertEqual("[Nexus-Vibe] ok: t\n- A (critical) current=1", self.render({"A": 1}))
+
+    def test_zero_is_a_reading_and_not_an_absence(self):
+        # min_over_time(up{job="nexus-vibe"}[2m]) is 0 exactly while the target is down, so this is
+        # the value a firing notification carries. It is falsy, which is what hid the bug: the old
+        # expression fell through `or {}` to "no reading" instead of crashing, and only the
+        # non-zero half was loud.
+        self.assertEqual("[Nexus-Vibe] ok: t\n- A (critical) current=0", self.render({"A": 0}))
+
+    def test_a_nested_reading_still_renders(self):
+        self.assertEqual("[Nexus-Vibe] ok: t\n- A (critical) current=1",
+                         self.render({"A": {"value": 1}}))
+
+    def test_absent_values_render_without_a_reading(self):
+        self.assertEqual("[Nexus-Vibe] ok: t\n- A (critical)", self.render(None))
+
+    def test_an_unknown_shape_does_not_drop_the_alert(self):
+        # A list where a map belongs is a vendor change, not a reason to lose the notification.
+        self.assertEqual("[Nexus-Vibe] ok: t\n- A (critical)", self.render([1, 2]))
 
 
 class ConfigurationTest(unittest.TestCase):
@@ -189,6 +259,36 @@ class DigestTest(unittest.TestCase):
         # delivery of a rule that never fired.
         self.assertEqual(1, len(digest.splitlines()))
         self.assertIn("Prometheus cannot scrape the app", digest)
+
+
+class RefusalLogTest(unittest.TestCase):
+
+    def test_a_502_puts_its_reason_in_the_log_and_not_only_in_the_body(self):
+        # Grafana records "webhook response status 502" and shows the body to nobody, so a reason
+        # that stays in the body is a reason nobody reads. The absence of this assertion is why the
+        # 2026-09-17 regression could answer 502 every five minutes for an afternoon while the only
+        # thing in `docker logs alert-bridge` was the status code.
+        server = alert_bridge.ThreadingHTTPServer(("127.0.0.1", 0), alert_bridge.Handler)
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        try:
+            captured = io.StringIO()
+            with mock.patch.object(alert_bridge, "WEBHOOK_URL", "http://127.0.0.1:9/dead"):
+                with contextlib.redirect_stdout(captured):
+                    request = urllib.request.Request(
+                        "http://127.0.0.1:%d/notify" % server.server_address[1],
+                        data=json.dumps(GRAFANA_PAYLOAD).encode("utf-8"),
+                        headers={"Content-Type": "application/json"},
+                        method="POST",
+                    )
+                    with self.assertRaises(urllib.error.HTTPError) as raised:
+                        urllib.request.urlopen(request, timeout=5)
+            self.assertEqual(502, raised.exception.code)
+            log = captured.getvalue()
+            self.assertIn("[alert-bridge] refused:", log)
+            self.assertIn("failed:", log)
+        finally:
+            server.shutdown()
+            server.server_close()
 
 
 def fake_sender(reply):

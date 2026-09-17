@@ -106,6 +106,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- **The alert bridge dropped every notification whose value was not zero, and its own log said only
+  "502".** Grafana's webhook sends `values` as plain numbers keyed by refId (`{"B": 44.23943...,"C":1}`);
+  `render_text` assumed the Alertmanager nesting `{"A": {"value": N}}` and called `.get("value")` on the
+  scalar, raising `AttributeError` *before* `send()` was reached. `0` is falsy, so `(0 or {})` fell
+  through to "no reading" and only the non-zero half was loud — on 2026-09-17 that meant the scrape
+  rule's FIRING (A = 0) was delivered in 462 ms while its three RESOLVED retries (A = 1) each failed in
+  under 0.2 ms, every five minutes, with `docker logs nexus-grafana` recording nothing but "webhook
+  response status 502". Three surfaces had invented the payload rather than recorded it: the unit
+  fixture used the nesting, the test named `test_resolved_state_survives_the_translation` passed
+  `alerts: []` and so never reached the line, and the drill's hand-built payload carried no `values`
+  field at all. `alert_value()` now accepts both shapes and returns `0` as a reading; the 502 branch
+  prints its reason, which the comment above it had always claimed it did; the drill sends
+  `values = @{ A = 1 }`. Evidence and the method for the timings:
+  [alert-bridge-values-shape-2026-09.md](docs/research/alert-bridge-values-shape-2026-09.md)
 - **The Docker smoke gate had never passed once, and its own condition is what hid it.**
   `.github/workflows/maven.yml` passed `-e JWT_SECRET='ci-...0000'`: a redaction-styled placeholder
   committed as a real value. `JwtUtil.init()` base64-decodes that string before `Keys.hmacShaKeyFor`
