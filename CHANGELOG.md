@@ -120,7 +120,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   prints its reason, which the comment above it had always claimed it did; the drill sends
   `values = @{ A = 1 }`. Deployed to the running stack, the next retry of that same RESOLVED
   delivered in 607 ms and the retry loop stopped — the same payload, the same group, 200 instead of
-  502. Evidence and the method for the timings:
+  502. CI also gained an `alert-bridge` job, because it had none: neither these tests nor the
+  bridge's image had ever been built or run on a pull request, which is why "17 green" was a fact
+  about one laptop. Evidence and the method for the timings:
   [alert-bridge-values-shape-2026-09.md](docs/research/alert-bridge-values-shape-2026-09.md)
 - **The Docker smoke gate had never passed once, and its own condition is what hid it.**
   `.github/workflows/maven.yml` passed `-e JWT_SECRET='ci-...0000'`: a redaction-styled placeholder

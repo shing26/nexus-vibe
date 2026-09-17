@@ -93,6 +93,8 @@ python -c "import alert_bridge as a; print(a.render_text({'state':'ok','title':'
 - fixture 换成 Grafana 的真形状；新增 `ValueShapeTest` 钉住两种形状、`0`、缺失、未知形状；
 - 新增 `RefusalLogTest`：起一个真的 HTTP 服务，断言 502 的原因进了 stdout；
 - 演练载荷补上 `values = @{ A = 1 }`，让这一步以后能看见这个类别的回归。
+- CI 加了 `alert-bridge` job：跑这些单测并构建桥的镜像。在此之前整个 workflow 对这个目录
+  零覆盖 —— 没有跑过它的测试，也没有构建过它的镜像，所以"17 条全绿"只是本机的事实。
 
 验证：`cd docker/observability/alert-bridge && python -m unittest test_alert_bridge` → 23 条通过；
 换上新代码后 Grafana 的下一次重试（01:53:47）以 200 送达，重试随之停止。

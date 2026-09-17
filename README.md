@@ -483,8 +483,10 @@ python benchmark/observability/check_panels.py    # 每个面板表达式查一�
 python benchmark/observability/render_panels.py   # 无头浏览器真的渲染三张 dashboard，需先起 render 栈
 ```
 
-CI（`.github/workflows/maven.yml`）只跑 `mvn test`：告警桥的 Python 单测与演练脚本都在本地跑，
-演练结论见 [docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
+CI（`.github/workflows/maven.yml`）跑：后端 `mvn test`（含三条源码扫描）、前端 lint + `npm run test` + build、
+告警桥的 23 条 Python 单测与它自己的镜像构建、以及 app / web 两个镜像的构建（master 上还带那个 smoke）。
+演练脚本仍只在本地跑，它要 Docker 和十几分钟；结论见
+[docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
 
 ## Running the live instance
 
