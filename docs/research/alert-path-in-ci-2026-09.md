@@ -95,8 +95,23 @@ ADR-0007 让它们的缺席是 DEGRADED 而不是致命）。三个容器就够�
 - **本机测不了 CI 那一段的镜像构建**：这台机器取不到 `registry-1.docker.io`（
   `maven:3.9-eclipse-temurin-21` manifest 超时），所以本机验的是"compose 起三个容器 + 筛选后的
   三步"，镜像构建那一段由 CI 自己证明。这与仓库对 app / web 镜像的既有口径一致。
-- **新 job 的耗时还没有实测。** 现在它挂在已有的 `docker` job 里（约 160-185 秒，含两个镜像与 smoke），
-  多起来的只有三个容器和一个 MySQL 首次初始化。这条写下来是为了下次有人看 CI 时间时能对得上，
-  不是为了宣布它一定在十分钟以内。
 - 这里跑的是**没有 ES / Ollama 的形态**。第 3 步只读指标名，不依赖那两个依赖，但"完整 prod 形态下的
   这一步"仍然只有本地演练在跑。
+
+## 六、第一次真跑（2026-09-17，run 35175845366）
+
+这一段本来写的是"耗时还没实测"，PR 打开后就成了实测值，所以把它换掉而不是留着一句过时的免责：
+
+```
+drill app answered /actuator/health on attempt 3
+    PASS  3 of 13 refused, rate_limit_rejected_total=3
+    PASS  6 rules, 6 expressions, metrics named: llm_circuit_breaker_open, ai_review_pending_posts,
+          http_server_requests_seconds_count, rate_limit_rejected_total
+    PASS  nexus-llm-breaker-open=Alerting  nexus-ai-review-backlog=Alerting  nexus-http-5xx-ratio=OK
+          nexus-rate-limit-spike=OK  nexus-prometheus-scrape-failed=Alerting  nexus-availability-999-fast-burn=OK
+23 steps, 3 run (20 skipped by -Only), 0 failed
+```
+
+三个容器从 `compose up` 到 app 答话用了 3 次探测（约 25 秒），三步断言本身 **20 秒**，
+整个 `docker` job **2 分 34 秒** —— 与加这一段之前的 2 分 39 秒 / 2 分 59 秒 / 3 分 02 秒同量级，
+也就是说这段挤进的是缓存命中的空隙，不是十分钟预算的边角。
