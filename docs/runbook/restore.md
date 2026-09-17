@@ -343,6 +343,27 @@ startup, the transport then failed, and the endpoint said *0 indexed, 32 failed,
 implementation this replaced returned `reindexed: 32` for the identical call, because 32 was the
 number of rows MySQL had handed it.
 
+### Who runs this, and when
+
+[ADR-0011](../adr/0011-search-may-lag-until-an-operator-rebuilds.md) accepts that search may lag
+until this section is run, so the trigger has to be somebody's decision rather than nobody's. It is
+whoever is on the other end of the alert channel, and three events call for it:
+
+- **After any restore** (section 6). The index is in no dump, and an Elasticsearch that answers an
+  empty index with `200` and zero hits is a site that reads as healthy and cannot find its own posts.
+- **After an Elasticsearch outage that overlapped writes.** Posts are indexed on create and again on
+  approve, and nowhere else. A post whose create *and* approve both landed inside the outage stays
+  out of full-text search until this runs. Measured 2026-09-17: during the outage both test posts
+  were findable through the MySQL fallback, and once Elasticsearch answered again the newer one went
+  back to `total: 0`.
+- **After a restart that happened while Elasticsearch was down.** `esAvailable` is read once at
+  startup, so an app that starts without Elasticsearch indexes nothing for the rest of that
+  process's life, and says nothing after the boot line. Measured: with the app restarted against a
+  stopped cluster, a later published post left the index count unchanged at 3.
+
+Nothing schedules this. A drift sweep was the other candidate and was rejected, with the reasons, in
+the ADR.
+
 The scratch project was then removed with `down -v` (0 volumes left matching `nexus-restore-test`) and
 the live stack was `Up 2 days` and untouched throughout - including the accidental-account cleanup
 noted in section 1.
@@ -458,9 +479,13 @@ Volume inventory for that set: 5 of the 8 declared volumes exist on this host. T
   port rule that would have prevented it. This is the best argument in this file for executing a
   rehearsal instead of reviewing one: no read-through catches it, and the runbook's own earlier claim
   that the published port "cannot collide with a running site" was part of the cause.
-- **Index-on-read repair is still undefined.** A post written while ES is down gets indexed on its
-  next successful write and nothing sweeps the difference. Section 7's reindex is the blunt fix, and
-  nobody has decided whether it should also run on a schedule.
+- **Index drift is decided, not detected.** A post written while ES is down gets indexed on its next
+  successful write and nothing sweeps the difference. That is now a decision rather than an open
+  question: [ADR-0011](../adr/0011-search-may-lag-until-an-operator-rebuilds.md) accepts the lag, makes
+  section 7's rebuild the remedy, and makes the trigger an operator rather than a schedule - "should it
+  also run on a timer" is answered, and the answer is no. What is still unproven here is the
+  *detection*: no component compares the index against MySQL, so a stale index is invisible from inside
+  the process, and this rehearsal does not show otherwise.
 - A restore into a *real* disaster - a dead volume, an app pinned to the restored database, DNS and
   TLS back in the picture - was not attempted. This proves the artifacts are readable and the
   commands work, on a healthy host, next to a running site.

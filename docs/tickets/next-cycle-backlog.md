@@ -46,12 +46,17 @@ evidence, or the public address?**
 
 Revised order: **OPS-1 -> OPS-2 -> OPS-3 -> SEARCH-1's ADR**, with FE-1 optional.
 
-Progress on that order (2026-09-17): **OPS-1 and OPS-2 are closed** -- the alert path has delivered a
-real message to a real group and the public address is live. What is left of the sequence is
-**OPS-3**, then SEARCH-1's ADR. Neither closure went the way the tickets expected: OPS-1's negative
-check surfaced a defect that was swallowing every alert, and OPS-2 traded Cloudflare for ngrok
-because the ticket's hostname was not one this machine could route. Both are written into the
-tickets below rather than smoothed over.
+Progress on that order (2026-09-17): **the sequence is done.** OPS-1 and OPS-2 are closed -- the alert
+path has delivered a real message to a real group and the public address is live. OPS-3 moved three
+drill steps into CI and left its rollback half manual on purpose. SEARCH-1 is decided: the lag is
+accepted and the rebuild is an operator's remedy (ADR-0011). What is left of the verdict table is
+FE-1, and it is optional.
+
+None of the three closures went the way its ticket expected, and all three are written below rather
+than smoothed over. OPS-1's negative check surfaced a defect that was swallowing every alert. OPS-2
+traded Cloudflare for ngrok, because the ticket's hostname was not one this machine could route.
+SEARCH-1's measurement showed that search returns **more** while Elasticsearch is broken than after it
+recovers -- which is not the failure the ticket assumed it was measuring.
 
 Deferred is not rejected. If the portfolio direction completes and the project is then
 taken toward real users, or extracted as a library, SEC-1, DB-1 and REL-1 come back
@@ -217,8 +222,32 @@ this size, and the existing `migrate-000x` files are already written in that sha
 
 ## SEARCH-1 - Decide the Elasticsearch reconciliation policy
 
-Status: open, and it is a decision before it is code. Posts written while ES is down are
-only indexed by the next successful write; nothing sweeps the difference.
+Status: **decided, 2026-09-17 - the lag is accepted.** The policy is
+[ADR-0011](../adr/0011-search-may-lag-until-an-operator-rebuilds.md) and the measurements behind it are
+in [es-index-lag-2026-09.md](../research/es-index-lag-2026-09.md). Both candidates the ticket named
+went into the ADR; the scheduled sweep was rejected on evidence rather than taste - it needs an
+`update_time` the index does not carry, and while `esAvailable` reads false `bulkIndex` answers
+`refused`, so a sweep would have reported failures instead of repairs.
+
+What decided it: **search returns more while Elasticsearch is broken than after it recovers.** A post
+published and approved during an outage is findable through the MySQL fallback, and disappears from
+search the moment the index answers again - 1 hit during the outage, 0 after recovery, 1 again after
+the full rebuild. The mirror case needs no outage at all: an app that boots with Elasticsearch down
+indexes nothing for the life of that process (`esAvailable` is assigned once in `@PostConstruct`), seen
+as an index that stayed at 3 documents while a fourth post was published and approved.
+
+The runbook half of the lag-accepted branch is done - `restore.md` section 7 now names who runs the
+rebuild and when, with the three triggers. The endpoint half, "the search endpoint explains an empty
+result rather than returning a bare empty list", is **not done**, and the ADR says why rather than
+leaving it as an unchecked box: the clause was written for the failure the measurement ruled out, and
+satisfying it needs either a new machine-readable response field or a per-query MySQL probe. The stale
+`esAvailable` flag is named in the ADR as a defect rather than a policy choice, and stays out of scope
+under ADR-0009. No drill step was added: the ticket asks for one only on the sweep branch.
+
+The line below is the open state this ticket was written in, kept as written:
+
+> Status: open, and it is a decision before it is code. Posts written while ES is down are
+> only indexed by the next successful write; nothing sweeps the difference.
 
 **Scope:** choose between a scheduled drift sweep and an accepted, documented lag, then
 implement whichever is chosen.
