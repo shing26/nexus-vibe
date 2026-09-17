@@ -168,6 +168,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   seam four tests hold. Found by opening the showcase page as a signed-out visitor, not by a test — which is the
   argument for having built the page
 
+- **The alert bridge reached Feishu only while DNS happened to hand back a working edge.** `open.feishu.cn`
+  publishes twenty A records, and `urllib.request.urlopen` keeps the first address whose *TCP* handshake
+  succeeds — the TLS handshake that follows has no such fallback. On 2026-09-17 one address accepted TCP in
+  1ms and then blackholed TLS while two neighbours finished in 36ms, so the old code failed after 5.03s with
+  `_ssl.c:993: The handshake operation timed out` (a message that names no alternative) while the new `send()`
+  delivered the identical body in 2.05s. This is the defect that was masking OPS-1's negative check: a
+  deliberately wrong secret has to come back as *reported*, and a network error was answering in its place.
+  `send()` now walks the resolved addresses itself, capping each at `CONNECT_TIMEOUT_SECONDS` (1.5s) inside the
+  call's overall `timeout`, and the address that answers keeps whatever time is left — so a recipient that is
+  slow to *respond* is never delivered to twice. The connection is pinned per address while the hostname still
+  carries SNI and the certificate check. Evidence, the live before/after, and what none of the new tests
+  reproduce: [alert-bridge-address-fallback-2026-09.md](docs/research/alert-bridge-address-fallback-2026-09.md)
+
 ### Security
 
 - **The app container runs as uid 10001**, not root (`appuser`, `--no-create-home`, `nologin`; the jar and
@@ -196,7 +209,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Testing
 
 - 331 JUnit cases in 53 classes (307/46 when the round started, 310 after R1, 317 after R2, 328 after R4),
-  **25 frontend tests in 6 files where the count was zero**, 17 alert-bridge Python tests unchanged. The new
+  **25 frontend tests in 6 files where the count was zero**, and 28 alert-bridge Python tests where the round
+  opened with 17 (23 after the values-shape fix, 28 after the address fallback). The new
   backend cases are the two contract scans, the error-semantics probes — `ErrorSemanticsTest` uses strings copied
   from real failures, a duplicate-key MySQL message and an upstream LLM error body, so the assertion is about the
   leak rather than the class name — the funnel aggregate run on H2 so a typo cannot survive as "the unit test
