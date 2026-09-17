@@ -58,8 +58,19 @@
     be in the local image store" cannot promise that. Unset, the step takes the newest other tag
     and says which it picked.
 
+.PARAMETER Only
+    Run only the named steps. Every other step is still listed, marked SKIP, so the drill's step
+    numbering and its full shape stay readable whichever subset ran. CI uses this to run three
+    alert steps on every pull request; the rest need a live LLM or a long wait and stay manual.
+    Naming a step that does not exist is an error rather than a quiet no-op, because a renamed
+    step would otherwise turn the gate into a green run of nothing.
+
 .EXAMPLE
     pwsh -File benchmark/observability/drill.ps1
+
+.EXAMPLE
+    pwsh -File benchmark/observability/drill.ps1 -SkipBuild -Keep `
+        -Only alert-no-data-policy-is-per-rule, alert-rules-select-real-metrics
 #>
 [CmdletBinding()]
 param(
@@ -68,7 +79,8 @@ param(
     [int]$WebPort = 18080,
     [int]$StartupTimeoutSec = 240,
     [int]$RecoveryTimeoutSec = 600,
-    [string]$RollbackTag = ''
+    [string]$RollbackTag = '',
+    [string[]]$Only = @()
 )
 
 $ErrorActionPreference = 'Stop'
@@ -104,6 +116,19 @@ $composeArgs = @('compose', '-p', 'nexus-drill',
                  '--profile', 'monitoring', '--profile', 'drill')
 
 $script:results = New-Object System.Collections.Generic.List[object]
+
+# Step names are compared with -contains, so a comma-separated list from a shell arrives as
+# separate elements and a whitespace-padded one still matches after Trim.
+$script:only = @($Only | ForEach-Object { $_ -split ',' } | ForEach-Object { $_.Trim() } |
+                 Where-Object { $_ })
+
+# One predicate for "should this step run", shared by Step itself and by the bring-up below. The
+# bring-up is not a step, so a filtered run that does not select stack-up would otherwise still
+# build and start the whole project -- pulling Elasticsearch and Ollama for two file reads.
+function Test-StepSelected {
+    param([string]$Name)
+    return (-not $script:only.Count) -or ($script:only -contains $Name)
+}
 
 # The uids rules.yaml declares, in one place: one step checks the file lists them, another checks
 # the alerting engine loaded them, and they must not be able to drift apart.
@@ -175,6 +200,14 @@ function Write-Evidence {
 function Step {
     param([string]$Name, [scriptblock]$Body)
     Write-Host "==> $Name"
+    if (-not (Test-StepSelected -Name $Name)) {
+        # Listed, not omitted: the drill's value is partly that its shape is readable, and a
+        # filtered run that printed only two lines would hide which of the twenty-three ran.
+        $script:results.Add([pscustomobject]@{ Name = $Name; Status = 'SKIP'; Detail = 'not selected by -Only' })
+        Write-Evidence "result $Name" 'SKIP not selected by -Only'
+        Write-Host '    SKIP  not selected by -Only' -ForegroundColor DarkGray
+        return
+    }
     try {
         $detail = & $Body
         $script:results.Add([pscustomobject]@{ Name = $Name; Status = 'PASS'; Detail = "$detail" })
@@ -286,7 +319,11 @@ Write-Host "Nexus-Vibe observability drill - evidence: $evidencePath" -Foregroun
 # drill on the same project does not get a second stack: it gets "Conflict. The container name
 # /nexus-drill-db is already in use", halfway through a build, from whichever of the two arrives
 # last. That cost a run. Say it here instead, where the fix is one command.
-$leftover = Invoke-Docker -Cmd @('ps', '-a', '--filter', 'name=nexus-drill-', '--format', '{{.Names}}')
+# Only when this run owns the bring-up. Under -Only without stack-up the caller started those
+# containers on purpose, and refusing them would make the filtered form unusable.
+$leftover = if (Test-StepSelected -Name 'stack-up') {
+    Invoke-Docker -Cmd @('ps', '-a', '--filter', 'name=nexus-drill-', '--format', '{{.Names}}')
+} else { '' }
 if ($leftover.Trim()) {
     throw ("drill containers from an earlier or concurrent run are still on this host:`n$leftover`n" +
            'Tear them down first (they are the drill project''s own, never a deployment):' +
@@ -295,11 +332,18 @@ if ($leftover.Trim()) {
            " --profile monitoring --profile drill down -v")
 }
 
-if (-not $SkipBuild) {
-    Write-Host 'building images (app, web, alert-bridge, llm-mock, webhook-sink)' -ForegroundColor DarkGray
-    Invoke-Compose -Cmd @('build') | Out-Null
+# A filtered run owns neither the build nor the bring-up: the caller decided which containers it
+# needs and started them, because that is the only way a CI job can skip Elasticsearch, Ollama and
+# the rest of the monitoring profile while still exercising the app's own metrics endpoint.
+if (Test-StepSelected -Name 'stack-up') {
+    if (-not $SkipBuild) {
+        Write-Host 'building images (app, web, alert-bridge, llm-mock, webhook-sink)' -ForegroundColor DarkGray
+        Invoke-Compose -Cmd @('build') | Out-Null
+    }
+    Invoke-Compose -Cmd @('up', '-d') | Out-Null
+} else {
+    Write-Host 'stack-up is not selected: leaving the build and bring-up to the caller' -ForegroundColor DarkGray
 }
-Invoke-Compose -Cmd @('up', '-d') | Out-Null
 
 Step 'stack-up' {
     Wait-For 'the app to answer /actuator/health' {
@@ -1073,15 +1117,33 @@ Step 'rollback-swaps-between-two-real-image-tags' {
 
 # --------------------------------------------------------------------------- report
 
-if (-not $Keep) {
+# A filtered run did not start the stack, so it has nothing to tear down; the caller that started
+# the project owns bringing it down. Without this, `-Only <file-only step>` would print a compose
+# error over an otherwise green run and read as a failure of the thing under test.
+if (-not $Keep -and (Test-StepSelected -Name 'stack-up')) {
     # Safe to purge: these are the drill project's own volumes, never a deployment's.
     Invoke-Compose -Cmd @('down', '-v') | Out-Null
 }
 
+$unknown = @($script:only | Where-Object { $_ -notin @($script:results | ForEach-Object { $_.Name }) })
+if ($unknown) {
+    # Not a warning: a typo or a renamed step would otherwise run zero of the assertions the
+    # caller believes it asked for, and exit 0.
+    Write-Host "no such step: $($unknown -join ', ')" -ForegroundColor Red
+    exit 2
+}
+
 $failed = @($script:results | Where-Object { $_.Status -eq 'FAIL' })
+$skipped = @($script:results | Where-Object { $_.Status -eq 'SKIP' })
+$ran = @($script:results | Where-Object { $_.Status -ne 'SKIP' })
 $lines = @('= Nexus-Vibe observability drill', "run: $stamp  web port: $WebPort", '')
 $lines += @($script:results | ForEach-Object { "[$($_.Status)] $($_.Name)`n    $($_.Detail)" })
-$lines += @('', "$($script:results.Count) steps, $($failed.Count) failed", "evidence: $evidencePath")
+$tally = if ($skipped.Count) {
+    "$($script:results.Count) steps, $($ran.Count) run ($($skipped.Count) skipped by -Only), $($failed.Count) failed"
+} else {
+    "$($script:results.Count) steps, $($failed.Count) failed"
+}
+$lines += @('', $tally, "evidence: $evidencePath")
 $summary = $lines -join "`n"
 
 Write-Host ''

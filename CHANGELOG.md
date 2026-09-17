@@ -229,6 +229,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - jsdom applies no media queries, so R6's layout claims were checked in a real browser at 390x844 instead: bar
   height, the footer clearing the bar at the bottom of the scroll (763.75 against 789), the menu not overlapping,
   and a 400-character line actually scrolling in the code box. Desktop at `lg` and above was not re-measured
+- **Three drill steps run on every pull request now, and the drill learned to run a subset.**
+  `drill.ps1 -Only` runs the named steps and marks the other twenty SKIP, so the manual run keeps all
+  twenty-three steps and the workflow does not restate any assertion. What moved in is
+  `rate-limit-rejects-and-counts`, `alert-no-data-policy-is-per-rule` and `alert-rules-select-real-metrics` --
+  the last one being the check no unit test can make, since it reads the app's own metrics endpoint and
+  verifies that every metric an alert expression selects on exists in *this* build (it is what caught
+  `post.created` exporting as `post_total`). Two mutations proved the gate bites: renaming a metric in a rule
+  expression, and flipping `nexus-llm-breaker-open` back to `noDataState: OK`; both went red. One precondition
+  had to be written down rather than remembered -- `rate_limit_rejected_total` has no series until something is
+  actually rejected, so the live-scrape step fails on a healthy stack without the rate-limit step ahead of it.
+  The rollback step deliberately stayed manual: it refuses two tags pointing at one image id, and two genuinely
+  different images in CI means a second checkout, a second Maven stage and a second compose project. Why not
+  faking it with a label is in [alert-path-in-ci-2026-09.md](docs/research/alert-path-in-ci-2026-09.md), whose
+  final section also says what the run does not cover
 
 ### Added
 

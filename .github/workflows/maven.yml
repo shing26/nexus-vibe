@@ -43,6 +43,13 @@ jobs:
               # only this file skips the job entirely -- so the smoke below
               # could never be fixed or verified in the PR that changes it.
               - '.github/workflows/maven.yml'
+              # OPS-3: the alert path now runs inside this job, so the files it reads have to
+              # bring the job with them. Without these two, a PR that broke a rule or renamed a
+              # drill step would skip the job entirely and report success by omission -- the
+              # shape of failure this whole workflow keeps rediscovering.
+              - 'benchmark/observability/**'
+              - 'docker/observability/grafana/provisioning/**'
+              - 'docker/observability/alert-bridge/**'
 
       - name: Decide
         id: decide
@@ -289,3 +296,65 @@ jobs:
             exit 1
           fi
           curl -fsS http://localhost:8080/actuator/health
+
+      # OPS-3. The drill runs by hand on a developer machine; these are the steps from it that are
+      # cheap and deterministic enough to run here, and the middle one is the assertion no unit
+      # test can make: it reads the app's own metrics endpoint back and checks that every metric
+      # the alert expressions select on exists in *this* build. That is the check that caught
+      # `post.created` publishing as `post_total`; four green unit tests could not see it, because
+      # SimpleMeterRegistry keeps meter names verbatim.
+      #
+      # Same script, same step bodies: -Only selects a subset and marks the rest SKIP, so the
+      # assertions are not restated here where they would drift. `stack-up` is deliberately not
+      # selected, which is what stops the drill from building or bringing anything up itself --
+      # and the three containers below are all the selected steps need.
+      #
+      # `rate-limit-rejects-and-counts` is in the list as a precondition rather than a bonus.
+      # rate_limit_rejected_total has no series until something is actually rejected, so on a fresh
+      # app the live-scrape step fails without it. Measured 2026-09-17, which is also how the
+      # precondition got written down instead of remembered.
+      - name: Run the drill's alert steps
+        run: |
+          set -euo pipefail
+
+          # app declares `env_file: .env`, and .env is not in git. Building one from the shipped
+          # example doubles as a check that the example is still a working configuration.
+          cp .env.example .env
+          sed -i "s|^APP_TAG=.*|APP_TAG=${GITHUB_SHA}|" .env
+          sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=ci-drill-pw-not-a-secret|" .env
+          sed -i "s|^JWT_SECRET=.*|JWT_SECRET=bmV4dXMtdmliZS1jaS1zbW9rZS1zZWNyZXQtZG8tbm90LXVzZQ==|" .env
+          sed -i "s|^BOOTSTRAP_ADMIN_PASSWORD=.*|BOOTSTRAP_ADMIN_PASSWORD=ci-drill-admin-not-a-secret|" .env
+          export APP_TAG="${GITHUB_SHA}"
+          export WEB_PORT=18080
+
+          compose() {
+            docker compose -p nexus-drill \
+              -f docker-compose.yml -f benchmark/observability/docker-compose.drill.yml \
+              --profile monitoring --profile drill "$@"
+          }
+          # Clean up on failure too. A leftover nexus-drill-* container makes the next run of this
+          # job refuse to start, which presents as a flaky gate rather than as the leak it is.
+          trap 'compose down -v || true' EXIT
+
+          # --no-deps skips the app's declared Elasticsearch and Ollama dependencies on purpose:
+          # ADR-0007 makes their absence DEGRADED rather than fatal, which is the same reason the
+          # smoke above runs on MySQL and Redis alone.
+          compose up -d --no-deps db redis app
+
+          ok=0
+          for i in $(seq 1 60); do
+            if docker exec nexus-drill-app curl -fsS -o /dev/null http://localhost:8080/actuator/health; then
+              echo "drill app answered /actuator/health on attempt $i"
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ok" != "1" ]; then
+            echo "::error::the drill app never answered /actuator/health"
+            docker logs --tail 200 nexus-drill-app || true
+            exit 1
+          fi
+
+          pwsh -NoProfile -File benchmark/observability/drill.ps1 -SkipBuild \
+            -Only rate-limit-rejects-and-counts,alert-no-data-policy-is-per-rule,alert-rules-select-real-metrics

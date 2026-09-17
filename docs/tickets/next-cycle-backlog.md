@@ -298,8 +298,30 @@ without those changes trades one class of failure for another.
 
 ## OPS-3 - Prove the alert path and the rollback path in CI
 
-Status: open. The drill runs on a developer machine by hand. Two of its steps are
-cheap and deterministic enough to run on every pull request.
+Status: **the alert half is done, 2026-09-17; the rollback half is not.** Three drill steps now run
+inside the existing `docker` job -- `rate-limit-rejects-and-counts`,
+`alert-no-data-policy-is-per-rule` and `alert-rules-select-real-metrics` -- selected by a new
+`-Only` parameter that runs a subset and marks the rest SKIP, so the manual drill keeps all
+twenty-three steps and none of the assertions are restated in the workflow.
+
+Two mutations were used to check that the gate is not decorative: renaming a metric in a rule
+expression, and flipping `nexus-llm-breaker-open` back to `noDataState: OK`. Both turned CI red and
+exit 1. The subset also needed one precondition discovered by running it: `rate_limit_rejected_total`
+has no series until something is actually rejected, so without `rate-limit-rejects-and-counts` first,
+the live-scrape step fails on a perfectly healthy stack. All of it is measured in
+[alert-path-in-ci-2026-09.md](../research/alert-path-in-ci-2026-09.md).
+
+**What is not done:** the rollback step stayed manual. It refuses two tags that point at the same
+image id, and its own comment says why -- that would only prove compose interpolates a string. Two
+*genuinely* different images in CI means a second checkout of the base commit, a second Maven stage
+and a second compose project, which is its own budget; manufacturing two ids with a label bump would
+put back exactly what the assertion exists to catch. That is a "not done", not a "cannot be done",
+and it is the remaining work if OPS-3's rollback half is still wanted.
+
+The two paragraphs below are what the ticket asked for while it was open, kept as written:
+
+> Status: open. The drill runs on a developer machine by hand. Two of its steps are
+> cheap and deterministic enough to run on every pull request.
 
 **Scope:** pick the two steps that do not need a live LLM or a long wait, and run them in
 the GitHub workflow.

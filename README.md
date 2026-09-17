@@ -485,14 +485,17 @@ cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge 
 
 ```bash
 pwsh -File benchmark/observability/drill.ps1      # 23 步故障演练，另起 compose project，~15-25 分钟，需 Docker
+pwsh -File benchmark/observability/drill.ps1 -Only alert-rules-select-real-metrics   # 只跑某几步，其余标 SKIP
 python benchmark/observability/check_panels.py    # 每个面板表达式查一遍：error / empty / 有序列
 python benchmark/observability/render_panels.py   # 无头浏览器真的渲染三张 dashboard，需先起 render 栈
 ```
 
 CI（`.github/workflows/maven.yml`）跑：后端 `mvn test`（含三条源码扫描）、前端 lint + `npm run test` + build、
-告警桥的 28 条 Python 单测与它自己的镜像构建、以及 app / web 两个镜像的构建（master 上还带那个 smoke）。
-演练脚本仍只在本地跑，它要 Docker 和十几分钟；结论见
-[docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
+告警桥的 28 条 Python 单测与它自己的镜像构建、以及 app / web 两个镜像的构建（master 上还带那个 smoke 和
+演练里那三步告警断言）。
+演练的其余步骤仍只在本地跑，它要 Docker 和十几分钟；结论见
+[docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)，进 CI 的那三步
+见 [docs/research/alert-path-in-ci-2026-09.md](docs/research/alert-path-in-ci-2026-09.md)。
 
 ## Running the live instance
 

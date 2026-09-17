@@ -38,6 +38,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [observability-ops-review-2026-09](research/observability-ops-review-2026-09.md) | An external review of the observability and ops claims, and which of them held up |
 | [alert-bridge-values-shape-2026-09](research/alert-bridge-values-shape-2026-09.md) | A payload shape the bridge assumed instead of recording: why a non-zero value stopped every alert, and the three test surfaces that each missed it |
 | [alert-bridge-address-fallback-2026-09](research/alert-bridge-address-fallback-2026-09.md) | A CDN edge that accepts TCP and blackholes TLS: why urlopen retried nothing, the live before/after, and the wrong-secret check it had been masking |
+| [alert-path-in-ci-2026-09](research/alert-path-in-ci-2026-09.md) | Which three drill steps moved into CI, the precondition they turned out to need, the two mutations that proved the gate goes red, and why the rollback step did not |
 | [llm-model-upgrade-options](research/llm-model-upgrade-options.md) | Model selection: local 7B versus hosted APIs, on quality and cost |
 | [openai-code-review-prompt-strategies](research/openai-code-review-prompt-strategies.md) | Prompt strategies for structured code review output |
 | [production-readiness-assessment-2026-09](research/production-readiness-assessment-2026-09.md) | The readiness assessment that generated the P0/P1 work |
