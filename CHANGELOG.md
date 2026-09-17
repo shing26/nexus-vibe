@@ -120,6 +120,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   was written for the failure the measurement ruled out, and its honest implementations are a new response
   field or a per-query MySQL probe, which are tickets rather than clauses. Method, the endpoint behind every
   number, and what the run cannot prove: [es-index-lag-2026-09.md](docs/research/es-index-lag-2026-09.md)
+- **The reuse question got an answer with a plan under it.** Asked whether someone forking this repository
+  could point it at another subject, the honest answer was "the forum in the middle, yes; the review
+  pipeline, only by editing core files". The trigger rule ("posts containing fenced code blocks") turned
+  out to be stated three times in three wordings across two packages - the real gate in
+  `AiReviewEventListener`, a differently-worded copy in `VibePostServiceImpl.updatePost`, and the publish
+  gate in `createPost` - and the reviewer is one 477-line class that calls the model *and* writes the
+  comment, the score and the log row. The schema was already further along than the code:
+  `ai_review_log.reviewer` exists, two writers stamp `code-review-agent` / `safety-check-agent` into it, and
+  three mapper queries filter on the literal. [ADR-0012](docs/adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md)
+  publishes exactly two seams (`ReviewPolicy`, `Reviewer`, both `@ConditionalOnMissingBean`) and keeps the
+  pipeline's guarantees deliberately unconfigurable: the lease claim, the reconciliation task, fail-closed,
+  the terminal notification and review validity. It also records the defect found while sizing the work -
+  `campus.ai.review.enabled=false` disables the LLM safety check too, because the publisher gates both
+  events on the one flag, and neither flag appears on the env surface at all. Work is split into
+  [AI-1 to AI-4](docs/tickets/ai-review-seam.md). No code changed in this entry.
 
 ### Fixed
 

@@ -24,6 +24,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0009](adr/0009-scope-is-done-at-deployment.md) | The deliverable stops at a completed deployment |
 | [0010](adr/0010-the-showcase-review-is-a-recording.md) | The landing page shows a recorded pipeline run, not prose that resembles one |
 | [0011](adr/0011-search-may-lag-until-an-operator-rebuilds.md) | Search may lag until an operator rebuilds, and the rebuild is the price |
+| [0012](adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md) | The review pipeline is pluggable at two seams - the trigger rule and the reviewer - and only two |
 
 ## Measurements — `docs/research/`
 
@@ -59,6 +60,7 @@ alternatives that were rejected.
 | [contract-and-product-loop](tickets/contract-and-product-loop.md) | HTTP contract truthfulness, frontend regression tests, product funnels, mobile reach |
 | [next-cycle-backlog](tickets/next-cycle-backlog.md) | Deferred work, refiltered by the portfolio direction — a backlog, not a plan |
 | [portfolio-showcase](tickets/portfolio-showcase.md) | A4/A6: the landing-page review a signed-out visitor reads, and why it is a recording |
+| [ai-review-seam](tickets/ai-review-seam.md) | AI-1 to AI-4: making the trigger rule and the reviewer replaceable, and what deliberately stays fixed |
 
 ## Plans — `docs/plans/`
 
