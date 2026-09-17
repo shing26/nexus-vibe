@@ -750,6 +750,12 @@ Step 'alert-delivers-to-the-far-side' {
             status      = 'firing'
             labels      = @{ alertname = 'DrillProbe'; severity = 'critical' }
             annotations = @{ description = 'drill alert, not a real outage' }
+            # A real Grafana payload always carries this map, as plain numbers keyed by refId, and
+            # leaving it out is how the bridge's assumption about its shape survived this step: the
+            # bridge raised AttributeError on `1` before it ever called out, and a drill that never
+            # sent a value could not see it. `1` is the interesting one -- `0` is falsy and used to
+            # fall through to "no reading" (see docs/research/alert-bridge-values-shape-2026-09.md).
+            values      = @{ A = 1 }
         })
     } | ConvertTo-Json -Compress -Depth 6)
 

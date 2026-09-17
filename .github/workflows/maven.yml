@@ -145,6 +145,37 @@ jobs:
           path: frontend/dist
           if-no-files-found: error
 
+  # Nothing else in this workflow touches the alert bridge: not its tests, not its image. That is
+  # not a hypothetical gap. On 2026-09-17 the bridge dropped every notification whose value was not
+  # zero, and its 17 unit tests were green throughout -- because the fixture carried a payload shape
+  # Grafana does not send, and nothing ran them on a pull request to say otherwise. The tests are
+  # seconds; the image is one COPY onto alpine. See
+  # docs/research/alert-bridge-values-shape-2026-09.md.
+  alert-bridge:
+    name: Alert bridge tests
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: docker/observability/alert-bridge
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # `main` refuses to start without a webhook, so the tests import the module with an empty
+      # environment on purpose; nothing here needs a secret or a network.
+      - name: Unit tests
+        run: python -m unittest test_alert_bridge
+
+      # The Dockerfile is a COPY onto python:3.12-alpine. Cheap to build, and otherwise nothing
+      # would notice a broken one until someone tried to start the monitoring profile.
+      - name: Build the bridge image
+        run: docker build -t nexus-alert-bridge:ci .
+
   docker:
     name: Docker image build
     runs-on: ubuntu-latest

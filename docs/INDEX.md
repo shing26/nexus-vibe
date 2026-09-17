@@ -36,6 +36,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [late-row-lookup-deep-pagination](research/late-row-lookup-deep-pagination.md) | A delayed-join optimisation that measured 40% slower and was rolled back |
 | [observability-drill-2026-09](research/observability-drill-2026-09.md) | Scripted failure injection against the real stack, including what the drill cannot prove |
 | [observability-ops-review-2026-09](research/observability-ops-review-2026-09.md) | An external review of the observability and ops claims, and which of them held up |
+| [alert-bridge-values-shape-2026-09](research/alert-bridge-values-shape-2026-09.md) | A payload shape the bridge assumed instead of recording: why a non-zero value stopped every alert, and the three test surfaces that each missed it |
 | [llm-model-upgrade-options](research/llm-model-upgrade-options.md) | Model selection: local 7B versus hosted APIs, on quality and cost |
 | [openai-code-review-prompt-strategies](research/openai-code-review-prompt-strategies.md) | Prompt strategies for structured code review output |
 | [production-readiness-assessment-2026-09](research/production-readiness-assessment-2026-09.md) | The readiness assessment that generated the P0/P1 work |
