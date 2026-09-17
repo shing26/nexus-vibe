@@ -19,9 +19,15 @@
 | 01:28:46 | RESOLVED | 502 | 0.065 ms |
 | 01:33:46 | RESOLVED | 502 | 0.081 ms |
 | 01:38:46 | RESOLVED | 502 | 0.156 ms |
+| 01:43:46 | RESOLVED | 502 | 1.2 ms |
+| 01:48:46 | RESOLVED | 502 | 1.8 ms |
+| 01:53:47 | RESOLVED，换上新代码后的第一次重试 | 200 | 607 ms |
 
 那一列毫秒数是这条线索的全部价值：一次真的飞书往返要几百毫秒（同一张表里 FIRING 是 462 ms），
 所以 502 发生在**任何网络调用之前**。不是飞书拒绝，是桥自己抛了。
+
+最后一行是判定成立之后的重试：同一个载荷、同一个群、607 ms 的真实往返，而且 Grafana 从此不再重试
+（`docker logs nexus-grafana` 里最后一次 `Notify for alerts failed` 停在 01:48:46）。
 
 Grafana 那侧只留下这一行，`docker logs nexus-grafana` 里没有更多：
 
@@ -88,12 +94,14 @@ python -c "import alert_bridge as a; print(a.render_text({'state':'ok','title':'
 - 新增 `RefusalLogTest`：起一个真的 HTTP 服务，断言 502 的原因进了 stdout；
 - 演练载荷补上 `values = @{ A = 1 }`，让这一步以后能看见这个类别的回归。
 
-验证：`cd docker/observability/alert-bridge && python -m unittest test_alert_bridge` → 23 条通过。
+验证：`cd docker/observability/alert-bridge && python -m unittest test_alert_bridge` → 23 条通过；
+换上新代码后 Grafana 的下一次重试（01:53:47）以 200 送达，重试随之停止。
 
 ## 五、这次没有证明的
 
-- **修完之后的真实飞书送达**。本文记录的是判定逻辑与日志，不是"RESOLVED 到了群里"。要确认只能等下一次
-  告警恢复，或者按 README 第 6 步手工投一条；本文写到这里时，01:28 那次 RESOLVED 仍未送达。
+- 01:53:47 那次送达证明的是**补投**：Grafana 一直在重试同一条 RESOLVED，换上新代码后它成功了。
+  没有证明的是"下一次由新故障触发的 FIRING → RESOLVED 全流程"——那需要一次真的告警，
+  或者按 README 第 6 步手工投一条（那条走的是同一个签名路径，但不是由规则触发的）。
 - 其余规则只从表达式推断"`values.A` 非 0 时走同一条崩溃路径"，没有逐条构造真实载荷跑过。
 - `values` 里除 `A` 以外的 refId 仍然不展示。这是有意保留的旧口径，没有证据说明该改成 B 或 C。
 - 桥在这一天里有没有丢过别的告警：日志没有留存 01:21 之前的记录，也没有别的地方记录过 502 的次数。

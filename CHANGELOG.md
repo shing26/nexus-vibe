@@ -118,7 +118,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `alerts: []` and so never reached the line, and the drill's hand-built payload carried no `values`
   field at all. `alert_value()` now accepts both shapes and returns `0` as a reading; the 502 branch
   prints its reason, which the comment above it had always claimed it did; the drill sends
-  `values = @{ A = 1 }`. Evidence and the method for the timings:
+  `values = @{ A = 1 }`. Deployed to the running stack, the next retry of that same RESOLVED
+  delivered in 607 ms and the retry loop stopped — the same payload, the same group, 200 instead of
+  502. Evidence and the method for the timings:
   [alert-bridge-values-shape-2026-09.md](docs/research/alert-bridge-values-shape-2026-09.md)
 - **The Docker smoke gate had never passed once, and its own condition is what hid it.**
   `.github/workflows/maven.yml` passed `-e JWT_SECRET='ci-...0000'`: a redaction-styled placeholder
