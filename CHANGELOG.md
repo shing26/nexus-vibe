@@ -103,6 +103,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   worth recognising (19021 wrong secret or a clock an hour out, 19024 keyword mode, 19022 IP allowlist,
   11232 rate limit). Written because OPS-1 sat blocked on a credential while the procedure lived only in a
   conversation — the code was never the missing part
+- **Search may lag, and that is now a decision with a measurement under it.** SEARCH-1 asked whether a
+  scheduled sweep should reindex the posts written while Elasticsearch was down. It was measured first, in
+  the `nexus-drill` project against `nexus-vibe-app:20260916-05`: two posts carrying unique markers, one
+  published and approved during an outage, then the cluster restarted. **Search returned more while the
+  dependency was broken than after it recovered** — during the outage both posts came back from the MySQL
+  fallback, and once the index answered again the newer one returned `total: 0` while remaining published and
+  reachable by direct URL. A second run needed no outage at all: an app that boots with Elasticsearch down
+  never indexes anything again for the life of that process, because `esAvailable` is read once in
+  `@PostConstruct`, so a fourth post left the index sitting at three documents.
+  [ADR-0011](docs/adr/0011-search-may-lag-until-an-operator-rebuilds.md) accepts the lag and makes
+  `restore.md` section 7's rebuild the remedy, now with the three triggers and the person who runs it written
+  down. The sweep was rejected on evidence rather than taste: it needs an `update_time` the index does not
+  carry, and while `esAvailable` reads false `bulkIndex` answers `refused`, so it would have reported failures
+  instead of repairs. The ticket's "explain an empty result" clause is **not done**, and the ADR says why: it
+  was written for the failure the measurement ruled out, and its honest implementations are a new response
+  field or a per-query MySQL probe, which are tickets rather than clauses. Method, the endpoint behind every
+  number, and what the run cannot prove: [es-index-lag-2026-09.md](docs/research/es-index-lag-2026-09.md)
 
 ### Fixed
 

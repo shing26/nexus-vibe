@@ -23,6 +23,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0008](adr/0008-bootstrap-admin-and-empty-production-seed.md) | The production seed is empty and the administrator is bootstrapped once from the environment |
 | [0009](adr/0009-scope-is-done-at-deployment.md) | The deliverable stops at a completed deployment |
 | [0010](adr/0010-the-showcase-review-is-a-recording.md) | The landing page shows a recorded pipeline run, not prose that resembles one |
+| [0011](adr/0011-search-may-lag-until-an-operator-rebuilds.md) | Search may lag until an operator rebuilds, and the rebuild is the price |
 
 ## Measurements — `docs/research/`
 
@@ -39,6 +40,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [alert-bridge-values-shape-2026-09](research/alert-bridge-values-shape-2026-09.md) | A payload shape the bridge assumed instead of recording: why a non-zero value stopped every alert, and the three test surfaces that each missed it |
 | [alert-bridge-address-fallback-2026-09](research/alert-bridge-address-fallback-2026-09.md) | A CDN edge that accepts TCP and blackholes TLS: why urlopen retried nothing, the live before/after, and the wrong-secret check it had been masking |
 | [alert-path-in-ci-2026-09](research/alert-path-in-ci-2026-09.md) | Which three drill steps moved into CI, the precondition they turned out to need, the two mutations that proved the gate goes red, and why the rollback step did not |
+| [es-index-lag-2026-09](research/es-index-lag-2026-09.md) | Elasticsearch recovery made search return less: the post that was findable during the outage and gone after it, and the app that never indexes again if it boots without the cluster |
 | [llm-model-upgrade-options](research/llm-model-upgrade-options.md) | Model selection: local 7B versus hosted APIs, on quality and cost |
 | [openai-code-review-prompt-strategies](research/openai-code-review-prompt-strategies.md) | Prompt strategies for structured code review output |
 | [production-readiness-assessment-2026-09](research/production-readiness-assessment-2026-09.md) | The readiness assessment that generated the P0/P1 work |
