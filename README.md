@@ -339,12 +339,18 @@ Prometheus 与 Grafana 都不映射宿主端口，演练时用 `docker compose e
    ```bash
    docker exec nexus-app curl -sS -X POST http://alert-bridge:8080/notify \
      -H 'Content-Type: application/json' \
-     --data-binary '{"state":"alerting","title":"Nexus-Vibe 手动投递测试","alerts":[{"labels":{"alertname":"ManualDeliveryTest","severity":"warning"},"annotations":{"summary":"签名与投递链路自检"}}]}'
+     --data-binary '{"state":"alerting","title":"Nexus-Vibe delivery check","alerts":[{"labels":{"alertname":"ManualDeliveryTest","severity":"warning"},"values":{"A":1},"annotations":{"summary":"signing and delivery"}}]}'
    ```
 
    桥接把飞书的**原始应答**原样回传，所以判定看响应体里的 `code`、不看 HTTP 状态：
    `{"code":0,"msg":"success",...}` 才算送达，同时群里应出现
-   `[Nexus-Vibe] alerting: Nexus-Vibe 手动投递测试`。
+   `[Nexus-Vibe] alerting: Nexus-Vibe delivery check`。
+
+   这条示例刻意只用 ASCII。Windows PowerShell 5.1（`powershell.exe`）会把原生命令参数按 ANSI 代码页
+   编码，正文里的中文到群里会变成 `?`——2026-09-17 的一次演练就在日志里留下过 `Nexus-Vibe ??????`。
+   要发中文就用 PowerShell 7（`pwsh`）或别的 UTF-8 shell。`values` 是有意带上的：它是一个非 0 的读数，
+   正是 2026-09-17 那次投递失败的形状，见
+   [alert-bridge-values-shape-2026-09.md](docs/research/alert-bridge-values-shape-2026-09.md)。
 
 收件人本身在 `docker/observability/grafana/provisioning/alerting/contact-points.yaml` 里版本化，
 下面这条查的是告警引擎**真正加载**的内容（provisioning API），不是文件列表：
