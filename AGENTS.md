@@ -72,7 +72,7 @@ mvn -B test                     # 346 tests / 55 classes; the count is asserted 
 cd frontend && npm run test     # 33 tests / 8 files
 cd frontend && npm run lint
 cd frontend && npm run build
-cd docker/observability/alert-bridge && python -m unittest test_alert_bridge   # 23 tests
+cd docker/observability/alert-bridge && python -m unittest test_alert_bridge   # 28 tests
 ```
 
 If you change a count, update the README badge and the Testing section in the same commit.

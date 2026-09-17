@@ -372,7 +372,7 @@ docker exec nexus-grafana wget -qO- "--header=Authorization: $auth" http://local
 | `code=19022 Ip Not Allowed` | 群机器人配的是 IP 白名单 | 把出口 IP 加进白名单，或关掉该项 |
 | `code=9499 Bad Request` | 请求体超 20 KB 或格式错 | 收敛告警条数；contact point 已把 `maxAlerts` 限到 10 |
 | `code=11232` | 触发限流（100 次/分、5 次/秒） | 整点与半点更容易撞，收敛或加抑制 |
-| 502 且正文 `forward to ... failed` | 网络层不通（DNS / 代理） | 在容器内确认 `open.feishu.cn` 可达 |
+| 502 且正文 `forward to ... failed` | 解析出来的地址**全部**连不上（DNS / 代理 / 断网） | 在容器内确认 `open.feishu.cn` 可达。单个地址不通不会走到这里：桥接逐个地址重连，`2026-09-17` 起 20 个 A 记录里死掉一个不会再丢告警，见 [alert-bridge-address-fallback-2026-09.md](docs/research/alert-bridge-address-fallback-2026-09.md) |
 | HTTP 200 但群里没消息 | 只看了状态码，没看应答体 | 读返回体的 `code`——这正是桥接存在的理由 |
 
 安全设置的取舍、上表的错误码，以及"时间戳 1 小时内 / 请求体 20 KB / 100 次每分"这三条限制，
@@ -471,7 +471,7 @@ curl http://localhost:8081/api/v1/users/2/summary
 
 ## Testing
 
-2026-09-17 实测：后端 **346 用例 / 55 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **33 用例 / 8 个文件**，告警桥 **23 条** Python 单测。
+2026-09-17 实测：后端 **346 用例 / 55 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **33 用例 / 8 个文件**，告警桥 **28 条** Python 单测。
 
 后端除了 H2 集成与 Mockito 单测，还有三条"读源码"的契约扫描：controller 签名不许出现 entity、测试不许把 `isOk()` 和非 200 的 `code` 配成一对、每个 `apiClient.` 调用都要落在有 `catch` 的 `try` 或 react-query 里。前端拦截器那 7 条走真实 axios，只把 `adapter` 换成假的，所以 401 刷新、单飞、重放、5xx 追踪号都是真跑；并且用两次变异验证过它们不是摆设：把 `if (!refreshPromise)` 改成 `if (true)` 只红那一条并发刷新的用例，塞一个裸 `apiClient.get` 会让扫描报出文件名与行号。
 
@@ -480,7 +480,7 @@ mvn test                      # 346 tests: unit + H2 integration + the three sou
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd frontend && npm run test   # 33 tests: axios interceptor, login page, AI review panel, comment body, call-site scan
-cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 23 tests: Feishu sign, body, and the values shape
+cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28 tests: Feishu sign, body, the values shape, and the address fallback
 ```
 
 ```bash
@@ -490,7 +490,7 @@ python benchmark/observability/render_panels.py   # 无头浏览器真的渲染�
 ```
 
 CI（`.github/workflows/maven.yml`）跑：后端 `mvn test`（含三条源码扫描）、前端 lint + `npm run test` + build、
-告警桥的 23 条 Python 单测与它自己的镜像构建、以及 app / web 两个镜像的构建（master 上还带那个 smoke）。
+告警桥的 28 条 Python 单测与它自己的镜像构建、以及 app / web 两个镜像的构建（master 上还带那个 smoke）。
 演练脚本仍只在本地跑，它要 Docker 和十几分钟；结论见
 [docs/research/observability-drill-2026-09.md](docs/research/observability-drill-2026-09.md)。
 

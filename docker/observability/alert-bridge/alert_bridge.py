@@ -6,7 +6,9 @@ configuration, where anyone able to open the UI could read it back.
 
 An alert that reaches nowhere is the failure this file exists to prevent, so the bridge refuses to
 start without a target (see configuration_error / main) and refuses to call a Feishu "200 with an
-error code in the body" a delivery (see feishu_error).
+error code in the body" a delivery (see feishu_error). It also walks every resolved address rather
+than trusting the first one (see send), because open.feishu.cn publishes twenty of them and one of
+them accepted TCP and then blackholed TLS on 2026-09-17.
 
 Run the tests with: python -m pytest docker/observability/alert-bridge -q
 """
@@ -14,12 +16,13 @@ Run the tests with: python -m pytest docker/observability/alert-bridge -q
 import base64
 import hashlib
 import hmac
+import http.client
 import json
 import os
+import socket
 import sys
 import time
 import urllib.parse
-import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 WEBHOOK_URL = os.environ.get("FEISHU_ALERT_WEBHOOK", "")
@@ -101,15 +104,106 @@ def build_body(payload, timestamp, secret):
     return body
 
 
+# A healthy Feishu edge completes TCP and TLS in about 0.05s (2026-09-17: 0.036s to two of three
+# addresses). An address that blackholes the handshake is detected only by a clock, so the budget a
+# single address may spend has to be small enough that the next one still gets a turn inside
+# `timeout` -- with the default 5s call that is three attempts instead of one.
+CONNECT_TIMEOUT_SECONDS = 1.5
+
+
+def _resolved_addresses(host, port):
+    """Every address for `host`, in resolution order, once each."""
+    addresses = []
+    for _, _, _, _, sockaddr in socket.getaddrinfo(host, port, type=socket.SOCK_STREAM):
+        if sockaddr[0] not in addresses:
+            addresses.append(sockaddr[0])
+    return addresses
+
+
+class _PinnedHTTPSConnection(http.client.HTTPSConnection):
+    """One address, with the hostname still carrying SNI and the certificate check.
+
+    Freezing the address is the only thing this changes. `host` keeps going to `server_hostname`,
+    so a pinned connection still fails on a certificate that does not match the real hostname.
+    """
+
+    def __init__(self, host, port, address, timeout):
+        super().__init__(host, port, timeout=timeout)
+        self._address = address
+
+    def connect(self):
+        self.sock = socket.create_connection((self._address, self.port), self.timeout)
+        self.sock = self._context.wrap_socket(self.sock, server_hostname=self.host)
+
+
+class _PinnedHTTPConnection(http.client.HTTPConnection):
+    """The plain-http twin, for a webhook pointed at an unencrypted in-network sink."""
+
+    def __init__(self, host, port, address, timeout):
+        super().__init__(host, port, timeout=timeout)
+        self._address = address
+
+    def connect(self):
+        self.sock = socket.create_connection((self._address, self.port), self.timeout)
+
+
+def _pinned_connection(scheme, host, port, address, timeout):
+    if scheme == "https":
+        return _PinnedHTTPSConnection(host, port, address, timeout)
+    return _PinnedHTTPConnection(host, port, address, timeout)
+
+
 def send(body, url=None, timeout=5.0):
-    request = urllib.request.Request(
-        url or WEBHOOK_URL,
-        data=json.dumps(body).encode("utf-8"),
-        headers={"Content-Type": "application/json"},
-        method="POST",
-    )
-    with urllib.request.urlopen(request, timeout=timeout) as response:
-        return response.read()
+    """POST the body to the first address that completes a handshake.
+
+    urlopen() is not enough here, and that is a measured fact rather than a preference. It resolves
+    the host itself and keeps the first address whose *TCP* handshake succeeds; the TLS handshake
+    that follows has no fallback. open.feishu.cn answers with twenty rotating A records, and on
+    2026-09-17 one of them (202.168.180.27) accepted TCP and then blackholed TLS while its
+    neighbours completed in 0.036s. Every delivery failed for as long as the resolver returned that
+    address first, and the failure read as `_ssl.c:993: The handshake operation timed out` -- a
+    message with no hint that nineteen other addresses were reachable.
+
+    So the addresses are walked explicitly. `timeout` stays the budget for the whole call;
+    CONNECT_TIMEOUT_SECONDS caps what one address may spend before the next gets its turn, and the
+    address that answers then gets whatever is left for its response. See
+    docs/research/alert-bridge-address-fallback-2026-09.md.
+    """
+    target = url or WEBHOOK_URL
+    parts = urllib.parse.urlsplit(target)
+    if not parts.hostname:
+        raise ValueError("the webhook URL has no host to send to")
+    scheme = "http" if parts.scheme == "http" else "https"
+    port = parts.port or (80 if scheme == "http" else 443)
+    path = parts.path or "/"
+    if parts.query:
+        path += "?" + parts.query
+    payload = json.dumps(body).encode("utf-8")
+    deadline = time.monotonic() + timeout
+    last_error = None
+    for address in _resolved_addresses(parts.hostname, port):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            break
+        connection = _pinned_connection(
+            scheme, parts.hostname, port, address, min(CONNECT_TIMEOUT_SECONDS, remaining)
+        )
+        try:
+            connection.connect()
+            # Only the handshake gets the short budget: a recipient that is slow to *answer* is
+            # still a working recipient, and retrying it would deliver the alert twice.
+            connection.sock.settimeout(max(remaining, 0.001))
+            connection.request(
+                "POST", path, body=payload, headers={"Content-Type": "application/json"}
+            )
+            return connection.getresponse().read()
+        except (OSError, http.client.HTTPException) as error:
+            last_error = error
+        finally:
+            connection.close()
+    if last_error is None:
+        raise OSError("the webhook host resolved to no address")
+    raise last_error
 
 
 def redact_url(url):
