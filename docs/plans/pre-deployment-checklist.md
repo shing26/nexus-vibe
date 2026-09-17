@@ -73,8 +73,9 @@
       告警要走到会验签的假收件人、回滚要读容器自己的镜像名）。2026-09-14 05:25 那次 **21/21 PASS**，
       逐条证据与本轮纠偏记录在 `docs/research/observability-drill-2026-09.md` 第六节；
       上面那句"16 步全绿"只描述 09-13 的那个版本，不能拿来证明这一版。
-- [ ] 配好 `FEISHU_ALERT_WEBHOOK` / `FEISHU_ALERT_SECRET` 后，人工发一条测试告警到群里确认真的收得到——
-      演练只能证明"告警到得了桥、桥失败时会喊出来"。
+- [x] 配好 `FEISHU_ALERT_WEBHOOK` / `FEISHU_ALERT_SECRET` 后，人工发一条测试告警到群里确认真的收得到——
+      演练只能证明"告警到得了桥、桥失败时会喊出来"。**2026-09-17 完成**，两次结果与当天撞出来的
+      那个网络缺陷见下面的「OPS-1 / OPS-2 收口」一节。
 - [x] 面板真的被打开看过（E10）：`check_panels.py` 逐条表达式过 datasource 代理，`render_panels.py`
       用无头浏览器渲染两张 dashboard。scratch 栈上的结果 `ok=22 / empty=2`（那两条是没 LLM 流量的
       LLM 面板，故意不置零）、Overview 9/9 canvas 全画、AI Pipeline 5/5 全画、`console_errors=0`。
@@ -188,3 +189,52 @@
 - [ ] **落地页 / 免登录示例档案（A4）未做**：访客能看到首页，但看不到一份被策展的 AI 评审样本——
   本项目最有说服力的产物仍要自己注册发帖才看得到。
 - [ ] **真人实证（A5）未做**：这是方向 A 里唯一"没有新数据产生"的一项，按 ADR-0009 维持不做。
+
+## OPS-1 / OPS-2 收口（2026-09-17）
+
+> 结论：**两张票都关了**，下面每条都是当天实测。OPS-2 的公网地址是 ngrok 的
+> `https://qualifier-discuss-marry.ngrok-free.dev`，**不是票面写的 `nexus-vibe.shing26.is-a.dev`**；
+> 替换原因与代价在上一节，票面原文留在 `docs/tickets/next-cycle-backlog.md` 里没有擦掉。
+> 当天还撞出并修掉一个会吞掉**所有**告警的真缺陷，见 OPS-1 的第 4 条。
+
+### OPS-1 真实飞书投递
+
+- [x] **正向**：一条带签名的测试告警真的进了群 —— 2026-09-17 02:30:31（容器时钟，UTC；本机 +08 是
+      10:30:31）。飞书应答 `{"StatusCode":0,"StatusMessage":"success","code":0,"msg":"success"}`，
+      群里出现 `[Nexus-Vibe] alerting: Nexus-Vibe OPS-1 delivery check`。
+- [x] **负向**：故意用错密钥时，桥把飞书的拒绝**报了出来而不是吞掉**。从一个只改
+      `FEISHU_ALERT_SECRET` 的临时容器打 `/notify`，拿回 HTTP `502`，正文与日志同为
+      `code=19021 msg=sign match fail or timestamp is not within one hour from current time`。
+      命令（验完即删）：
+      ```
+      docker run -d --name feishu-wrong-secret --network nexus-vibe_nexus-net \
+        --env-file .env -e FEISHU_ALERT_SECRET=deliberately-wrong-secret nexus-alert-bridge:local
+      docker exec nexus-app curl -sS -o - -w '\nHTTP %{http_code}\n' -X POST \
+        http://feishu-wrong-secret:8080/notify -H 'Content-Type: application/json' \
+        --data-binary '{"state":"alerting","title":"OPS-1 negative check","alerts":[]}'
+      docker logs feishu-wrong-secret   # 期望含 "[alert-bridge] refused: ... code=19021 ..."
+      ```
+- [x] `19021` 的文案自带"**或**时钟偏超过一小时"的歧义，所以同一分钟内用**正确**密钥发同一条载荷作了
+      对照，成功送达。同一个时钟既签得出有效签名，错密钥那次拿到的 `19021` 就只能是签名不符。
+- [x] **这条负向检查不是"跑一下"就完了**：第一次跑它时五次尝试全部死在
+      `_ssl.c:993: The handshake operation timed out`。那不是一个网络抖动，是一个会丢掉**所有**告警的真缺陷：
+      `open.feishu.cn` 有 20 个 A 记录，其中一个接受 TCP 握手后把 TLS 黑洞掉，而
+      `urllib.request.urlopen` 只认 TCP 那一步是否成功，认定了就不换。修法、实机对照与"这次没有证明的"
+      见 `docs/research/alert-bridge-address-fallback-2026-09.md`。
+      **"拒绝会被报出来"这个断言能成立，前提是先修掉那个把拒绝挡在外面的东西。**
+
+### OPS-2 公网地址
+
+- [x] SPA over HTTPS：`https://qualifier-discuss-marry.ngrok-free.dev/` → 200 `text/html`，
+      `<title>Nexus-Vibe | AI 开发者社区</title>`，是真 index.html 而不是 ngrok 插页。
+- [x] **POST 到同一个域名能打到 API**：`POST /api/v1/auth/login`（错口令）→ 401
+      `{"code":401,"message":"Invalid username or password.","data":null}`；
+      `POST /api/v1/auth/register`（空体）→ 400 带四条校验明细。两条都用无效载荷，没有新建账号。
+- [x] 公网探测：`/actuator/prometheus`、`/actuator/health/deps`、`/actuator/info` 全部 **404**；
+      `/actuator/health` → 200 `{"status":"UP"}`。
+- [x] `docker compose ps`：只有 `web` 有宿主发布端口（`0.0.0.0:8080->80`）；`db` / `redis` /
+      `elasticsearch` 都是"暴露但不发布"（published 为 0）。
+- [x] GitHub 仓库 homepage 指向 `https://qualifier-discuss-marry.ngrok-free.dev`（用 `gh repo view` 读回确认）。
+
+> 探测口径：ngrok 免费层对**浏览器导航**会插一页警告，命令行探测必须带
+> `ngrok-skip-browser-warning: true`，否则每个路径都会"返回 200"，那一轮测量就没有任何意义。

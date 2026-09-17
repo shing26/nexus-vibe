@@ -46,15 +46,36 @@ evidence, or the public address?**
 
 Revised order: **OPS-1 -> OPS-2 -> OPS-3 -> SEARCH-1's ADR**, with FE-1 optional.
 
+Progress on that order (2026-09-17): **OPS-1 and OPS-2 are closed** -- the alert path has delivered a
+real message to a real group and the public address is live. What is left of the sequence is
+**OPS-3**, then SEARCH-1's ADR. Neither closure went the way the tickets expected: OPS-1's negative
+check surfaced a defect that was swallowing every alert, and OPS-2 traded Cloudflare for ngrok
+because the ticket's hostname was not one this machine could route. Both are written into the
+tickets below rather than smoothed over.
+
 Deferred is not rejected. If the portfolio direction completes and the project is then
 taken toward real users, or extracted as a library, SEC-1, DB-1 and REL-1 come back
 first — that is when their cost starts being paid.
 
 ## OPS-1 - Real Feishu alert delivery
 
-Status: blocked on an external credential. `alert-bridge` refuses to start without
-`FEISHU_ALERT_WEBHOOK`, which is the correct failure: a green dashboard with no
-recipient is worse than a restart loop.
+Status: **done, 2026-09-17.** Both acceptance items were measured on the running stack: a signed
+test alert landed in the group, and a deliberately wrong secret came back as HTTP 502 naming
+`code=19021` instead of being swallowed. Commands, timestamps and the clock-skew control that
+disambiguates `19021` are in
+[pre-deployment-checklist.md](../plans/pre-deployment-checklist.md), section "OPS-1 / OPS-2 收口".
+
+The negative check paid for itself before it reported anything. Its first five attempts died at
+`_ssl.c:993: The handshake operation timed out`: one of `open.feishu.cn`'s twenty A records accepted
+TCP and then blackholed TLS, and `urlopen` retried nothing, so a network error was hiding the
+refusal this ticket exists to surface. Fixed in PR #12 --
+[alert-bridge-address-fallback-2026-09.md](../research/alert-bridge-address-fallback-2026-09.md).
+
+The line below is the blocked state this ticket was written in, kept as written:
+
+> Status: blocked on an external credential. `alert-bridge` refuses to start without
+> `FEISHU_ALERT_WEBHOOK`, which is the correct failure: a green dashboard with no
+> recipient is worse than a restart loop.
 
 **Scope:** put a real webhook (and `FEISHU_ALERT_SECRET` when the bot signs) into
 `.env`, then prove one alert reaches a human.
@@ -81,15 +102,43 @@ whether a bot exists.
 
 ## OPS-2 - Cloudflare Tunnel and the public address
 
-Status: blocked on `cloudflared tunnel login`. This machine has neither `cert.pem` nor
-`~/.cloudflared/config.yml`, so no tunnel can be created from here.
+Status: **done with a substitution, 2026-09-16/17.** The address is
+`https://qualifier-discuss-marry.ngrok-free.dev`, served by an ngrok tunnel from this machine --
+**not** by Cloudflare Tunnel, and **not** on `nexus-vibe.shing26.is-a.dev`.
 
-**Scope:** create the tunnel, route `nexus-vibe.shing26.is-a.dev` to
-`http://localhost:8080`, run it as a service, and confirm the public site.
+Why the substitution: `cloudflared tunnel create` begins with `login`, and routing the ticket's
+hostname means writing a CNAME into `shing26.is-a.dev` -- a name this machine has no DNS rights
+over (`cert.pem` and `~/.cloudflared/config.yml` were both absent, and `shing26.json` is not in the
+is-a.dev public registry). ngrok's free tier hands out a stable, account-bound dev domain and never
+touches DNS. The cost is recorded rather than glossed over: the tunnel origin joined
+`CORS_ALLOWED_ORIGINS` alongside `localhost:8080` and the is-a.dev name, and dropping any of the
+three makes the SPA load while every API call answers 403.
 
-Deployment steps 6-10 of
-[deployment-and-blog-plan.md](../plans/deployment-and-blog-plan.md) are still the
-contract to follow.
+Acceptance, all measured 2026-09-17. Probes carry `ngrok-skip-browser-warning: true`; without it
+ngrok's interstitial answers 200 for every path and the measurement means nothing.
+
+- `/` returns 200 `text/html` with `<title>Nexus-Vibe | AI 开发者社区</title>`, and `POST`ing to
+  `/api/v1/auth/login` and `/api/v1/auth/register` on the same host reaches the API (401 and 400,
+  both in the standard envelope).
+- `/actuator/prometheus`, `/actuator/health/deps` and `/actuator/info` are 404 from outside;
+  `/actuator/health` is 200 `{"status":"UP"}`.
+- `docker compose ps` shows only `web` publishing a host port; MySQL, Redis and Elasticsearch
+  expose but publish nothing.
+- The GitHub repository homepage points at the live address.
+
+The full record is in
+[pre-deployment-checklist.md](../plans/pre-deployment-checklist.md), section "OPS-1 / OPS-2 收口".
+The two paragraphs below are what the ticket asked for while it was blocked, kept as written:
+
+> Status: blocked on `cloudflared tunnel login`. This machine has neither `cert.pem` nor
+> `~/.cloudflared/config.yml`, so no tunnel can be created from here.
+>
+> **Scope:** create the tunnel, route `nexus-vibe.shing26.is-a.dev` to
+> `http://localhost:8080`, run it as a service, and confirm the public site.
+>
+> Deployment steps 6-10 of
+> [deployment-and-blog-plan.md](../plans/deployment-and-blog-plan.md) are still the
+> contract to follow.
 
 **Acceptance:**
 - `https://nexus-vibe.shing26.is-a.dev` serves the SPA over HTTPS and `POST`ing a
