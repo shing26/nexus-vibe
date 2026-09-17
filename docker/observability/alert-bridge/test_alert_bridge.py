@@ -9,12 +9,19 @@ FEISHU_ALERT_WEBHOOK, Feishu answering HTTP 200 with a refusal in the body, and 
 way on 2026-09-17 -- a payload whose shape the translation assumed instead of recording. The last
 one has its evidence in docs/research/alert-bridge-values-shape-2026-09.md.
 
+The same date produced a second way to lose an alert: a CDN edge that accepts TCP and blackholes
+TLS. That one is AddressFallbackTest, with its evidence in
+docs/research/alert-bridge-address-fallback-2026-09.md.
+
 Run: python -m pytest docker/observability/alert-bridge -q
 """
 
 import contextlib
+import http.server
 import io
 import json
+import socket
+import ssl
 import threading
 import unittest
 import unittest.mock as mock
@@ -289,6 +296,115 @@ class RefusalLogTest(unittest.TestCase):
         finally:
             server.shutdown()
             server.server_close()
+
+
+class AddressFallbackTest(unittest.TestCase):
+    """One blackholed edge must not take the alert down with it.
+
+    `open.feishu.cn` answers with twenty A records in rotating order, and urlopen() keeps the first
+    address that completes a *TCP* handshake -- once TLS starts there is no fallback. On 2026-09-17
+    one address (202.168.180.27) accepted TCP and then blackholed TLS while two neighbours finished
+    in 0.036s, so every delivery failed for as long as the resolver answered with it first. The
+    live evidence is in docs/research/alert-bridge-address-fallback-2026-09.md.
+    """
+
+    def setUp(self):
+        # How long one address may spend before the next gets a turn. The tests make it tiny so a
+        # blackhole costs milliseconds instead of the real budget.
+        self.addCleanup(setattr, alert_bridge, "CONNECT_TIMEOUT_SECONDS",
+                        alert_bridge.CONNECT_TIMEOUT_SECONDS)
+        alert_bridge.CONNECT_TIMEOUT_SECONDS = 0.05
+
+    def test_a_blackholed_first_address_is_skipped_for_the_live_one(self):
+        seen = []
+        server = http.server.ThreadingHTTPServer(("127.0.0.1", 0), sink_handler(seen))
+        threading.Thread(target=server.serve_forever, daemon=True).start()
+        self.addCleanup(server.shutdown)
+        self.addCleanup(server.server_close)
+        # 192.0.2.0/24 is TEST-NET-1: routable nowhere, so the connect sits until its budget ends.
+        # This is the shape of the real failure -- it is the *first* address that stalls -- and the
+        # delivery below only succeeds if send() moves on to the second.
+        with mock.patch.object(alert_bridge, "_resolved_addresses",
+                               return_value=["192.0.2.1", "127.0.0.1"]):
+            reply = alert_bridge.send(
+                {"msg_type": "text"},
+                url="http://127.0.0.1:%d/notify" % server.server_address[1],
+                timeout=5.0,
+            )
+        self.assertEqual(b'{"code":0}', reply)
+        self.assertEqual(["/notify"], seen)
+
+    def test_a_stall_does_not_outlive_the_call_budget(self):
+        # Walking addresses must not turn one slow alert into a hung notification loop: the whole
+        # call stays inside `timeout`, and when nothing answers the error that surfaces is the real
+        # one rather than a placeholder.
+        with mock.patch.object(alert_bridge, "_resolved_addresses", return_value=["192.0.2.1"]):
+            with self.assertRaises(OSError):
+                alert_bridge.send({"msg_type": "text"},
+                                  url="http://192.0.2.1/notify", timeout=0.2)
+
+    def test_connect_wraps_the_socket_so_the_handshake_is_bounded_too(self):
+        # This is the assertion that makes the fallback above reachable in the real failure.
+        # 2026-09-17 stalled *after* TCP succeeded, inside the TLS handshake, so the per-address
+        # budget only covers it because wrap_socket() lives in connect(). Move the handshake to
+        # request time and the dead address would still eat the whole call while the nineteen
+        # reachable ones went untried -- the test would stay green and the alerts would stay lost.
+        connection = alert_bridge._PinnedHTTPSConnection("open.feishu.cn", 443, "203.0.113.9", 0.5)
+        connection._context = mock.MagicMock()
+        handshake = mock.MagicMock()
+        connection._context.wrap_socket.return_value = handshake
+        socket_before_tls = object()
+        with mock.patch.object(alert_bridge.socket, "create_connection",
+                               return_value=socket_before_tls) as created:
+            connection.connect()
+        created.assert_called_once_with(("203.0.113.9", 443), 0.5)
+        connection._context.wrap_socket.assert_called_once_with(
+            socket_before_tls, server_hostname="open.feishu.cn")
+        self.assertIs(handshake, connection.sock)
+
+    def test_a_repeated_address_is_only_tried_once(self):
+        # getaddrinfo returns one entry per (family, socktype, protocol), so the same address can
+        # arrive several times. Trying it twice would spend the budget on an address already known
+        # to be dead and could cost the call its last attempt.
+        answers = [
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("203.0.113.9", 443)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("203.0.113.9", 443)),
+            (socket.AF_INET, socket.SOCK_STREAM, 6, "", ("198.51.100.7", 443)),
+        ]
+        with mock.patch.object(alert_bridge.socket, "getaddrinfo", return_value=answers):
+            self.assertEqual(["203.0.113.9", "198.51.100.7"],
+                             alert_bridge._resolved_addresses("open.feishu.cn", 443))
+
+    def test_pinning_an_address_does_not_turn_off_certificate_verification(self):
+        # The whole point of the subclass is that the address changes and nothing else does. If it
+        # ever grew a relaxed context, an alert bridge would be quietly willing to post into a
+        # machine-in-the-middle while still reporting a successful delivery.
+        connection = alert_bridge._PinnedHTTPSConnection("open.feishu.cn", 443, "203.0.113.9", 5.0)
+        self.assertEqual("open.feishu.cn", connection.host)
+        self.assertEqual("203.0.113.9", connection._address)
+        self.assertTrue(connection._context.check_hostname)
+        self.assertEqual(ssl.CERT_REQUIRED, connection._context.verify_mode)
+
+
+def sink_handler(seen):
+    """A handler that records the path it was asked for, so a test can prove which address answered."""
+
+    class Sink(http.server.BaseHTTPRequestHandler):
+
+        def do_POST(self):
+            self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            seen.append(self.path)
+            body = b'{"code":0}'
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def log_message(self, *args):
+            pass
+
+    return Sink
 
 
 def fake_sender(reply):
