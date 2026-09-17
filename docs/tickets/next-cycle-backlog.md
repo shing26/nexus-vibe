@@ -62,6 +62,10 @@ recipient is worse than a restart loop.
 The drill already proves the bridge signs a fixed payload correctly and that a failed
 delivery is loud. It cannot prove the group receives anything; only a person can.
 
+The mechanics — creating the bot, the one security mode the bridge implements, the rebuild
+command, and the four refusal codes worth recognising — are in README's 接通飞书告警 section.
+What stays open here is the part no script can do: an alert arriving in a real group.
+
 **Acceptance:**
 - Fire one test alert through the provisioned contact point and confirm the message
   appears in the target Feishu group.

@@ -95,6 +95,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   envelope messages became English, matching their 30 siblings
 - The CI frontend job moved to Node 24. It was pinned to 20, where jsdom 30's `engines` refusal surfaced as "6
   errors, no tests" rather than as a skipped suite
+- **Connecting the Feishu alert path is documented instead of remembered.** README's Observability section
+  gained a 接通飞书告警 walkthrough: create the custom bot, enable signature verification, put the two values in
+  `.env`, rebuild with `up -d` (a `restart` never re-reads `.env`), check `forwarding: true`, then fire one
+  payload from the `app` container and read Feishu's own `code` rather than the HTTP status. `.env.example`
+  now carries the three constraints the bridge cannot work around, and the refusal table names the four codes
+  worth recognising (19021 wrong secret or a clock an hour out, 19024 keyword mode, 19022 IP allowlist,
+  11232 rate limit). Written because OPS-1 sat blocked on a credential while the procedure lived only in a
+  conversation — the code was never the missing part
 
 ### Fixed
 
