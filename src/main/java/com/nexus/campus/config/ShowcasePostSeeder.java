@@ -60,6 +60,7 @@ import java.nio.charset.StandardCharsets;
 public class ShowcasePostSeeder implements CommandLineRunner {
 
     private static final Logger log = LoggerFactory.getLogger(ShowcasePostSeeder.class);
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     /**
      * The id the shipped configuration uses. Distinctive and outside the range the snowflake
@@ -260,7 +261,7 @@ public class ShowcasePostSeeder implements CommandLineRunner {
 
     private static JsonNode parse(String json) {
         try {
-            return new ObjectMapper().readTree(json);
+            return OBJECT_MAPPER.readTree(json);
         } catch (IOException e) {
             throw new IllegalStateException("Showcase recording is not valid JSON.", e);
         }

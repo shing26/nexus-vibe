@@ -163,6 +163,20 @@ class VibePostServiceImplTest {
     }
 
     @Test
+    @DisplayName("Update post with critical content -> filtered and routed to pending review")
+    void updatePostWithCriticalContent_shouldBePendingReview() {
+        PostUpdateRequest request = new PostUpdateRequest();
+        request.setTitle("Updated title");
+        request.setContent("This edit contains 赌博 and must be audited.");
+
+        VibePost updated = VibePostService.updatePost(1L, request, testUserId);
+
+        assertEquals(2, updated.getStatus());
+        assertFalse(updated.getContent().contains("赌博"));
+        assertEquals(2, VibePostMapper.selectById(1L).getStatus());
+    }
+
+    @Test
     @DisplayName("Author can delete their own post and related records are removed")
     void deletePost_byAuthor_shouldSucceed() {
         PostCreateRequest request = new PostCreateRequest();

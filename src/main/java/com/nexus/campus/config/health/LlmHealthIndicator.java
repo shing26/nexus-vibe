@@ -1,7 +1,7 @@
 package com.nexus.campus.config.health;
 
 import com.nexus.campus.agent.LlmHealthCache;
-import org.springframework.beans.factory.annotation.Value;
+import com.nexus.campus.config.CampusAiProperties;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
@@ -23,11 +23,10 @@ public class LlmHealthIndicator implements HealthIndicator {
     private final boolean safetyEnabled;
 
     public LlmHealthIndicator(LlmHealthCache llmHealthCache,
-                              @Value("${campus.ai.review.enabled:true}") boolean reviewEnabled,
-                              @Value("${campus.ai.safety.enabled:true}") boolean safetyEnabled) {
+                              CampusAiProperties properties) {
         this.llmHealthCache = llmHealthCache;
-        this.reviewEnabled = reviewEnabled;
-        this.safetyEnabled = safetyEnabled;
+        this.reviewEnabled = properties.getReview().isEnabled();
+        this.safetyEnabled = properties.getSafety().isEnabled();
     }
 
     @Override

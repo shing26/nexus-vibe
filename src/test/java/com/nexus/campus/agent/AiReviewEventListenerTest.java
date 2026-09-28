@@ -2,6 +2,7 @@ package com.nexus.campus.agent;
 
 import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.VibePost;
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
 import org.junit.jupiter.api.BeforeEach;
@@ -32,6 +33,8 @@ class AiReviewEventListenerTest {
     @Mock
     private AiReviewService aiReviewService;
     @Mock
+    private ReviewPolicy reviewPolicy;
+    @Mock
     private VibePostMapper vibePostMapper;
     @Mock
     private SysMessageService sysMessageService;
@@ -41,11 +44,19 @@ class AiReviewEventListenerTest {
 
     @BeforeEach
     void enable() {
-        ReflectionTestUtils.setField(listener, "reviewEnabled", true);
-        ReflectionTestUtils.setField(listener, "leaseSeconds", 30L);
-        ReflectionTestUtils.setField(listener, "maxAttempts", 5);
-        ReflectionTestUtils.setField(listener, "ownerId", "test-node");
-        when(aiReviewService.detectCodeBlocks(anyString())).thenReturn(java.util.List.of("code"));
+        CampusAiProperties aiProperties = new CampusAiProperties();
+        aiProperties.getReview().setEnabled(true);
+        aiProperties.getReview().setLeaseSeconds(30L);
+        aiProperties.getReview().setMaxAttempts(5);
+        aiProperties.getReview().setOwnerId("test-node");
+        ReflectionTestUtils.setField(listener, "aiProperties", aiProperties);
+        VibePost post = new VibePost();
+        post.setId(1L);
+        post.setStatus(1);
+        post.setPostType("post");
+        post.setContent("```java\nint x = 1;\n```");
+        when(vibePostMapper.selectById(anyLong())).thenReturn(post);
+        lenient().when(reviewPolicy.shouldReview(any(VibePost.class))).thenReturn(true);
     }
 
     private AiReviewEvent event(long postId, long authorId) {
@@ -76,6 +87,18 @@ class AiReviewEventListenerTest {
         ArgumentCaptor<VibePost> captor = ArgumentCaptor.forClass(VibePost.class);
         verify(vibePostMapper).updateById(captor.capture());
         assertEquals(2, captor.getValue().getAiReviewed()); // REVIEWING
+    }
+
+    @Test
+    @DisplayName("Ineligible post -> no claim, stale REVIEWING marker cleared")
+    void ineligiblePostClearsStaleMarker() {
+        when(vibePostMapper.selectById(1L)).thenReturn(null);
+
+        listener.handleAiReviewEvent(event(1L, 9L));
+
+        verify(vibePostMapper, never()).tryClaimReview(anyLong(), any(), anyString(), anyInt());
+        verify(vibePostMapper).clearReviewingIfInState(1L, 0);
+        verify(aiReviewService, never()).reviewPost(anyLong(), anyString(), anyString(), any(), anyBoolean());
     }
 
     @Test

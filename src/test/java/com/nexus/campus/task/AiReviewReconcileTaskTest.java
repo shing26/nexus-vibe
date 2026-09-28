@@ -7,6 +7,7 @@ import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmClient;
 import com.nexus.campus.agent.LlmHealthCache;
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
@@ -77,10 +78,12 @@ class AiReviewReconcileTaskTest {
 
     @BeforeEach
     void enableFeatures() {
+        CampusAiProperties aiProperties = new CampusAiProperties();
+        aiProperties.getReview().setEnabled(true);
+        aiProperties.getSafety().setEnabled(true);
+        aiProperties.getReview().setMaxAttempts(5);
+        ReflectionTestUtils.setField(task, "aiProperties", aiProperties);
         ReflectionTestUtils.setField(task, "meterRegistry", meterRegistry);
-        ReflectionTestUtils.setField(task, "reviewEnabled", true);
-        ReflectionTestUtils.setField(task, "safetyEnabled", true);
-        ReflectionTestUtils.setField(task, "maxAttempts", 5);
         // The task now consumes health through the shared cache; wire it to
         // the mocked LlmClient so probe caching is exercised for real.
         ReflectionTestUtils.setField(task, "llmHealthCache", new LlmHealthCache(llmClient));

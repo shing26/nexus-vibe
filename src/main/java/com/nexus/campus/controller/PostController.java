@@ -9,6 +9,7 @@ import com.nexus.campus.dto.PostVersionVo;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.entity.Channel;
 import com.nexus.campus.entity.VibePost;
+import com.nexus.campus.security.AdminGuard;
 import com.nexus.campus.service.ChannelService;
 import com.nexus.campus.service.VibePostService;
 import com.nexus.campus.service.LikeCounterService;
@@ -38,9 +39,7 @@ public class PostController {
     @PostMapping("/{id}/pin")
     public ApiResponse<Void> pinPost(@PathVariable Long id,
                                      @RequestAttribute("currentRole") String role) {
-        if (!"ADMIN".equals(role)) {
-            throw BusinessException.forbidden("Access denied. Admin privileges required.");
-        }
+        AdminGuard.requireAdmin(role);
         // The service now distinguishes "no such post" from "not pinnable", so the
         // one message that had to cover both is gone.
         vibePostService.pinPost(id);
@@ -50,9 +49,7 @@ public class PostController {
     @PostMapping("/{id}/unpin")
     public ApiResponse<Void> unpinPost(@PathVariable Long id,
                                        @RequestAttribute("currentRole") String role) {
-        if (!"ADMIN".equals(role)) {
-            throw BusinessException.forbidden("Access denied. Admin privileges required.");
-        }
+        AdminGuard.requireAdmin(role);
         vibePostService.unpinPost(id);
         return ApiResponse.successMessage("Post unpinned.");
     }

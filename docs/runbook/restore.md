@@ -37,7 +37,8 @@ loud in the rehearsal notes rather than restoring half of it and calling it gree
   `-f` argument, and `init.sql` is mounted by a path relative to it.
 - The scratch project reads the same `.env` as the real stack (compose takes the environment file
   from the compose file's directory). That means the restored database is created with the
-  production `DB_PASSWORD` as its root password. Do not point this runbook at a shared host.
+  production `MYSQL_ROOT_PASSWORD` as its root password; the application connects separately as
+  `nexus_app` with `DB_PASSWORD`. Do not point this runbook at a shared host.
 - Only `db` is needed for the restore itself, plus `redis` and `app` if sections 6 and 7 are in scope. The scratch `app`
   publishes **no** host port, and that is the trap: `${WEB_PORT:-8080}:80` belongs to the *live* stack's `web`,
   so `http://localhost:8080/...` from the host always reaches production however many scratch containers are
@@ -171,6 +172,62 @@ Two naming facts to keep in mind while reading those files:
   wrong reason to see on screen at 3am. `0006` and `0007` say `nexus_campus`.
 - `docker/mysql/benchmark/` is not migrations. Those six files are the EXPLAIN/seed harness for
   the deep-pagination and AI-sort studies and must never be applied to a production volume.
+
+### 4.1 Migration Rollback (迁移回滚程序)
+
+**Two different things are called "rollback" here, and only one of them is safe by construction.**
+[CONTEXT.md](../../CONTEXT.md) names both, and this section is the procedure for the second one:
+
+| | What moves | Procedure | Data at risk |
+| --- | --- | --- | --- |
+| **Release Rollback** | the application image | set `APP_TAG` back to the previous value, `docker compose up -d --no-build app web` | none - the old image is still on the host and no volume is touched |
+| **Migration Rollback** | the database schema | the `docker/mysql/rollback-000{5,6,7}-*.sql` scripts, below | **two of the three destroy data** |
+
+The scripts, and what each one costs:
+
+| Script | Undoes | Lossless? |
+| --- | --- | --- |
+| `rollback-0006-drop-ai-sort-index.sql` | `idx_post_ai_sort` on `vibe_post` | **yes** - an index covers data, it does not hold it. Cost is a slower AI-sorted listing. |
+| `rollback-0005-drop-user-email.sql` | `sys_user.email` | **no** - every stored address is destroyed, and with it the account-recovery anchor. Nothing else in the schema carries it. |
+| `rollback-0007-drop-review-lease.sql` | `vibe_post.review_lock_until` / `review_owner` / `review_attempts` | **no** - `review_attempts` is the attempt budget. A post at 4 of 5 attempts becomes indistinguishable from a fresh one, so reconciliation will re-retry work that was already spent and may send the "budget exhausted" notification twice. The two lease columns are transient by design. |
+
+**Precondition for the two lossy scripts: a backup set taken after the last write you care about,
+and a verified restore of it.** Section 3's hash comparison and section 5's row counts are what
+"verified" means here; a dump nobody has loaded is not a backup. Both scripts say this in their own
+header, because the header is what an operator sees at 3am, not this file.
+
+Order matters. Roll back in reverse migration order, newest first, so a partially-completed rollback
+leaves the schema in a state some migration can still reach:
+
+```powershell
+foreach ($f in 'rollback-0007-drop-review-lease.sql','rollback-0006-drop-ai-sort-index.sql','rollback-0005-drop-user-email.sql') {
+  docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml `
+    cp "docker/mysql/$f" db:/tmp/rollback.sql
+  docker compose -p nexus-restore-test -f docker-compose.yml -f docs/runbook/docker-compose.restore-test.yml `
+    exec -T db sh -c "MYSQL_PWD=`$MYSQL_ROOT_PASSWORD mysql -h 127.0.0.1 -uroot nexus_campus < /tmp/rollback.sql"
+}
+```
+
+Substitute the live project and drop the second `-f` only when you mean to do this to production,
+and only after the backup. The same three commands run against a throwaway project are what
+`benchmark/migrations/rehearse-migrations.ps1` executes:
+
+```powershell
+pwsh -File benchmark/migrations/rehearse-migrations.ps1
+```
+
+It starts `-p nexus-migrate`, applies `init.sql`, then runs the sequence
+**rollback 0007/0006/0005 -> migrate 0005/0006/0007 -> rollback -> migrate**, asserting the schema
+shape from `information_schema` after every step and tearing the project down with `down -v`. The
+order is not the obvious one: `init.sql` already contains all three changes, so "up" only means
+something after the database has been rewound to the pre-migration shape. The committed result of
+the run on 2026-09-21 is `benchmark/migrations/results/migrations-20260921.md`.
+
+What it still does not prove: the data loss is stated rather than measured (the rehearsal runs on an
+empty schema, so nothing is actually lost), it never starts an application build against the rewound
+schema, and it is not a ledger - there is still no schema-version table, so which migrations a given
+volume has had is decided by the dump's date and the probe in section 4 rule 4. DB-1 in
+`docs/tickets/next-cycle-backlog.md` stays deferred.
 
 ## 5. Assert the data came back
 
@@ -456,6 +513,14 @@ served traffic.
 Row counts, manifest then restored, in manifest order - all differences zero:
 `sys_user` 10, `vibe_post` 32, `vibe_comment` 18, `vibe_post_like` 0, `vibe_post_tag` 16,
 `vibe_tag` 7, `vibe_channel` 7, `sys_message` 11, `ai_review_log` 957, `vibe_prompt_version` 7.
+
+The zero for `vibe_post_like` is a historical defect in that backup set, not a healthy expected value. The
+2026-09-17 pre-launch audit found the table was never written on the normal Redis like path, so it could not
+serve as the durable source a later reconciliation pass assumed it was. The current code mirrors every
+successful Redis toggle into `vibe_post_like` and reconciles Redis and MySQL by union; a future restore should
+show rows for any post whose `like_count` is non-zero. If both membership sources are empty but `like_count`
+is still positive, the recovery tasks write zero: an empty membership table means nobody likes the post,
+rather than an unknown answer, so the count follows it down (see `docs/tickets/like-count-convergence.md`).
 
 The uploads leg needed a file to exist to restore, so the rehearsal wrote a 70-byte PNG
 (`probe-4d588e6d14f749be88a7744c20d9b168.png`) into the live volume first - `app-uploads` had been

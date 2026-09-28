@@ -1,0 +1,64 @@
+# One-off project for benchmark/jmeter/run-loadtest.ps1.
+#
+#   docker compose -p nexus-loadtest -f docker-compose.yml \
+#     -f benchmark/jmeter/docker-compose.loadtest.yml up -d db redis app
+#
+# Why this file exists at all: a faithful run cannot be pointed at the live site.
+#  * Every POST /posts writes a row. A six-minute ladder leaves thousands of "Load post" rows in
+#    the feed, and the 2026-09-14 run's were cleaned up by hand afterwards. A scratch project has
+#    its own volumes, so teardown is `down -v`.
+#  * The sliding-window rate limiter caps POST /posts at 10 per minute per client address. Through
+#    the live nginx every request arrives from 127.0.0.1, so the ladder would measure the limiter,
+#    not the async pool. `campus.redis.enabled=false` is NOT enough to switch it off: the starter
+#    still hands out a StringRedisTemplate, and the interceptor only needs the template. The
+#    override therefore excludes RedisAutoConfiguration outright, which leaves the interceptor's
+#    optional template null and takes its documented degradation path ("[RATE-LIMIT] Redis not
+#    configured - rate limiting bypassed") with no per-request connect timeout. The cache has to
+#    follow, because the prod profile points spring.cache at Redis.
+#  * The LLM stays real. A refused endpoint drains the pool through the circuit breaker instead of
+#    holding it full, which is a different experiment; the scratch app therefore joins the live
+#    network to reach the already-running ollama container.
+#
+# `!override` replaces the base file's depends_on and networks instead of merging into them:
+# elasticsearch and ollama are not started here (ADR-0007 makes their absence DEGRADED, not fatal),
+# and the base file's health gates on them would block `up` forever.
+services:
+  db:
+    container_name: nexus-loadtest-db
+
+  redis:
+    container_name: nexus-loadtest-redis
+
+  app:
+    container_name: nexus-loadtest-app
+    depends_on: !override
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${LOADTEST_PORT:-18080}:8080"
+    environment:
+      REDIS_ENABLED: "false"
+      SPRING_AUTOCONFIGURE_EXCLUDE: org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      SPRING_CACHE_TYPE: simple
+      LLM_ENDPOINT: ${LOADTEST_LLM_ENDPOINT:-http://nexus-ollama:11434/v1}
+      # Measured 2026-09-21: this host's ollama has qwen2.5:3b only. The 2026-09-14 run used
+      # qwen2.5:7b; asking for a model that is not installed makes every review fail instantly,
+      # which opens the circuit breaker and drains the pool before it can saturate. Override with
+      # LOADTEST_LLM_MODEL when a different model is pulled.
+      LLM_MODEL: ${LOADTEST_LLM_MODEL:-qwen2.5:3b}
+      # Demo accounts give the run a known login without copying a production password around.
+      DEMO_SEED_ENABLED: "true"
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-123456}
+      # The drill's reasoning: posts older than this count as lost, so the recovery path is
+      # observable without waiting out the production ten-minute window.
+      AI_RECONCILE_STALE_MINUTES: "1"
+    networks: !override
+      - nexus-net
+      - live
+
+networks:
+  live:
+    external: true
+    name: nexus-vibe_nexus-net

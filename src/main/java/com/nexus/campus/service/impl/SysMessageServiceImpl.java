@@ -10,6 +10,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 
 @Service
 public class SysMessageServiceImpl implements SysMessageService {
@@ -56,7 +57,7 @@ public class SysMessageServiceImpl implements SysMessageService {
     @Override
     public boolean markAsRead(Long messageId, Long userId) {
         SysMessage msg = sysMessageMapper.selectById(messageId);
-        if (msg == null || !msg.getToUserId().equals(userId)) return false;
+        if (msg == null || !Objects.equals(msg.getToUserId(), userId)) return false;
         msg.setIsRead(1);
         return sysMessageMapper.updateById(msg) > 0;
     }

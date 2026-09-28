@@ -65,7 +65,7 @@
 - [x] 健康语义：`DEGRADED` 显式映射 200，`/actuator/health` 只回答可服务性，细节在 `/actuator/health/deps`；nginx 对其余 actuator 路径显式 404（ADR-0007）。
 - [x] 生产账号与种子：`DEMO_SEED_ENABLED=false` 时既不写样例账号也不写样例内容，`init.sql` 只留 schema + 频道/标签；`BOOTSTRAP_ADMIN_PASSWORD` 一次性引导 `admin`（ADR-0008）。
 - [x] traceId 贯穿：过滤器生成 16-hex 写 MDC 并回写 `X-Trace-Id`，异步池与定时任务继承/新建，5xx 响应体带 `traceId`，前端错误 toast 显示前 8 位追踪号。
-- [ ] 部署前 `.env` 必填：`BOOTSTRAP_ADMIN_PASSWORD`、`FEISHU_ALERT_WEBHOOK`、`FEISHU_ALERT_SECRET`、`GRAFANA_ADMIN_PASSWORD`。
+- [ ] 部署前 `.env` 必填：`BOOTSTRAP_ADMIN_PASSWORD`、`FEISHU_ALERT_WEBHOOK`、`FEISHU_ALERT_SECRET`、`GRAFANA_ADMIN_PASSWORD`。`GRAFANA_ADMIN_PASSWORD` 只能定义一次；Grafana 的 compose entrypoint 现在会在空值时明确拒绝启动，不再回落到 `changeme`。
 - [x] 上线前跑 `benchmark/observability/drill.ps1` 并把结论写进 `docs/research/observability-drill-2026-09.md`：
       2026-09-13 13:19 那次 16 步全绿（真容器、真断流、真打满限流），演练脚本本身修掉 4 处，产品侧暴露并修掉 1 个真 bug
       （告警规则依赖的 `application` 指标标签缺失）。
@@ -116,6 +116,33 @@
       随后 `curl -s http://localhost:8080/api/v1/posts` 确认真的答回来了，再把该值写回 `.env`，防止下次 `up` 又漂回新版本。
 - [ ] **回滚只在数据兼容窗口内成立**（2026-09-16 演练撞出来的边界）。演练把 `APP_TAG` 换成上一轮的构建后，第一次探活是 200，隔一会儿再请求就成了"连接被拒"：Tomcat 在 `CommandLineRunner` 跑完之前就开始监听，而旧构建的 `DataPreloader` 坚持要插一个用户名为 `admin` 的样例账号，撞上 `BootstrapAdminInitializer` 已经写进库里的那一行，runner 抛异常 → Spring 关掉上下文。**"换完镜像 health 变绿"不等于回滚成功**，要看下一个请求。因此：回滚目标必须是仍能在当前库上启动的构建（本轮没有改表结构，所以前后两个 round-six 构建之间可滚；pre-ADR-0008 的构建不可），演练的 `rollback-swaps-between-two-real-image-tags` 现在用 `-RollbackTag` 显式指定目标、比对两个 tag 背后的 image id、并对每侧连探两次（间隔 12 秒）。真实的一次"滚到坏版本"仍然没有样本。
 - [ ] 发布与回滚都动 `app` + `web` 两个服务、共用同一个 `APP_TAG` 值：SPA 和 API 是一组，不拆开滚。
+
+### 上线前全检收口（2026-09-18）
+
+- [x] 限流信任链只接受 nginx 覆盖的 `X-Real-IP`，不再读取 `CF-Connecting-IP` 或客户端可追加的 `X-Forwarded-For`；旋转请求头不再能创建新计数桶。
+- [x] Redis 点赞成功/取消同时镜像到 `vibe_post_like`；漂移对账按 Redis/MySQL 成员并集修复，永不删除成员，并在两边都无成员但计数非零时保留该计数等待人工恢复。
+- [x] 编辑帖在标题或正文变化后重新跑 DFA，并重新发布代码评审/安全审核事件；已有拒绝或待审状态不会被一次干净编辑自动翻回 ACTIVE。
+- [x] 评论数和 AI 评审评论数改为按可见评论行重算；缺少 multipart `file` 返回 400；`OPTIONS` 预检交给 Spring CORS。
+- [x] 应用镜像同时写入 `org.opencontainers.image.revision` 与 `org.opencontainers.image.version`；本地构建读 `GIT_REVISION`/`APP_TAG`，CI 构建读提交 SHA。
+- [x] 删除不可达的 `DraftService`/`DraftDto`，并修正详情页 like state 的 hooks 依赖告警。
+- [x] 数据库凭据分离：应用改用仅拥有 `nexus_campus` 权限的 `nexus_app`，MySQL `root` 仅供容器初始化与维护；`MYSQL_ROOT_PASSWORD` 与应用 `DB_PASSWORD` 分开管理并在上线前轮换。
+- [x] QA 数据已清：备份先落 `E:\nexus-backups\20260918-135855`，随后删除报告点名的 9 个账号、8 篇帖、1 条评论、审核日志、消息和 1 个测试上传文件；库与 Redis 复核零残留。名单在 `deliverables/gstack/pre-launch-check-nexus-vibe-2026-09-17.md:162`（machine-local、不入库），`9 → 0` 的对照在同一目录的 `defect-fix-plan-nexus-vibe-2026-09-18.md:30`；删除本身是手工 SQL，没有脚本。
+- [x] 本机线上已切到 `nexus-vibe-{app,web}:20260918-hardening`（`org.opencontainers.image.revision=12c21e2-dirty-20260918`）。限流探测走已提交的 `scripts/rate-limit-probe.ps1`：旋转 15 个 `CF-Connecting-IP` 得 `401 x 10 / 429 x 5`，因为 nginx 把 `X-Real-IP` 覆盖成 `$remote_addr`，客户端选的头不再决定分桶；启动对账把 Redis 中 2 个点赞成员回填到 `vibe_post_like`，全表评论数与可见评论行对账后差异为 0。
+- [x] 仍有 2 篇历史帖分别保留 `like_count=42/35` 但没有可恢复成员；对账任务按设计不清零，等待人工恢复。这个“计数存在、成员不可恢复”的状态已经被日志显式标出。
+
+> **更正，2026-09-23。** 上面这条记的是当时的状态。对账任务现在不再保留这个计数：空的成员表是
+> 权威，`DriftReconcileTask` 会把"两侧都没有成员、`like_count` 非零"写成零（`docs/tickets/like-count-convergence.md`）。
+> 那 2 篇帖的 `42/35` 会在下一次漂移对账时归零，不再等待人工恢复。
+
+> **这一节数字的来源。** 它记的是一次部署上的手工抽查，不是可重跑的回归。按 `AGENTS.md` 的规矩，能指认命令的指认命令，指认不出的直接说指认不出。
+>
+> - `401 x 10 / 429 x 5`：`pwsh -File scripts/rate-limit-probe.ps1`（脚本随本次提交入库）。同一支探针绕开 nginx、直连 app 并旋转 app 真正信任的 `X-Real-IP` 时得到 `15 x 401 / 0 x 429`，也就是修复前“每个头一个新桶”的形状——所以这条信号能区分两态，不是恒绿的摆设：
+>   `docker compose exec -T web sh -c 'for i in $(seq 1 15); do curl -s -o /dev/null -w "%{http_code}\n" -H "Content-Type: application/json" -H "X-Real-IP: 198.51.100.$i" -d "{\"username\":\"rate-limit-probe\",\"password\":\"not-a-real-password\"}" http://app:8080/api/v1/auth/login; done | sort | uniq -c'`
+> - 启动对账回填的 `2` 个成员、评论数差异 `0`：来自 `docker compose logs app` 里的 `[DRIFT] Reconciled ...` 与对 `vibe_post` 计数列的查询复核。**没有脚本**，要复现得重新造一次“Redis 丢成员”的场景。
+> - `like_count=42/35`：`docker compose exec -T db sh -c 'mysql -uroot -p"$MYSQL_ROOT_PASSWORD" -N -B nexus_campus -e "SELECT id, like_count FROM vibe_post WHERE like_count > 0 ORDER BY id"'` 读出（当天是 post 100/101）。**这两个值不是待修项**：成员不可恢复时保留计数是 `DriftReconcileTask` 的设计，见上一行。
+> - QA 清理的计数：见上一条 checklist 项，名单与对照在 `deliverables/gstack/` 下，同样是手工执行的。
+
+> 本机后端正式多阶段镜像仍受 Docker Hub `maven:3.9-eclipse-temurin-21` 元数据代理超时阻塞；线上切换用的是本机 jar + 官方 JRE 的 runtime-only 临时装配，`frontend/Dockerfile` 的 `--check` 已通过。提交的多阶段 Dockerfile 仍以 CI 构建为权威验证，不能把本次本机装配当成它已通过。
 
 ## 部署执行记录（2026-09-16，本机全栈）
 

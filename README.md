@@ -6,8 +6,8 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-346%20Java%20%2B%2033%20frontend-brightgreen)
-![License](https://img.shields.io/badge/license-MIT-blue)
+![Tests](https://img.shields.io/badge/tests-412%20Java%20%2B%2033%20frontend-brightgreen)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
 
@@ -21,6 +21,8 @@ real pipeline run - score, severity, verdict, findings - to a signed-out visitor
 recording rather than a live call, and `benchmark/showcase/` holds the script that produced it
 so the claim is reproducible rather than asserted. The seed is display-only: a row set written
 once, not a fixture the app switches to.
+
+![The recorded showcase review rendered by the live deployment](docs/assets/showcase/recorded-review.png)
 
 New here? [AGENTS.md](AGENTS.md) is the working contract and [docs/INDEX.md](docs/INDEX.md) maps
 every document in the repository. Both exist because this project has been picked up by several
@@ -119,7 +121,7 @@ React SPA (Vite) ── Nginx ── Spring Boot API
 - **Fail-closed moderation**: LLM unreachable → new posts enter the audit queue with a `pending-llm` marker; the reconciliation task re-checks them when the LLM recovers and restores Safe posts
 - **Semantic validation + self-correction**: schema-valid garbage (placeholder fields from small local models) retries with a reinforced prompt; *unparseable* output (fences, trailing commas, max-token truncation) is repair-parsed, then retried with the model's own output plus the parser error — total LLM calls per review stay ≤ 2
 - **Pool isolation**: LLM-bound listeners run on a dedicated small pool (core2/max4, Abort) so model latency can never starve message/notification work
-- **Count drift reconciliation**: hourly rotating-cursor sweep detects Redis-LOSS-shaped gaps and rebuilds from the durable `vibe_post_like` table, including the hot-ranking ZSET
+- **Count drift reconciliation**: hourly rotating-cursor sweep unions Redis membership with the durable `vibe_post_like` table, repairs either side without deleting members, and rebuilds the hot-ranking ZSET when anything changed
 - **Graceful saturation**: agent events rejected by a saturated pool degrade the post to a retryable state instead of failing the request (verified under a 50-concurrent load: 121k rejections, zero crashes)
 
 ## Features
@@ -218,7 +220,7 @@ once, while the database has no `ADMIN`. Rotate the password after logging in.
 
 ```bash
 cp .env.example .env
-# fill in DB_PASSWORD / JWT_SECRET / BOOTSTRAP_ADMIN_PASSWORD
+# fill in DB_PASSWORD / MYSQL_ROOT_PASSWORD / JWT_SECRET / BOOTSTRAP_ADMIN_PASSWORD
 docker compose up --build
 ```
 
@@ -244,7 +246,8 @@ docker compose exec ollama ollama pull qwen2.5:7b
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `WEB_PORT` | `8080` | 对外暴露的 web 端口 |
-| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | compose-internal | MySQL connection (password required) |
+| `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | compose-internal | MySQL application connection (use `nexus_app`, not `root`) |
+| `MYSQL_ROOT_PASSWORD` | compose-internal | MySQL root password, used only for initialization and maintenance |
 | `REDIS_ENABLED` | `true` | Redis features（关闭则点赞/限流/热榜走 MySQL 降级路径） |
 | `LLM_ENDPOINT` | `http://ollama:11434/v1` | Chat completions base URL |
 | `LLM_MODEL` | `qwen2.5:7b` | Default model（Windows CPU 建议 `qwen2.5:3b`） |
@@ -253,8 +256,9 @@ docker compose exec ollama ollama pull qwen2.5:7b
 | `DEMO_SEED_ENABLED` | `false` | Seed demo accounts *and* sample content from `DEMO_PASSWORD` |
 | `BOOTSTRAP_ADMIN_PASSWORD` | empty | Creates `admin` once, only while no `ADMIN` exists and seeding is off |
 | `CORS_ALLOWED_ORIGINS` | online domain | Allowed browser origins |
-| `AI_REVIEW_ENABLED` / `AI_LEASE_SECONDS` / `AI_MAX_ATTEMPTS` | `true` / `30` / `5` | Agent pipeline tuning |
-| `LIKE_DRIFT_ENABLED` / `LIKE_DRIFT_RATIO` / `LIKE_DRIFT_ABS` | `true` / `0.5` / `100` | Drift repair thresholds |
+| `AI_REVIEW_ENABLED` / `AI_SAFETY_ENABLED` | `true` / `true` | Independent code-review and safety switches |
+| `AI_LEASE_SECONDS` / `AI_MAX_ATTEMPTS` | `240` / `5` | Lease window and retry budget |
+| `LIKE_DRIFT_ENABLED` / `LIKE_SAMPLE_SIZE` | `true` / `200` | Drift reconciliation switch and per-cycle sample size |
 | `DEMO_ENDPOINTS_ENABLED` | `false` | `/api/demo/*` showcase endpoints (keep off in prod) |
 | `APP_TAG` | required | 两个应用镜像的标签；发布=改标签后 `--build`，回滚=改回上一个标签再 `up -d` |
 
@@ -265,8 +269,8 @@ docker compose exec ollama ollama pull qwen2.5:7b
 不依赖公网 VPS：一台常开的机器（Docker Desktop + cloudflared）即可，无需
 公网 IP 或入站端口。
 
-1. 根目录写入 `.env`（参考 `.env.example`）：强随机 `DB_PASSWORD`、`JWT_SECRET`，以及一个
-   每次发布都变的 `APP_TAG`（`app`/`web` 两个镜像靠它才有可回滚的名字）。
+1. 根目录写入 `.env`（参考 `.env.example`）：强随机 `DB_PASSWORD`、`MYSQL_ROOT_PASSWORD`、
+   `JWT_SECRET`，以及一个每次发布都变的 `APP_TAG`（`app`/`web` 两个镜像靠它才有可回滚的名字）。
 2. `docker compose up -d --build`，拉取模型 `docker compose exec ollama ollama pull qwen2.5:3b`。
 3. `cloudflared tunnel login` → `cloudflared tunnel create nexus-vibe` → DNS 路由
    （自有 zone 用 `cloudflared tunnel route dns`，否则 Fork `is-a-dev/register` 加
@@ -471,12 +475,14 @@ curl http://localhost:8081/api/v1/users/2/summary
 
 ## Testing
 
-2026-09-17 实测：后端 **346 用例 / 55 个测试类**（`mvn test` 的汇总行，不是把 `surefire-reports/*.txt` 加起来——那个目录里留着之前筛选跑剩的报告），前端 **33 用例 / 8 个文件**，告警桥 **28 条** Python 单测。
+2026-09-23 实测：后端 **412 用例 / 69 个测试类**，0 失败、0 错误、0 跳过。这 412 来自**一次** `mvn test` 的汇总行。本机默认堆参数下整份套件能在单个 fork 里跑完（2026-09-19 记录里会崩在原生 `malloc` 的那次是更早的状态）；内存更紧时可以把 surefire 的 `-DargLine` 压到 `-Xmx384m -XX:MaxMetaspaceSize=384m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC -Xss1m`，但**必须同时加 `-Djacoco.skip=true`**——`-DargLine=` 会替换掉 JaCoCo 的 agent 参数而不是追加，覆盖率会静默变成 0，然后 `jacoco:check` 用一个假数字把构建判红。类数按 `src/test/java` 下 `*Test(s).java` 的源文件数，不能数 `target/surefire-reports/*.txt`：那个目录里留着之前筛选跑剩的报告，会比真实值多。前端 **33 用例 / 8 个文件**，告警桥 **28 条** Python 单测。
 
-后端除了 H2 集成与 Mockito 单测，还有三条"读源码"的契约扫描：controller 签名不许出现 entity、测试不许把 `isOk()` 和非 200 的 `code` 配成一对、每个 `apiClient.` 调用都要落在有 `catch` 的 `try` 或 react-query 里。前端拦截器那 7 条走真实 axios，只把 `adapter` 换成假的，所以 401 刷新、单飞、重放、5xx 追踪号都是真跑；并且用两次变异验证过它们不是摆设：把 `if (!refreshPromise)` 改成 `if (true)` 只红那一条并发刷新的用例，塞一个裸 `apiClient.get` 会让扫描报出文件名与行号。
+覆盖率是一道门而不是一张报表：`pom.xml` 的 `jacoco.line.minimum` 卡的是整个 bundle 的行覆盖，低于它 `mvn test` 直接失败。首测值是 2967/3995 = 74.27%，下限按向下取整到 5% 取 **0.70**。反证过它不是装饰——把下限临时抬到 0.75，`jacoco:check` 报 `lines covered ratio is 0.74, but expected minimum is 0.75` 并让构建失败；CI 的 backend job 每次都上传 `target/site/jacoco/` 供查。
+
+后端除了 H2 集成与 Mockito 单测，还有四条"读源码"的契约扫描：controller 签名不许出现 entity、repository 接口不许出现 MyBatis 类型、前端 `types/` 的字段类型必须与 DTO 在 Jackson 下的线上类型一致、测试不许把 `isOk()` 和非 200 的 `code` 配成一对；前端另有一条扫描，要求每个 `apiClient.` 调用都落在有 `catch` 的 `try` 或 react-query 里。前端拦截器那 7 条走真实 axios，只把 `adapter` 换成假的，所以 401 刷新、单飞、重放、5xx 追踪号都是真跑；并且用两次变异验证过它们不是摆设：把 `if (!refreshPromise)` 改成 `if (true)` 只红那一条并发刷新的用例，塞一个裸 `apiClient.get` 会让扫描报出文件名与行号。
 
 ```bash
-mvn test                      # 346 tests: unit + H2 integration + the three source-scanning contract checks
+mvn test                      # 412 tests: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd frontend && npm run test   # 33 tests: axios interceptor, login page, AI review panel, comment body, call-site scan
@@ -490,7 +496,7 @@ python benchmark/observability/check_panels.py    # 每个面板表达式查一�
 python benchmark/observability/render_panels.py   # 无头浏览器真的渲染三张 dashboard，需先起 render 栈
 ```
 
-CI（`.github/workflows/maven.yml`）跑：后端 `mvn test`（含三条源码扫描）、前端 lint + `npm run test` + build、
+CI（`.github/workflows/maven.yml`）跑：后端 `mvn test`（含四条源码扫描）、前端 lint + `npm run test` + build、
 告警桥的 28 条 Python 单测与它自己的镜像构建、以及 app / web 两个镜像的构建（master 上还带那个 smoke 和
 演练里那三步告警断言）。
 演练的其余步骤仍只在本地跑，它要 Docker 和十几分钟；结论见
@@ -504,7 +510,7 @@ the deployed shape is special-cased: `SPRING_PROFILES_ACTIVE=prod`, MySQL/Redis/
 unpublished, and only nginx reachable from outside.
 
 ```bash
-# 1. the stack (needs .env: DB_PASSWORD, JWT_SECRET, BOOTSTRAP_ADMIN_PASSWORD, APP_TAG, CORS_ALLOWED_ORIGINS)
+# 1. the stack (needs .env: DB_PASSWORD, MYSQL_ROOT_PASSWORD, JWT_SECRET, BOOTSTRAP_ADMIN_PASSWORD, APP_TAG, CORS_ALLOWED_ORIGINS)
 docker compose up -d
 
 # 2. the tunnel; scripts/tunnel-ngrok.ps1 refuses to start a second copy for the same domain
@@ -533,4 +539,4 @@ the decision is recorded in the same checklist rather than made implicitly by a 
 
 ## License
 
-MIT
+This project is licensed under the MIT License. See [LICENSE](LICENSE).

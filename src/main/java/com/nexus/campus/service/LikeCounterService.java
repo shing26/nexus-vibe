@@ -40,7 +40,7 @@ public class LikeCounterService {
     private StringRedisTemplate stringRedisTemplate;
 
     @Autowired(required = false)
-    private DefaultRedisScript<Long> likeToggleScript;
+    private DefaultRedisScript<List> likeToggleScript;
 
     @Autowired
     private VibePostMapper vibePostMapper;
@@ -149,19 +149,50 @@ public class LikeCounterService {
                 DIRTY_SET_KEY,
                 RANKING_KEY
             );
-            Long count = stringRedisTemplate.execute(
+            List<?> result = stringRedisTemplate.execute(
                 likeToggleScript,
                 keys,
                 userId.toString(),
                 postId.toString(),
                 DEFAULT_WEIGHT
             );
-            return count != null ? count : 0;
+            if (result == null || result.size() < 2) {
+                return 0;
+            }
+            long count = toLong(result.get(0));
+            boolean liked = toLong(result.get(1)) == 1L;
+            persistMembership(postId, userId, liked);
+            return count;
         } catch (DataAccessException e) {
             log.warn("[NEXUS-LIKE] Lua script execution failed for post {}: {}", postId, e.getMessage());
             // Degrade gracefully
             return likeViaMysql(postId, userId);
         }
+    }
+
+    /**
+     * Mirror the Redis toggle into the durable membership table. Redis remains
+     * the low-latency source for the live count, but the membership rows are
+     * what lets reconciliation rebuild a lost set without guessing.
+     */
+    private void persistMembership(Long postId, Long userId, boolean liked) {
+        try {
+            if (liked) {
+                vibePostMapper.insertPostLike(postId, userId);
+            } else {
+                vibePostMapper.deletePostLike(postId, userId);
+            }
+        } catch (Exception e) {
+            log.error("[NEXUS-LIKE] Failed to persist membership for post {} user {}: {}",
+                    postId, userId, e.getMessage());
+        }
+    }
+
+    private long toLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
+        }
+        return Long.parseLong(String.valueOf(value));
     }
 
     // =================================================

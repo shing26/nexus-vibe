@@ -1,0 +1,11 @@
+# One-off project for benchmark/migrations/rehearse-migrations.ps1.
+#
+#   docker compose -p nexus-migrate -f docker-compose.yml \
+#     -f benchmark/migrations/docker-compose.migrations.yml up -d db
+#
+# Only `db` is started. docker-compose.yml pins container_name, and container names are not
+# project-scoped the way named volumes are, so the rename below is what lets a rehearsal run beside
+# the live stack. Same reasoning as docs/runbook/docker-compose.restore-test.yml.
+services:
+  db:
+    container_name: nexus-migrate-db

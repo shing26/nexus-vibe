@@ -50,9 +50,9 @@ class RateLimitInterceptorTest {
         // Inject Redis mock since @Autowired(required = false) won't pick up @Mock
         ReflectionTestUtils.setField(interceptor, "redisTemplate", redisTemplate);
         ReflectionTestUtils.setField(interceptor, "meterRegistry", meterRegistry);
+        ReflectionTestUtils.setField(interceptor, "trustForwardedHeaders", true);
         interceptor.init();
 
-        when(request.getHeader("X-Forwarded-For")).thenReturn(clientIp);
         when(request.getHeader("X-Real-IP")).thenReturn(null);
         when(request.getRemoteAddr()).thenReturn(clientIp);
         when(request.getMethod()).thenReturn("POST");
@@ -162,7 +162,8 @@ class RateLimitInterceptorTest {
 
         // Different IP should be allowed (Lua returns 1 for first call)
         HttpServletRequest request2 = mock(HttpServletRequest.class);
-        when(request2.getHeader("X-Forwarded-For")).thenReturn("192.168.1.200");
+        when(request2.getHeader("X-Real-IP")).thenReturn(null);
+        when(request2.getRemoteAddr()).thenReturn("192.168.1.200");
         when(request2.getRequestURI()).thenReturn("/api/v1/posts");
         when(request2.getMethod()).thenReturn("POST");
 
@@ -188,11 +189,11 @@ class RateLimitInterceptorTest {
     }
 
     @Test
-    @DisplayName("Without X-Real-IP the right-most X-Forwarded-For segment is used")
-    void rightmostXForwardedForSegmentWins() throws Exception {
+    @DisplayName("X-Forwarded-For cannot create a new bucket when X-Real-IP is absent")
+    void xForwardedForIsIgnored() throws Exception {
         when(request.getRequestURI()).thenReturn("/api/v1/posts");
         when(request.getHeader("X-Real-IP")).thenReturn(null);
-        when(request.getHeader("X-Forwarded-For")).thenReturn("6.6.6.6, 192.168.1.100");
+        when(request.getHeader("X-Forwarded-For")).thenReturn("6.6.6.6");
 
         ArgumentCaptor<List<String>> keyCaptor = ArgumentCaptor.forClass((Class) List.class);
         when(redisTemplate.execute(any(RedisScript.class), keyCaptor.capture(), anyString(), anyString(), anyString()))

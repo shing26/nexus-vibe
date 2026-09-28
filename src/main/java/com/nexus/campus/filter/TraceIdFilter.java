@@ -1,4 +1,4 @@
-package com.nexus.campus.config;
+package com.nexus.campus.filter;
 
 import com.nexus.campus.util.TraceIds;
 import jakarta.servlet.Filter;

@@ -2,18 +2,18 @@ package com.nexus.campus.service.impl;
 
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiReviewLog;
-import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
-import com.nexus.campus.mapper.VibePostMapper;
-import com.nexus.campus.service.impl.VibePostServiceImpl;
+import com.nexus.campus.enums.PostStatus;
+import com.nexus.campus.repository.AiReviewLogRepository;
+import com.nexus.campus.repository.VibePostRepository;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
@@ -29,25 +29,33 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * Unit tests for graceful degradation when the async pool rejects agent
- * events at publish time (the @Async submission runs in the publisher's
- * thread, so a saturated pool surfaces RejectedExecutionException here —
- * see the 40k HTTP-500s measured in docs/research/async-pool-loadtest.md).
+ * Graceful degradation when the async pool rejects agent events at publish
+ * time (the @Async submission runs in the publisher's thread, so a saturated
+ * pool surfaces RejectedExecutionException here — see the 40k HTTP-500s
+ * measured in docs/research/async-pool-loadtest.md).
+ *
+ * The publishing logic now lives behind the repository boundary, so these
+ * tests drive {@link PostAgentEventPublisher} directly instead of the post
+ * service facade.
  */
 @ExtendWith(MockitoExtension.class)
-class VibePostAgentEventPublishTest {
+class PostAgentEventPublisherTest {
 
     @Mock
-    private ApplicationEventPublisher eventPublisher;
+    private ApplicationEventPublisher events;
     @Mock
-    private VibePostMapper vibePostMapper;
+    private VibePostRepository posts;
     @Mock
-    private AiReviewLogMapper aiReviewLogMapper;
+    private AiReviewLogRepository reviewLogs;
     @Mock
     private LlmHealthCache llmHealthCache;
 
-    @InjectMocks
-    private VibePostServiceImpl service;
+    private PostAgentEventPublisher publisher;
+
+    @BeforeEach
+    void setUp() {
+        publisher = new PostAgentEventPublisher(events, posts, reviewLogs, llmHealthCache);
+    }
 
     private VibePost post(long id) {
         VibePost post = new VibePost();
@@ -62,12 +70,12 @@ class VibePostAgentEventPublishTest {
     @DisplayName("Rejected review event marks the post FAILED instead of throwing")
     void rejectedReviewEventMarksFailed() {
         doThrow(new RejectedExecutionException("pool full"))
-                .when(eventPublisher).publishEvent(any(AiReviewEvent.class));
+                .when(events).publishEvent(any(AiReviewEvent.class));
 
-        assertDoesNotThrow(() -> service.publishReviewEventSafely(post(1L), 9L));
+        assertDoesNotThrow(() -> publisher.publishReview(post(1L), 9L));
 
         ArgumentCaptor<VibePost> captor = ArgumentCaptor.forClass(VibePost.class);
-        verify(vibePostMapper).updateById(captor.capture());
+        verify(posts).update(captor.capture());
         assertEquals(AiReviewStatus.FAILED.getCode(), captor.getValue().getAiReviewed());
     }
 
@@ -76,14 +84,14 @@ class VibePostAgentEventPublishTest {
     void rejectedSafetyEventFailsClosed() {
         when(llmHealthCache.isHealthy()).thenReturn(true);
         doThrow(new RejectedExecutionException("pool full"))
-                .when(eventPublisher).publishEvent(any(AiSafetyCheckEvent.class));
+                .when(events).publishEvent(any(AiSafetyCheckEvent.class));
 
-        assertDoesNotThrow(() -> service.publishSafetyEventSafely(post(2L), 9L));
+        assertDoesNotThrow(() -> publisher.publishSafety(post(2L), 9L));
 
         // mirrors the listener's LLM-outage behavior: PENDING_REVIEW + pending-llm log
-        verify(vibePostMapper).updatePostStatus(2L, 2);
+        verify(posts).updateStatus(2L, PostStatus.PENDING_REVIEW.getCode());
         ArgumentCaptor<AiReviewLog> captor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(aiReviewLogMapper).insert(captor.capture());
+        verify(reviewLogs).insert(captor.capture());
         assertEquals("safety-check-agent", captor.getValue().getReviewer());
         assertEquals("pending-llm", captor.getValue().getSeverity());
     }
@@ -93,14 +101,14 @@ class VibePostAgentEventPublishTest {
     void unhealthyLlmAtEnqueueFailsClosedWithoutPublishing() {
         when(llmHealthCache.isHealthy()).thenReturn(false);
 
-        assertDoesNotThrow(() -> service.publishSafetyEventSafely(post(3L), 9L));
+        assertDoesNotThrow(() -> publisher.publishSafety(post(3L), 9L));
 
         // ADR-0004: during an outage posts do not appear publicly — the event
         // must not even enter the pipeline; the post lands in the audit queue.
-        verify(eventPublisher, never()).publishEvent(any(AiSafetyCheckEvent.class));
-        verify(vibePostMapper).updatePostStatus(3L, 2);
+        verify(events, never()).publishEvent(any(AiSafetyCheckEvent.class));
+        verify(posts).updateStatus(3L, PostStatus.PENDING_REVIEW.getCode());
         ArgumentCaptor<AiReviewLog> captor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(aiReviewLogMapper).insert(captor.capture());
+        verify(reviewLogs).insert(captor.capture());
         assertEquals("pending-llm", captor.getValue().getSeverity());
     }
 }

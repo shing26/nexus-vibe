@@ -1,6 +1,7 @@
 package com.nexus.campus.config.health;
 
 import com.nexus.campus.agent.LlmHealthCache;
+import com.nexus.campus.config.CampusAiProperties;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.actuate.health.Health;
@@ -24,7 +25,7 @@ class LlmHealthIndicatorTest {
         LlmHealthCache cache = mock(LlmHealthCache.class);
         when(cache.isHealthy()).thenReturn(false);
 
-        Health health = new LlmHealthIndicator(cache, true, false).health();
+        Health health = new LlmHealthIndicator(cache, flags(true, false)).health();
 
         assertThat(health.getStatus()).isEqualTo(DependencyHealth.DEGRADED);
         assertThat(health.getDetails()).containsEntry("reason", "LLM probe failed or circuit breaker is open");
@@ -37,7 +38,7 @@ class LlmHealthIndicatorTest {
         LlmHealthCache cache = mock(LlmHealthCache.class);
         when(cache.isHealthy()).thenReturn(true);
 
-        assertThat(new LlmHealthIndicator(cache, true, false).health().getStatus()).isEqualTo(Status.UP);
+        assertThat(new LlmHealthIndicator(cache, flags(true, false)).health().getStatus()).isEqualTo(Status.UP);
     }
 
     @Test
@@ -45,10 +46,17 @@ class LlmHealthIndicatorTest {
     void disabledPipelineNeverProbes() {
         LlmHealthCache cache = mock(LlmHealthCache.class);
 
-        Health health = new LlmHealthIndicator(cache, false, false).health();
+        Health health = new LlmHealthIndicator(cache, flags(false, false)).health();
 
         assertThat(health.getStatus()).isEqualTo(Status.UP);
         assertThat(health.getDetails()).containsEntry("mode", "disabled");
         verifyNoInteractions(cache);
+    }
+
+    private static CampusAiProperties flags(boolean review, boolean safety) {
+        CampusAiProperties properties = new CampusAiProperties();
+        properties.getReview().setEnabled(review);
+        properties.getSafety().setEnabled(safety);
+        return properties;
     }
 }

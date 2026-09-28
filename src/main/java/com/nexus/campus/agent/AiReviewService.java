@@ -1,21 +1,21 @@
 package com.nexus.campus.agent;
 
-import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.entity.VibeComment;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.nexus.campus.mapper.VibeCommentMapper;
 import com.nexus.campus.entity.VibePost;
-import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.repository.AiReviewLogRepository;
+import com.nexus.campus.repository.VibeCommentRepository;
+import com.nexus.campus.repository.VibePostRepository;
 import com.nexus.campus.service.SysMessageService;
 import com.nexus.campus.util.ContentSanitizer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
+import com.nexus.campus.config.CampusAiProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -63,19 +63,19 @@ public class AiReviewService {
     private LlmClient llmClient;
 
     @Autowired
-    private VibePostMapper vibePostMapper;
+    private VibePostRepository posts;
 
     @Autowired
-    private AiReviewLogMapper aiReviewLogMapper;
+    private AiReviewLogRepository reviewLogs;
 
     @Autowired
-    private VibeCommentMapper vibeCommentMapper;
+    private VibeCommentRepository comments;
 
     @Autowired
     private SysMessageService sysMessageService;
 
-    @Value("${campus.ai.review.max-context-tokens:12000}")
-    private int maxContextTokens;
+    @Autowired
+    private CampusAiProperties aiProperties;
 
     /**
      * Extracts fenced code blocks (``` ... ```) from content.
@@ -253,7 +253,7 @@ public class AiReviewService {
         // actual per-request nonces.
         int overheadEstimate = estimateTokens(buildSystemPrompt(
                 PromptIsolation.delimiters("CODE"), PromptIsolation.delimiters("META"))) + 2000; // system + response budget
-        int budget = maxContextTokens - overheadEstimate;
+        int budget = aiProperties.getReview().getMaxContextTokens() - overheadEstimate;
 
         for (String block : codeBlocks) {
             int blockTokens = estimateTokens(block);
@@ -362,7 +362,7 @@ public class AiReviewService {
             post.setId(postId);
             post.setAiReviewed(AiReviewStatus.REVIEWED.getCode());
             post.setAiReviewScore(result.score);
-            vibePostMapper.updateById(post);
+            posts.update(post);
             log.info("AI review score {} written back to vibe_post {}", result.score, postId);
         } catch (Exception e) {
             log.warn("Failed to update ai_review_score for post {}: {}", postId, e.getMessage());
@@ -433,7 +433,7 @@ public class AiReviewService {
             VibePost post = new VibePost();
             post.setId(postId);
             post.setAiReviewed(status.getCode());
-            vibePostMapper.updateById(post);
+            posts.update(post);
         } catch (Exception e) {
             log.warn("Failed to mark post {} as {}: {}", postId, status, e.getMessage());
         }
@@ -445,12 +445,7 @@ public class AiReviewService {
      */
     private void supersedePreviousReviewComments(Long postId) {
         try {
-            vibeCommentMapper.update(null, new LambdaUpdateWrapper<VibeComment>()
-                    .eq(VibeComment::getPostId, postId)
-                    .eq(VibeComment::getUserId, AI_AGENT_USER_ID)
-                    .like(VibeComment::getContent, REVIEW_COMMENT_MARKER)
-                    .eq(VibeComment::getStatus, 1)
-                    .set(VibeComment::getStatus, 0));
+            comments.hideAiReviewComments(postId, AI_AGENT_USER_ID, REVIEW_COMMENT_MARKER);
         } catch (Exception e) {
             log.warn("Failed to supersede previous AI comments for post {}: {}", postId, e.getMessage());
         }
@@ -468,7 +463,8 @@ public class AiReviewService {
             comment.setTargetId(0L);
             comment.setContent(formatReviewComment(result));
             comment.setStatus(1);
-            vibeCommentMapper.insert(comment);
+            comments.insert(comment);
+            posts.recalculateCommentCount(postId);
             log.info("AI review comment posted for post {}", postId);
         } catch (Exception e) {
             log.warn("Failed to post AI review comment for post {}: {}", postId, e.getMessage());
@@ -486,7 +482,7 @@ public class AiReviewService {
             logEntry.setSeverity(severity);
             logEntry.setIsApproved(isApproved);
             logEntry.setCreatedAt(LocalDateTime.now());
-            aiReviewLogMapper.insert(logEntry);
+            reviewLogs.insert(logEntry);
         } catch (Exception e) {
             log.warn("Failed to save AI review log for post {}: {}", postId, e.getMessage());
         }

@@ -158,8 +158,8 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 - `UserProfileSummaryService`（135 行）：聚合发帖/获赞/Fork 数/平均 AI 分。
 - `SysMessageService.sendMessage` 是图中第 5 大枢纽（入度 6），被评审、对账、消息三处复用。
 - `ChannelService` / `VibeTagService` / `VibeCommentService` / `SysUserService`：MyBatis-Plus `IService` 常规 CRUD。
-- `DraftService`（43 行）：`ConcurrentHashMap` 内存草稿，**进程重启即丢失，未做持久化**。属于功能边界而非 bug，但文档未标注。
-- `EmailService`（33 行）：三个方法只打日志，**没有接任何 SMTP**。"注册确认邮件""回帖通知""审核结果邮件"三处能力的实际完成度是：接口在，投递不在。
+- `DraftService`（43 行）：`ConcurrentHashMap` 内存草稿，**进程重启即丢失，未做持久化**。属于功能边界而非 bug，但文档未标注；2026-09-18 已按不可达死代码删除。
+- `EmailService`（33 行）：三个方法只打日志，**没有接任何 SMTP**。2026-09-28 复核时确认全仓零调用点（没有注入方、`EmailRequest` 只被它 import），已按不可达死代码连同 DTO 一起删除；"注册确认邮件""回帖通知""审核结果邮件"三处能力因此**目前不存在实现**，需要时按真实 SMTP 重新引入。
 
 ### 3.3 线程池与定时对账
 
@@ -173,7 +173,7 @@ TraceIdFilter -> XssFilter -> JwtAuthFilter -> RateLimitInterceptor
 - 职责：把"事件丢了"从一个事故变成一个会自愈的系统属性。
 - `AiReviewReconcileTask`（212 行，cron `0 3/5 * * * ?`）：扫 `REVIEWING` 陈旧 / `FAILED` / `pending-llm` 三类并重投事件，另有预算耗尽退休。**顺序设计有讲究**（第 92-95 行）：backlog gauge 在任何健康门控之前刷新——"LLM 挂了的时候恰恰是这个数字必须被看见的时候"；`sweepBudgetExhaustedReviews` 也无条件跑，因为那是任何重试路径都不会再碰的死状态。
 - `ai_review_pending_posts` 是快照 gauge 而非抓取时查库（第 68-72 行注释）：Prometheus 15 秒抓一次，用 `COUNT` 响应抓取等于让监控栈去压数据库。
-- `DriftReconcileTask`：抽样比对 Redis 点赞集合与 MySQL `like_count`，**只在"DB 远大于 Redis"这一种丢失形态**才以 `vibe_post_like` 表为真相源重建（`drift-ratio:0.5` / `drift-abs:100` / `sample-size:200`）。Redis 领先 DB 的正常写后滞留被有意忽略——**知道什么不该修，比修得多更值钱。**
+- `DriftReconcileTask`：抽样比对 Redis 点赞集合与 MySQL `like_count`，**只在"DB 远大于 Redis"这一种丢失形态**才以 `vibe_post_like` 表为真相源重建（`drift-ratio:0.5` / `drift-abs:100` / `sample-size:200`）。Redis 领先 DB 的正常写后滞留被有意忽略——**知道什么不该修，比修得多更值钱。** 2026-09-17 的全检证明空成员表会让这套阈值逻辑反向清零，当前实现已改为 Redis/MySQL 成员并集对账，不再按阈值重建。
 - `LikeSyncTask`：脏集合批量刷写，死锁时保留队列（实测日志可见 `1 synced, 1 failed, 1 left in queue`）。
 - 三个任务分别 7 / 5 / 7 个单测，其中包含"重试预算耗尽后不再领取"这类难以靠肉眼发现的分支。
 
@@ -418,8 +418,8 @@ CodeCompass `scan` 的五个桶，加上我的解读：
 
 **本报告补记的、评估文档未列出的缺口**
 
-1. `EmailService` 是空实现，三处"邮件"能力实际不可用。
-2. `DraftService` 内存草稿，重启即丢。
+1. `EmailService` 是空实现，三处"邮件"能力实际不可用。（2026-09-28 已作为不可达死代码删除）
+2. `DraftService` 内存草稿，重启即丢。（已于 2026-09-18 删除）
 3. 演练脚本不进 CI（PowerShell 与 ubuntu runner 不匹配）。
 4. nginx 无 TLS 终止，`listen 80` 明文。
 5. 前端零测试。

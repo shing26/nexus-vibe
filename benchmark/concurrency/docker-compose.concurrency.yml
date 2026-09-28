@@ -1,0 +1,49 @@
+# One-off project for benchmark/concurrency/like-concurrency.ps1.
+#
+#   docker compose -p nexus-conc -f docker-compose.yml \
+#     -f benchmark/concurrency/docker-compose.concurrency.yml up -d db redis app
+#
+# Why a scratch project: the probe writes 50 users, one post and 50 like rows, then deletes them.
+# Doing that against the live database would mean mutating the site a visitor is reading, and the
+# cleanup would be a second chance to get it wrong.
+#
+# Redis is ON here, unlike the JMeter override: the whole point of this probe is the consistency of
+# three views of the same like - the Redis set, the durable membership table, and the denormalised
+# like_count - and two of the three live in Redis.
+#
+# TRUST_FORWARDED_HEADERS is pinned true so the sliding-window limiter reads the per-user X-Real-IP
+# the script sends. Without it every one of the 50 concurrent likes would share one bucket and 40 of
+# them would come back 429, which would measure the limiter instead of the like path.
+services:
+  db:
+    container_name: nexus-conc-db
+
+  redis:
+    container_name: nexus-conc-redis
+
+  app:
+    container_name: nexus-conc-app
+    depends_on: !override
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    ports:
+      - "${CONCURRENCY_PORT:-18081}:8080"
+    environment:
+      REDIS_ENABLED: "true"
+      TRUST_FORWARDED_HEADERS: "true"
+      LLM_ENDPOINT: ${CONCURRENCY_LLM_ENDPOINT:-http://nexus-ollama:11434/v1}
+      # The probe never asks for a review; this only keeps the reconcile sweep quiet if a stray
+      # post is left behind. Measured 2026-09-21: this host has qwen2.5:3b only.
+      LLM_MODEL: ${CONCURRENCY_LLM_MODEL:-qwen2.5:3b}
+      DEMO_SEED_ENABLED: "true"
+      DEMO_PASSWORD: ${DEMO_PASSWORD:-123456}
+    networks: !override
+      - nexus-net
+      - live
+
+networks:
+  live:
+    external: true
+    name: nexus-vibe_nexus-net

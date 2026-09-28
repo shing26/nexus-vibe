@@ -31,6 +31,7 @@ import org.springframework.data.redis.serializer.StringRedisSerializer;
 import org.springframework.core.io.ClassPathResource;
 
 import java.time.Duration;
+import java.util.List;
 
 @Configuration
 @ConditionalOnProperty(name = "campus.redis.enabled", havingValue = "true", matchIfMissing = false)
@@ -137,10 +138,10 @@ public class RedisConfig implements CachingConfigurer {
     }
 
     @Bean
-    public DefaultRedisScript<Long> likeToggleScript() {
-        DefaultRedisScript<Long> script = new DefaultRedisScript<>();
+    public DefaultRedisScript<List> likeToggleScript() {
+        DefaultRedisScript<List> script = new DefaultRedisScript<>();
         script.setLocation(new ClassPathResource("lua/like_toggle.lua"));
-        script.setResultType(Long.class);
+        script.setResultType(List.class);
         return script;
     }
 

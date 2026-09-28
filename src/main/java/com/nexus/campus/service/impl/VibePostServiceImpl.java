@@ -1,36 +1,32 @@
 package com.nexus.campus.service.impl;
 
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.nexus.campus.dto.PostAuditResult;
+import com.nexus.campus.dto.PageResult;
 import com.nexus.campus.dto.PostCreateRequest;
 import com.nexus.campus.dto.PostPageVo;
-import com.nexus.campus.dto.PageResult;
 import com.nexus.campus.dto.PostUpdateRequest;
 import com.nexus.campus.dto.PostVersionVo;
-import com.nexus.campus.entity.*;
+import com.nexus.campus.entity.PromptVersion;
+import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.entity.SysUser;
+import com.nexus.campus.entity.VibePost;
+import com.nexus.campus.entity.VibeTag;
 import com.nexus.campus.exception.BusinessException;
-import com.nexus.campus.mapper.*;
-import com.nexus.campus.agent.AiReviewLog;
-import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.metrics.ProductMetrics;
-import com.nexus.campus.service.VibePostService;
-import com.nexus.campus.agent.AiReviewEvent;
-import com.nexus.campus.enums.AiReviewStatus;
-import com.nexus.campus.enums.PostStatus;
-import com.nexus.campus.agent.AiSafetyCheckEvent;
-import com.nexus.campus.agent.LlmHealthCache;
-import com.nexus.campus.service.PostSearchService;
+import com.nexus.campus.repository.AiReviewLogRepository;
+import com.nexus.campus.repository.PageSlice;
+import com.nexus.campus.repository.PromptVersionRepository;
+import com.nexus.campus.repository.SysUserRepository;
+import com.nexus.campus.repository.VibeCommentRepository;
+import com.nexus.campus.repository.VibePostRepository;
+import com.nexus.campus.repository.VibeTagRepository;
+import com.nexus.campus.security.AdminGuard;
 import com.nexus.campus.service.PostRankingService;
-import com.nexus.campus.service.SensitiveWordService;
+import com.nexus.campus.service.PostSearchService;
 import com.nexus.campus.service.SysMessageService;
+import com.nexus.campus.service.VibePostService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.BeanUtils;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.cache.annotation.CacheEvict;
-import org.springframework.cache.annotation.Cacheable;
-import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -41,240 +37,65 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class VibePostServiceImpl implements VibePostService {
-    private static final String DEFAULT_BRANCH = "main";
 
-    private void applyTypeFilter(LambdaQueryWrapper<VibePost> queryWrapper, String type) {
-        if (type != null && !"all".equals(type) && !type.isBlank()) {
-            queryWrapper.eq(VibePost::getPostType, type);
-        }
-    }
+    private final PostCreationService postCreationService;
+    private final PostEditService postEditService;
+    private final PromptVersionRecorder versionRecorder;
+    private final VibePostRepository posts;
+    private final VibeTagRepository tags;
+    private final SysUserRepository users;
+    private final PromptVersionRepository versions;
+    private final VibeCommentRepository comments;
+    private final AiReviewLogRepository reviewLogs;
+    private final PostSearchService search;
+    private final PostRankingService ranking;
+    private final SysMessageService messages;
+    private final ProductMetrics productMetrics;
 
-    private String normalizePostType(String type) {
-        if (type == null || type.isBlank() || "all".equals(type)) {
-            return null;
-        }
-        return type;
-    }
-
-    @Autowired
-    private PostSearchService postSearchService;
-
-    @Autowired
-    private SysMessageService sysMessageService;
-
-    @Autowired
-    private PostRankingService postRankingService;
-
-    @Autowired
-    private VibePostMapper vibePostMapper;
-
-    @Autowired
-    private VibePostTagMapper vibePostTagMapper;
-
-    @Autowired
-    private VibeTagMapper vibeTagMapper;
-
-    @Autowired
-    private ChannelMapper channelMapper;
-
-    @Autowired
-    private VibeCommentMapper vibeCommentMapper;
-
-    @Autowired
-    private SysUserMapper sysUserMapper;
-
-    @Autowired
-    private SensitiveWordService sensitiveWordService;
-
-    @Autowired
-    private AiReviewLogMapper aiReviewLogMapper;
-
-    @Autowired
-    private LlmHealthCache llmHealthCache;
-
-    @Autowired
-    private PromptVersionMapper promptVersionMapper;
-
-    @Autowired
-    private ApplicationEventPublisher eventPublisher;
-
-    @Autowired
-    private ProductMetrics productMetrics;
-
-   @Value("${campus.ai.review.enabled:true}")
-   private boolean aiReviewEnabled;
-
-   @Override
-   @Transactional
-   @CacheEvict(value = "posts", allEntries = true)
-    public VibePost createPost(PostCreateRequest request, Long userId) {
-        VibePost post = new VibePost();
-        post.setUserId(userId);
-        post.setCategoryId(request.getCategoryId());
-        post.setTitle(request.getTitle());
-        post.setContent(request.getContent());
-
-        post.setViewCount(0);
-        post.setLikeCount(0);
-        post.setCommentCount(0);
-
-        // Set post type and prompt metadata
-        post.setPostType(request.getPostType() != null ? request.getPostType() : "post");
-        post.setPromptMetadata(request.getPromptMetadata());
-
-        // DFA audit (SensitiveWordService)
-        PostAuditResult titleAudit   = sensitiveWordService.checkText(request.getTitle());
-        PostAuditResult contentAudit = sensitiveWordService.checkText(request.getContent());
-        boolean anyCritical  = titleAudit.isContainsCritical() || contentAudit.isContainsCritical();
-        boolean anySensitive = titleAudit.isContainsSensitive() || contentAudit.isContainsSensitive();
-        post.setStatus(anyCritical ? 2 : 1);
-        if (anySensitive) {
-            post.setTitle(titleAudit.getFilteredContent());
-            post.setContent(contentAudit.getFilteredContent());
-        }
-        // Generate summary from the (now-filtered) content
-        String filteredPlain = post.getContent().replaceAll("<[^>]*>", "");
-       post.setSummary(filteredPlain.length() > 200 ? filteredPlain.substring(0, 200) + "..." : filteredPlain);
-
-        // Announcement channel: admin-only guard
-        Channel channel = channelMapper.selectById(request.getCategoryId());
-        if (channel != null && "announcements".equals(channel.getSlug())) {
-            SysUser user = sysUserMapper.selectById(userId);
-            if (user == null || !"ADMIN".equals(user.getRole())) {
-                throw BusinessException.forbidden("Only admins can post in the announcements channel.");
-            }
-        }
-
-        vibePostMapper.insert(post);
-
-        // Link tags
-        if (request.getTags() != null && !request.getTags().isEmpty()) {
-            vibePostTagMapper.insertBatch(post.getId(), request.getTags());
-        }
-
-        // Prompt templates get an initial immutable version snapshot
-        if ("prompt".equals(post.getPostType())) {
-            saveVersionSnapshot(post, userId, "Initial version");
-        }
-
-        // Fetch user for author name and core power award
-        SysUser user = sysUserMapper.selectById(userId);
-
-        // Index in Elasticsearch
-        post.setAuthorName(user != null ? user.getNickname() : "");
-        Channel category = channelMapper.selectById(post.getCategoryId());
-        post.setCategoryName(category != null ? category.getName() : "");
-        postSearchService.indexPost(post);
-
-        // Award core power for posting
-        if (user != null) {
-            int reward = post.getStatus() == 1 ? 10 : 3;
-            user.setCorePower(user.getCorePower() + reward);
-            sysUserMapper.updateById(user);
-        }
-
-        // Publish AI review event if enabled. A saturated async pool throws
-        // RejectedExecutionException synchronously in this (the publisher's)
-        // thread; degrade to a terminal state instead of failing the request.
-        if (aiReviewEnabled) {
-            publishReviewEventSafely(post, userId);
-        }
-
-        // Publish AI safety check event if enabled (only for posts that passed DFA)
-        if (aiReviewEnabled && post.getStatus() == 1) {
-            publishSafetyEventSafely(post, userId);
-        }
-
-        // Recorded after the row exists and after the pipeline has been told: the
-        // funnel asks how many submissions entered the queue, and a post that never
-        // got as far as an insert is not one.
-        productMetrics.recordPostCreated(post.getStatus());
-
-        return post;
+    public VibePostServiceImpl(PostCreationService postCreationService,
+                               PostEditService postEditService,
+                               PromptVersionRecorder versionRecorder,
+                               VibePostRepository posts,
+                               VibeTagRepository tags,
+                               SysUserRepository users,
+                               PromptVersionRepository versions,
+                               VibeCommentRepository comments,
+                               AiReviewLogRepository reviewLogs,
+                               PostSearchService search,
+                               PostRankingService ranking,
+                               SysMessageService messages,
+                               ProductMetrics productMetrics) {
+        this.postCreationService = postCreationService;
+        this.postEditService = postEditService;
+        this.versionRecorder = versionRecorder;
+        this.posts = posts;
+        this.tags = tags;
+        this.users = users;
+        this.versions = versions;
+        this.comments = comments;
+        this.reviewLogs = reviewLogs;
+        this.search = search;
+        this.ranking = ranking;
+        this.messages = messages;
+        this.productMetrics = productMetrics;
     }
 
     @Override
-    @Transactional
-    @CacheEvict(value = "posts", allEntries = true)
+    public VibePost createPost(PostCreateRequest request, Long userId) {
+        return postCreationService.createPost(request, userId);
+    }
+
+    @Override
     public VibePost updatePost(Long postId, PostUpdateRequest request, Long userId) {
-        VibePost post = vibePostMapper.selectById(postId);
-        if (post == null) {
-            throw BusinessException.notFound("Post not found.");
-        }
-        SysUser user = sysUserMapper.selectById(userId);
-        boolean isAdmin = user != null && "ADMIN".equals(user.getRole());
-        if (!isAdmin && !post.getUserId().equals(userId)) {
-            throw BusinessException.forbidden("Only the author can edit this post.");
-        }
-        String previousContent = post.getContent();
-        if (request.getTitle() != null && !request.getTitle().isBlank()) {
-            post.setTitle(request.getTitle().trim());
-        }
-        if (request.getCategoryId() != null) {
-            Channel channel = channelMapper.selectById(request.getCategoryId());
-            if (channel == null) {
-                throw BusinessException.notFound("Channel not found.");
-            }
-            if ("announcements".equals(channel.getSlug()) && !isAdmin) {
-                throw BusinessException.forbidden("Only admins can post in the announcements channel.");
-            }
-            post.setCategoryId(request.getCategoryId());
-        }
-        if (request.getContent() != null) {
-            post.setContent(request.getContent());
-        }
-        if (request.getPostType() != null) {
-            post.setPostType(request.getPostType());
-        }
-        if (request.getPromptMetadata() != null) {
-            post.setPromptMetadata(request.getPromptMetadata());
-        }
-
-        String plain = post.getContent().replaceAll("<[^>]*>", "");
-        post.setSummary(plain.length() > 200 ? plain.substring(0, 200) + "..." : plain);
-
-        if (request.getTags() != null) {
-            vibePostTagMapper.delete(new LambdaQueryWrapper<VibePostTag>().eq(VibePostTag::getPostId, postId));
-            if (!request.getTags().isEmpty()) {
-                vibePostTagMapper.insertBatch(postId, request.getTags());
-            }
-        }
-
-        vibePostMapper.updateById(post);
-
-        if ("prompt".equals(post.getPostType())) {
-            String note = request.getChangeNote() != null && !request.getChangeNote().isBlank()
-                    ? request.getChangeNote().trim() : "Updated via editor";
-            saveVersionSnapshot(post, userId, note);
-        }
-
-        VibePost fullPost = vibePostMapper.selectPostWithDetails(postId);
-        if (fullPost != null) {
-            postSearchService.indexPost(fullPost);
-        }
-
-        // A content edit invalidates the previous AI review: re-run it so the
-        // score reflects the current text (the score column is reset by the
-        // pipeline when the new review completes).
-        boolean contentChanged = request.getContent() != null
-                && !request.getContent().equals(previousContent);
-        if (contentChanged && aiReviewEnabled && post.getStatus() == 1
-                && !"prompt".equals(post.getPostType())) {
-            post.setAiReviewed(AiReviewStatus.REVIEWING.getCode());
-            vibePostMapper.updateById(post);
-            publishReviewEventSafely(post, userId);
-        }
-        return post;
+        return postEditService.updatePost(postId, request, userId);
     }
 
     @Override
     @Transactional
     @CacheEvict(value = "posts", allEntries = true)
     public VibePost forkPrompt(Long postId, Long userId) {
-        VibePost source = vibePostMapper.selectById(postId);
-        if (source == null) {
-            throw BusinessException.notFound("Source template not found.");
-        }
+        VibePost source = posts.findById(postId)
+                .orElseThrow(() -> BusinessException.notFound("Source template not found."));
         if (!"prompt".equals(source.getPostType())) {
             throw BusinessException.conflict("Only prompt templates can be forked.");
         }
@@ -295,62 +116,53 @@ public class VibePostServiceImpl implements VibePostService {
         fork.setPostType("prompt");
         fork.setPromptMetadata(source.getPromptMetadata());
         fork.setForkedFromId(source.getId());
-        vibePostMapper.insert(fork);
+        posts.insert(fork);
 
-        saveVersionSnapshot(fork, userId, "Forked from post " + source.getId());
+        versionRecorder.record(fork, userId, "Forked from post " + source.getId());
 
-        List<VibeTag> tags = vibeTagMapper.selectTagsByPostId(postId);
-        if (tags != null && !tags.isEmpty()) {
-            List<Integer> tagIds = tags.stream().map(VibeTag::getId).collect(Collectors.toList());
-            vibePostTagMapper.insertBatch(fork.getId(), tagIds);
-        }
+        List<Integer> tagIds = tags.findByPostId(postId).stream()
+                .map(VibeTag::getId)
+                .collect(Collectors.toList());
+        tags.replaceForPost(fork.getId(), tagIds);
 
-        SysUser user = sysUserMapper.selectById(userId);
-        if (user != null) {
+        users.findById(userId).ifPresent(user -> {
             user.setCorePower(user.getCorePower() + 10);
-            sysUserMapper.updateById(user);
-        }
+            users.update(user);
+        });
         return fork;
     }
 
     @Override
     public List<PostVersionVo> getPromptVersions(Long postId) {
-        VibePost post = vibePostMapper.selectById(postId);
-        if (post == null) {
+        if (posts.findById(postId).isEmpty()) {
             return Collections.emptyList();
         }
-        List<PromptVersion> versions = promptVersionMapper.selectList(
-                new LambdaQueryWrapper<PromptVersion>()
-                        .eq(PromptVersion::getPostId, postId)
-                        .eq(PromptVersion::getBranch, DEFAULT_BRANCH)
-                        .orderByDesc(PromptVersion::getVersion));
-        return versions.stream().map(version -> {
-            PostVersionVo vo = new PostVersionVo();
-            BeanUtils.copyProperties(version, vo);
-            SysUser author = sysUserMapper.selectById(version.getCreatedBy());
-            vo.setAuthorName(author != null ? author.getNickname() : "Unknown");
-            return vo;
-        }).collect(Collectors.toList());
+        return versions.findByPost(postId, PromptVersionRecorder.DEFAULT_BRANCH).stream()
+                .map(version -> {
+                    PostVersionVo vo = new PostVersionVo();
+                    BeanUtils.copyProperties(version, vo);
+                    SysUser author = users.findById(version.getCreatedBy()).orElse(null);
+                    vo.setAuthorName(author != null ? author.getNickname() : "Unknown");
+                    return vo;
+                })
+                .collect(Collectors.toList());
     }
 
     @Override
     @Transactional
     @CacheEvict(value = "posts", allEntries = true)
     public boolean restorePromptVersion(Long postId, Integer version, Long userId, String changeNote) {
-        VibePost post = vibePostMapper.selectById(postId);
+        VibePost post = posts.findById(postId).orElse(null);
         if (post == null) {
             return false;
         }
-        SysUser user = sysUserMapper.selectById(userId);
-        boolean isAdmin = user != null && "ADMIN".equals(user.getRole());
+        SysUser user = users.findById(userId).orElse(null);
+        boolean isAdmin = user != null && AdminGuard.isAdmin(user.getRole());
         if (!isAdmin && !post.getUserId().equals(userId)) {
             throw BusinessException.forbidden("Only the author can restore versions.");
         }
-        PromptVersion target = promptVersionMapper.selectOne(
-                new LambdaQueryWrapper<PromptVersion>()
-                        .eq(PromptVersion::getPostId, postId)
-                        .eq(PromptVersion::getBranch, DEFAULT_BRANCH)
-                        .eq(PromptVersion::getVersion, version));
+        PromptVersion target = versions.find(postId, PromptVersionRecorder.DEFAULT_BRANCH, version)
+                .orElse(null);
         if (target == null) {
             return false;
         }
@@ -358,18 +170,13 @@ public class VibePostServiceImpl implements VibePostService {
         post.setTitle(target.getTitle());
         post.setContent(target.getContent());
         post.setPromptMetadata(target.getPromptMetadata());
-        String plain = post.getContent().replaceAll("<[^>]*>", "");
-        post.setSummary(plain.length() > 200 ? plain.substring(0, 200) + "..." : plain);
-        vibePostMapper.updateById(post);
+        post.setSummary(PostCreationService.summary(post.getContent()));
+        posts.update(post);
 
         String note = changeNote != null && !changeNote.isBlank()
                 ? changeNote.trim() : "Restored from v" + version;
-        saveVersionSnapshot(post, userId, note);
-
-        VibePost fullPost = vibePostMapper.selectPostWithDetails(postId);
-        if (fullPost != null) {
-            postSearchService.indexPost(fullPost);
-        }
+        versionRecorder.record(post, userId, note);
+        posts.findWithDetails(postId).ifPresent(search::indexPost);
         return true;
     }
 
@@ -377,36 +184,23 @@ public class VibePostServiceImpl implements VibePostService {
     @Transactional
     @CacheEvict(value = "posts", allEntries = true)
     public boolean deletePost(Long postId, Long userId) {
-        VibePost post = vibePostMapper.selectById(postId);
+        VibePost post = posts.findById(postId).orElse(null);
         if (post == null) {
             return false;
         }
-        SysUser user = sysUserMapper.selectById(userId);
-        boolean isAdmin = user != null && "ADMIN".equals(user.getRole());
+        SysUser user = users.findById(userId).orElse(null);
+        boolean isAdmin = user != null && AdminGuard.isAdmin(user.getRole());
         if (!isAdmin && !post.getUserId().equals(userId)) {
             throw BusinessException.forbidden("Only the author can delete this post.");
         }
 
-        promptVersionMapper.delete(new LambdaQueryWrapper<PromptVersion>().eq(PromptVersion::getPostId, postId));
-        vibePostTagMapper.delete(new LambdaQueryWrapper<VibePostTag>().eq(VibePostTag::getPostId, postId));
-        vibeCommentMapper.delete(new LambdaQueryWrapper<VibeComment>().eq(VibeComment::getPostId, postId));
-        aiReviewLogMapper.delete(new LambdaQueryWrapper<AiReviewLog>().eq(AiReviewLog::getPostId, postId));
-        vibePostMapper.deleteById(postId);
-        postSearchService.deletePost(postId);
+        versions.deleteByPost(postId);
+        tags.deleteForPost(postId);
+        comments.deleteByPost(postId);
+        reviewLogs.deleteByPost(postId);
+        posts.delete(postId);
+        search.deletePost(postId);
         return true;
-    }
-
-    private void saveVersionSnapshot(VibePost post, Long userId, String changeNote) {
-        PromptVersion version = new PromptVersion();
-        version.setPostId(post.getId());
-        version.setVersion(promptVersionMapper.selectMaxVersion(post.getId(), DEFAULT_BRANCH) + 1);
-        version.setBranch(DEFAULT_BRANCH);
-        version.setTitle(post.getTitle());
-        version.setContent(post.getContent());
-        version.setPromptMetadata(post.getPromptMetadata());
-        version.setChangeNote(changeNote);
-        version.setCreatedBy(userId);
-        promptVersionMapper.insert(version);
     }
 
     @Override
@@ -416,13 +210,8 @@ public class VibePostServiceImpl implements VibePostService {
 
     @Override
     public PageResult<PostPageVo> getActivePosts(int page, int size, String type) {
-        Page<VibePost> mpPage = vibePostMapper.selectPostPage(
-                new Page<>(page, size),
-                null,
-                normalizePostType(type)
-        );
-        List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());
-        return PageResult.of(page, size, mpPage.getTotal(), vos);
+        PageSlice<VibePost> slice = posts.pageActive(page, size, null, normalizePostType(type));
+        return PageResult.of(page, size, slice.total(), convertToPageVos(slice.records()));
     }
 
     @Override
@@ -434,96 +223,60 @@ public class VibePostServiceImpl implements VibePostService {
     @Override
     @Deprecated
     public PageResult<PostPageVo> getPostsByCategory(Integer categoryId, int page, int size, String type) {
-        Page<VibePost> mpPage = vibePostMapper.selectPostPage(
-                new Page<>(page, size),
-                categoryId,
-                normalizePostType(type)
-        );
-        List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());
-        return PageResult.of(page, size, mpPage.getTotal(), vos);
+        PageSlice<VibePost> slice = posts.pageActive(page, size, categoryId, normalizePostType(type));
+        return PageResult.of(page, size, slice.total(), convertToPageVos(slice.records()));
     }
 
     @Override
     @Deprecated
     public PageResult<PostPageVo> searchPosts(String keyword, int page, int size) {
-        // Try ES first
         if (keyword != null && !keyword.isBlank()) {
-            PageResult<PostPageVo> esResult = postSearchService.searchPosts(keyword, page, size);
+            PageResult<PostPageVo> esResult = search.searchPosts(keyword, page, size);
             if (esResult != null) {
                 return esResult;
             }
         }
-        // Fallback to MySQL LIKE query with pagination
-        Page<VibePost> mpPage = vibePostMapper.selectSearchPage(
-                new Page<>(page, size),
-                keyword
-        );
-        List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());
-        return PageResult.of(page, size, mpPage.getTotal(), vos);
+        PageSlice<VibePost> slice = posts.searchPage(page, size, keyword);
+        return PageResult.of(page, size, slice.total(), convertToPageVos(slice.records()));
     }
 
     @Override
     public PageResult<PostPageVo> filterPosts(int page, int size, String keyword, Integer categoryId,
                                               String language, Integer aiScoreMin, String type, String sort) {
-        String normalizedType = normalizePostType(type);
         String normalizedSort = sort == null || sort.isBlank() || "latest".equals(sort) ? "latest" : sort;
-        Page<VibePost> mpPage = vibePostMapper.selectFilteredPage(
-                new Page<>(page, size),
-                keyword,
-                categoryId,
-                normalizedType,
-                language,
-                aiScoreMin,
-                normalizedSort
-        );
-        List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());
-        return PageResult.of(page, size, mpPage.getTotal(), vos);
+        PageSlice<VibePost> slice = posts.filterPage(page, size, keyword, categoryId,
+                normalizePostType(type), language, aiScoreMin, normalizedSort);
+        return PageResult.of(page, size, slice.total(), convertToPageVos(slice.records()));
     }
 
     @Override
     public List<PostPageVo> getHotPosts(int limit) {
-        return postRankingService.getHotPosts(limit);
+        return ranking.getHotPosts(limit);
     }
 
     @Override
     public PostPageVo getPostDetail(Long id) {
-        VibePost post = vibePostMapper.selectPostWithDetails(id);
-        if (post == null || post.getStatus() == null || post.getStatus() != 1) return null;
+        VibePost post = posts.findWithDetails(id).orElse(null);
+        if (post == null || post.getStatus() == null || post.getStatus() != 1) {
+            return null;
+        }
         return convertToPageVo(post);
     }
 
     @Override
-    @Deprecated
-    public VibePost likePost(Long postId) {
-        vibePostMapper.incrementLikeCount(postId);
-        VibePost post = vibePostMapper.selectById(postId);
-        // Notify ranking service
-        if (post != null) {
-            postRankingService.onLike(postId, post.getLikeCount());
-        }
-        return post;
-    }
-
-    @Override
     public boolean incrementView(Long postId) {
-        return vibePostMapper.incrementViewCount(postId) > 0;
+        return posts.incrementView(postId);
     }
 
     @Override
     @Transactional
     public void pinPost(Long postId) {
-        VibePost post = vibePostMapper.selectById(postId);
-        if (post == null) {
-            throw BusinessException.notFound("Post not found.");
-        }
-        // A boolean return could not tell these two apart, which is why the
-        // controller's only available sentence was "not found or cannot be
-        // pinned" - one answer to two different questions.
+        VibePost post = posts.findById(postId)
+                .orElseThrow(() -> BusinessException.notFound("Post not found."));
         if (post.getStatus() != 1) {
             throw BusinessException.conflict("Only a published post can be pinned.");
         }
-        int rows = vibePostMapper.pinPost(postId);
-        if (rows <= 0) {
+        if (posts.pin(postId) <= 0) {
             throw BusinessException.conflict("Post could not be pinned.");
         }
         log.info("Post {} pinned", postId);
@@ -532,12 +285,10 @@ public class VibePostServiceImpl implements VibePostService {
     @Override
     @Transactional
     public void unpinPost(Long postId) {
-        VibePost post = vibePostMapper.selectById(postId);
-        if (post == null) {
+        if (posts.findById(postId).isEmpty()) {
             throw BusinessException.notFound("Post not found.");
         }
-        int rows = vibePostMapper.unpinPost(postId);
-        if (rows <= 0) {
+        if (posts.unpin(postId) <= 0) {
             throw BusinessException.conflict("Post could not be unpinned.");
         }
         log.info("Post {} unpinned", postId);
@@ -545,40 +296,27 @@ public class VibePostServiceImpl implements VibePostService {
 
     @Override
     public PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size) {
-        Page<VibePost> mpPage = vibePostMapper.selectPage(
-                new Page<>(page, size),
-                new LambdaQueryWrapper<VibePost>()
-                        .eq(VibePost::getUserId, userId)
-                        .eq(VibePost::getStatus, 1)
-                        .orderByDesc(VibePost::getCreateTime)
-        );
-        List<PostPageVo> vos = convertToPageVos(mpPage.getRecords());
-        return PageResult.of(page, size, mpPage.getTotal(), vos);
+        PageSlice<VibePost> slice = posts.pageByUser(page, size, userId);
+        return PageResult.of(page, size, slice.total(), convertToPageVos(slice.records()));
     }
 
     @Override
     public List<PostPageVo> getPendingAuditPosts() {
-        List<VibePost> posts = vibePostMapper.selectPendingAuditPosts();
-        return posts.stream().map(post -> {
+        return posts.findPendingAudit().stream().map(post -> {
             PostPageVo vo = convertToPageVo(post);
-            // Attach latest safety check result
-            AiReviewLog safetyLog = aiReviewLogMapper.selectLatestSafetyLogByPostId(post.getId());
-            if (safetyLog != null) {
-                String classification = classifySafetyResult(safetyLog.getResultJson());
-                vo.setSafetyClassification(classification);
+            reviewLogs.findLatestSafety(post.getId()).ifPresent(safetyLog -> {
+                vo.setSafetyClassification(classifySafetyResult(safetyLog.getResultJson()));
                 vo.setSafetySeverity(safetyLog.getSeverity());
                 vo.setSafetyIsApproved(safetyLog.getIsApproved());
-            }
+            });
             return vo;
         }).collect(Collectors.toList());
     }
 
-    /**
-     * Normalise the raw LLM response from the safety check into a display label.
-     * The resultJson contains the raw LLM response string.
-     */
     private String classifySafetyResult(String resultJson) {
-        if (resultJson == null || resultJson.isBlank()) return null;
+        if (resultJson == null || resultJson.isBlank()) {
+            return null;
+        }
         String lower = resultJson.trim().toLowerCase();
         if (lower.contains("prompt injection")) return "Prompt injection";
         if (lower.contains("harmful")) return "Harmful content";
@@ -591,16 +329,14 @@ public class VibePostServiceImpl implements VibePostService {
     @Transactional
     @CacheEvict(value = "posts", allEntries = true)
     public boolean approvePost(Long postId) {
-        VibePost post = vibePostMapper.selectById(postId);
-        if (post == null) return false;
+        VibePost post = posts.findById(postId).orElse(null);
+        if (post == null) {
+            return false;
+        }
         post.setStatus(1);
-        boolean updated = vibePostMapper.updateById(post) > 0;
+        boolean updated = posts.update(post);
         if (updated) {
-            // Re-index with approved status
-            VibePost fullPost = vibePostMapper.selectPostWithDetails(postId);
-            if (fullPost != null) {
-                postSearchService.indexPost(fullPost);
-            }
+            posts.findWithDetails(postId).ifPresent(search::indexPost);
             notifyAuthor(post, "你的帖子《" + post.getTitle() + "》已通过人工审核并发布。");
             productMetrics.recordPostAudited("approve");
         }
@@ -610,10 +346,12 @@ public class VibePostServiceImpl implements VibePostService {
     @Override
     @Transactional
     public boolean rejectPost(Long postId) {
-        VibePost post = vibePostMapper.selectById(postId);
-        if (post == null) return false;
-        post.setStatus(3); // 3 = Rejected
-        boolean updated = vibePostMapper.updateById(post) > 0;
+        VibePost post = posts.findById(postId).orElse(null);
+        if (post == null) {
+            return false;
+        }
+        post.setStatus(3);
+        boolean updated = posts.update(post);
         if (updated) {
             notifyAuthor(post, "你的帖子《" + post.getTitle() + "》未通过人工审核，已被下架。如有疑问请联系管理员。");
             productMetrics.recordPostAudited("reject");
@@ -621,92 +359,13 @@ public class VibePostServiceImpl implements VibePostService {
         return updated;
     }
 
-    /**
-     * Publishes the review event, degrading gracefully when the async pool is
-     * saturated: @Async submission happens in this (the publisher's) thread,
-     * so a RejectedExecutionException surfaces here and would otherwise turn
-     * the successful post into a 500. The post lands in FAILED(3) and the
-     * reconciliation task re-queues it once the pool drains.
-     * (Catches RejectedExecutionException; Spring's TaskRejectedException
-     * extends it.)
-     */
-    void publishReviewEventSafely(VibePost post, Long userId) {
-        try {
-            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
-        } catch (java.util.concurrent.RejectedExecutionException e) {
-            log.warn("AI review queue saturated, post {} marked FAILED for reconciliation", post.getId());
-            try {
-                VibePost failed = new VibePost();
-                failed.setId(post.getId());
-                failed.setAiReviewed(AiReviewStatus.FAILED.getCode());
-                vibePostMapper.updateById(failed);
-            } catch (Exception ex) {
-                log.warn("Failed to mark post {} FAILED after rejection: {}", post.getId(), ex.getMessage());
-            }
-        }
-    }
-
-    /**
-     * Publishes the safety event. Fails closed up front when the (cached)
-     * LLM health verdict is unhealthy — otherwise a post would sit publicly
-     * visible for minutes during an LLM outage before the async check lands
-     * (ADR-0004: during an outage posts do not appear publicly). Also fails
-     * closed on pool saturation, when the check would never run at all.
-     * Both paths land in PENDING_REVIEW + a "pending-llm" marker, exactly
-     * like the listener would, so the reconciliation task re-queues them.
-     */
-    void publishSafetyEventSafely(VibePost post, Long userId) {
-        if (!llmHealthCache.isHealthy()) {
-            log.warn("LLM unhealthy at enqueue, post {} failed closed to PENDING_REVIEW", post.getId());
-            failClosedAtEnqueue(post, "LLM unhealthy at enqueue");
-            return;
-        }
-        try {
-            eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getTitle(), post.getContent(), userId));
-        } catch (java.util.concurrent.RejectedExecutionException e) {
-            log.warn("Safety check queue saturated, post {} failed closed to PENDING_REVIEW", post.getId());
-            failClosedAtEnqueue(post, "pipeline saturated at enqueue");
-        }
-    }
-
-    /**
-     * Best-effort fail-closed at enqueue time; never throws into the
-     * publish path — a persistence failure here only loses the marker,
-     * and the post stays visible until the next manual/audit sweep.
-     */
-    private void failClosedAtEnqueue(VibePost post, String reason) {
-        try {
-            vibePostMapper.updatePostStatus(post.getId(), PostStatus.PENDING_REVIEW.getCode());
-            AiReviewLog marker = new AiReviewLog();
-            marker.setPostId(post.getId());
-            marker.setReviewer("safety-check-agent");
-            marker.setResultJson(reason);
-            marker.setSeverity("pending-llm");
-            marker.setIsApproved(0);
-            marker.setCreatedAt(java.time.LocalDateTime.now());
-            aiReviewLogMapper.insert(marker);
-        } catch (Exception ex) {
-            log.warn("Failed to fail-closed post {} at enqueue: {}", post.getId(), ex.getMessage());
-        }
-    }
-
-    /**
-     * Best-effort author notification for audit-state changes; never blocks
-     * the audit action itself.
-     */
     private void notifyAuthor(VibePost post, String content) {
         try {
-            sysMessageService.sendMessage(SysMessage.FROM_SYSTEM, post.getUserId(), content, SysMessage.TYPE_SYSTEM);
+            messages.sendMessage(SysMessage.FROM_SYSTEM, post.getUserId(), content, SysMessage.TYPE_SYSTEM);
         } catch (Exception e) {
             log.warn("Failed to notify author {} for post {}: {}",
-                     post.getUserId(), post.getId(), e.getMessage());
+                    post.getUserId(), post.getId(), e.getMessage());
         }
-    }
-
-    @Cacheable(value = "posts", key = "'active'")
-    public List<PostPageVo> getActivePostsLegacy() {
-        List<VibePost> posts = vibePostMapper.selectActivePosts();
-        return convertToPageVos(posts);
     }
 
     private List<PostPageVo> convertToPageVos(List<VibePost> posts) {
@@ -716,13 +375,18 @@ public class VibePostServiceImpl implements VibePostService {
     private PostPageVo convertToPageVo(VibePost post) {
         PostPageVo vo = new PostPageVo();
         BeanUtils.copyProperties(post, vo);
-        vo.setVersionCount((int) promptVersionMapper.selectVersionCount(post.getId()));
-
-        // Attach tags
-        List<VibeTag> tags = vibeTagMapper.selectTagsByPostId(post.getId());
-        if (tags != null) {
-            vo.setTags(tags.stream().map(VibeTag::getName).toArray(String[]::new));
+        vo.setVersionCount((int) versions.countByPost(post.getId()));
+        List<VibeTag> postTags = tags.findByPostId(post.getId());
+        if (postTags != null) {
+            vo.setTags(postTags.stream().map(VibeTag::getName).toArray(String[]::new));
         }
         return vo;
+    }
+
+    private String normalizePostType(String type) {
+        if (type == null || type.isBlank() || "all".equals(type)) {
+            return null;
+        }
+        return type;
     }
 }

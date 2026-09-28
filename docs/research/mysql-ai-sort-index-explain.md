@@ -34,11 +34,11 @@ ALTER TABLE vibe_post ADD INDEX idx_post_ai_sort (status, ai_reviewed, ai_review
 
 ## 由此得出的修正建议（两步，均已验证）
 
-1. **Q1 的业务语义本就该带 `ai_reviewed=1`**——"AI 精选"列表只展示通过 AI 评审的帖子。补上这个条件后实测 **135 ms → 51.8 ms**（索引按 `(status=1, ai_reviewed=1)` 等值定位，扫描行数骤减），既修了语义又修了性能。代码改动：`selectFilteredPage` 的 `sort=ai` 分支补 `ai_reviewed = 1`（待办，属行为变更需单独提交）。
+1. **Q1 的业务语义本就该带 `ai_reviewed=1`**——"AI 精选"列表只展示通过 AI 评审的帖子。补上这个条件后实测 **135 ms → 51.8 ms**（索引按 `(status=1, ai_reviewed=1)` 等值定位，扫描行数骤减），既修了语义又修了性能。代码改动：`selectFilteredPage` 的 `sort=ai` 分支补 `ai_reviewed = 1`——**已落地**，见 `VibePostMapper.selectFilteredPage` 的 `sort == "ai"` 分支（2026-09-23 复核：本条此前写着"待办，属行为变更需单独提交"，但代码早已包含该条件，是文档落后于实现，不是未完成项）。
 2. **Q3 退化**：优化器误选新索引做 status=1 的取数。生产库中已存在 `idx_post_status` 单列索引且热榜查询有 `create_time` 范围条件，实际竞争场景与本基准（人为裸表）不同；若线上观察到同类退化，处理手段是 `ORDER BY is_pinned DESC, create_time DESC` 建配套索引或对 Q3 强制 `FORCE INDEX(idx_post_status)`，本次不改。
 
 ## Trade-off 记录
 
 - **写放大**：每次发帖/编辑多维护一棵索引（B+ 树写路径 +1）。本项目发帖是低频操作（对读多写少的论坛模型可接受）。
 - **统计信息**：加索引后 `ANALYZE TABLE` 强制刷新统计，避免优化器基于陈旧统计误判。
-- **结论**：`idx_post_ai_sort` 对带分数过滤的主查询（Q2，前端 aiScoreMin 筛选的真实路径）是 3 倍净收益，保留；无过滤的 Q1 需配合 `ai_reviewed=1` 语义修正才能兑现收益，已列入待办。
+- **结论**：`idx_post_ai_sort` 对带分数过滤的主查询（Q2，前端 aiScoreMin 筛选的真实路径）是 3 倍净收益，保留；无过滤的 Q1 靠 `ai_reviewed=1` 语义修正兑现了收益，该修正已在 `selectFilteredPage` 里，不再是待办。

@@ -39,7 +39,7 @@ class LikeCounterServiceTest {
     private StringRedisTemplate stringRedisTemplate;
 
     @Mock
-    private DefaultRedisScript<Long> likeToggleScript;
+    private DefaultRedisScript<List> likeToggleScript;
 
     @Mock
     private PostRankingService postRankingService;
@@ -186,47 +186,68 @@ class LikeCounterServiceTest {
     // ------------------------------------------------------------
 
     @Test
-    @DisplayName("likePost() should use Redis SADD and return the set size")
+    @DisplayName("likePost() should use Redis and mirror the new membership to MySQL")
     void likePostViaRedis() {
         ReflectionTestUtils.setField(likeCounterService, "redisAvailable", true);
-        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString())).thenReturn(5L);
+        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of("5", "1"));
 
         long count = likeCounterService.likePost(postId, userId);
 
         assertEquals(5L, count);
+        verify(vibePostMapper).insertPostLike(postId, userId);
     }
 
     @Test
-    @DisplayName("likePost() should be idempotent when user already liked")
-    void likePostIdempotent() {
+    @DisplayName("likePost() should mirror a Redis toggle-off to MySQL")
+    void likePostToggleOffMirrorsMembership() {
         ReflectionTestUtils.setField(likeCounterService, "redisAvailable", true);
-        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString())).thenReturn(3L);
+        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of("3", "0"));
 
         long count = likeCounterService.likePost(postId, userId);
 
         assertEquals(3L, count);
+        verify(vibePostMapper).deletePostLike(postId, userId);
     }
 
     @Test
-    @DisplayName("unlikePost() should remove user from Redis set and return updated count")
+    @DisplayName("unlikePost() should remove the user from Redis and MySQL")
     void unlikePostViaRedis() {
         ReflectionTestUtils.setField(likeCounterService, "redisAvailable", true);
-        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString())).thenReturn(4L);
+        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of("4", "0"));
 
         long count = likeCounterService.unlikePost(postId, userId);
 
         assertEquals(4L, count);
+        verify(vibePostMapper).deletePostLike(postId, userId);
     }
 
     @Test
-    @DisplayName("unlikePost() should not mark dirty when user was not in set")
-    void unlikePostNoEffect() {
+    @DisplayName("unlikePost() mirrors the Redis result even when the count is unchanged")
+    void unlikePostMirrorsResult() {
         ReflectionTestUtils.setField(likeCounterService, "redisAvailable", true);
-        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString())).thenReturn(2L);
+        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of("2", "0"));
 
         long count = likeCounterService.unlikePost(postId, userId);
 
         assertEquals(2L, count);
+        verify(vibePostMapper).deletePostLike(postId, userId);
+    }
+
+    @Test
+    @DisplayName("A durable membership write failure does not fail the Redis like response")
+    void membershipFailureDoesNotBreakLikeResponse() {
+        ReflectionTestUtils.setField(likeCounterService, "redisAvailable", true);
+        when(stringRedisTemplate.execute(same(likeToggleScript), anyList(), anyString(), anyString(), anyString()))
+                .thenReturn(List.of("6", "1"));
+        when(vibePostMapper.insertPostLike(postId, userId)).thenThrow(new RuntimeException("db down"));
+
+        long count = likeCounterService.likePost(postId, userId);
+
+        assertEquals(6L, count);
     }
 
     @Test

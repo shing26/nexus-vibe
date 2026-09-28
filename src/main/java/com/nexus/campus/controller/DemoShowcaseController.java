@@ -2,7 +2,6 @@ package com.nexus.campus.controller;
 
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.PostAuditResult;
-import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.exception.BusinessException;
 import org.springframework.http.HttpStatus;
@@ -34,6 +33,8 @@ import java.util.*;
 @Slf4j
 @ConditionalOnProperty(name = "campus.demo.endpoints-enabled", havingValue = "true", matchIfMissing = false)
 public class DemoShowcaseController {
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final VibePostMapper vibePostMapper;
     private final PostRankingService postRankingService;
@@ -100,7 +101,7 @@ public class DemoShowcaseController {
         if (existing == null) existing = new HashSet<>();
         existing.add(word);
         try {
-            String json = new ObjectMapper().writeValueAsString(new ArrayList<>(existing));
+            String json = OBJECT_MAPPER.writeValueAsString(new ArrayList<>(existing));
             stringRedisTemplate.convertAndSend("channel:sensitive:words:update", json);
         } catch (Exception e) {
             log.warn("Failed to serialize word list", e);

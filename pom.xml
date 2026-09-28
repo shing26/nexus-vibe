@@ -25,6 +25,31 @@
         <mybatis-plus.version>3.5.9</mybatis-plus.version>
         <jjwt.version>0.12.6</jjwt.version>
         <elasticsearch.version>8.13.4</elasticsearch.version>
+        <jacoco.version>0.8.12</jacoco.version>
+        <!--
+          Declared empty on purpose, and it is not dead config.
+
+          jacoco:prepare-agent writes the agent JVM arguments into this property, and the
+          surefire <argLine> in the profile below reads it back with ${argLine}. Declaring it
+          means the expression still resolves when JaCoCo is skipped (-Djacoco.skip=true, the
+          memory-limited local run), instead of reaching the forked JVM as the literal text
+          "${argLine}" and failing every test with "Unrecognized option".
+
+          The flip side is the trap this declaration makes visible: passing -DargLine="..." on
+          the command line replaces the agent arguments rather than appending to them, so the
+          agent never loads and coverage silently measures 0.00, which then trips jacoco:check.
+          Use -Djacoco.skip=true when you need to override the forked JVM's
+          memory settings by hand.
+        -->
+        <argLine></argLine>
+        <!--
+          Line-coverage floor for the whole bundle. First measured run on 2026-09-21 was
+          2967/3995 = 74.27% line coverage (target/site/jacoco/jacoco.xml, BUNDLE counter), so
+          the floor is that value floored down to the nearest 5%: 0.70. It is a ratchet against
+          "the suite grew and nothing exercises the new code", not a quality target - raise it
+          when a real run clears the next 5% step with margin. See README's Testing section.
+        -->
+        <jacoco.line.minimum>0.70</jacoco.line.minimum>
     </properties>
 
     <dependencies>
@@ -202,6 +227,52 @@
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
+            <!--
+              One global floor rather than per-package gates: the failure mode this catches is
+              "the suite grew and nothing exercises the new code", which a per-class threshold
+              cannot see and which a single bundle ratio reports honestly.
+            -->
+            <plugin>
+                <groupId>org.jacoco</groupId>
+                <artifactId>jacoco-maven-plugin</artifactId>
+                <version>${jacoco.version}</version>
+                <executions>
+                    <execution>
+                        <id>prepare-agent</id>
+                        <goals>
+                            <goal>prepare-agent</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>report</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>report</goal>
+                        </goals>
+                    </execution>
+                    <execution>
+                        <id>check-line-coverage</id>
+                        <phase>test</phase>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                        <configuration>
+                            <rules>
+                                <rule>
+                                    <element>BUNDLE</element>
+                                    <limits>
+                                        <limit>
+                                            <counter>LINE</counter>
+                                            <value>COVEREDRATIO</value>
+                                            <minimum>${jacoco.line.minimum}</minimum>
+                                        </limit>
+                                    </limits>
+                                </rule>
+                            </rules>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
         </plugins>
     </build>
 
@@ -220,8 +291,12 @@
               error, not a no-op. That asymmetry is the reason the old implicit activation existed,
               and it belongs in a comment rather than in a hidden condition.
 
-              Note if coverage tooling ever lands here: argLine replaces rather than appends, so a
-              future JaCoCo agent must be threaded through this same value, not set alongside it.
+              Coverage tooling landed here (jacoco-maven-plugin, above), and it confirmed the
+              note this comment used to carry as a warning: surefire's argLine replaces rather
+              than appends, so a profile that sets its own <argLine> silently drops the agent.
+              The value below therefore reads ${argLine} back instead of replacing it. JaCoCo's
+              prepare-agent writes the agent arguments into that property, and the empty default
+              in <properties> keeps the expression resolvable when -Djacoco.skip=true is used.
             -->
             <id>surefire-without-container-support</id>
             <build>
@@ -234,7 +309,7 @@
                                  build/plugins (different children, so the systemPropertyVariables
                                  there survive this profile). Runners without full cgroup info used
                                  to crash the test JVM here. -->
-                            <argLine>-XX:-UseContainerSupport</argLine>
+                            <argLine>${argLine} -XX:-UseContainerSupport</argLine>
                         </configuration>
                     </plugin>
                 </plugins>

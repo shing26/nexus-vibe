@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nexus.campus.agent.AiReviewEvent;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmHealthCache;
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
@@ -15,7 +16,6 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.scheduling.annotation.Scheduled;
 import lombok.extern.slf4j.Slf4j;
@@ -43,8 +43,8 @@ public class AiReviewReconcileTask {
 
     private static final int BATCH_LIMIT = 10;
 
-    @Value("${campus.ai.reconcile.stale-minutes:10}")
-    private long staleMinutes;
+    @Autowired
+    private CampusAiProperties aiProperties;
 
     @Autowired
     private VibePostMapper vibePostMapper;
@@ -57,15 +57,6 @@ public class AiReviewReconcileTask {
 
     @Autowired
     private SysMessageService sysMessageService;
-
-    @Value("${campus.ai.review.enabled:true}")
-    private boolean reviewEnabled;
-
-    @Value("${campus.ai.review.max-attempts:5}")
-    private int maxAttempts;
-
-    @Value("${campus.ai.safety.enabled:true}")
-    private boolean safetyEnabled;
 
     @Autowired
     private MeterRegistry meterRegistry;
@@ -93,6 +84,8 @@ public class AiReviewReconcileTask {
     }
 
     private void reconcileOnce() {
+        boolean reviewEnabled = aiProperties.getReview().isEnabled();
+        boolean safetyEnabled = aiProperties.getSafety().isEnabled();
         if (!reviewEnabled && !safetyEnabled) {
             return;
         }
@@ -109,7 +102,8 @@ public class AiReviewReconcileTask {
             return;
         }
 
-        LocalDateTime staleBefore = LocalDateTime.now().minusMinutes(staleMinutes);
+        LocalDateTime staleBefore = LocalDateTime.now()
+                .minusMinutes(aiProperties.getReconcile().getStaleMinutes());
 
         if (reviewEnabled) {
             int retriggered = 0;
@@ -124,7 +118,9 @@ public class AiReviewReconcileTask {
             List<VibePost> pendingSafety = vibePostMapper.selectPostsPendingSafetyRecheck(staleBefore, BATCH_LIMIT);
             for (VibePost post : pendingSafety) {
                 log.info("[AI-RECONCILE] Re-running safety check for post {}", post.getId());
-                eventPublisher.publishEvent(new AiSafetyCheckEvent(this, post.getId(), post.getTitle(), post.getContent(), post.getUserId()));
+                publishSafely(() -> eventPublisher.publishEvent(
+                        new AiSafetyCheckEvent(this, post.getId(), post.getTitle(),
+                                post.getContent(), post.getUserId())), "safety", post.getId());
             }
             countRepair("safety", pendingSafety.size());
         }
@@ -166,6 +162,7 @@ public class AiReviewReconcileTask {
      * instances — only the one that flips the row notifies the author).
      */
     private void sweepBudgetExhaustedReviews() {
+        int maxAttempts = aiProperties.getReview().getMaxAttempts();
         List<VibePost> stuck = vibePostMapper.selectReviewingBudgetExhausted(maxAttempts, BATCH_LIMIT);
         int retired = 0;
         for (VibePost post : stuck) {
@@ -189,7 +186,8 @@ public class AiReviewReconcileTask {
         }
         try {
             sysMessageService.sendMessage(SysMessage.FROM_SYSTEM, post.getUserId(),
-                    "你的帖子《" + post.getTitle() + "》的 AI 评审连续 " + maxAttempts
+                    "你的帖子《" + post.getTitle() + "》的 AI 评审连续 "
+                            + aiProperties.getReview().getMaxAttempts()
                             + " 次失败，已停止自动重试。内容本身不受影响；如需重新评审，请联系管理员。",
                     SysMessage.TYPE_SYSTEM);
         } catch (Exception e) {
@@ -200,13 +198,32 @@ public class AiReviewReconcileTask {
 
     private int retriggerStaleReviews(AiReviewStatus status, LocalDateTime staleBefore) {
         List<VibePost> stalePosts = vibePostMapper.selectStaleAiReviewPosts(
-                status.getCode(), staleBefore, maxAttempts, BATCH_LIMIT);
+                status.getCode(), staleBefore, aiProperties.getReview().getMaxAttempts(), BATCH_LIMIT);
         for (VibePost post : stalePosts) {
             log.info("[AI-RECONCILE] Re-triggering {} review for post {}", status, post.getId());
-            eventPublisher.publishEvent(new AiReviewEvent(this, post.getId(), post.getTitle(), post.getContent(), post.getUserId(), true));
+            publishSafely(() -> eventPublisher.publishEvent(
+                    new AiReviewEvent(this, post.getId(), post.getTitle(),
+                            post.getContent(), post.getUserId(), true)),
+                    "review", post.getId());
         }
         countRepair(status.name().toLowerCase(), stalePosts.size());
         return stalePosts.size();
+    }
+
+    /**
+     * A saturated agent pool rejects the async submission in the caller's
+     * thread (as Spring's {@code TaskRejectedException}). Without this, one
+     * rejection aborts the whole reconcile batch and the posts after it wait a
+     * full cycle; with it, only that post is deferred. It is retried next
+     * cycle either way, so the failure is logged and swallowed, not rethrown.
+     */
+    private void publishSafely(Runnable publish, String kind, Long postId) {
+        try {
+            publish.run();
+        } catch (RuntimeException e) {
+            log.warn("[AI-RECONCILE] Could not re-trigger {} for post {} (pool saturated?); will retry next cycle: {}",
+                    kind, postId, e.getMessage());
+        }
     }
 
 }

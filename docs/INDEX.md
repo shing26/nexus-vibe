@@ -25,6 +25,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0010](adr/0010-the-showcase-review-is-a-recording.md) | The landing page shows a recorded pipeline run, not prose that resembles one |
 | [0011](adr/0011-search-may-lag-until-an-operator-rebuilds.md) | Search may lag until an operator rebuilds, and the rebuild is the price |
 | [0012](adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md) | The review pipeline is pluggable at two seams - the trigger rule and the reviewer - and only two |
+| [0013](adr/0013-config-validation-moves-to-validated-properties.md) | The AI settings bind into one `@Validated` object, and the bespoke validator goes |
 
 ## Measurements — `docs/research/`
 
@@ -46,6 +47,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [openai-code-review-prompt-strategies](research/openai-code-review-prompt-strategies.md) | Prompt strategies for structured code review output |
 | [production-readiness-assessment-2026-09](research/production-readiness-assessment-2026-09.md) | The readiness assessment that generated the P0/P1 work |
 | [project-module-audit-2026-09](research/project-module-audit-2026-09.md) | Module-by-module structure and completion audit |
+| [project-structure-and-deep-dive-2026-09-18](research/project-structure-and-deep-dive-2026-09-18.md) | Whole-project walkthrough for deep-dive questions: packages, flows, mechanisms, data model, verification and known trade-offs |
 
 ## Work items — `docs/tickets/`
 
@@ -61,6 +63,9 @@ alternatives that were rejected.
 | [next-cycle-backlog](tickets/next-cycle-backlog.md) | Deferred work, refiltered by the portfolio direction — a backlog, not a plan |
 | [portfolio-showcase](tickets/portfolio-showcase.md) | A4/A6: the landing-page review a signed-out visitor reads, and why it is a recording |
 | [ai-review-seam](tickets/ai-review-seam.md) | AI-1 to AI-4: making the trigger rule and the reviewer replaceable, and what deliberately stays fixed |
+| [framework-reinforcement](tickets/framework-reinforcement.md) | The 2026-09-19 audit's still-real gaps: repository boundary, AI config fail-fast, raw LLM archive, and the gaps that are deliberately not worth closing |
+| [evidence-and-gates](tickets/evidence-and-gates.md) | The seven 2/10 dimensions turned into reproducible artifacts: load-test, concurrency, duplicate-write, cross-user, coverage floor, migration rollback, validated config - and the B2 defect that is left open on purpose |
+| [like-count-convergence](tickets/like-count-convergence.md) | The B2 defect fixed (the durable table is the authority), a saturated pool no longer aborting the reconcile batch, and two claims the evidence round had to withdraw |
 
 ## Plans — `docs/plans/`
 
@@ -69,6 +74,7 @@ alternatives that were rejected.
 | [pre-deployment-checklist](plans/pre-deployment-checklist.md) | The checklist every deployment runs through, plus the record of what actually happened on 2026-09-16 |
 | [deployment-and-blog-plan](plans/deployment-and-blog-plan.md) | The original deployment plan and its local verification log |
 | [portfolio-showcase-plan](plans/portfolio-showcase-plan.md) | The chosen direction: what "done" means for a portfolio artifact |
+| [environment-matrix](plans/environment-matrix.md) | dev / prod / CI values for the key configuration, with the default and the overrider on each row |
 
 ## Design and product
 

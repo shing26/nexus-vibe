@@ -119,4 +119,30 @@ class ReviewLeaseClaimTest {
         assertEquals(0, vibePostMapper.tryClaimReview(9105L, LocalDateTime.now().plusSeconds(240), "nodeB", 5));
         assertEquals(1, vibePostMapper.selectReviewAttempts(9105L));
     }
+
+    @Test
+    @DisplayName("A stale REVIEWING marker is cleared only from REVIEWING")
+    void staleReviewingMarkerIsClearedInState() {
+        post(9106L, 2);
+        assertEquals(1, vibePostMapper.tryClaimReview(9106L, LocalDateTime.now().plusSeconds(240), "nodeA", 5));
+
+        assertEquals(1, vibePostMapper.clearReviewingIfInState(9106L, 0));
+        VibePost cleared = vibePostMapper.selectById(9106L);
+        assertEquals(0, cleared.getAiReviewed());
+        assertNull(cleared.getReviewOwner());
+        assertNull(cleared.getReviewLockUntil());
+
+        // A completed review keeps its terminal state: the guard is REVIEWING-only.
+        VibePost done = new VibePost();
+        done.setId(9107L);
+        done.setTitle("lease test post 9107");
+        done.setContent("body");
+        done.setUserId(2L);
+        done.setCategoryId(2);
+        done.setStatus(1);
+        done.setAiReviewed(1);
+        vibePostMapper.insert(done);
+        assertEquals(0, vibePostMapper.clearReviewingIfInState(9107L, 0));
+        assertEquals(1, vibePostMapper.selectById(9107L).getAiReviewed());
+    }
 }

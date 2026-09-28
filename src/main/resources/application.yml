@@ -137,11 +137,12 @@ campus:
   es:
     uri: ${ES_URI:http://localhost:9200}
   like:
-    # Like-set vs MySQL like_count drift repair (write-behind drift is normal;
-    # only Redis-LOSS-shaped gaps trigger a rebuild from vibe_post_like).
+    # Like-set vs vibe_post_like drift repair. The hourly pass takes the union of
+    # the Redis set and the membership table (either side can bootstrap the other),
+    # never removes a member, and writes zero when both sides are empty but
+    # like_count is non-zero: an empty membership table means nobody likes the
+    # post, not that the answer is unknown. See DriftReconcileTask.
     drift-enabled: true
-    drift-ratio: 0.5
-    drift-abs: 100
     sample-size: 200
   security:
     sensitive-words: fuck,shit,damn,asshole,bitch
@@ -165,6 +166,11 @@ campus:
       max-context-tokens: 12000
     safety:
       enabled: true
+    archive:
+      # Off by default: enabling writes one JSONL line per provider attempt,
+      # raw prompt and raw response included. Keep the path machine-local.
+      enabled: ${LLM_ARCHIVE_ENABLED:false}
+      path: ${LLM_ARCHIVE_PATH:scratch/llm-archive.jsonl}
     reconcile:
       # Posts younger than this are not yet considered lost/stale
       stale-minutes: 10

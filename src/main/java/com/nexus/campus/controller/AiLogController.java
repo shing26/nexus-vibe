@@ -9,8 +9,8 @@ import com.nexus.campus.dto.AiLogVo;
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.PageResult;
 import com.nexus.campus.entity.VibePost;
-import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.VibePostMapper;
+import com.nexus.campus.security.AdminGuard;
 import com.nexus.campus.service.AiReviewDetailService;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,9 +55,7 @@ public class AiLogController {
             @RequestParam(required = false) String severity,
             @RequestParam(required = false) Long postId,
             @RequestAttribute(value = "currentRole", required = false) String role) {
-        if (!isAdmin(role)) {
-            throw BusinessException.forbidden("Access denied. Admin privileges required.");
-        }
+        AdminGuard.requireAdmin(role);
         LambdaQueryWrapper<AiReviewLog> wrapper = new LambdaQueryWrapper<>();
         if (StringUtils.hasText(reviewer)) {
             wrapper.eq(AiReviewLog::getReviewer, reviewer);
@@ -71,14 +69,7 @@ public class AiLogController {
         wrapper.orderByDesc(AiReviewLog::getCreatedAt);
 
         Page<AiReviewLog> result = aiReviewLogMapper.selectPage(new Page<>(page, size), wrapper);
-        List<AiLogVo> list = new ArrayList<>(result.getRecords().size());
-        for (AiReviewLog log : result.getRecords()) {
-            AiLogVo vo = new AiLogVo();
-            BeanUtils.copyProperties(log, vo);
-            vo.setStatus(resolveReviewStatus(log.getResultJson()));
-            vo.setPostTitle(resolvePostTitle(log.getPostId()));
-            list.add(vo);
-        }
+        List<AiLogVo> list = toVos(result.getRecords());
         return ApiResponse.success("OK", PageResult.of(page, size, result.getTotal(), list));
     }
 
@@ -87,15 +78,7 @@ public class AiLogController {
         Page<AiReviewLog> result = aiReviewLogMapper.selectPage(
                 new Page<>(1, 6),
                 new LambdaQueryWrapper<AiReviewLog>().orderByDesc(AiReviewLog::getCreatedAt));
-        List<AiLogVo> list = new ArrayList<>(result.getRecords().size());
-        for (AiReviewLog log : result.getRecords()) {
-            AiLogVo vo = new AiLogVo();
-            BeanUtils.copyProperties(log, vo);
-            vo.setStatus(resolveReviewStatus(log.getResultJson()));
-            vo.setPostTitle(resolvePostTitle(log.getPostId()));
-            list.add(vo);
-        }
-        return ApiResponse.success(list);
+        return ApiResponse.success(toVos(result.getRecords()));
     }
 
     @GetMapping("/post/{postId}/latest")
@@ -126,9 +109,7 @@ public class AiLogController {
     @GetMapping("/stats")
     public ApiResponse<Map<String, Object>> getStats(
             @RequestAttribute(value = "currentRole", required = false) String role) {
-        if (!isAdmin(role)) {
-            throw BusinessException.forbidden("Access denied. Admin privileges required.");
-        }
+        AdminGuard.requireAdmin(role);
         List<AiReviewLog> logs = aiReviewLogMapper.selectList(null);
         long total = logs.size();
         long approved = logs.stream()
@@ -158,8 +139,16 @@ public class AiLogController {
         return ApiResponse.success("OK", data);
     }
 
-    private boolean isAdmin(String role) {
-        return "ADMIN".equals(role);
+    private List<AiLogVo> toVos(List<AiReviewLog> logs) {
+        List<AiLogVo> list = new ArrayList<>(logs.size());
+        for (AiReviewLog log : logs) {
+            AiLogVo vo = new AiLogVo();
+            BeanUtils.copyProperties(log, vo);
+            vo.setStatus(resolveReviewStatus(log.getResultJson()));
+            vo.setPostTitle(resolvePostTitle(log.getPostId()));
+            list.add(vo);
+        }
+        return list;
     }
 
     private String resolvePostTitle(Long postId) {

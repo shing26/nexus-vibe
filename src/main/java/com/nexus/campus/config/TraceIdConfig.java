@@ -1,5 +1,6 @@
 package com.nexus.campus.config;
 
+import com.nexus.campus.filter.TraceIdFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;

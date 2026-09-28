@@ -41,7 +41,9 @@ services:
     # rather than 512m: the dump runs in this container's memory. Takes effect on the next up -d.
     mem_limit: 1536m
     environment:
-      MYSQL_ROOT_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set in .env}
+      MYSQL_USER: ${DB_USERNAME:?DB_USERNAME must be set in .env}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       MYSQL_DATABASE: nexus_campus
       TZ: Asia/Shanghai
     command:
@@ -53,7 +55,7 @@ services:
     networks:
       - nexus-net
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${DB_PASSWORD:-root}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD must be set in .env}"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -135,6 +137,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GIT_REVISION: ${GIT_REVISION:-unknown}
+        BUILD_VERSION: ${APP_TAG:?APP_TAG must be set in .env}
     # Release identity (E4): every build is tagged, so an image outlives its container and a
     # release is an object you can point at. Release = bump APP_TAG in .env, then
     # `docker compose up -d --build app`; rollback = APP_TAG back to the previous value, then
@@ -159,7 +164,7 @@ services:
       SPRING_PROFILES_ACTIVE: prod
       SERVER_PORT: 8080
       DB_URL: jdbc:mysql://db:3306/nexus_campus?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci&serverTimezone=Asia/Shanghai&useSSL=false&allowPublicKeyRetrieval=true
-      DB_USERNAME: root
+      DB_USERNAME: ${DB_USERNAME:?DB_USERNAME must be set in .env}
       DB_PASSWORD: ${DB_PASSWORD:?DB_PASSWORD must be set in .env}
       REDIS_HOST: redis
       REDIS_PORT: "6379"
@@ -187,6 +192,9 @@ services:
     build:
       context: .
       dockerfile: frontend/Dockerfile
+      args:
+        GIT_REVISION: ${GIT_REVISION:-unknown}
+        BUILD_VERSION: ${APP_TAG:?APP_TAG must be set in .env}
     # Same APP_TAG as app: SPA and API are released and rolled back as one pair.
     image: nexus-vibe-web:${APP_TAG:?APP_TAG must be set in .env}
     # nginx here only terminates the tunnel, serves static files and proxies. Measured: 9 MiB.
@@ -242,16 +250,25 @@ services:
     restart: unless-stopped
     profiles: ["monitoring"]
     logging: *default-logging
+    entrypoint:
+      - /bin/sh
+      - -ec
+      - |
+        if [ -z "$${GF_SECURITY_ADMIN_PASSWORD:-}" ]; then
+          echo "GRAFANA_ADMIN_PASSWORD must be non-empty in .env when the monitoring profile is enabled" >&2
+          exit 1
+        fi
+        exec /run.sh
     environment:
       # Sign-ups and anonymous access stay off. The box is only reachable from
       # nexus-net, but it still holds the alert rules and the webhook target.
       GF_AUTH_ANONYMOUS_ENABLED: "false"
       GF_USERS_ALLOW_SIGN_UP: "false"
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      # Not `${GRAFANA_ADMIN_PASSWORD:?...}`: compose interpolates every service regardless of
-      # profile, so a required variable here would break a plain `docker compose up` too.
-      # Override it in .env before exposing Grafana anywhere but nexus-net.
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-changeme}
+      # Compose interpolates every service regardless of profile, so the value
+      # is optional here and the entrypoint above makes an empty password fail
+      # closed only when Grafana itself is started.
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-}
     volumes:
       - grafana-data:/var/lib/grafana
       # One mount is enough: the dashboards provider reads

@@ -150,6 +150,18 @@ class MessageServiceTest {
         verify(sysMessageMapper, never()).updateById(any(SysMessage.class));
     }
 
+    @Test
+    @DisplayName("markAsRead() should return false instead of throwing when recipient is null")
+    void markAsReadRejectsNullRecipientWithoutNpe() {
+        sampleMessage.setToUserId(null);
+        when(sysMessageMapper.selectById(1L)).thenReturn(sampleMessage);
+
+        boolean result = messageService.markAsRead(1L, toUserId);
+
+        assertFalse(result);
+        verify(sysMessageMapper, never()).updateById(any(SysMessage.class));
+    }
+
     // ──────────────────────────────────────────────
     // countUnreadMessages()
     // ──────────────────────────────────────────────
