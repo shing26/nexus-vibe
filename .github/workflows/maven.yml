@@ -341,6 +341,7 @@ jobs:
           cp .env.example .env
           sed -i "s|^APP_TAG=.*|APP_TAG=${GITHUB_SHA}|" .env
           sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=ci-drill-pw-not-a-secret|" .env
+          sed -i "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=ci-drill-root-pw-not-a-secret|" .env
           sed -i "s|^JWT_SECRET=.*|JWT_SECRET=bmV4dXMtdmliZS1jaS1zbW9rZS1zZWNyZXQtZG8tbm90LXVzZQ==|" .env
           sed -i "s|^BOOTSTRAP_ADMIN_PASSWORD=.*|BOOTSTRAP_ADMIN_PASSWORD=ci-drill-admin-not-a-secret|" .env
           export APP_TAG="${GITHUB_SHA}"
