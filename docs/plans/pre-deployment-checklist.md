@@ -162,8 +162,22 @@
 - [x] `alert-bridge` 在 `FEISHU_ALERT_WEBHOOK` 为空时按设计拒绝启动并打印原因，`docker compose ps` 显示 `Restarting`。
 - [x] **飞书告警送达**：需要在 `.env` 填 `FEISHU_ALERT_WEBHOOK`（有加签再填 `FEISHU_ALERT_SECRET`），然后人工触发一条告警确认群里真的收到。**2026-09-17 已完成**，见下方 OPS-1。
 - [x] **公网可达**：本机 `cert.pem` 与 `~/.cloudflared/config.yml` 都不存在，`cloudflared tunnel login` / `tunnel create` / DNS 路由这三步必须由域名持有者本人完成。**2026-09-16 已改用 ngrok 固定域名完成**，见下方公网部署一节。
-- [x] **生产数据基线：2026-09-28 明确接受当前 Demo 数据。** 库内保留早期演示账号、验收探针、33 篇帖、22 条评论和 959 条评审日志，作为作品集展示数据；不做清库，也不把这份数据描述成干净生产基线。
+- [x] **生产数据基线：2026-09-28 明确接受当前 Demo 数据。** 验收后库内保留早期演示账号、验收探针、37 篇帖、23 条评论和 966 条评审日志，作为作品集展示数据；不做清库，也不把这份数据描述成干净生产基线。
 - [x] `GRAFANA_ADMIN_PASSWORD` 目前与 `BOOTSTRAP_ADMIN_PASSWORD` 是同一个值，上线前应各自轮换。**2026-09-28 复核：两者已不同。**
+
+### 发布与验收记录（2026-09-28，`20260928-02`）
+
+> 范围：修复新帖在创建事务提交前触发 AI 评审、导致 `REVIEWING` 标记被清回的竞态，并重新发布本机全栈。
+> 结论：**发布与公网黑盒验收均通过。**
+
+- [x] 代码合并：PR [#18](https://github.com/shing26/nexus-vibe/pull/18) 合并到 `master`，合并提交 `e724b45`。
+- [x] CI：master 运行 [#36408231358](https://github.com/shing26/nexus-vibe/actions/runs/36408231358) 全部通过，包括后端 414 用例、前端 33 用例 + lint + build、告警桥 28 条、提交的 `Dockerfile` 构建与镜像 smoke-run。
+- [x] 发布 tag：`APP_TAG=20260928-02`，`GIT_REVISION=e724b45`；镜像 `nexus-vibe-app:20260928-02` 与 `nexus-vibe-web:20260928-02` 已重建，`docker compose up -d --no-build app web` 后两个容器均读该 tag。
+- [x] 本机多阶段构建仍受 Docker Hub 的 `maven:3.9-eclipse-temurin-21` metadata 问题阻塞；本次发布使用宿主 Maven/npm 产物 + 已存在的官方 runtime 基础镜像完成。**CI 构建才是提交 Dockerfile 的权威验证**，本次 CI 的 Docker image build 已通过。
+- [x] 运行时健康：`app` healthy，`/actuator/health/deps` 的 `db`、`redis`、`elasticsearch`、`llm` 全部 `UP`。
+- [x] 公网黑盒验收：`https://qualifier-discuss-marry.ngrok-free.dev` 注册 → 发帖 → 轮询 AI 评论通过；验收时间 `2026-09-28T18:19:37+08:00`，探针帖 `2104516266387906562`，`aiReviewed=1`、`aiReviewScore=5`，AI 评论 `2104516346104848386`（`userId=999`、`status=1`、长度 615）。
+- [x] 验收产物：`scratch/final-acceptance-20260928.json`（machine-local，不入库）。
+- [x] README 一致性修正：测试 badge 与 Testing 段更新为 `414 Java + 33 frontend`；运行描述改为 compose-local Ollama；AGENTS 的验证计数同步更新。
 
 ## 待执行（需用户确认）
 
