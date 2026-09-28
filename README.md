@@ -60,7 +60,7 @@ everything else, without registering. Then read [CONTEXT.md](CONTEXT.md) for the
 
 | Evidence | What it shows |
 |---|---|
-| [Async pool load test](docs/research/async-pool-loadtest.md) | 201,880 requests, 121,202 backpressure rejections, zero crashes; where the pipeline actually saturates |
+| [Async pool load test](docs/research/async-pool-loadtest.md) | 25,204 samples from the reproducible 2026-09-21 run: 13 errors (0.1%), p50/p90/p99 37/1,770/3,353 ms, 6,231 posts left FAILED(3), zero crashes; where the pipeline actually saturates |
 | [Container GC analysis](docs/research/jvm-container-gc-analysis.md) | 768 MB container, 0 full GCs, and why `MaxRAMPercentage=75` is the right ceiling |
 | [Deep pagination](docs/research/late-row-lookup-deep-pagination.md) | A delayed-join optimisation measured 40% *slower* and was rolled back - with the EXPLAIN output kept |
 | [Observability drill](docs/research/observability-drill-2026-09.md) | Scripted failure injections against the real stack, including what the drill cannot prove |
@@ -73,7 +73,7 @@ everything else, without registering. Then read [CONTEXT.md](CONTEXT.md) for the
 - [ADR-0004 · LLM 语义安全审查](docs/adr/0004-safety-check-fail-closed.md) — LLM 不可用时 fail-closed 入人工审核队列
 - [ADR-0005 · 租约式评审领取](docs/adr/0005-lease-based-review-claim.md) — 原子条件 UPDATE 互斥多实例
 - [研究 · AI 排序索引案例](docs/research/mysql-ai-sort-index-explain.md) — 10 万行 EXPLAIN：带过滤 3 倍提速、无过滤负优化
-- [研究 · 异步池压测](docs/research/async-pool-loadtest.md) — 20 万请求饱和实测：12.1 万次背压拒绝，零崩溃
+- [研究 · 异步池压测](docs/research/async-pool-loadtest.md) — 25,204 样本的可复现基线：13 次错误（0.1%），p99 3,353ms，6,231 篇待对账，零崩溃
 - [研究 · 容器 GC 分析](docs/research/jvm-container-gc-analysis.md) — 768m 容器压测：0 次 Full GC
 - [研究 · 深分页负优化](docs/research/late-row-lookup-deep-pagination.md) — 延迟关联实测退化 40%，回滚决策入档
 

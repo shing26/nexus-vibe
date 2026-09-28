@@ -65,7 +65,7 @@
 - [x] 健康语义：`DEGRADED` 显式映射 200，`/actuator/health` 只回答可服务性，细节在 `/actuator/health/deps`；nginx 对其余 actuator 路径显式 404（ADR-0007）。
 - [x] 生产账号与种子：`DEMO_SEED_ENABLED=false` 时既不写样例账号也不写样例内容，`init.sql` 只留 schema + 频道/标签；`BOOTSTRAP_ADMIN_PASSWORD` 一次性引导 `admin`（ADR-0008）。
 - [x] traceId 贯穿：过滤器生成 16-hex 写 MDC 并回写 `X-Trace-Id`，异步池与定时任务继承/新建，5xx 响应体带 `traceId`，前端错误 toast 显示前 8 位追踪号。
-- [ ] 部署前 `.env` 必填：`BOOTSTRAP_ADMIN_PASSWORD`、`FEISHU_ALERT_WEBHOOK`、`FEISHU_ALERT_SECRET`、`GRAFANA_ADMIN_PASSWORD`。`GRAFANA_ADMIN_PASSWORD` 只能定义一次；Grafana 的 compose entrypoint 现在会在空值时明确拒绝启动，不再回落到 `changeme`。
+- [x] 部署前 `.env` 必填：`BOOTSTRAP_ADMIN_PASSWORD`、`FEISHU_ALERT_WEBHOOK`、`FEISHU_ALERT_SECRET`、`GRAFANA_ADMIN_PASSWORD`。`GRAFANA_ADMIN_PASSWORD` 只能定义一次；Grafana 的 compose entrypoint 现在会在空值时明确拒绝启动，不再回落到 `changeme`。**2026-09-28 复核：四项均非空。**
 - [x] 上线前跑 `benchmark/observability/drill.ps1` 并把结论写进 `docs/research/observability-drill-2026-09.md`：
       2026-09-13 13:19 那次 16 步全绿（真容器、真断流、真打满限流），演练脚本本身修掉 4 处，产品侧暴露并修掉 1 个真 bug
       （告警规则依赖的 `application` 指标标签缺失）。
@@ -160,10 +160,10 @@
 - [x] 埋点随之递增：`post_submitted_total{status="published"}=1`、`llm_chat_completions_total{outcome="success"}=2`、`llm_chat_completion_duration_seconds_count=2`、`ai_review_pending_posts=0`、`funnel_activation_ratio` 有值。
 - [x] 契约抽查：404 与 400 响应体都是 `{code,message,data}`，`X-Trace-Id` 响应头存在，body 不带 `traceId`（只有 5xx 才带，符合 R2/T6）。
 - [x] `alert-bridge` 在 `FEISHU_ALERT_WEBHOOK` 为空时按设计拒绝启动并打印原因，`docker compose ps` 显示 `Restarting`。
-- [ ] **飞书告警送达**：需要在 `.env` 填 `FEISHU_ALERT_WEBHOOK`（有加签再填 `FEISHU_ALERT_SECRET`），然后人工触发一条告警确认群里真的收到。
-- [ ] **公网可达**：本机 `cert.pem` 与 `~/.cloudflared/config.yml` 都不存在，`cloudflared tunnel login` / `tunnel create` / DNS 路由这三步必须由域名持有者本人完成。
-- [ ] **生产数据基线**：当前库还是开发库，里面有 demo 账号 `shing`/`alice`/`bob`/`testuser` 和旧 `admin`（id=1，密码不来自本轮 `BOOTSTRAP_ADMIN_PASSWORD`）。公网发布前要么清库让 `BootstrapAdminInitializer` 从 `.env` 建唯一管理员，要么明确保留这份数据。**未执行任何删除。**
-- [ ] `GRAFANA_ADMIN_PASSWORD` 目前与 `BOOTSTRAP_ADMIN_PASSWORD` 是同一个值，上线前应各自轮换。
+- [x] **飞书告警送达**：需要在 `.env` 填 `FEISHU_ALERT_WEBHOOK`（有加签再填 `FEISHU_ALERT_SECRET`），然后人工触发一条告警确认群里真的收到。**2026-09-17 已完成**，见下方 OPS-1。
+- [x] **公网可达**：本机 `cert.pem` 与 `~/.cloudflared/config.yml` 都不存在，`cloudflared tunnel login` / `tunnel create` / DNS 路由这三步必须由域名持有者本人完成。**2026-09-16 已改用 ngrok 固定域名完成**，见下方公网部署一节。
+- [x] **生产数据基线：2026-09-28 明确接受当前 Demo 数据。** 库内保留早期演示账号、验收探针、33 篇帖、22 条评论和 959 条评审日志，作为作品集展示数据；不做清库，也不把这份数据描述成干净生产基线。
+- [x] `GRAFANA_ADMIN_PASSWORD` 目前与 `BOOTSTRAP_ADMIN_PASSWORD` 是同一个值，上线前应各自轮换。**2026-09-28 复核：两者已不同。**
 
 ## 待执行（需用户确认）
 
@@ -213,8 +213,8 @@
 - [ ] **开机自启未做**：`Register-ScheduledTask` 被系统拒绝（需要管理员权限，我没有自行提权），
   所以隧道目前是手工进程。机器重启后需重跑 `pwsh scripts/tunnel-ngrok.ps1`，
   或由管理员执行 README 里那条 `schtasks` 命令。
-- [ ] **落地页 / 免登录示例档案（A4）未做**：访客能看到首页，但看不到一份被策展的 AI 评审样本——
-  本项目最有说服力的产物仍要自己注册发帖才看得到。
+- [x] **落地页 / 免登录示例档案（A4）已完成（2026-09-28）**：访客能看到首页并直接读到一份被策展的 AI 评审样本——
+  该样本由真实管线录制，`benchmark/showcase/` 保存生成脚本；访客不需要先注册发帖才能看到它。
 - [ ] **真人实证（A5）未做**：这是方向 A 里唯一"没有新数据产生"的一项，按 ADR-0009 维持不做。
 
 ## OPS-1 / OPS-2 收口（2026-09-17）
