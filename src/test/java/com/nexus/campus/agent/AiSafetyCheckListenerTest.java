@@ -13,7 +13,10 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.event.TransactionPhase;
+import org.springframework.transaction.event.TransactionalEventListener;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -62,6 +65,17 @@ class AiSafetyCheckListenerTest {
     private JsonNode classification(String value) throws Exception {
         return objectMapper.readTree(
                 "{\"classification\":\"" + value + "\",\"confidence\":0.9,\"reason\":\"test reason\"}");
+    }
+
+    @Test
+    @DisplayName("Safety events are consumed after the post transaction commits")
+    void safetyRunsAfterCommit() throws NoSuchMethodException {
+        TransactionalEventListener listener = AnnotatedElementUtils.findMergedAnnotation(
+                AiSafetyCheckListener.class.getMethod("handleSafetyCheck", AiSafetyCheckEvent.class),
+                TransactionalEventListener.class);
+
+        assertEquals(TransactionPhase.AFTER_COMMIT, listener.phase());
+        assertEquals(true, listener.fallbackExecution());
     }
 
     // ── parseClassification ──────────────────────────────────────────────
