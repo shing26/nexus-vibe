@@ -16,14 +16,6 @@ import java.util.List;
 @Mapper
 public interface VibePostMapper extends BaseMapper<VibePost> {
 
-    @Select("SELECT p.*, u.nickname as authorName, c.name as categoryName " +
-            "FROM vibe_post p " +
-            "LEFT JOIN sys_user u ON p.user_id = u.id " +
-            "LEFT JOIN vibe_channel c ON p.category_id = c.id " +
-            "WHERE p.status = 1 " +
-            "ORDER BY p.is_pinned DESC, p.create_time DESC")
-    List<VibePost> selectActivePosts();
-
     @Select({"<script>",
             "SELECT p.*, u.nickname as authorName, c.name as categoryName ",
             "FROM vibe_post p ",
@@ -117,9 +109,6 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     @Update("UPDATE vibe_post SET view_count = view_count + 1 WHERE id = #{id}")
     int incrementViewCount(@Param("id") Long id);
 
-    @Update("UPDATE vibe_post SET like_count = like_count + 1 WHERE id = #{id}")
-    int incrementLikeCount(@Param("id") Long id);
-
     @Select("SELECT p.*, u.nickname as authorName, c.name as categoryName " +
             "FROM vibe_post p " +
             "LEFT JOIN sys_user u ON p.user_id = u.id " +
@@ -145,7 +134,12 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     @Update("UPDATE vibe_post SET comment_count = GREATEST(comment_count - 1, 0) WHERE id = #{postId}")
     int decrementCommentCount(@Param("postId") Long postId);
 
-    @Insert("INSERT INTO vibe_post_like (post_id, user_id) VALUES (#{postId}, #{userId})")
+    @Update("UPDATE vibe_post SET comment_count = " +
+            "(SELECT COUNT(*) FROM vibe_comment WHERE post_id = #{postId} AND status = 1) " +
+            "WHERE id = #{postId}")
+    int recalculateCommentCount(@Param("postId") Long postId);
+
+    @Insert("INSERT IGNORE INTO vibe_post_like (post_id, user_id) VALUES (#{postId}, #{userId})")
     int insertPostLike(@Param("postId") Long postId, @Param("userId") Long userId);
 
     @Delete("DELETE FROM vibe_post_like WHERE post_id = #{postId} AND user_id = #{userId}")
@@ -153,6 +147,9 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
 
     @Select("SELECT COUNT(*) FROM vibe_post_like WHERE post_id = #{postId} AND user_id = #{userId}")
     int countPostLike(@Param("postId") Long postId, @Param("userId") Long userId);
+
+    @Select("SELECT COUNT(*) FROM vibe_post_like WHERE post_id = #{postId}")
+    long countPostLikes(@Param("postId") Long postId);
 
     @Select("SELECT p.*, u.nickname as authorName, c.name as categoryName " +
             "FROM vibe_post p " +
@@ -229,6 +226,21 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     int unpinPost(@Param("id") Long id);
     @Update("UPDATE vibe_post SET status = #{status} WHERE id = #{id}")
     int updatePostStatus(@Param("id") Long id, @Param("status") Integer status);
+
+    // Used when a listener/publisher disagreement makes an earlier REVIEWING
+    // marker stale. Scoped to REVIEWING so a completed review (DONE) or a
+    // terminal FAILED is never reset by this correction.
+    @Update("UPDATE vibe_post SET ai_reviewed = #{targetStatus}, review_owner = NULL, review_lock_until = NULL " +
+            "WHERE id = #{id} AND ai_reviewed = 2")
+    int clearReviewingIfInState(@Param("id") Long id, @Param("targetStatus") int targetStatus);
+
+    @Update("UPDATE vibe_post SET status = 1 " +
+            "WHERE id = #{id} AND status = 2 " +
+            "AND 'pending-llm' = (SELECT l.severity FROM ai_review_log l " +
+            "                     WHERE l.post_id = #{id} " +
+            "                       AND l.reviewer = 'safety-check-agent' " +
+            "                     ORDER BY l.id DESC LIMIT 1)")
+    int restoreActiveAfterSafetyRecovery(@Param("id") Long id);
 
     // Atomic lease claim (ADR-0005): wins iff no live lock exists and the
     // attempt budget is not exhausted. Returns 1 row claimed, 0 otherwise.

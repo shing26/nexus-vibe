@@ -56,7 +56,7 @@ _Avoid_: Retry Job, Cleanup Task
 _Avoid_: Distributed Lock, Mutex
 
 **Drift Reconciliation（点赞漂移对账）**:
-比对 Redis 点赞集合与 MySQL like_count 的定时抽样校验。只有"DB 远大于 Redis"的丢失形态才触发以 vibe_post_like 表为真相源的重放重建；正常的写后滞留（Redis 领先 DB）不处理。
+按小时抽样（游标轮转，每轮 `campus.like.sample-size` 篇）比对 Redis 点赞集合与 `vibe_post_like` 成员表，取两者的**并集**而不是挑一侧当真相源：空的成员表可以从现存的 Redis 集合补齐，丢失的 Redis 集合可以从成员表重建。修复永不删除成员；两侧成员一致但 `like_count` 与成员数不符时按成员数改写计数，方向不限——写后滞留（Redis 领先 DB）不再被当作正常而放过。两侧都没有成员而 `like_count` 非零时同样按成员数改写为零：成员表是成员关系的权威，空的成员表意味着"没人赞过"，而不是"答案未知"。任何一次修复发生后触发热榜重建。
 _Avoid_: Cache Sync, Count Fix
 
 **CodeSnippet**:
@@ -80,6 +80,15 @@ _Avoid_: Request ID, Correlation Id, Span
 生产部署（DEMO_SEED_ENABLED=false）下首页指向的唯一一篇已带 AI 评审的帖子，让未登录访客先读到真实评审，再决定要不要注册。它写入的评审是一条**录制**：脚本真实走一遍发帖，把管线写回的评论与 ai_review_log 行逐字复制进 `src/main/resources/showcase/`，评分与严重度从那份 JSON 里解析出来，不是手写文案。因此它证明的是"管线当时输出了什么"，不证明模型此刻可达（ADR-0010）。
 与 demo seed 是两件事：它只写一篇，作者必须是库里已存在的账号，且没有配置 `campus.showcase.post-id` 时什么都不做。
 _Avoid_: Showcase Channel, Demo Post, Sample Content, Fixture Post
+
+**Release Rollback（发布回退）**:
+把**应用**退回上一个镜像标签：改 `.env` 里的 `APP_TAG`，再 `docker compose up -d --no-build app web`。旧镜像仍在宿主上，回退不重建、不动数据，因此是可逆且无损的。前提是别 `docker image prune -a`——那会删掉回退目标。
+_Avoid_: Rollback（单独使用）、Revert、Undo Deploy
+
+**Migration Rollback（迁移回退）**:
+把**数据库结构**退回旧版本，即 `docker/mysql/rollback-000{5,6,7}-*.sql`。与 Release Rollback 是两件不同的事：它改的是数据而不是进程，`rollback-0006`（索引）无损，而 `rollback-0005`（`sys_user.email`）与 `rollback-0007`（评审尝试次数）**会丢数据**，所以两者都在脚本头部写明，且按 `docs/runbook/restore.md` 的"迁移回滚程序"必须先备份。
+两个词混用会让"回退"听起来总是安全的，这正是本仓库把它们分开命名的原因。
+_Avoid_: Schema Rollback, DB Rollback, Revert Migration（与 Release Rollback 混用）
 
 ## Channels
 
@@ -114,7 +123,7 @@ _Avoid_: Showcase Channel, Demo Post, Sample Content, Fixture Post
 
 ## AI Agent Review
 
-- 触发：仅带代码块（`）的帖子
+- 触发：由 `ReviewPolicy` 统一判定——默认实现 `CodeBlockReviewPolicy` 只评审含 fenced code block 且可见、且不是 `postType=prompt` 的帖子；fork 可通过定义自己的 `ReviewPolicy` bean 替换这条规则（ADR-0012）
 - 内容：结构化四段——评分、代码质量、安全隐患、优化建议
 - 展示：自动回帖（全文）+ 帖子详情页评分徽章
 

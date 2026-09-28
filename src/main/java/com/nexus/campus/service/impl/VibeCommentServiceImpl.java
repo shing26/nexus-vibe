@@ -6,6 +6,7 @@ import com.nexus.campus.entity.*;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
 import com.nexus.campus.metrics.ProductMetrics;
+import com.nexus.campus.security.AdminGuard;
 import com.nexus.campus.service.SensitiveWordService;
 import com.nexus.campus.service.VibeCommentService;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -55,11 +56,11 @@ public class VibeCommentServiceImpl implements VibeCommentService {
         // those are side effects of a comment that already exists.
         productMetrics.recordCommentCreated();
 
-        // Update post comment count
+        // Update the denormalised count from the rows that are actually
+        // visible. Incrementing blindly also counted comments held for audit.
         VibePost post = vibePostMapper.selectById(request.getPostId());
         if (post != null) {
-            post.setCommentCount(post.getCommentCount() + 1);
-            vibePostMapper.updateById(post);
+            vibePostMapper.recalculateCommentCount(request.getPostId());
 
             // Send notification to post author (if not self-comment)
             if (!post.getUserId().equals(userId)) {
@@ -99,13 +100,13 @@ public class VibeCommentServiceImpl implements VibeCommentService {
         if (comment == null) {
             return false;
         }
-        boolean isAdmin = "ADMIN".equals(role);
+        boolean isAdmin = AdminGuard.isAdmin(role);
         if (!isAdmin && !comment.getUserId().equals(userId)) {
             throw BusinessException.forbidden("Only the author or an admin can delete this comment.");
         }
         boolean deleted = vibeCommentMapper.deleteById(commentId) > 0;
         if (deleted && comment.getPostId() != null) {
-            vibePostMapper.decrementCommentCount(comment.getPostId());
+            vibePostMapper.recalculateCommentCount(comment.getPostId());
         }
         return deleted;
     }

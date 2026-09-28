@@ -11,23 +11,22 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
- * Drift reconciliation between the Redis like sets and MySQL like_count.
+ * Drift reconciliation between the Redis like sets and the durable membership
+ * table, {@code vibe_post_like}.
  *
- * <p>Normal operation intentionally leaves Redis ahead of MySQL between
- * flushes (write-behind), so small drifts are expected. This task samples
- * posts with a rotating id cursor and only acts when the drift looks like
- * Redis DATA LOSS — a lost set reads 0 (or far below the DB value), which a
- * future toggle would then overwrite INTO MySQL, zeroing the count
- * (see docs/research/async-pool-loadtest.md notes).</p>
- *
- * <p>Repair: replay the durable truth — re-add every user from
- * {@code vibe_post_like} into the Redis set, overwrite MySQL with SCARD,
- * and trigger the hot-ranking ZSET rebuild (a Redis loss leaves the ZSET
- * empty, which otherwise makes the hot page return empty until the next
- * hourly recalculation).</p>
+ * <p>The normal toggle path mirrors membership into `vibe_post_like`.
+ * Reconciliation takes the union of the Redis set and the DB rows instead of
+ * choosing one side: an empty table can be bootstrapped from an existing Redis
+ * set, while a lost Redis set can be rebuilt from the table. Repair never
+ * removes a member; a stale member is less harmful than erasing a real like.
+ * The <em>count</em> is a different matter: it follows the union, so a post that
+ * both sources agree is unliked has its {@code like_count} reset to zero rather
+ * than kept for manual recovery — see {@code docs/tickets/like-count-convergence.md}.</p>
  */
 @Component
 public class DriftReconcileTask {
@@ -48,14 +47,6 @@ public class DriftReconcileTask {
     @Value("${campus.like.drift-enabled:true}")
     private boolean driftEnabled;
 
-    /** Redis set smaller than ratio * DB count counts as data loss. */
-    @Value("${campus.like.drift-ratio:0.5}")
-    private double driftRatio;
-
-    /** Absolute gap (DB - Redis) above which repair triggers. */
-    @Value("${campus.like.drift-abs:100}")
-    private long driftAbs;
-
     /** Posts sampled per cycle (rotating cursor). */
     @Value("${campus.like.sample-size:200}")
     private int sampleSize;
@@ -63,9 +54,11 @@ public class DriftReconcileTask {
     private volatile long cursor;
 
     /**
-     * Hourly sweep: sample a window of posts, repair Redis-loss-shaped drift.
+     * Run once shortly after startup, then hourly. The early pass exists so a
+     * deployment with a pre-existing Redis-only set is backfilled without
+     * waiting for the first cron boundary.
      */
-    @Scheduled(cron = "0 40 * * * ?")
+    @Scheduled(fixedDelay = 60 * 60 * 1000L, initialDelay = 60 * 1000L)
     public void reconcileDrift() {
         TraceIds.runAsJob("like-drift-reconcile", this::reconcileDriftOnce);
     }
@@ -84,12 +77,12 @@ public class DriftReconcileTask {
 
             int repaired = 0;
             for (VibePost post : window) {
-                if (repairIfLost(post)) {
+                if (reconcilePost(post)) {
                     repaired++;
                 }
             }
             if (repaired > 0) {
-                log.warn("[DRIFT] Rebuilt {} like sets from vibe_post_like; triggering hot-ranking rebuild", repaired);
+                log.warn("[DRIFT] Reconciled {} like memberships; triggering hot-ranking rebuild", repaired);
                 postRankingService.recalculateHotRanking();
             }
         } catch (Exception e) {
@@ -98,29 +91,77 @@ public class DriftReconcileTask {
     }
 
     /**
-     * Returns true when the post's Redis set was detected lost and rebuilt.
+     * Reconciles one post's membership and count. Returns true when anything changed.
      */
-    boolean repairIfLost(VibePost post) {
+    boolean reconcilePost(VibePost post) {
         try {
             String key = LIKE_SET_PREFIX + post.getId();
             // the count IS the set cardinality
             Long size = redisTemplate.opsForSet().size(key);
             long redisCount = size != null ? size : 0;
 
-            long dbCount = post.getLikeCount() != null ? post.getLikeCount() : 0;
-            if (!isDataLossShape(dbCount, redisCount)) {
+            Set<String> redisUserIds = redisTemplate.opsForSet().members(key);
+            if (redisUserIds == null) {
+                redisUserIds = Set.of();
+            }
+            List<Long> dbUserIds = vibePostMapper.selectUserIdsByPostId(post.getId());
+            if (dbUserIds == null) {
+                dbUserIds = List.of();
+            }
+
+            Set<Long> redisIds = new HashSet<>();
+            for (String redisUserId : redisUserIds) {
+                try {
+                    redisIds.add(Long.parseLong(redisUserId));
+                } catch (NumberFormatException e) {
+                    log.warn("[DRIFT] Ignoring malformed Redis like member '{}' for post {}",
+                            redisUserId, post.getId());
+                }
+            }
+            Set<Long> durableIds = new HashSet<>(dbUserIds);
+            Set<Long> union = new HashSet<>(durableIds);
+            union.addAll(redisIds);
+
+            if (redisIds.equals(durableIds)) {
+                long storedCount = post.getLikeCount() != null ? post.getLikeCount() : 0;
+                if (redisIds.isEmpty() && storedCount > 0) {
+                    // Both authoritative sources say "nobody likes this", which is
+                    // exactly what a full unlike looks like once the set and the
+                    // table are both empty. The table is written on every toggle,
+                    // so an empty table is a statement rather than a gap: keeping
+                    // the old count made every unlike-to-zero a permanent wrong
+                    // value in the column the hot ranking sorts on.
+                    vibePostMapper.updateLikeCount(post.getId(), 0);
+                    log.warn("[DRIFT] Post {} has no members in Redis or the membership table; like_count {} reset to 0",
+                            post.getId(), storedCount);
+                    return true;
+                }
+                if (!redisIds.isEmpty() && storedCount != redisIds.size()) {
+                    vibePostMapper.updateLikeCount(post.getId(), redisIds.size());
+                    log.warn("[DRIFT] Post {} membership agrees at {} but like_count was {}; repairing the denormalised count",
+                            post.getId(), redisIds.size(), storedCount);
+                    return true;
+                }
                 return false;
             }
 
-            List<Long> userIds = vibePostMapper.selectUserIdsByPostId(post.getId());
-            redisTemplate.delete(key);
-            for (Long userId : userIds) {
-                redisTemplate.opsForSet().add(key, userId.toString());
+            for (Long userId : redisIds) {
+                if (!durableIds.contains(userId)) {
+                    vibePostMapper.insertPostLike(post.getId(), userId);
+                }
             }
-            // durable truth: the like rows themselves
-            vibePostMapper.updateLikeCount(post.getId(), userIds.size());
-            log.warn("[DRIFT] Post {}: Redis {} vs DB {} — rebuilt set with {} users from vibe_post_like",
-                     post.getId(), redisCount, dbCount, userIds.size());
+            for (Long userId : durableIds) {
+                if (!redisIds.contains(userId)) {
+                    redisTemplate.opsForSet().add(key, userId.toString());
+                }
+            }
+
+            // The union is the most conservative recoverable membership set.
+            // Update the denormalised count only after both durable directions
+            // have been replayed.
+            vibePostMapper.updateLikeCount(post.getId(), union.size());
+            log.warn("[DRIFT] Post {} reconciled membership: Redis={}, DB={}, union={}",
+                    post.getId(), redisCount, durableIds.size(), union.size());
             return true;
         } catch (Exception e) {
             log.warn("[DRIFT] Repair check failed for post {}: {}", post.getId(), e.getMessage());
@@ -128,17 +169,4 @@ public class DriftReconcileTask {
         }
     }
 
-    /**
-     * Data-loss shape: the DB has real likes but Redis holds far fewer —
-     * normal write-behind drift goes the OTHER direction (Redis >= DB).
-     */
-    private boolean isDataLossShape(long dbCount, long redisCount) {
-        if (dbCount <= 0 || redisCount >= dbCount) {
-            return false; // Redis ahead of/level with DB: normal
-        }
-        if (dbCount < driftAbs) {
-            return false; // small counts: below the repair threshold
-        }
-        return redisCount < dbCount * driftRatio;
-    }
 }

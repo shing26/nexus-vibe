@@ -23,13 +23,17 @@ src/                      Spring Boot service (Java 21 toolchain, bytecode targe
   main/java/com/nexus/campus/
     agent/                  LLM client, repair-parse, review + safety listeners
     task/                   scheduled work: reconciliation, drift, funnels
-    config/                 filters, interceptors, health indicators, bootstrap runners
+    filter/                 servlet filters: XSS wrapper, trace id
+    config/                 filter registration, interceptors, health indicators, bootstrap runners
 frontend/                 React 19 + Vite SPA, Vitest for tests
 docker/                   nginx config, MySQL init, observability stack (Grafana provisioning)
 benchmark/
   jmeter/                 the load-test scenario behind docs/research/async-pool-loadtest.md
+  concurrency/            the 50-thread like-concurrency probe and its committed summary
+  migrations/             up -> down -> up migration-rollback rehearsal
   observability/          the 23-step failure drill and its panel checks
-scripts/                  backup.ps1, tunnel-ngrok.ps1
+  showcase/               record-showcase-review.py, the script that produced the showcase post
+scripts/                  backup.ps1, tunnel-ngrok.ps1, rate-limit-probe.ps1
 docs/
   adr/                    numbered decisions, 0001 upward
   research/               measurements, each with how to reproduce it
@@ -38,14 +42,15 @@ docs/
   design/                 UI and UX architecture
   product/                product thinking: prioritisation and optimisation
   reviews/                walkthrough and black-box review reports
+  blog/                   public technical write-ups
   runbook/                restore procedure, compose override for recovery rehearsals
   archive/                superseded reports, kept for the record
   assets/                 screenshots referenced by the reviews
 ```
 
 Anything not listed above and not in `git ls-files` is machine-local: `scratch/`, `target/`,
-`.env`, `backups/`, and the tool-state directories in `.gitignore`. Do not tidy them into the
-repository and do not commit them.
+`.env`, `backups/`, `deliverables/`, and the tool-state directories in `.gitignore`. Do not tidy
+them into the repository and do not commit them.
 
 ## Conventions
 
@@ -68,7 +73,7 @@ prove — keep that habit.
 ## Verification before you claim anything works
 
 ```bash
-mvn -B test                     # 346 tests / 55 classes; the count is asserted in README.md
+mvn -B test                     # 412 tests / 69 classes; the count is asserted in README.md
 cd frontend && npm run test     # 33 tests / 8 files
 cd frontend && npm run lint
 cd frontend && npm run build
@@ -78,6 +83,12 @@ cd docker/observability/alert-bridge && python -m unittest test_alert_bridge   #
 If you change a count, update the README badge and the Testing section in the same commit.
 `mvn test`'s summary line is the only trustworthy count; `target/surefire-reports/*.txt`
 accumulates runs and will lie to you.
+
+`mvn test` also enforces a whole-bundle line-coverage floor (`jacoco.line.minimum` in
+`pom.xml`, currently `0.70`; the first measured run was 74.27%). When you override surefire's
+`-DargLine` by hand to fit the suite in a smaller heap, pass `-Djacoco.skip=true` with it: the
+`-DargLine=` value replaces JaCoCo's agent arguments instead of appending, so coverage measures
+a silent 0.00 and the floor fails the build on a number that was never real.
 
 **CI is the authority on the Docker build, not this machine.** `docker compose build` fails
 locally during the container-internal `mvn`/`npm` stages because the package mirrors are

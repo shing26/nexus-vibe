@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom';
 import { Clock, Inbox, KeyRound, PieChart } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { serverErrorMessage } from '../api/serverErrorMessage';
-import type { PostPageVo } from '../types/post';
+import type { ChannelStats, PostPageVo } from '../types/post';
 
 interface DashboardData {
   totalPosts: number;
@@ -22,15 +22,9 @@ interface AuditPostsResponse {
   data: PostPageVo[];
 }
 
-interface ChannelStat {
-  id: number;
-  slug: string;
-  postCount: string;
-}
-
 interface ChannelStatsResponse {
   code: number;
-  data: ChannelStat[];
+  data: ChannelStats[];
 }
 
 const statCards = [

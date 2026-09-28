@@ -1,0 +1,66 @@
+{
+  "tag": "diagnose2",
+  "date": "20260923",
+  "startedAtUtc": "2026-09-23T06:17:57.2559593Z",
+  "finishedAtUtc": "2026-09-23T06:20:40.5171973Z",
+  "target": "http://localhost:18080",
+  "plan": "benchmark/jmeter/ai-review-loadtest.jmx",
+  "jmeter": "WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release",
+  "ladder": {
+    "wave1Seconds": 120,
+    "wave2Seconds": 60,
+    "wave2Delay": 30,
+    "wave3Seconds": 60,
+    "wave3Delay": 60,
+    "listSeconds": 150
+  },
+  "totals": {
+    "samples": 17310,
+    "failed": 0,
+    "errorRate": "0.0%"
+  },
+  "latencyMs": {
+    "p50": 25,
+    "p90": 977,
+    "p99": 2082
+  },
+  "responseCodes": {
+    "200": 17310
+  },
+  "serverErrors": {
+    "http500OnPostPosts": 0,
+    "note": "Label corrected 2026-09-23. A 500 on POST /posts is not the ExecutorService rejection path: a saturated pool answers 200 with the post marked FAILED for reconciliation. This run produced 0 x 500, which is what disproved the earlier attribution. See docs/tickets/like-count-convergence.md."
+  },
+  "rateLimited429": 0,
+  "byLabel": [
+    {
+      "label": "GET /posts?sort=ai",
+      "samples": 13875,
+      "errors": 0,
+      "errorRate": "0.0%",
+      "successP50": 22,
+      "successP99": 689
+    },
+    {
+      "label": "POST /auth/login",
+      "samples": 1,
+      "errors": 0,
+      "errorRate": "0.0%",
+      "successP50": 130,
+      "successP99": 130
+    },
+    {
+      "label": "POST /posts (code block -> AI review)",
+      "samples": 3434,
+      "errors": 0,
+      "errorRate": "0.0%",
+      "successP50": 969,
+      "successP99": 2610
+    }
+  ],
+  "dbTerminalStates": null,
+  "artifacts": {
+    "jtl": "not committed (see .gitignore)",
+    "html": "not committed (see .gitignore)"
+  }
+}

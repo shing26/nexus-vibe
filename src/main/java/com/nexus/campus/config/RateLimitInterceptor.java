@@ -28,10 +28,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
     private static final long MAX_REQUESTS = 10;
 
     /**
-     * Forwarded headers are only honored when a trusted reverse proxy (nginx
-     * sets X-Real-IP) sits in front of the app. With the flag off — e.g. the
-     * app exposed directly — client-supplied X-Forwarded-For is ignored so
-     * the per-IP limiter can't be bypassed by header rotation.
+     * The only forwarded header honored is X-Real-IP, and only when a trusted
+     * reverse proxy (nginx) is known to overwrite it. X-Forwarded-For is
+     * deliberately ignored because clients can append arbitrary values; the
+     * socket address remains the fallback when X-Real-IP is absent.
      */
     @Value("${campus.security.trust-forwarded-headers:false}")
     private boolean trustForwardedHeaders;
@@ -144,22 +144,10 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             String remote = request.getRemoteAddr();
             return (remote != null && !remote.isBlank()) ? remote : "unknown";
         }
-        // X-Real-IP is written by the trusted nginx proxy, so it wins over any
-        // client-supplied X-Forwarded-For value.
+        // X-Real-IP is overwritten by the trusted nginx proxy. Do not fall
+        // back to X-Forwarded-For: even its right-most segment can originate
+        // from a client when another proxy appends to it.
         String ip = request.getHeader("X-Real-IP");
-        if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
-            String forwarded = request.getHeader("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isBlank()) {
-                String[] parts = forwarded.split(",");
-                for (int i = parts.length - 1; i >= 0; i--) {
-                    String candidate = parts[i].trim();
-                    if (!candidate.isEmpty() && !"unknown".equalsIgnoreCase(candidate)) {
-                        ip = candidate;
-                        break;
-                    }
-                }
-            }
-        }
         if (ip == null || ip.isBlank() || "unknown".equalsIgnoreCase(ip)) {
             ip = request.getRemoteAddr();
         }

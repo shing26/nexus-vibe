@@ -1,0 +1,16 @@
+-- LOSSY ROLLBACK - DESTROYS DATA. Read this before running it.
+--
+-- This undoes migrate-0005-add-user-email.sql by dropping sys_user.email. Every stored address
+-- goes with it: the column is the account-recovery anchor the registration form collects and the
+-- admin uses to identify an account, and nothing else in the schema carries it. There is no way to
+-- reconstruct it afterwards, and the UNIQUE index that made it a unique identifier goes too.
+--
+-- It exists for exactly two situations:
+--   1. A rehearsal that has to return a database to the pre-0005 shape (benchmark/migrations/
+--      rehearse-migrations.ps1 does this on a throwaway project).
+--   2. A rollback to an application build that predates the column, where keeping the column would
+--      be harmless but the operator wants the schema to match the build.
+--
+-- Take a backup first: docs/runbook/restore.md, "迁移回滚程序". The runbook's rule is that a lossy
+-- step is preceded by a dump, not by an apology.
+ALTER TABLE `sys_user` DROP COLUMN `email`;

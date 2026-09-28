@@ -16,8 +16,11 @@ both, because it documents them.
 
 ## AI-1 - One place decides whether a post is reviewed
 
-Status: open. The rule "posts containing fenced code blocks get reviewed" is currently stated
-three times, in three wordings, in two packages:
+Status: implemented in the current `codex/pre-launch-hardening` working tree on 2026-09-18,
+awaiting integration. The targeted suite
+`CodeBlockReviewPolicyTest,AiReviewEventListenerTest,AiSafetyCheckListenerTest,VibePostServiceImplTest,VibePostEditAuditTest,ReviewPolicySingleRuleTest,AiConfigPathsTest`
+passes 40 tests with zero failures. The rule "posts containing fenced code blocks get reviewed"
+was previously stated three times, in three wordings, in two packages:
 
 | Where | How it is worded |
 |---|---|

@@ -2,10 +2,12 @@ package com.nexus.campus.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
-import com.nexus.campus.mapper.VibeCommentMapper;
-import com.nexus.campus.mapper.VibePostMapper;
+import com.nexus.campus.repository.AiReviewLogRepository;
+import com.nexus.campus.repository.VibeCommentRepository;
+import com.nexus.campus.repository.VibePostRepository;
 import com.nexus.campus.service.SysMessageService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -42,11 +44,11 @@ class AiReviewServiceTest {
     @Mock
     private LlmClient llmClient;
     @Mock
-    private VibePostMapper vibePostMapper;
+    private VibePostRepository posts;
     @Mock
-    private AiReviewLogMapper aiReviewLogMapper;
+    private AiReviewLogRepository reviewLogs;
     @Mock
-    private VibeCommentMapper vibeCommentMapper;
+    private VibeCommentRepository comments;
     @Mock
     private SysMessageService sysMessageService;
 
@@ -55,8 +57,10 @@ class AiReviewServiceTest {
 
     @BeforeEach
     void configureContextBudget() {
-        // @Value fields are not populated under Mockito; set the budget explicitly.
-        ReflectionTestUtils.setField(aiReviewService, "maxContextTokens", 12000);
+        // A @ConfigurationProperties bean is not populated under Mockito; inject one.
+        CampusAiProperties aiProperties = new CampusAiProperties();
+        aiProperties.getReview().setMaxContextTokens(12000);
+        ReflectionTestUtils.setField(aiReviewService, "aiProperties", aiProperties);
     }
 
     private JsonNode validReview() throws Exception {
@@ -201,7 +205,7 @@ class AiReviewServiceTest {
         aiReviewService.reviewPost(1L, "Some title", "no code here", 99L, false);
 
         verify(llmClient, never()).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
-        verifyNoInteractions(aiReviewLogMapper, vibeCommentMapper);
+        verifyNoInteractions(reviewLogs, comments);
     }
 
     @Test
@@ -216,14 +220,14 @@ class AiReviewServiceTest {
         verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
 
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(aiReviewLogMapper).insert((AiReviewLog) logCaptor.capture());
+        verify(reviewLogs).insert((AiReviewLog) logCaptor.capture());
         assertEquals("code-review-agent", logCaptor.getValue().getReviewer());
         assertEquals("unavailable", logCaptor.getValue().getSeverity());
-        verify(vibeCommentMapper, never()).insert(any(VibeComment.class));
+        verify(comments, never()).insert(any(VibeComment.class));
         // author is informed that the review failed and will be retried
         verify(sysMessageService).sendMessage(eq(0L), eq(99L), contains("自动重试"), eq(3));
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(vibePostMapper).updateById(postCaptor.capture());
+        verify(posts).update(postCaptor.capture());
         assertEquals(1L, postCaptor.getValue().getId());
         assertEquals(3, postCaptor.getValue().getAiReviewed());
     }
@@ -241,7 +245,7 @@ class AiReviewServiceTest {
 
         // review log saved with parsed severity and approval
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(aiReviewLogMapper).insert((AiReviewLog) logCaptor.capture());
+        verify(reviewLogs).insert((AiReviewLog) logCaptor.capture());
         AiReviewLog logEntry = logCaptor.getValue();
         assertEquals(42L, logEntry.getPostId());
         assertEquals("code-review-agent", logEntry.getReviewer());
@@ -251,16 +255,17 @@ class AiReviewServiceTest {
 
         // AI comment posted on the post
         ArgumentCaptor<VibeComment> commentCaptor = ArgumentCaptor.forClass(VibeComment.class);
-        verify(vibeCommentMapper).insert((VibeComment) commentCaptor.capture());
+        verify(comments).insert((VibeComment) commentCaptor.capture());
         VibeComment comment = commentCaptor.getValue();
         assertEquals(42L, comment.getPostId());
         assertEquals(999L, comment.getUserId());
         assertTrue(comment.getContent().contains("8/10"));
         assertTrue(comment.getContent().contains("add unit tests"));
+        verify(posts).recalculateCommentCount(42L);
 
         // score written back to the post
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(vibePostMapper).updateById((VibePost) postCaptor.capture());
+        verify(posts).update((VibePost) postCaptor.capture());
         assertEquals(42L, postCaptor.getValue().getId());
         assertEquals(8, postCaptor.getValue().getAiReviewScore());
         assertEquals(1, postCaptor.getValue().getAiReviewed());
@@ -268,10 +273,10 @@ class AiReviewServiceTest {
         // a successful review does not ping the author
         verify(sysMessageService, never()).sendMessage(any(), any(), any(), any());
 
-        // NOTE: stale-comment supersede runs behind MyBatis-Plus wrapper
-        // machinery that a plain Mockito test can't initialize, so it degrades
-        // to a logged no-op here; the behavior is covered by the Spring test
-        // that exercises the full pipeline (see AiReviewService integration).
+        // NOTE: stale-comment supersede is now a repository call, so this test
+        // only observes that it happens; the MyBatis-Plus wrapper that expresses
+        // the filter lives in MyBatisVibeCommentRepository and is covered by the
+        // Spring test that exercises the full pipeline.
     }
 
     @Test
@@ -295,9 +300,9 @@ class AiReviewServiceTest {
         assertTrue(systemCaptor.getAllValues().get(1).contains("STRICT OUTPUT REQUIREMENTS"));
 
         // second result is valid: comment posted, score written back
-        verify(vibeCommentMapper).insert(any(VibeComment.class));
+        verify(comments).insert(any(VibeComment.class));
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(vibePostMapper).updateById(postCaptor.capture());
+        verify(posts).update(postCaptor.capture());
         assertEquals(8, postCaptor.getValue().getAiReviewScore());
     }
 
@@ -320,7 +325,7 @@ class AiReviewServiceTest {
         assertTrue(systemCaptor.getAllValues().get(1).contains("You fix malformed JSON"));
         assertTrue(userCaptor.getAllValues().get(1).contains("Parser error"));
         // repaired review succeeds end to end
-        verify(vibeCommentMapper).insert(any(VibeComment.class));
+        verify(comments).insert(any(VibeComment.class));
     }
 
     @Test
@@ -339,12 +344,12 @@ class AiReviewServiceTest {
 
         // logged as unknown, no score, no comment, post FAILED for reconciliation
         ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(aiReviewLogMapper).insert((AiReviewLog) logCaptor.capture());
+        verify(reviewLogs).insert((AiReviewLog) logCaptor.capture());
         assertEquals("unknown", logCaptor.getValue().getSeverity());
-        verify(vibeCommentMapper, never()).insert(any(VibeComment.class));
+        verify(comments, never()).insert(any(VibeComment.class));
         verify(sysMessageService).sendMessage(eq(0L), eq(7L), contains("自动重试"), eq(3));
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(vibePostMapper).updateById(postCaptor.capture());
+        verify(posts).update(postCaptor.capture());
         assertEquals(3, postCaptor.getValue().getAiReviewed());
         assertNull(postCaptor.getValue().getAiReviewScore());
     }

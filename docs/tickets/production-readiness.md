@@ -206,7 +206,7 @@ that make this pipeline hard to read.
 - Unaffected: 2xx response shape, JWT and XSS filter order (the trace filter sits
   one slot ahead of both and changes neither).
 
-**Files:** `src/main/java/com/nexus/campus/config/TraceIdFilter.java`,
+**Files:** `src/main/java/com/nexus/campus/filter/TraceIdFilter.java`,
 `src/main/java/com/nexus/campus/config/TraceIdConfig.java`,
 `src/main/java/com/nexus/campus/util/TraceIds.java`,
 `src/main/java/com/nexus/campus/config/MdcCopyingTaskDecorator.java`,

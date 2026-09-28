@@ -5,11 +5,10 @@
    summary: string;
    authorName: string;
    categoryName: string;
-   viewCount: number;
-   likeCount: number;
-   commentCount: number;
-   isPinned: boolean;
-   status: number;
+  viewCount: number;
+  likeCount: number;
+  commentCount: number;
+  status: number;
    userId?: string;
    createTime: string;
    aiReviewed: number;
@@ -72,22 +71,28 @@
    createdAt: string;
  }
 
- export interface ChannelStats {
-   id: number;
-   slug: string;
-   postCount: number;
- }
+export interface ChannelStats {
+  id: number;
+  slug: string;
+  /** long on the server, so JacksonConfig sends it as a string */
+  postCount: string;
+}
 
- export interface AiLogStats {
-   totalReviews: number;
-   approved: number;
-   flagged: number;
-   critical: number;
-   high: number;
-   medium: number;
-   low: number;
-   unknown: number;
- }
+/**
+ * /agent-logs/stats hands out a Map of long counters, and every Long leaves the
+ * server as a string. These were typed as numbers for three rounds and only
+ * ever worked because String.prototype.toLocaleString exists.
+ */
+export interface AiLogStats {
+  totalReviews: string;
+  approved: string;
+  flagged: string;
+  critical: string;
+  high: string;
+  medium: string;
+  low: string;
+  unknown: string;
+}
 
  export interface AiReviewDetail {
    postId: string;

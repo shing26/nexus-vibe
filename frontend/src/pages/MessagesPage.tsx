@@ -4,7 +4,8 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 
 interface Message {
-  id: number;
+  /** Long on the server; see JacksonConfig's ToStringSerializer */
+  id: string;
   fromUserName: string;
   content: string;
   isRead: number;
@@ -39,7 +40,7 @@ export default function MessagesPage() {
     })();
   }, [isAuthenticated]);
 
-  const markAsRead = async (messageId: number) => {
+  const markAsRead = async (messageId: string) => {
     // Optimistically update UI
     setMessages((prev) =>
       prev.map((m) =>

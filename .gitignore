@@ -62,6 +62,14 @@ __pycache__/
 # Raw probe output from benchmark/observability/drill.ps1. The conclusions are written up in
 # docs/research; the scrape dumps and log tails behind them stay on the machine that ran it.
 benchmark/observability/evidence/
+# Raw JMeter output. run-loadtest.ps1 leaves the .jtl and the generated HTML report on the
+# machine that ran the test; only the small dated .json/.md pair under benchmark/jmeter/results/
+# is committed. Without these two lines the first run would stage megabytes of CSV and HTML.
+benchmark/jmeter/**/*.jtl
+benchmark/jmeter/**/*-report/
+# Raw transcripts from benchmark/migrations/rehearse-migrations.ps1. Same rule as the drill and
+# the JMeter run: the step-by-step log stays on the machine, the summary under results/ is kept.
+benchmark/migrations/evidence/
 # A write-up about the project rather than of it, quoting internal assessments. It lives on the
 # machine that runs the project and never in the public remote. Never add it back.
 Nexus-Vibe-项目全量梳理.md
@@ -79,3 +87,8 @@ backups/
 # own stdout. Same rule as the evidence directory - the conclusions are written up in docs/,
 # the bytes behind them stay here.
 scratch/
+
+# Audit deliverables dropped in by external review tools (gstack). They quote internal
+# assessments, so they stay on the machine that produced them like the evidence directory does;
+# the conclusions worth keeping were rewritten into docs/tickets and docs/research.
+deliverables/

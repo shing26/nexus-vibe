@@ -1,0 +1,59 @@
+{
+  "date": "20260921",
+  "startedAtUtc": "2026-09-20T21:04:02.3712142Z",
+  "target": "http://localhost:18081",
+  "threads": 50,
+  "probePostId": 900000000000000900,
+  "baseline": {
+    "redisScard": 0,
+    "membershipRows": 0,
+    "likeCount": 0
+  },
+  "afterLikeBurst": {
+    "redisScard": 50,
+    "membershipRows": 50
+  },
+  "afterUnlikeBurst": {
+    "redisScard": 0,
+    "membershipRows": 0
+  },
+  "likeBurst": {
+    "http200": 50,
+    "statuses": [
+      {
+        "status": 200,
+        "count": 50
+      }
+    ],
+    "latencyMs": {
+      "p50": 1898,
+      "p99": 2197
+    }
+  },
+  "unlikeBurst": {
+    "http200": 50,
+    "statuses": [
+      {
+        "status": 200,
+        "count": 50
+      }
+    ],
+    "latencyMs": {
+      "p50": 1042,
+      "p99": 1509
+    }
+  },
+  "likeCountConvergence": {
+    "converged": true,
+    "seconds": 35,
+    "value": 50
+  },
+  "unlikeCountConvergence": {
+    "converged": false,
+    "seconds": 320,
+    "value": 50
+  },
+  "failures": [
+    "vibe_post.like_count back at zero expected 0, observed 50"
+  ]
+}

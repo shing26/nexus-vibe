@@ -16,6 +16,12 @@ RUN npm run build
 # ---- Stage 2: Serve with Nginx ----
 FROM nginx:1.27-alpine
 
+ARG GIT_REVISION=unknown
+ARG BUILD_VERSION=dev
+
+LABEL org.opencontainers.image.revision="${GIT_REVISION}" \
+      org.opencontainers.image.version="${BUILD_VERSION}"
+
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY docker/nginx/nginx.conf /etc/nginx/conf.d/nexus.conf
 RUN rm /etc/nginx/conf.d/default.conf

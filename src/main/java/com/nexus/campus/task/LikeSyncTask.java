@@ -9,7 +9,6 @@ import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
@@ -19,6 +18,15 @@ import java.util.Set;
  * <p>Every 5 minutes, reads every post ID from the dirty set ({@code post:like:dirty}),
  * queries Redis for the current {@code SCARD}, and batch-updates the MySQL column.
  * Cleaned keys are removed from the dirty set to avoid redundant work.</p>
+ *
+ * <p>Only a toggle puts a post into the dirty set, so an empty Redis set seen
+ * here means the last toggle was an unlike — not that the set was lost. The
+ * durable membership table is the authority for who liked what, so a zero
+ * {@code SCARD} is reconciled against it: rows still present are replayed back
+ * into Redis (a lagging delete, or a set lost between the toggle and this
+ * flush), and an empty table writes zero. The previous "refuse to write zero
+ * when anything still says otherwise" guard made every legitimate unlike-to-zero
+ * permanent — see {@code docs/tickets/like-count-convergence.md}.</p>
  */
 @Component
 public class LikeSyncTask {
@@ -69,16 +77,38 @@ public class LikeSyncTask {
                 String key = LIKE_SET_PREFIX + postId;
                 Long redisCount = redisTemplate.opsForSet().size(key);
 
-                if (redisCount != null) {
-                    vibePostMapper.updateLikeCount(postId, redisCount.intValue());
+                if (redisCount == null) {
+                    requeue(DIRTY_SET_KEY, postIdStr);
+                    log.warn("[LIKE-SYNC] Redis set missing for post {}; left dirty for reconciliation", postId);
+                    continue;
                 }
 
+                if (redisCount == 0) {
+                    long durableCount = vibePostMapper.countPostLikes(postId);
+                    if (durableCount > 0) {
+                        // Redis lost the set (or a delete lagged): the table still
+                        // holds the members, so replay them instead of dropping them.
+                        rebuildRedisSetFromTable(postId, key);
+                        log.warn("[LIKE-SYNC] Post {} had an empty Redis set but {} durable membership rows; rebuilt the set from the table",
+                                postId, durableCount);
+                        vibePostMapper.updateLikeCount(postId, (int) durableCount);
+                    } else {
+                        // Both sources agree the post has no likes: this is a real
+                        // unlike-to-zero, and the denormalised count must follow.
+                        vibePostMapper.updateLikeCount(postId, 0);
+                        log.info("[LIKE-SYNC] Post {} has no likes in Redis or the membership table; like_count set to 0",
+                                postId);
+                    }
+                    synced++;
+                    continue;
+                }
+
+                vibePostMapper.updateLikeCount(postId, redisCount.intValue());
                 synced++;
 
             } catch (Exception e) {
                 failed++;
-                // re-queue for the next cycle so the change is not lost
-                redisTemplate.opsForSet().add(DIRTY_SET_KEY, postIdStr);
+                requeue(DIRTY_SET_KEY, postIdStr);
                 log.error("[LIKE-SYNC] Failed to sync post {}: {}", postIdStr, e.getMessage());
             }
         }
@@ -86,6 +116,29 @@ public class LikeSyncTask {
         if (synced > 0 || failed > 0) {
             log.info("[LIKE-SYNC] Batch sync complete - {} synced, {} failed, {} left in queue",
                      synced, failed, batch.size() - synced);
+        }
+    }
+
+    private void requeue(String dirtyKey, String postId) {
+        redisTemplate.opsForSet().add(dirtyKey, postId);
+    }
+
+    /**
+     * Replays the durable membership rows back into the Redis set. Best-effort:
+     * a failure here costs a cache miss, not the count, because the caller has
+     * already written the durable count to MySQL.
+     */
+    private void rebuildRedisSetFromTable(Long postId, String key) {
+        try {
+            List<Long> members = vibePostMapper.selectUserIdsByPostId(postId);
+            if (members == null) {
+                return;
+            }
+            for (Long member : members) {
+                redisTemplate.opsForSet().add(key, member.toString());
+            }
+        } catch (Exception e) {
+            log.warn("[LIKE-SYNC] Failed to rebuild the Redis set for post {}: {}", postId, e.getMessage());
         }
     }
 }

@@ -102,10 +102,8 @@ class CommentServiceTest {
         assertEquals(0L, saved.getParentId());
         assertEquals("Great post!", saved.getContent());
 
-        // Post comment count should be incremented
-        ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(vibePostMapper, times(1)).updateById(postCaptor.capture());
-        assertEquals(6, postCaptor.getValue().getCommentCount());
+        // The denormalised count is recomputed from visible comment rows.
+        verify(vibePostMapper).recalculateCommentCount(postId);
 
         // Notification should be sent to post author
         verify(sysMessageMapper).insert(any(SysMessage.class));
@@ -242,7 +240,7 @@ class CommentServiceTest {
         boolean result = commentService.deleteComment(1L, userId, "USER");
 
         assertTrue(result);
-        verify(vibePostMapper).decrementCommentCount(postId);
+        verify(vibePostMapper).recalculateCommentCount(postId);
     }
 
     @Test

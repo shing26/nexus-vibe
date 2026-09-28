@@ -1,0 +1,88 @@
+{
+  "date": "20260921",
+  "composeProject": "nexus-migrate",
+  "sequence": [
+    "init.sql",
+    "rollback 0007/0006/0005",
+    "migrate 0005/0006/0007",
+    "rollback 0007/0006/0005",
+    "migrate 0005/0006/0007"
+  ],
+  "lossyScripts": [
+    "docker/mysql/rollback-0005-drop-user-email.sql",
+    "docker/mysql/rollback-0007-drop-review-lease.sql"
+  ],
+  "losslessScripts": [
+    "docker/mysql/rollback-0006-drop-ai-sort-index.sql"
+  ],
+  "steps": [
+    {
+      "step": "init.sql (fresh volume)",
+      "expected": [
+        "column:sys_user.email",
+        "column:vibe_post.review_attempts",
+        "column:vibe_post.review_lock_until",
+        "column:vibe_post.review_owner",
+        "index:idx_post_ai_sort"
+      ],
+      "observed": [
+        "column:sys_user.email",
+        "column:vibe_post.review_attempts",
+        "column:vibe_post.review_lock_until",
+        "column:vibe_post.review_owner",
+        "index:idx_post_ai_sort"
+      ],
+      "passed": true
+    },
+    {
+      "step": "after rollback 0007/0006/0005",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "step": "after migrate 0005/0006/0007 (up)",
+      "expected": [
+        "column:sys_user.email",
+        "column:vibe_post.review_attempts",
+        "column:vibe_post.review_lock_until",
+        "column:vibe_post.review_owner",
+        "index:idx_post_ai_sort"
+      ],
+      "observed": [
+        "column:sys_user.email",
+        "column:vibe_post.review_attempts",
+        "column:vibe_post.review_lock_until",
+        "column:vibe_post.review_owner",
+        "index:idx_post_ai_sort"
+      ],
+      "passed": true
+    },
+    {
+      "step": "after rollback 0007/0006/0005 (down)",
+      "expected": [],
+      "observed": [],
+      "passed": true
+    },
+    {
+      "step": "after migrate 0005/0006/0007 (up again)",
+      "expected": [
+        "column:sys_user.email",
+        "column:vibe_post.review_attempts",
+        "column:vibe_post.review_lock_until",
+        "column:vibe_post.review_owner",
+        "index:idx_post_ai_sort"
+      ],
+      "observed": [
+        "column:sys_user.email",
+        "column:vibe_post.review_attempts",
+        "column:vibe_post.review_lock_until",
+        "column:vibe_post.review_owner",
+        "index:idx_post_ai_sort"
+      ],
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "evidence": "benchmark/migrations/evidence/rehearse-20260921-050231.log (not committed)"
+}

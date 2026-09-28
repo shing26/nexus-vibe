@@ -140,11 +140,14 @@ export default function PostDetailPage() {
 
   // Seed like state from the server (likedByMe survives reloads; anonymous
   // viewers get null → false). Re-syncs when a refetch brings new values.
+  const serverPostId = post?.id;
+  const serverLikedByMe = post?.likedByMe;
+  const serverLikeCount = post?.likeCount;
   useEffect(() => {
-    if (!post) return;
-    setLiked(post.likedByMe ?? false);
-    setLikeCount(post.likeCount ?? 0);
-  }, [post?.id, post?.likedByMe, post?.likeCount]);
+    if (serverPostId == null) return;
+    setLiked(serverLikedByMe ?? false);
+    setLikeCount(serverLikeCount ?? 0);
+  }, [serverPostId, serverLikedByMe, serverLikeCount]);
 
   const { data: reviewHistory } = useQuery<AiReviewDetail[]>({
     queryKey: ['agent-logs', 'post', id, 'history'],

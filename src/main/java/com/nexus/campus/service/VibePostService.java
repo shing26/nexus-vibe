@@ -46,8 +46,6 @@ public interface VibePostService {
 
     PostPageVo getPostDetail(Long id);
 
-    VibePost likePost(Long postId);
-
     boolean incrementView(Long postId);
 
     PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size);

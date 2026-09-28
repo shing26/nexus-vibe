@@ -8,13 +8,18 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.slf4j.MDC;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -110,6 +115,15 @@ class ErrorSemanticsTest {
                 .andExpect(jsonPath("$.traceId").exists());
     }
 
+    @Test
+    @DisplayName("A missing multipart part is a client error, not a 500")
+    void missingMultipartPartIsBadRequest() throws Exception {
+        mockMvc.perform(multipart("/probe/upload"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("Missing required request part: file"));
+    }
+
     /** Six shapes of failure, one endpoint each. */
     @RestController
     static class ProbeController {
@@ -139,6 +153,11 @@ class ErrorSemanticsTest {
         @GetMapping("/probe/explosion")
         void explosion() {
             throw new RuntimeException("connection reset by peer at /var/lib/nexus/secrets");
+        }
+
+        @PostMapping(value = "/probe/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+        void upload(@RequestPart("file") MultipartFile file) {
+            // The absence of the part is the case under test.
         }
     }
 }

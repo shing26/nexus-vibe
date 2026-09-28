@@ -2,6 +2,7 @@ package com.nexus.campus.agent;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
 import org.junit.jupiter.api.BeforeEach;
@@ -52,8 +53,10 @@ class AiSafetyCheckListenerTest {
 
     @BeforeEach
     void enableSafetyCheck() {
-        // @Value fields are not populated under Mockito; enable the feature explicitly.
-        ReflectionTestUtils.setField(listener, "safetyEnabled", true);
+        // A @ConfigurationProperties bean is not populated under Mockito; inject one.
+        CampusAiProperties aiProperties = new CampusAiProperties();
+        aiProperties.getSafety().setEnabled(true);
+        ReflectionTestUtils.setField(listener, "aiProperties", aiProperties);
     }
 
     private JsonNode classification(String value) throws Exception {
@@ -136,8 +139,10 @@ class AiSafetyCheckListenerTest {
 
         listener.handleSafetyCheck(new AiSafetyCheckEvent(this, 4L, "Streams Post", "how do I use streams?", 10L));
 
-        // Safe restores ACTIVE (no-op for already-active posts) and writes an approving log
-        verify(vibePostMapper).updatePostStatus(4L, 1);
+        // Safe can only undo its own pending-llm hold; it never writes an
+        // unconditional ACTIVE status over a human moderation decision.
+        verify(vibePostMapper).restoreActiveAfterSafetyRecovery(4L);
+        verify(vibePostMapper, never()).updatePostStatus(4L, 1);
         verify(sysMessageService, never()).sendMessage(any(), any(), any(), any());
         ArgumentCaptor<AiReviewLog> captor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(aiReviewLogMapper).insert((AiReviewLog) captor.capture());

@@ -65,8 +65,6 @@ campus:
     dir: ${UPLOAD_DIR:/app/uploads}
   like:
     drift-enabled: ${LIKE_DRIFT_ENABLED:true}
-    drift-ratio: ${LIKE_DRIFT_RATIO:0.5}
-    drift-abs: ${LIKE_DRIFT_ABS:100}
     sample-size: ${LIKE_SAMPLE_SIZE:200}
   security:
     # nginx (compose web service) sets X-Real-IP before proxying to :8080
@@ -81,6 +79,11 @@ campus:
       lease-seconds: ${AI_LEASE_SECONDS:240}
       max-attempts: ${AI_MAX_ATTEMPTS:5}
       max-context-tokens: ${AI_MAX_CONTEXT_TOKENS:12000}
+    safety:
+      enabled: ${AI_SAFETY_ENABLED:true}
+    archive:
+      enabled: ${LLM_ARCHIVE_ENABLED:false}
+      path: ${LLM_ARCHIVE_PATH:scratch/llm-archive.jsonl}
     llm:
       endpoint: ${LLM_ENDPOINT:https://api.openai.com/v1}
       api-key: ${LLM_API_KEY:}

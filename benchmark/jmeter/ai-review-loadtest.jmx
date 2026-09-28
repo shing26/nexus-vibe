@@ -2,7 +2,7 @@
 <jmeterTestPlan version="1.2" properties="5" jmeter="5.6.3">
   <hashTree>
     <TestPlan guiclass="TestPlanGui" testclass="TestPlan" testname="AI Review Async Pipeline Load Test" enabled="true">
-      <stringProp name="TestPlan.comments">Ladder 10->30->50 concurrent post creators exercising the nexus-async pool (core4/max10/queue100) via AI-review-triggering posts; parallel list-query group generates steady GC/DB pressure.</stringProp>
+      <stringProp name="TestPlan.comments">Ladder 10->30->50 concurrent post creators exercising the nexus-async pool (core4/max10/queue100) via AI-review-triggering posts; parallel list-query group generates steady GC/DB pressure. Every knob below is overridable with -J so run-loadtest.ps1 can drive this file without editing it: BASE_HOST, BASE_PORT, ADMIN_USER, ADMIN_PASSWORD, WAVE1_SECONDS, WAVE2_SECONDS, WAVE3_SECONDS, LIST_SECONDS, WAVE2_DELAY, WAVE3_DELAY. The defaults reproduce the 6-minute ladder. The run sends a per-thread X-Real-IP, which only separates rate-limit buckets when the target has campus.security.trust-forwarded-headers=true (the prod profile default); against an edge that overwrites X-Real-IP with its own address, every thread shares one bucket and the limiter caps POST /posts at 10 per minute.</stringProp>
       <boolProp name="TestPlan.functional_mode">false</boolProp>
       <boolProp name="TestPlan.tearDown_on_shutdown">true</boolProp>
       <boolProp name="TestPlan.serialize_threadgroups">false</boolProp>
@@ -10,12 +10,12 @@
         <collectionProp name="Arguments.arguments">
           <elementProp name="BASE_HOST" elementType="Argument">
             <stringProp name="Argument.name">BASE_HOST</stringProp>
-            <stringProp name="Argument.value">localhost</stringProp>
+            <stringProp name="Argument.value">${__P(BASE_HOST,localhost)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
           <elementProp name="BASE_PORT" elementType="Argument">
             <stringProp name="Argument.name">BASE_PORT</stringProp>
-            <stringProp name="Argument.value">18080</stringProp>
+            <stringProp name="Argument.value">${__P(BASE_PORT,18080)}</stringProp>
             <stringProp name="Argument.metadata">=</stringProp>
           </elementProp>
         </collectionProp>
@@ -42,7 +42,7 @@
             <collectionProp name="Arguments.arguments">
               <elementProp name="" elementType="HTTPArgument">
                 <boolProp name="HTTPArgument.always_encode">false</boolProp>
-                <stringProp name="Argument.value">{&quot;username&quot;:&quot;admin&quot;,&quot;password&quot;:&quot;123456&quot;}</stringProp>
+                <stringProp name="Argument.value">{&quot;username&quot;:&quot;${__P(ADMIN_USER,admin)}&quot;,&quot;password&quot;:&quot;${__P(ADMIN_PASSWORD,123456)}&quot;}</stringProp>
                 <stringProp name="Argument.metadata">=</stringProp>
               </elementProp>
             </collectionProp>
@@ -97,7 +97,7 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
         <stringProp name="ThreadGroup.num_threads">10</stringProp>
         <stringProp name="ThreadGroup.ramp_time">10</stringProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">300</stringProp>
+        <stringProp name="ThreadGroup.duration">${__P(WAVE1_SECONDS,300)}</stringProp>
         <stringProp name="ThreadGroup.delay">0</stringProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
@@ -113,8 +113,8 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
               <stringProp name="Header.value">Bearer ${__P(authToken)}</stringProp>
             </elementProp>
             <elementProp name="" elementType="Header">
-              <stringProp name="Header.name">X-Forwarded-For</stringProp>
-              <stringProp name="Header.value">10.10.${__threadNum()}.${__counter(FALSE,)}</stringProp>
+              <stringProp name="Header.name">X-Real-IP</stringProp>
+              <stringProp name="Header.value">10.20.${__threadNum()}.${__counter(FALSE,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
@@ -152,8 +152,8 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
         <stringProp name="ThreadGroup.num_threads">20</stringProp>
         <stringProp name="ThreadGroup.ramp_time">10</stringProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">240</stringProp>
-        <stringProp name="ThreadGroup.delay">60</stringProp>
+        <stringProp name="ThreadGroup.duration">${__P(WAVE2_SECONDS,240)}</stringProp>
+        <stringProp name="ThreadGroup.delay">${__P(WAVE2_DELAY,60)}</stringProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
       <hashTree>
@@ -168,8 +168,8 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
               <stringProp name="Header.value">Bearer ${__P(authToken)}</stringProp>
             </elementProp>
             <elementProp name="" elementType="Header">
-              <stringProp name="Header.name">X-Forwarded-For</stringProp>
-              <stringProp name="Header.value">10.10.${__threadNum()}.${__counter(FALSE,)}</stringProp>
+              <stringProp name="Header.name">X-Real-IP</stringProp>
+              <stringProp name="Header.value">10.20.${__threadNum()}.${__counter(FALSE,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
@@ -207,8 +207,8 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
         <stringProp name="ThreadGroup.num_threads">20</stringProp>
         <stringProp name="ThreadGroup.ramp_time">10</stringProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">180</stringProp>
-        <stringProp name="ThreadGroup.delay">120</stringProp>
+        <stringProp name="ThreadGroup.duration">${__P(WAVE3_SECONDS,180)}</stringProp>
+        <stringProp name="ThreadGroup.delay">${__P(WAVE3_DELAY,120)}</stringProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
       <hashTree>
@@ -223,8 +223,8 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
               <stringProp name="Header.value">Bearer ${__P(authToken)}</stringProp>
             </elementProp>
             <elementProp name="" elementType="Header">
-              <stringProp name="Header.name">X-Forwarded-For</stringProp>
-              <stringProp name="Header.value">10.10.${__threadNum()}.${__counter(FALSE,)}</stringProp>
+              <stringProp name="Header.name">X-Real-IP</stringProp>
+              <stringProp name="Header.value">10.20.${__threadNum()}.${__counter(FALSE,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>
@@ -262,7 +262,7 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
         <stringProp name="ThreadGroup.num_threads">10</stringProp>
         <stringProp name="ThreadGroup.ramp_time">10</stringProp>
         <boolProp name="ThreadGroup.scheduler">true</boolProp>
-        <stringProp name="ThreadGroup.duration">360</stringProp>
+        <stringProp name="ThreadGroup.duration">${__P(LIST_SECONDS,360)}</stringProp>
         <stringProp name="ThreadGroup.delay">0</stringProp>
         <boolProp name="ThreadGroup.same_user_on_next_iteration">true</boolProp>
       </ThreadGroup>
@@ -274,8 +274,8 @@ log.info(&quot;AUTH token captured: {}&quot;, vars.get(&quot;token&quot;) != nul
               <stringProp name="Header.value">Bearer ${__P(authToken)}</stringProp>
             </elementProp>
             <elementProp name="" elementType="Header">
-              <stringProp name="Header.name">X-Forwarded-For</stringProp>
-              <stringProp name="Header.value">10.10.${__threadNum()}.${__counter(FALSE,)}</stringProp>
+              <stringProp name="Header.name">X-Real-IP</stringProp>
+              <stringProp name="Header.value">10.20.${__threadNum()}.${__counter(FALSE,)}</stringProp>
             </elementProp>
           </collectionProp>
         </HeaderManager>

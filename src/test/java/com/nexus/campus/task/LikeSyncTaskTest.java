@@ -100,7 +100,7 @@ class LikeSyncTaskTest {
     }
 
     @Test
-    @DisplayName("syncLikes() should handle null SCARD gracefully")
+    @DisplayName("syncLikes() should re-queue a missing Redis set instead of dropping the dirty marker")
     void syncLikesNullScard() {
         when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of("10"));
         when(setOperations.size(likeKey1)).thenReturn(null);
@@ -108,6 +108,40 @@ class LikeSyncTaskTest {
         likeSyncTask.syncLikes();
 
         verify(vibePostMapper, never()).updateLikeCount(anyLong(), anyInt());
+        verify(setOperations).add(dirtyKey, "10");
+    }
+
+    @Test
+    @DisplayName("syncLikes() rebuilds the Redis set from the table when SCARD is zero but rows remain")
+    void syncLikesRebuildsLostSetFromDurableMembership() {
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of("10"));
+        when(setOperations.size(likeKey1)).thenReturn(0L);
+        when(vibePostMapper.countPostLikes(postId1)).thenReturn(3L);
+        when(vibePostMapper.selectUserIdsByPostId(postId1)).thenReturn(List.of(1L, 2L, 3L));
+
+        likeSyncTask.syncLikes();
+
+        // the durable count wins, and the members are replayed into the cache
+        verify(vibePostMapper).updateLikeCount(postId1, 3);
+        verify(setOperations).add(likeKey1, "1");
+        verify(setOperations).add(likeKey1, "2");
+        verify(setOperations).add(likeKey1, "3");
+        // converged: nothing goes back into the dirty set
+        verify(setOperations, never()).add(eq(dirtyKey), anyString());
+    }
+
+    @Test
+    @DisplayName("syncLikes() writes zero when Redis and the membership table both say the post has no likes")
+    void syncLikesConvergesUnlikeToZero() {
+        when(setOperations.pop(dirtyKey, LikeSyncTask.BATCH_SIZE)).thenReturn(List.of("10"));
+        when(setOperations.size(likeKey1)).thenReturn(0L);
+        when(vibePostMapper.countPostLikes(postId1)).thenReturn(0L);
+
+        likeSyncTask.syncLikes();
+
+        // the old guard refused this write and requeued forever; now it converges
+        verify(vibePostMapper).updateLikeCount(postId1, 0);
+        verify(setOperations, never()).add(eq(dirtyKey), anyString());
     }
 
     @Test

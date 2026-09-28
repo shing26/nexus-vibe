@@ -41,6 +41,13 @@ public class JwtAuthFilter implements Filter {
             return;
         }
 
+        if ("OPTIONS".equalsIgnoreCase(request.getMethod())) {
+            // CORS preflight requests never carry Authorization. Spring MVC's
+            // CorsConfig answers the actual negotiation after this filter.
+            chain.doFilter(request, response);
+            return;
+        }
+
         if ("GET".equalsIgnoreCase(request.getMethod()) && isPublicGet(path)) {
             // Best-effort identity for public reads: endpoints may personalize
             // the response (e.g. likedByMe) without requiring a token.

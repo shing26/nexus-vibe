@@ -90,6 +90,19 @@ jobs:
         # which made it invisible in the log and deniable in review. See pom.xml.
         run: mvn -B test --file pom.xml -P surefire-without-container-support
 
+      # B9: the line-coverage floor lives in pom.xml (jacoco.line.minimum) and fails `mvn test`
+      # below it, so the number is a gate rather than a report. The HTML/XML report is uploaded
+      # anyway - a red build that says "lines covered ratio is 0.68" is much easier to act on when
+      # the per-class breakdown is one click away. Uploaded on every run, not just master, because
+      # the failure this exists to explain happens on a pull request.
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-report
+          path: target/site/jacoco/
+          if-no-files-found: warn
+
       # E4: on master, publish the objects a release can be pointed at. The
       # jar is not a by-product of `test`, so package explicitly; the name
       # comes from pom finalName (pom.xml:169), not from artifactId/version.
@@ -219,6 +232,9 @@ jobs:
           push: false
           load: true
           tags: nexus-vibe-app:${{ github.sha }}
+          build-args: |
+            GIT_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -229,6 +245,9 @@ jobs:
           file: ./frontend/Dockerfile
           push: false
           tags: nexus-vibe-web:${{ github.sha }}
+          build-args: |
+            GIT_REVISION=${{ github.sha }}
+            BUILD_VERSION=${{ github.sha }}
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -322,6 +341,7 @@ jobs:
           cp .env.example .env
           sed -i "s|^APP_TAG=.*|APP_TAG=${GITHUB_SHA}|" .env
           sed -i "s|^DB_PASSWORD=.*|DB_PASSWORD=ci-drill-pw-not-a-secret|" .env
+          sed -i "s|^MYSQL_ROOT_PASSWORD=.*|MYSQL_ROOT_PASSWORD=ci-drill-root-pw-not-a-secret|" .env
           sed -i "s|^JWT_SECRET=.*|JWT_SECRET=bmV4dXMtdmliZS1jaS1zbW9rZS1zZWNyZXQtZG8tbm90LXVzZQ==|" .env
           sed -i "s|^BOOTSTRAP_ADMIN_PASSWORD=.*|BOOTSTRAP_ADMIN_PASSWORD=ci-drill-admin-not-a-secret|" .env
           export APP_TAG="${GITHUB_SHA}"

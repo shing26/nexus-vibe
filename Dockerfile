@@ -17,10 +17,14 @@ RUN mvn clean package -DskipTests -q
 FROM eclipse-temurin:21-jre
 
 ARG JAR_FILE=nexus-campus.jar
+ARG GIT_REVISION=unknown
+ARG BUILD_VERSION=dev
 
 LABEL maintainer="Nexus-Campus Team" \
       description="Nexus-Vibe AI developer community platform" \
-      version="1.0.0"
+      version="${BUILD_VERSION}" \
+      org.opencontainers.image.revision="${GIT_REVISION}" \
+      org.opencontainers.image.version="${BUILD_VERSION}"
 
 WORKDIR /app
 

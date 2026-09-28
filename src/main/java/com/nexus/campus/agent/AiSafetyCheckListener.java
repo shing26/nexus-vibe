@@ -6,11 +6,11 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.enums.PostStatus;
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -49,6 +49,13 @@ public class AiSafetyCheckListener {
 
     private static final double SAFETY_TEMPERATURE = 0.0;
 
+    /**
+     * The structured-output schema is constant, so it is built once. Building it
+     * per check also meant a fresh {@code ObjectMapper} per check.
+     */
+    private static final ObjectMapper SCHEMA_MAPPER = new ObjectMapper();
+    private static final JsonNode SAFETY_SCHEMA = buildSafetySchema();
+
     @Autowired
     private LlmClient llmClient;
 
@@ -61,13 +68,13 @@ public class AiSafetyCheckListener {
     @Autowired
     private SysMessageService sysMessageService;
 
-    @Value("${campus.ai.safety.enabled:true}")
-    private boolean safetyEnabled;
+    @Autowired
+    private CampusAiProperties aiProperties;
 
     @Async("agentLlmExecutor")
     @EventListener
     public void handleSafetyCheck(AiSafetyCheckEvent event) {
-        if (!safetyEnabled) {
+        if (!aiProperties.getSafety().isEnabled()) {
             log.debug("AI safety check is disabled, skipping post {}", event.getPostId());
             return;
         }
@@ -87,7 +94,7 @@ public class AiSafetyCheckListener {
             String systemPrompt = String.format(SAFETY_SYSTEM_PROMPT_TEMPLATE, post.begin(), post.end());
             JsonNode result = llmClient.chatCompletionStructured(
                     systemPrompt, userContent, "safety_classification",
-                    buildSafetySchema(), SAFETY_TEMPERATURE);
+                    SAFETY_SCHEMA, SAFETY_TEMPERATURE);
 
             String classification = result == null ? null : parseClassification(result);
             if (classification == null) {
@@ -132,9 +139,8 @@ public class AiSafetyCheckListener {
     /**
      * Builds the structured output schema for the safety classification.
      */
-    private JsonNode buildSafetySchema() {
-        ObjectMapper mapper = new ObjectMapper();
-        ObjectNode schema = mapper.createObjectNode();
+    private static JsonNode buildSafetySchema() {
+        ObjectNode schema = SCHEMA_MAPPER.createObjectNode();
         schema.put("type", "object");
         schema.put("additionalProperties", false);
 
@@ -230,9 +236,10 @@ public class AiSafetyCheckListener {
 
     private void handleSafe(Long postId, String rawResponse) {
         log.debug("Post {} classified as Safe, no action needed", postId);
-        // If the post was failed closed to PENDING_REVIEW during an LLM outage
-        // and the re-check is Safe, restore it to ACTIVE (no-op when already active).
-        updatePostStatus(postId, PostStatus.ACTIVE.getCode());
+        // Only undo the exact PENDING_REVIEW state created by a pending-llm
+        // marker. A human rejection or a prompt-injection hold is a different
+        // state and must never be overwritten by an in-flight safe verdict.
+        updatePostStatusAfterSafetyRecovery(postId);
         saveReviewLog(postId, rawResponse, "none", 1);
     }
 
@@ -258,6 +265,14 @@ public class AiSafetyCheckListener {
             vibePostMapper.updatePostStatus(postId, status);
         } catch (Exception e) {
             log.warn("Failed to update status for post {}: {}", postId, e.getMessage());
+        }
+    }
+
+    private void updatePostStatusAfterSafetyRecovery(Long postId) {
+        try {
+            vibePostMapper.restoreActiveAfterSafetyRecovery(postId);
+        } catch (Exception e) {
+            log.warn("Failed to restore safety-recovered post {}: {}", postId, e.getMessage());
         }
     }
 

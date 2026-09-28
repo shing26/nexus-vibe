@@ -4,6 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.nexus.campus.config.CampusAiProperties;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -11,13 +12,13 @@ import io.micrometer.core.instrument.Timer;
 import org.springframework.boot.web.client.ClientHttpRequestFactories;
 import org.springframework.boot.web.client.ClientHttpRequestFactorySettings;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.beans.factory.annotation.Value;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
-import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,6 +47,7 @@ public class LlmClient {
     private final long breakerOpenMillis;
     private final AtomicInteger consecutiveFailures = new AtomicInteger();
     private final AtomicLong circuitOpenUntil = new AtomicLong();
+    private final LlmCallArchive archive;
 
     /**
      * {@code llm_chat_completions_total{outcome}} counts logical calls, i.e. one per withRetry
@@ -57,16 +59,32 @@ public class LlmClient {
     private final MeterRegistry meterRegistry;
     private final Timer completionTimer;
 
-    public LlmClient(
-            @Value("${campus.ai.llm.endpoint}") String endpoint,
-            @Value("${campus.ai.llm.api-key:}") String apiKey,
-            @Value("${campus.ai.llm.model}") String model,
-            @Value("${campus.ai.llm.timeout}") Duration timeout,
-            @Value("${campus.ai.llm.breaker.failure-threshold:3}") int breakerFailureThreshold,
-            @Value("${campus.ai.llm.breaker.open-seconds:60}") long breakerOpenSeconds,
-            @Value("${campus.ai.llm.response-format:json_schema}") String responseFormat,
-            @Value("${campus.ai.llm.thinking-disabled:true}") boolean thinkingDisabled,
-            MeterRegistry meterRegistry) {
+    @Autowired
+    public LlmClient(CampusAiProperties properties,
+                     LlmCallArchive archive,
+                     MeterRegistry meterRegistry) {
+        this(properties.getLlm().getEndpoint(),
+                properties.getLlm().getApiKey(),
+                properties.getLlm().getModel(),
+                properties.getLlm().getTimeout(),
+                properties.getLlm().getBreaker().getFailureThreshold(),
+                properties.getLlm().getBreaker().getOpenSeconds(),
+                properties.getLlm().getResponseFormat(),
+                properties.getLlm().isThinkingDisabled(),
+                archive,
+                meterRegistry);
+    }
+
+    /**
+     * The full-field constructor. Public for tests and one-off callers that
+     * build a client by hand; Spring injects through the
+     * {@link CampusAiProperties} constructor above.
+     */
+    public LlmClient(String endpoint, String apiKey, String model, Duration timeout,
+                     int breakerFailureThreshold, long breakerOpenSeconds,
+                     String responseFormat, boolean thinkingDisabled,
+                     LlmCallArchive archive, MeterRegistry meterRegistry) {
+        this.archive = archive;
         this.model = model;
         this.breakerFailureThreshold = breakerFailureThreshold;
         this.breakerOpenMillis = breakerOpenSeconds * 1000;
@@ -75,7 +93,8 @@ public class LlmClient {
         this.objectMapper = new ObjectMapper();
         this.meterRegistry = meterRegistry;
         // Buckets follow the timeout ladder rather than a percentile histogram: the default
-        // campus.ai.llm.timeout is 30s, so anything past 30s is a timeout, not a slow answer.
+        // timeout (CampusAiProperties.Llm#timeout) is 30s, so anything past 30s is a timeout,
+        // not a slow answer.
         this.completionTimer = Timer.builder("llm.chat.completion.duration")
                 .description("Duration of a single LLM completion attempt")
                 .serviceLevelObjectives(
@@ -104,6 +123,19 @@ public class LlmClient {
     }
 
     /**
+     * Non-Spring constructor kept for tests and one-off callers: no archive,
+     * which is the same behaviour as {@link CampusAiProperties.Archive#isEnabled()}
+     * being false.
+     */
+    public LlmClient(String endpoint, String apiKey, String model, Duration timeout,
+                     int breakerFailureThreshold, long breakerOpenSeconds,
+                     String responseFormat, boolean thinkingDisabled,
+                     MeterRegistry meterRegistry) {
+        this(endpoint, apiKey, model, timeout, breakerFailureThreshold, breakerOpenSeconds,
+                responseFormat, thinkingDisabled, LlmCallArchive.NOOP, meterRegistry);
+    }
+
+    /**
      * Sends a chat completion request to the OpenAI-compatible API with
      * exponential-backoff retries for transient failures.
      *
@@ -125,7 +157,7 @@ public class LlmClient {
         messages.addObject().put("role", "system").put("content", systemPrompt);
         messages.addObject().put("role", "user").put("content", userContent);
 
-        String text = withRetry(() -> postChatCompletion(requestBody), "chat completion");
+        String text = withRetry(() -> postChatCompletion(requestBody, "chat completion"), "chat completion");
         if (text == null) {
             log.warn("LLM response missing expected content");
         }
@@ -164,7 +196,7 @@ public class LlmClient {
         ArrayNode messages = requestBody.putArray("messages");
         messages.addObject().put("role", "system").put("content", withSchemaInPrompt(systemPrompt, jsonSchema));
         messages.addObject().put("role", "user").put("content", userContent);
-        return withRetry(() -> postChatCompletion(requestBody), "structured completion");
+        return withRetry(() -> postChatCompletion(requestBody, "structured completion"), "structured completion");
     }
 
     /**
@@ -222,7 +254,8 @@ public class LlmClient {
         messages.addObject().put("role", "system").put("content", withSchemaInPrompt(systemPrompt, jsonSchema));
         messages.addObject().put("role", "user").put("content", userContent);
 
-        String contentJson = withRetry(() -> postChatCompletion(requestBody), "structured completion");
+        String contentJson = withRetry(() -> postChatCompletion(requestBody, "structured completion"),
+                "structured completion");
         if (contentJson == null) {
             log.warn("LLM structured completion failed, falling back to plain completion");
             return parseFallback(chatCompletion(systemPrompt, userContent, temperature));
@@ -267,25 +300,62 @@ public class LlmClient {
      * POSTs a chat completion body and returns the assistant's content string.
      * Throws on transport/empty-response failures so the caller can retry.
      */
-    private String postChatCompletion(ObjectNode requestBody) throws Exception {
+    private String postChatCompletion(ObjectNode requestBody, String operation) throws Exception {
         String json = objectMapper.writeValueAsString(requestBody);
 
-        String response = restClient.post()
-                .uri("/chat/completions")
-                .body(json)
-                .retrieve()
-                .body(String.class);
+        String response = null;
+        try {
+            response = restClient.post()
+                    .uri("/chat/completions")
+                    .body(json)
+                    .retrieve()
+                    .body(String.class);
 
-        if (response == null || response.isBlank()) {
-            throw new IllegalStateException("LLM response was empty");
-        }
+            if (response == null || response.isBlank()) {
+                throw new IllegalStateException("LLM response was empty");
+            }
 
-        JsonNode root = objectMapper.readTree(response);
-        String text = root.path("choices").path(0).path("message").path("content").asText(null);
-        if (text == null) {
-            throw new IllegalStateException("LLM response missing expected content path: " + response);
+            JsonNode root = objectMapper.readTree(response);
+            String text = root.path("choices").path(0).path("message").path("content").asText(null);
+            if (text == null) {
+                throw new IllegalStateException("LLM response missing expected content path: " + response);
+            }
+            archive(operation, json, response, "success", null);
+            return text;
+        } catch (Exception e) {
+            archive(operation, json, response != null ? response : errorBodyOf(e), "failure", e.getMessage());
+            throw e;
         }
-        return text;
+    }
+
+    /**
+     * The body a provider sent with a rejection. A 4xx/5xx arrives as a thrown
+     * {@link RestClientResponseException} rather than as a return value, so the
+     * response body is only reachable from the exception; without this, a
+     * rejected request archives {@code null} and the JSON that says why survives
+     * only as prose inside the error message. Null means genuinely nothing came
+     * back (connection refused, timeout).
+     */
+    private static String errorBodyOf(Exception e) {
+        if (e instanceof RestClientResponseException responseException) {
+            String body = responseException.getResponseBodyAsString();
+            return body == null || body.isBlank() ? null : body;
+        }
+        return null;
+    }
+
+    /**
+     * Archive writes are a side channel: a full disk or a bad path must not
+     * turn an LLM answer into a failed request.
+     */
+    private void archive(String operation, String requestJson, String responseJson,
+                         String outcome, String error) {
+        try {
+            archive.record(new LlmCallRecord(Instant.now().toString(), operation, model,
+                    requestJson, responseJson, outcome, error));
+        } catch (Exception e) {
+            log.warn("LLM archive write failed for {}: {}", operation, e.getMessage());
+        }
     }
 
     /**
@@ -381,7 +451,7 @@ public class LlmClient {
     /**
      * Health probe used by the reconciliation task: a minimal chat completion
      * with a single attempt — no retries, no backoff — so a dead endpoint
-     * costs one connect timeout (~{@code campus.ai.llm.timeout}) instead of
+     * costs one connect timeout (~{@link CampusAiProperties.Llm#getTimeout()}) instead of
      * the full retry ladder, which would stall the shared scheduler thread.
      * Breaker state is left untouched: probing must not open or reset the
      * circuit.
@@ -399,7 +469,7 @@ public class LlmClient {
             ArrayNode messages = requestBody.putArray("messages");
             messages.addObject().put("role", "system").put("content", "You are a health probe.");
             messages.addObject().put("role", "user").put("content", "Reply with exactly: OK");
-            String reply = postChatCompletion(requestBody);
+            String reply = postChatCompletion(requestBody, "health probe");
             return reply != null;
         } catch (Exception e) {
             log.debug("LLM health probe failed: {}", e.getMessage());

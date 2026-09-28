@@ -264,18 +264,5 @@ public class PostRankingService {
         return vo;
     }
 
-    /**
-     * Update a post's ZSET score when a like event occurs (backward-compatible).
-     * Called by deprecated {@code VibePostServiceImpl.likePost}.
-     */
-    public void onLike(Long postId, long currentLikeCount) {
-        if (!redisAvailable) return;
-        try {
-            stringRedisTemplate.opsForZSet().add(RANKING_KEY, postId.toString(), currentLikeCount);
-        } catch (Exception e) {
-            log.warn("[NEXUS-RANKING] Failed to update ranking for post {}: {}", postId, e.getMessage());
-        }
-    }
-
     private record ScoredPost(VibePost post, double score) {}
 }

@@ -1,0 +1,72 @@
+{
+  "tag": "loadtest",
+  "date": "20260921",
+  "startedAtUtc": "2026-09-20T20:46:12.5015471Z",
+  "finishedAtUtc": "2026-09-20T20:52:29.5031009Z",
+  "target": "http://localhost:18080",
+  "plan": "benchmark/jmeter/ai-review-loadtest.jmx",
+  "jmeter": "WARN StatusConsoleListener The use of package scanning to locate plugins is deprecated and will be removed in a future release",
+  "ladder": {
+    "wave1Seconds": 300,
+    "wave2Seconds": 240,
+    "wave2Delay": 60,
+    "wave3Seconds": 180,
+    "wave3Delay": 120,
+    "listSeconds": 360
+  },
+  "totals": {
+    "samples": 25204,
+    "failed": 13,
+    "errorRate": "0.1%"
+  },
+  "latencyMs": {
+    "p50": 37,
+    "p90": 1770,
+    "p99": 3353
+  },
+  "responseCodes": {
+    "200": 25191,
+    "500": 13
+  },
+  "serverErrors": {
+    "http500OnPostPosts": 13,
+    "note": "13 of 6288 POST /posts answered 500. This file first called them the ExecutorService rejection path; that attribution is wrong and was withdrawn on 2026-09-23. A live re-run (nexus-loadtest, 2026-09-23) logged thousands of pool rejections and answered 200 for every one of them, because PostAgentEventPublisher catches the rejection and marks the post FAILED. Two shorter re-runs totalling 19,715 samples produced 0 x 500, so the 13 remain unattributed and unreproduced. See docs/research/async-pool-loadtest.md."
+  },
+  "rateLimited429": 0,
+  "byLabel": [
+    {
+      "label": "GET /posts?sort=ai",
+      "samples": 18915,
+      "errors": 0,
+      "errorRate": "0.0%",
+      "successP50": 29,
+      "successP99": 890
+    },
+    {
+      "label": "POST /auth/login",
+      "samples": 1,
+      "errors": 0,
+      "errorRate": "0.0%",
+      "successP50": 157,
+      "successP99": 157
+    },
+    {
+      "label": "POST /posts (code block -> AI review)",
+      "samples": 6288,
+      "errors": 13,
+      "errorRate": "0.2%",
+      "successP50": 1684,
+      "successP99": 4293
+    }
+  ],
+  "dbTerminalStates": {
+    "0": 36,
+    "1": 10,
+    "2": 2,
+    "3": 6231
+  },
+  "artifacts": {
+    "jtl": "not committed (see .gitignore)",
+    "html": "not committed (see .gitignore)"
+  }
+}
