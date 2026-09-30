@@ -178,6 +178,7 @@
 - [x] 公网黑盒验收：`https://qualifier-discuss-marry.ngrok-free.dev` 注册 → 发帖 → 轮询 AI 评论通过；验收时间 `2026-09-28T18:19:37+08:00`，探针帖 `2104516266387906562`，`aiReviewed=1`、`aiReviewScore=5`，AI 评论 `2104516346104848386`（`userId=999`、`status=1`、长度 615）。
 - [x] 验收产物：`scratch/final-acceptance-20260928.json`（machine-local，不入库）。
 - [x] README 一致性修正：测试 badge 与 Testing 段更新为 `414 Java + 33 frontend`；运行描述改为 compose-local Ollama；AGENTS 的验证计数同步更新。
+- [x] **2026-10-01 更正**：上面这条竞态修复的实现方式（listener 改 `@TransactionalEventListener(AFTER_COMMIT)`）经审查后被推翻——它让池饱和时的 fail-closed 失效，已改为在 publisher 侧等提交后再派发（[ADR-0014](../adr/0014-agent-dispatch-defers-at-the-publisher-not-the-listener.md)）。竞态本身仍已修复，变化的是实现位置。`20260928-02` 镜像里是旧实现，下次发布才会带上修正。
 
 ## 待执行（需用户确认）
 
