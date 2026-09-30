@@ -102,6 +102,7 @@ class AgentPoolSaturationIntegrationTest {
     @AfterEach
     void drainAgentPool() {
         release.countDown();
+        awaitPoolEmpty();
     }
 
     @Test
@@ -158,13 +159,38 @@ class AgentPoolSaturationIntegrationTest {
     }
 
     private void hold(ThreadPoolExecutor pool) {
+        // Captured, not read from the field: the field is replaced by the next test, and a task
+        // left over from this one would then block on the next test's latch and corrupt its
+        // pool accounting. That is what made this class flaky on CI.
+        CountDownLatch gate = release;
         pool.execute(() -> {
             try {
-                release.await(HOLD_SECONDS, TimeUnit.SECONDS);
+                gate.await(HOLD_SECONDS, TimeUnit.SECONDS);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
             }
         });
+    }
+
+    /**
+     * Waits for every task this test submitted to finish, so the next one refills a pool that is
+     * genuinely empty rather than one still draining the previous test's work.
+     */
+    private void awaitPoolEmpty() {
+        ThreadPoolExecutor pool = pool();
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS);
+        while (System.nanoTime() < deadline) {
+            if (pool.getActiveCount() == 0 && pool.getQueue().isEmpty()) {
+                return;
+            }
+            try {
+                Thread.sleep(20);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            }
+        }
+        throw new IllegalStateException("agent pool did not drain; the next test cannot trust it");
     }
 
     private ThreadPoolExecutor pool() {
