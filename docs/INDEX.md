@@ -26,6 +26,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0011](adr/0011-search-may-lag-until-an-operator-rebuilds.md) | Search may lag until an operator rebuilds, and the rebuild is the price |
 | [0012](adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md) | The review pipeline is pluggable at two seams - the trigger rule and the reviewer - and only two |
 | [0013](adr/0013-config-validation-moves-to-validated-properties.md) | The AI settings bind into one `@Validated` object, and the bespoke validator goes |
+| [0014](adr/0014-agent-dispatch-defers-at-the-publisher-not-the-listener.md) | Agent dispatch defers at the publisher, not at the listener - `@TransactionalEventListener` broke fail-closed |
 
 ## Measurements — `docs/research/`
 

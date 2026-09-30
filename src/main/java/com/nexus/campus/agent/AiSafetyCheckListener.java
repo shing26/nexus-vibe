@@ -11,10 +11,9 @@ import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import java.time.LocalDateTime;
 import java.util.Locale;
@@ -73,7 +72,7 @@ public class AiSafetyCheckListener {
     private CampusAiProperties aiProperties;
 
     @Async("agentLlmExecutor")
-    @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT, fallbackExecution = true)
+    @EventListener
     public void handleSafetyCheck(AiSafetyCheckEvent event) {
         if (!aiProperties.getSafety().isEnabled()) {
             log.debug("AI safety check is disabled, skipping post {}", event.getPostId());

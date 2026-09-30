@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-414%20Java%20%2B%2033%20frontend-brightgreen)
+![Tests](https://img.shields.io/badge/tests-415%20Java%20%2B%2033%20frontend-brightgreen)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -475,14 +475,14 @@ curl http://localhost:8081/api/v1/users/2/summary
 
 ## Testing
 
-2026-09-28 实测：后端 **414 用例 / 69 个测试类**，0 失败、0 错误、0 跳过。这 414 来自**一次** `mvn test` 的汇总行。本机默认堆参数下整份套件能在单个 fork 里跑完（2026-09-19 记录里会崩在原生 `malloc` 的那次是更早的状态）；内存更紧时可以把 surefire 的 `-DargLine` 压到 `-Xmx384m -XX:MaxMetaspaceSize=384m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC -Xss1m`，但**必须同时加 `-Djacoco.skip=true`**——`-DargLine=` 会替换掉 JaCoCo 的 agent 参数而不是追加，覆盖率会静默变成 0，然后 `jacoco:check` 用一个假数字把构建判红。类数按 `src/test/java` 下 `*Test(s).java` 的源文件数，不能数 `target/surefire-reports/*.txt`：那个目录里留着之前筛选跑剩的报告，会比真实值多。前端 **33 用例 / 8 个文件**，告警桥 **28 条** Python 单测。
+2026-10-01 实测：后端 **415 用例 / 70 个测试类**，0 失败、0 错误、0 跳过。这 415 来自**一次** `mvn test` 的汇总行。本机默认堆参数下整份套件能在单个 fork 里跑完（2026-09-19 记录里会崩在原生 `malloc` 的那次是更早的状态）；内存更紧时可以把 surefire 的 `-DargLine` 压到 `-Xmx384m -XX:MaxMetaspaceSize=384m -XX:ReservedCodeCacheSize=64m -XX:+UseSerialGC -Xss1m`，但**必须同时加 `-Djacoco.skip=true`**——`-DargLine=` 会替换掉 JaCoCo 的 agent 参数而不是追加，覆盖率会静默变成 0，然后 `jacoco:check` 用一个假数字把构建判红。类数按 `src/test/java` 下 `*Test(s).java` 的源文件数，不能数 `target/surefire-reports/*.txt`：那个目录里留着之前筛选跑剩的报告，会比真实值多。前端 **33 用例 / 8 个文件**，告警桥 **28 条** Python 单测。
 
 覆盖率是一道门而不是一张报表：`pom.xml` 的 `jacoco.line.minimum` 卡的是整个 bundle 的行覆盖，低于它 `mvn test` 直接失败。首测值是 2967/3995 = 74.27%，下限按向下取整到 5% 取 **0.70**。反证过它不是装饰——把下限临时抬到 0.75，`jacoco:check` 报 `lines covered ratio is 0.74, but expected minimum is 0.75` 并让构建失败；CI 的 backend job 每次都上传 `target/site/jacoco/` 供查。
 
 后端除了 H2 集成与 Mockito 单测，还有四条"读源码"的契约扫描：controller 签名不许出现 entity、repository 接口不许出现 MyBatis 类型、前端 `types/` 的字段类型必须与 DTO 在 Jackson 下的线上类型一致、测试不许把 `isOk()` 和非 200 的 `code` 配成一对；前端另有一条扫描，要求每个 `apiClient.` 调用都落在有 `catch` 的 `try` 或 react-query 里。前端拦截器那 7 条走真实 axios，只把 `adapter` 换成假的，所以 401 刷新、单飞、重放、5xx 追踪号都是真跑；并且用两次变异验证过它们不是摆设：把 `if (!refreshPromise)` 改成 `if (true)` 只红那一条并发刷新的用例，塞一个裸 `apiClient.get` 会让扫描报出文件名与行号。
 
 ```bash
-mvn test                      # 414 tests: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
+mvn test                      # 415 tests: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd frontend && npm run test   # 33 tests: axios interceptor, login page, AI review panel, comment body, call-site scan

@@ -13,10 +13,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.core.annotation.AnnotatedElementUtils;
 import org.springframework.test.util.ReflectionTestUtils;
-import org.springframework.transaction.event.TransactionPhase;
-import org.springframework.transaction.event.TransactionalEventListener;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -58,24 +55,13 @@ class AiReviewEventListenerTest {
         post.setStatus(1);
         post.setPostType("post");
         post.setContent("```java\nint x = 1;\n```");
-        lenient().when(vibePostMapper.selectById(anyLong())).thenReturn(post);
+        when(vibePostMapper.selectById(anyLong())).thenReturn(post);
         lenient().when(reviewPolicy.shouldReview(any(VibePost.class))).thenReturn(true);
     }
 
     private AiReviewEvent event(long postId, long authorId) {
         return new AiReviewEvent(this, postId, "Title " + postId,
                 "```java\nint x = 1;\n```", authorId, true);
-    }
-
-    @Test
-    @DisplayName("Review events are consumed after the post transaction commits")
-    void reviewRunsAfterCommit() throws NoSuchMethodException {
-        TransactionalEventListener listener = AnnotatedElementUtils.findMergedAnnotation(
-                AiReviewEventListener.class.getMethod("handleAiReviewEvent", AiReviewEvent.class),
-                TransactionalEventListener.class);
-
-        assertEquals(TransactionPhase.AFTER_COMMIT, listener.phase());
-        assertEquals(true, listener.fallbackExecution());
     }
 
     @Test

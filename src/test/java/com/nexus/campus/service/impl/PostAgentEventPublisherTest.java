@@ -17,6 +17,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.context.ApplicationEventPublisher;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionStatus;
+import org.springframework.transaction.support.SimpleTransactionStatus;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.concurrent.RejectedExecutionException;
 
@@ -24,6 +29,7 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -49,12 +55,15 @@ class PostAgentEventPublisherTest {
     private AiReviewLogRepository reviewLogs;
     @Mock
     private LlmHealthCache llmHealthCache;
+    @Mock
+    private PlatformTransactionManager transactionManager;
 
     private PostAgentEventPublisher publisher;
 
     @BeforeEach
     void setUp() {
-        publisher = new PostAgentEventPublisher(events, posts, reviewLogs, llmHealthCache);
+        lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
+        publisher = new PostAgentEventPublisher(events, posts, reviewLogs, llmHealthCache, transactionManager);
     }
 
     private VibePost post(long id) {
@@ -110,5 +119,28 @@ class PostAgentEventPublisherTest {
         ArgumentCaptor<AiReviewLog> captor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(reviewLogs).insert(captor.capture());
         assertEquals("pending-llm", captor.getValue().getSeverity());
+    }
+
+    @Test
+    @DisplayName("Inside a transaction the dispatch waits for the commit instead of running inline")
+    void dispatchIsDeferredUntilCommit() {
+        when(llmHealthCache.isHealthy()).thenReturn(true);
+        TransactionSynchronizationManager.initSynchronization();
+        TransactionSynchronizationManager.setActualTransactionActive(true);
+        try {
+            publisher.publishSafety(post(4L), 9L);
+
+            // Publishing here would let the listener read a post nothing else can see yet, and
+            // then clear the REVIEWING marker the pending transaction is about to commit.
+            verify(events, never()).publishEvent(any(AiSafetyCheckEvent.class));
+            assertEquals(1, TransactionSynchronizationManager.getSynchronizations().size());
+
+            TransactionSynchronizationManager.getSynchronizations()
+                    .forEach(TransactionSynchronization::afterCommit);
+            verify(events).publishEvent(any(AiSafetyCheckEvent.class));
+        } finally {
+            TransactionSynchronizationManager.setActualTransactionActive(false);
+            TransactionSynchronizationManager.clearSynchronization();
+        }
     }
 }
