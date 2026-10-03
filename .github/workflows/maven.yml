@@ -49,6 +49,11 @@ jobs:
               # shape of failure this whole workflow keeps rediscovering.
               - 'benchmark/observability/**'
               - 'docker/observability/grafana/provisioning/**'
+              # The scrape config decides which targets the drill's alert steps can read, and a
+              # renamed job there fails every expression that selects on it. Same argument as the
+              # provisioning directory above: without this, a PR editing only prometheus.yml skips
+              # the job that would have noticed.
+              - 'docker/observability/prometheus/**'
               - 'docker/observability/alert-bridge/**'
 
       - name: Decide
