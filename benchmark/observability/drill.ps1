@@ -133,10 +133,13 @@ function Test-StepSelected {
 # The uids rules.yaml declares, in one place: one step checks the file lists them, another checks
 # the alerting engine loaded them, and they must not be able to drift apart.
 # nexus-prometheus-scrape-failed is the rule that asks "is anyone still measuring this at all";
-# nexus-availability-999-fast-burn is the error-budget form of the 5xx ratio.
+# nexus-availability-999-fast-burn is the error-budget form of the 5xx ratio. The three agent-pipeline
+# rules are the ones ADR-0015 added after the ADR-0014 defect passed every other check in this file.
 $script:ruleUids = @('nexus-llm-breaker-open', 'nexus-ai-review-backlog',
                      'nexus-http-5xx-ratio', 'nexus-rate-limit-spike',
-                     'nexus-prometheus-scrape-failed', 'nexus-availability-999-fast-burn')
+                     'nexus-prometheus-scrape-failed', 'nexus-availability-999-fast-burn',
+                     'nexus-agent-pool-rejected', 'nexus-safety-pending-backlog',
+                     'nexus-alert-delivery-unprocessed')
 
 function Invoke-Docker {
     param([Parameter(Mandatory)][string[]]$Cmd)
@@ -233,6 +236,16 @@ function Wait-For {
 
 function Get-Scrape {
     return Invoke-Compose -Cmd @('exec', '-T', 'app', 'curl', '-sS', 'http://localhost:8080/actuator/prometheus')
+}
+
+# Grafana exports its own metrics, so a rule over them cannot be checked against the app's scrape.
+# nexus-alert-delivery-unprocessed watches Grafana's alertmanager queue and would otherwise read as
+# a rule naming a metric that does not exist. Tolerant on purpose: CI runs this script with no
+# grafana container, and "grafana is not here" must not read as "its metrics are missing".
+function Get-GrafanaScrape {
+    $result = Invoke-ComposeTolerant -Cmd @('exec', '-T', 'grafana', 'wget', '-qO-', 'http://localhost:3000/metrics')
+    if ($result.Code -ne 0) { return '' }
+    return $result.Out
 }
 
 # Prometheus text format: "<name>{labels} <value>" or "<name> <value>". HELP and TYPE comments are
@@ -707,26 +720,56 @@ Step 'alert-rules-select-real-metrics' {
     # `application=` selects our own series. The scrapability rule is the exception it cannot avoid:
     # `up` is synthesized by Prometheus from the scrape, so it carries job= and never could carry an
     # application tag. Every other expression must still name the application, or a second deployment
-    # on the same Prometheus would answer for this one.
-    $untagged = @($exprs | Where-Object { $_ -notmatch 'application="nexus-vibe"' -and $_ -notmatch 'job="nexus-vibe"' })
+    # on the same Prometheus would answer for this one. `job="grafana"` is the same argument applied
+    # to Grafana's own exporter, which is where nexus-alert-delivery-unprocessed reads from.
+    $untagged = @($exprs | Where-Object {
+        $_ -notmatch 'application="nexus-vibe"' -and $_ -notmatch 'job="nexus-vibe"' -and $_ -notmatch 'job="grafana"'
+    })
     if ($untagged) { throw "expressions with no selector: $($untagged -join ' ;; ')" }
 
     # A name inside an expression has to be a name this build exposes, or the rule is decoration.
+    # Which scrape proves it depends on who exports it: the app exports most of them, Grafana exports
+    # its alertmanager queue, and `up` is synthesised by Prometheus from either scrape.
+    #
+    # The selector in the expression decides which scrape has to answer. Deriving it from the
+    # selector rather than from "whichever scrape mentioned the name first" matters: CI runs this
+    # step without Grafana (only db, redis and app are up), and an app-only scrape cannot say
+    # anything about a metric Grafana exports. When Grafana is absent that check is reported as not
+    # run rather than quietly counted as a pass -- a gate that skips itself must say so.
     $scrape = Get-Scrape
-    $names = @([regex]::Matches(($exprs -join ' '), '([a-z_]+)\{(?:application|job)') | ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    $selected = @([regex]::Matches(($exprs -join ' '), '([a-z_]+)\{(application|job)="([^"]+)"') |
+        ForEach-Object { [pscustomobject]@{ Name = $_.Groups[1].Value; Job = $_.Groups[3].Value } })
     # `up` belongs to Prometheus, not to the app, so it cannot be checked against the app's scrape.
-    $names = @($names | Where-Object { $_ -ne 'up' })
-    $unknown = @($names | Where-Object {
-        $escaped = [regex]::Escape($_)
-        -not (Test-Metric -Scrape $scrape -Pattern $escaped) -and
-        -not (Test-Metric -Scrape $scrape -Pattern "${escaped}_total") -and
-        -not (Test-Metric -Scrape $scrape -Pattern "${escaped}_count")
-    })
+    $names = @($selected | Where-Object { $_.Name -ne 'up' } | Select-Object -ExpandProperty Name -Unique)
+    $appNames = @($selected | Where-Object { $_.Name -ne 'up' -and $_.Job -ne 'grafana' } | Select-Object -ExpandProperty Name -Unique)
+    $grafanaNames = @($selected | Where-Object { $_.Job -eq 'grafana' } | Select-Object -ExpandProperty Name -Unique)
+
+    $missing = {
+        param($source, $name)
+        $escaped = [regex]::Escape($name)
+        -not (Test-Metric -Scrape $source -Pattern $escaped) -and
+        -not (Test-Metric -Scrape $source -Pattern "${escaped}_total") -and
+        -not (Test-Metric -Scrape $source -Pattern "${escaped}_count")
+    }
+
+    $unknown = @($appNames | Where-Object { & $missing $scrape $_ })
     if ($unknown) { throw "alert expressions select on metrics that do not exist: $($unknown -join ', ')" }
+
+    # Grafana's own series cannot be checked without Grafana. CI has no grafana container, so this
+    # is SKIP there and checked on a full local run.
+    $grafanaChecked = 'not run (no grafana container)'
+    if ($grafanaNames.Count -gt 0) {
+        $grafanaScrape = Get-GrafanaScrape
+        if ($grafanaScrape) {
+            $missingGrafana = @($grafanaNames | Where-Object { & $missing $grafanaScrape $_ })
+            if ($missingGrafana) { throw "grafana-sourced expressions select on metrics that do not exist: $($missingGrafana -join ', ')" }
+            $grafanaChecked = "$($grafanaNames -join ', ') found in grafana's own scrape"
+        }
+    }
 
     $contact = Get-Content -Raw 'docker/observability/grafana/provisioning/alerting/contact-points.yaml'
     if ($contact -notmatch 'alert-bridge') { throw 'no contact point aimed at the alert bridge' }
-    return "$($script:ruleUids.Count) rules, $($exprs.Count) expressions, metrics named: $($names -join ', ')"
+    return "$($script:ruleUids.Count) rules, $($exprs.Count) expressions, metrics named: $($names -join ', '); grafana-sourced: $grafanaChecked"
 }
 
 Step 'alert-no-data-policy-is-per-rule' {
@@ -741,6 +784,10 @@ Step 'alert-no-data-policy-is-per-rule' {
         'nexus-llm-breaker-open'           = 'Alerting'
         'nexus-ai-review-backlog'          = 'Alerting'
         'nexus-prometheus-scrape-failed'   = 'Alerting'
+        # Eagerly registered series, so missing means the process or the scrape is gone.
+        'nexus-agent-pool-rejected'        = 'Alerting'
+        'nexus-safety-pending-backlog'     = 'Alerting'
+        'nexus-alert-delivery-unprocessed' = 'Alerting'
         'nexus-http-5xx-ratio'             = 'OK'
         'nexus-rate-limit-spike'           = 'OK'
         'nexus-availability-999-fast-burn' = 'OK'

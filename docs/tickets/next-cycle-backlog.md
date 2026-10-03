@@ -374,3 +374,42 @@ the local Docker daemon and would go green without proving anything.
 **Rejected:** moving the whole drill into CI. Most of its steps drive real failure
 modes with sleeps; on a shared runner they would either be flaky or be trimmed until
 they stopped testing the thing they were written for.
+
+## OPS-4 - Prometheus-side alerting, so the stack can report its own evaluator dying
+
+Raised by [ADR-0015](../adr/0015-the-agent-pipeline-gets-metrics-and-rules.md), which closed the
+agent-pipeline blind spot and named this as the gap it could not close from the inside.
+
+**Scope.** Grafana evaluates all nine rules. A rule evaluated by Grafana cannot report Grafana's
+death: if the process is gone it evaluates nothing, including
+`nexus-alert-delivery-unprocessed`, whose whole job is to notice that alerts stopped being
+delivered. Prometheus is the one component still running in that scenario, and it is already
+scraping `grafana:3000/metrics`. So move the rules to Prometheus and ship an Alertmanager with the
+bridge as its webhook receiver.
+
+Two things have to be true together for this to be worth doing, and neither is true yet: the
+expressions must survive the move as Prometheus rules (Grafana's `A -> reduce -> threshold` chain is
+Grafana syntax; `rules.yaml` is not a drop-in for `groups:` in `prometheus.yml`), and the bridge
+must accept Prometheus' native payload. The second is the blocker worth knowing about — the bridge
+speaks JSON in Grafana's shape and does not speak the text exposition format Prometheus posts, so
+it would need a parser added rather than a URL changed.
+
+**Acceptance:**
+- `docker compose stop grafana` produces a delivered alert, and restoring it resolves it.
+- Every rule that exists in `rules.yaml` today has a Prometheus-side equivalent, or the ticket
+  records in writing why one does not need to move.
+- The drill gains a step that stops Grafana, so the blackout path is asserted like any other.
+
+**Files:** `docker/observability/prometheus/`, a new `docker/observability/alertmanager/`,
+`docker/observability/alert-bridge/`, `benchmark/observability/drill.ps1`.
+
+**Rejected:** a heartbeat canary — a scheduled job that hits a rule that can never fire and expects
+an alert. It is smaller, and it is the wrong shape: it proves *something* is alive, not that the
+rules are evaluated, and a canary rule firing on its own is indistinguishable from a real rule
+breaking. Worth noting it does not even cover the case, since a dead Grafana would not evaluate the
+canary either.
+
+**Rejected:** doing this now. It is a genuine improvement and not an urgent one, because the current
+stack's Grafana has been up continuously through the recorded deployment, and the operational cost
+of a blackout is silence rather than corruption. It belongs to a round that can afford to restate
+all nine rules.

@@ -395,3 +395,195 @@ groups:
         annotations:
           summary: "99.9% availability is burning at 14.4x: 2% of the month's budget per hour."
           description: "Same triage as the 5xx rule. This one cannot fire on fewer than about 3 server errors inside the window, so the errors are real and findable by traceId."
+
+      # The rule that would have caught the bug fixed in ADR-0014. That defect made the agent pool's
+      # saturation rejection unreachable, so a post stayed ACTIVE with no safety verdict and no
+      # marker for reconciliation to find -- while the breaker read 0, the review backlog read 0, the
+      # 5xx ratio read 0 and every container was healthy. Nothing in the stack was watching the one
+      # thing the stack exists to do, because nothing counted it.
+      #
+      # Both series are registered in PostAgentEventPublisher's constructor, so "no rejection" is a
+      # measured 0 and absent data is a fault rather than an untested box. Threshold is therefore
+      # the smallest useful one: a single rejection in 15 minutes is worth a look, because the pool
+      # is 2 core / 4 max / 50 queue and the whole fail-closed design exists for that ceiling.
+      - uid: nexus-agent-pool-rejected
+        title: "Agent pool has been rejecting events for 15m"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              # Every arm is wrapped in max() so the result carries no labels, and `or` unions only
+              # distinct label sets -- which is what keeps this one series rather than two. Without
+              # that, the reduce/last stage would pick between a labelled counter and a labelled
+              # `up` at random once the counter starts existing.
+              #
+              # Two counters, not one: the producer is in the metric name (review / safety) rather
+              # than in a tag, so both have to be summed. Naming only one would silently watch half
+              # the pipeline -- and `agent_pool_rejected_total` is not a series that exists at all.
+              #
+              # The `or max(up * 0)` tail is what separates "the pipeline is rejecting work" from
+              # "this build does not publish the counter yet". Without it the two collapse into one
+              # empty result and noDataState: Alerting pages for the second one -- which is exactly
+              # what happened the moment these rules were provisioned ahead of the app that emits
+              # the series. Note what this does and does not cover: a failed scrape sets `up` to 0
+              # rather than removing it, so app death is NOT what this rule catches -- that is
+              # nexus-prometheus-scrape-failed's job, and having both try would be two pages for one
+              # event. The only way this expression goes empty is the nexus-vibe job vanishing from
+              # prometheus.yml, which is a config fault no other rule would see.
+              expr: 'max(increase(agent_pool_rejected_review_total{application="nexus-vibe"}[15m])) or max(increase(agent_pool_rejected_safety_total{application="nexus-vibe"}[15m])) or max(up{job="nexus-vibe"} * 0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [0] }
+        for: 1m
+        # Registered eagerly, so absence means the process, the endpoint or the scrape is gone --
+        # the same reasoning as the breaker rule above, and the reason this one is not OK-on-no-data
+        # like the ratio rules.
+        noDataState: Alerting
+        execErrState: OK
+        labels:
+          severity: warning
+          service: nexus-vibe
+        annotations:
+          summary: "The agent pool is refusing work; posts are being held or retried instead of reviewed."
+          description: "The saturation log lines name the post. Raising core/max/queue moves the ceiling; the fix for a ceiling that is too low is a bigger pool, not a louder alert."
+
+      # The safety backlog is the moderation queue, and it is the state ADR-0004 exists to produce.
+      # Until this gauge existed the review side had a number and the safety side had none, which is
+      # backwards: posts parked here are posts nobody has cleared, and a moderation queue that
+      # nobody watches is indistinguishable from a moderation queue that is empty.
+      #
+      # Threshold is 0, sustained 15m, and that is deliberate rather than lazy. A post in this state
+      # is invisible to users by design, so one that lingers is a moderation decision nobody made.
+      # The baseline on the accepted demo dataset is 0, so this does not fire on day one; the
+      # reconcile task clears the queue once the LLM is healthy again, so a short-lived outage is
+      # absorbed by the 15m window instead of paging anyone.
+      - uid: nexus-safety-pending-backlog
+        title: "Posts have been sitting in the safety audit queue for 15m"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              # Same rollout guard and the same single-series reason as nexus-agent-pool-rejected.
+              expr: 'max(max_over_time(safety_pending_posts{application="nexus-vibe"}[15m])) or max(up{job="nexus-vibe"} * 0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 900, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [0] }
+        for: 1m
+        # Refreshed by the reconcile task before its own health gate, so it reads 0 rather than
+        # nothing while the LLM is down -- which is the one moment this backlog can be growing.
+        noDataState: Alerting
+        execErrState: OK
+        labels:
+          severity: warning
+          service: nexus-vibe
+        annotations:
+          summary: "Moderation is holding posts it has not cleared; they are invisible until it does."
+          description: "Check the breaker gauge first: a held queue with a closed breaker means the checks ran and could not conclude. Compare against [AI-RECONCILE] Re-running safety check lines to see whether reconciliation is draining it."
+
+      # Alerts that fire and go nowhere are worse than no alerts, because they read as coverage.
+      # This watches Grafana's own alertmanager for alerts it accepted but has not handed to the
+      # bridge -- a broken contact point, a bridge that stopped accepting, a routing policy that
+      # stopped matching. Every other rule in this file would still look perfectly healthy while
+      # this one is the only honest signal in the stack.
+      #
+      # What it cannot do is report its own evaluator's death: a Grafana process that is gone
+      # evaluates nothing, including this. That gap is real, it is structural rather than a bug,
+      # and it is named in docs/tickets/next-cycle-backlog.md rather than papered over here. The
+      # scrape target in prometheus.yml exists so that "Grafana alive but not delivering" and
+      # "Grafana alive but not scraped" are at least distinguishable from each other.
+      - uid: nexus-alert-delivery-unprocessed
+        title: "Grafana is holding alerts it has not delivered"
+        condition: C
+        data:
+          - refId: A
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: nexus-prometheus
+            model:
+              refId: A
+              # job="grafana" is the selector that keeps a second Grafana elsewhere on the same
+              # Prometheus from answering for this one -- the same reason every other expression
+              # names application="nexus-vibe".
+              expr: 'max(grafana_alerting_alertmanager_alerts{job="grafana", state="unprocessed"})'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+          - refId: B
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: B
+              type: reduce
+              expression: A
+              reducer: last
+          - refId: C
+            relativeTimeRange: { from: 300, to: 0 }
+            datasourceUid: __expr__
+            model:
+              refId: C
+              type: threshold
+              expression: B
+              conditions:
+                - type: query
+                  operator: { type: and }
+                  query: { params: [C] }
+                  reducer: { type: last, params: [] }
+                  evaluator: { type: gt, params: [0] }
+        for: 2m
+        # Grafana exports this per scrape while it is up. Its absence means the grafana job is gone
+        # from prometheus.yml, which is the same blindness this rule exists to name.
+        noDataState: Alerting
+        execErrState: OK
+        labels:
+          severity: critical
+          service: nexus-vibe
+        annotations:
+          summary: "Alerts are firing and not reaching anyone."
+          description: "docker compose logs alert-bridge -- a stopped bridge, a refused webhook or an unmatched routing policy all look identical from here. The other rules may well be healthy and undelivered."

@@ -9,6 +9,8 @@ import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.enums.PostStatus;
 import com.nexus.campus.repository.AiReviewLogRepository;
 import com.nexus.campus.repository.VibePostRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Component;
@@ -31,11 +33,27 @@ public class PostAgentEventPublisher {
     private final LlmHealthCache llmHealthCache;
     private final TransactionTemplate saturationRecovery;
 
+    /**
+     * Registered eagerly so every series exists at zero from the first scrape, which is what lets
+     * the alert rules treat absent data as a fault rather than as quiet. None of these events is
+     * visible anywhere else: a rejected submission produced no error, no failed request and no
+     * INFO log line, which is exactly how a silently disabled fail-closed path stayed invisible
+     * while every other gauge read healthy.
+     *
+     * <p>The reason is carried in the metric name rather than a tag. Both producers are literals
+     * at the two call sites below, so the series set is bounded by construction — a free-form
+     * reason tag would be operator-facing prose turned into cardinality.</p>
+     */
+    private final Counter reviewPoolRejected;
+    private final Counter safetyPoolRejected;
+    private final Counter failClosed;
+
     public PostAgentEventPublisher(ApplicationEventPublisher events,
                                    VibePostRepository posts,
                                    AiReviewLogRepository reviewLogs,
                                    LlmHealthCache llmHealthCache,
-                                   PlatformTransactionManager transactionManager) {
+                                   PlatformTransactionManager transactionManager,
+                                   MeterRegistry meterRegistry) {
         this.events = events;
         this.posts = posts;
         this.reviewLogs = reviewLogs;
@@ -44,6 +62,15 @@ public class PostAgentEventPublisher {
         // transaction of their own; on the outer one they would never be committed.
         this.saturationRecovery = new TransactionTemplate(transactionManager);
         this.saturationRecovery.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        this.reviewPoolRejected = Counter.builder("agent.pool.rejected.review")
+                .description("Review events the saturated agent pool refused to accept")
+                .register(meterRegistry);
+        this.safetyPoolRejected = Counter.builder("agent.pool.rejected.safety")
+                .description("Safety events the saturated agent pool refused to accept")
+                .register(meterRegistry);
+        this.failClosed = Counter.builder("agent.fail.closed")
+                .description("Posts the safety path held in the audit queue instead of publishing them")
+                .register(meterRegistry);
     }
 
     public void publishReview(VibePost post, Long userId) {
@@ -53,6 +80,7 @@ public class PostAgentEventPublisher {
                         post.getContent(), userId));
             } catch (RejectedExecutionException e) {
                 log.warn("AI review queue saturated, post {} marked FAILED for reconciliation", post.getId());
+                reviewPoolRejected.increment();
                 inRecoveryTransaction(() -> markFailedForReconciliation(post.getId()));
             }
         });
@@ -73,6 +101,7 @@ public class PostAgentEventPublisher {
                         post.getContent(), userId));
             } catch (RejectedExecutionException e) {
                 log.warn("Safety check queue saturated, post {} failed closed to PENDING_REVIEW", post.getId());
+                safetyPoolRejected.increment();
                 inRecoveryTransaction(() -> failClosedAtEnqueue(post, "pipeline saturated at enqueue"));
             }
         });
@@ -114,6 +143,7 @@ public class PostAgentEventPublisher {
     }
 
     private void failClosedAtEnqueue(VibePost post, String reason) {
+        failClosed.increment();
         try {
             posts.updateStatus(post.getId(), PostStatus.PENDING_REVIEW.getCode());
             AiReviewLog marker = new AiReviewLog();

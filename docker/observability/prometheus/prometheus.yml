@@ -23,3 +23,14 @@ scrape_configs:
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]
+
+  # Grafana exposes its own metrics, which makes the alerting layer observable by the same stack
+  # that depends on it. Without this target a dead Grafana takes all six rules with it and the only
+  # symptom is silence -- the one failure the monitoring cannot report, because the thing that
+  # would report it is what died. This target exists so that blackout becomes a firing rule.
+  - job_name: grafana
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["grafana:3000"]
+        labels:
+          service: grafana

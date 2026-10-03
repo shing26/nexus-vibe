@@ -68,10 +68,20 @@ public class AiReviewReconcileTask {
      */
     private final AtomicLong reviewBacklog = new AtomicLong();
 
+    /**
+     * Posts the safety fail-closed path is holding. Refreshed on the same schedule as the review
+     * backlog and, like it, before the health gate below — a fail-closed backlog only exists while
+     * something is wrong, so it is least useful exactly when a gate would skip the update.
+     */
+    private final AtomicLong safetyBacklog = new AtomicLong();
+
     @PostConstruct
     void registerBacklogGauge() {
         Gauge.builder("ai.review.pending.posts", reviewBacklog, AtomicLong::doubleValue)
                 .description("Posts in a non-terminal AI review state")
+                .register(meterRegistry);
+        Gauge.builder("safety.pending.posts", safetyBacklog, AtomicLong::doubleValue)
+                .description("Posts held in the audit queue by the safety fail-closed path")
                 .register(meterRegistry);
     }
 
@@ -135,6 +145,11 @@ public class AiReviewReconcileTask {
             reviewBacklog.set(vibePostMapper.countReviewsAwaitingWork());
         } catch (Exception e) {
             log.warn("[AI-RECONCILE] Failed to refresh review backlog gauge: {}", e.getMessage());
+        }
+        try {
+            safetyBacklog.set(vibePostMapper.countSafetyPendingPosts());
+        } catch (Exception e) {
+            log.warn("[AI-RECONCILE] Failed to refresh safety backlog gauge: {}", e.getMessage());
         }
     }
 
