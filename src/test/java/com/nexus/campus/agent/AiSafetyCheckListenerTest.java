@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,6 +39,7 @@ import static org.mockito.Mockito.*;
 class AiSafetyCheckListenerTest {
 
     private final ObjectMapper objectMapper = new ObjectMapper();
+    private final SimpleMeterRegistry meters = new SimpleMeterRegistry();
 
     @Mock
     private LlmClient llmClient;
@@ -57,6 +59,8 @@ class AiSafetyCheckListenerTest {
         CampusAiProperties aiProperties = new CampusAiProperties();
         aiProperties.getSafety().setEnabled(true);
         ReflectionTestUtils.setField(listener, "aiProperties", aiProperties);
+        ReflectionTestUtils.setField(listener, "meterRegistry", meters);
+        listener.registerFailClosedCounter();
     }
 
     private JsonNode classification(String value) throws Exception {
@@ -185,6 +189,10 @@ class AiSafetyCheckListenerTest {
         verify(aiReviewLogMapper).insert((AiReviewLog) captor.capture());
         assertEquals("pending-llm", captor.getValue().getSeverity());
         verify(sysMessageService).sendMessage(eq(0L), eq(10L), contains("等待安全审核"), eq(3));
+        // The audit backlog can only rise here if something counts it. This path never reaches the
+        // publisher's counter, so without its own increment the gauge would climb with nothing
+        // incrementing anywhere.
+        assertEquals(1.0, meters.get("agent.fail.closed").counter().count());
     }
 
     @Test

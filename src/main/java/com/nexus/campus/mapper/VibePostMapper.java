@@ -320,4 +320,19 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
     // window and no batch limit, because the gauge feeds an alert on absolute backlog size.
     @Select("SELECT COUNT(*) FROM vibe_post WHERE ai_reviewed IN (2, 3)")
     long countReviewsAwaitingWork();
+
+    // Safety backlog gauge (safety_pending_posts): posts the fail-closed path is holding in the
+    // audit queue, i.e. status = PENDING_REVIEW whose latest safety log is a "pending-llm" marker.
+    // Same shape as the reconcile select above and deliberately without its stale window, because
+    // the gauge answers "how much is moderation not answering right now" rather than "what is due
+    // for another attempt". Before this existed the review side had a number and the safety side
+    // had none, which is the wrong way round: ADR-0004's fail-closed state is the one an operator
+    // most needs to see accumulating.
+    @Select("SELECT COUNT(*) FROM vibe_post p WHERE p.status = 2 " +
+            "AND EXISTS (SELECT 1 FROM ai_review_log l " +
+            "WHERE l.post_id = p.id AND l.reviewer = 'safety-check-agent' " +
+            "AND l.severity = 'pending-llm' " +
+            "AND l.id = (SELECT MAX(l2.id) FROM ai_review_log l2 " +
+            "WHERE l2.post_id = p.id AND l2.reviewer = 'safety-check-agent'))")
+    long countSafetyPendingPosts();
 }

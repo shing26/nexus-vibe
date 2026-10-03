@@ -27,6 +27,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0012](adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md) | The review pipeline is pluggable at two seams - the trigger rule and the reviewer - and only two |
 | [0013](adr/0013-config-validation-moves-to-validated-properties.md) | The AI settings bind into one `@Validated` object, and the bespoke validator goes |
 | [0014](adr/0014-agent-dispatch-defers-at-the-publisher-not-the-listener.md) | Agent dispatch defers at the publisher, not at the listener - `@TransactionalEventListener` broke fail-closed |
+| [0015](adr/0015-the-agent-pipeline-gets-metrics-and-rules.md) | The agent pipeline gets metrics and rules - the stack had watched everything except itself |
 
 ## Measurements — `docs/research/`
 

@@ -9,8 +9,11 @@ import com.nexus.campus.enums.PostStatus;
 import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.annotation.PostConstruct;
 import org.springframework.context.event.EventListener;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
@@ -70,6 +73,26 @@ public class AiSafetyCheckListener {
 
     @Autowired
     private CampusAiProperties aiProperties;
+
+    @Autowired
+    private MeterRegistry meterRegistry;
+
+    /**
+     * Registered eagerly, and in the same registry as the publisher's counter of the same name,
+     * so {@code agent_fail_closed_total} counts both ways a post reaches the audit queue: the
+     * publisher's enqueue-time hold and this listener's unusable-result hold. Counting only the
+     * enqueue path would have under-reported the common case — an LLM that answers with something
+     * unparseable never touches the publisher's counter at all — and the backlog would rise with
+     * nothing incrementing.
+     */
+    private Counter failClosedCounter;
+
+    @PostConstruct
+    void registerFailClosedCounter() {
+        failClosedCounter = Counter.builder("agent.fail.closed")
+                .description("Posts the safety path held in the audit queue instead of publishing them")
+                .register(meterRegistry);
+    }
 
     @Async("agentLlmExecutor")
     @EventListener
@@ -193,6 +216,7 @@ public class AiSafetyCheckListener {
      */
     private void failClosed(Long postId, String title, Long authorId, JsonNode rawResult) {
         log.warn("Safety check unavailable for post {}, failing closed to PENDING_REVIEW", postId);
+        failClosedCounter.increment();
         saveReviewLog(postId, rawResult == null ? "LLM unavailable" : rawResult.toString(), "pending-llm", 0);
         updatePostStatus(postId, PostStatus.PENDING_REVIEW.getCode());
         notifyAuthor(authorId, title, "你的帖子正在等待安全审核，通过后将公开展示。");

@@ -9,6 +9,7 @@ import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -52,6 +53,11 @@ class GrafanaAlertProvisioningTest {
             // Gauges registered when the process starts: no series means no app, no endpoint, no scrape.
             "nexus-llm-breaker-open", "Alerting",
             "nexus-ai-review-backlog", "Alerting",
+            // Eagerly registered series (PostAgentEventPublisher constructor, reconcile task
+            // @PostConstruct): no series means the process or the scrape is gone.
+            "nexus-agent-pool-rejected", "Alerting",
+            "nexus-safety-pending-backlog", "Alerting",
+            "nexus-alert-delivery-unprocessed", "Alerting",
             // The rule that asks whether anything is measuring at all, so it must not answer "healthy".
             "nexus-prometheus-scrape-failed", "Alerting",
             // Ratios behind a volume guard: an empty result usually means too quiet, not broken.
@@ -161,6 +167,27 @@ class GrafanaAlertProvisioningTest {
             assertThat(document).isInstanceOf(Map.class);
             assertThat(map(document)).containsKey("groups");
         }
+    }
+
+    /**
+     * The agent pipeline went unmonitored for one release and nothing said so: a post could sit
+     * public with no safety verdict while every gauge in the stack read healthy. These three rules
+     * are the fix for that, and they are cheap to delete by accident -- a rule nobody remembers
+     * reading during an incident is exactly the rule someone prunes as noise. Asserting their
+     * presence here means removing one is a test failure with a reason attached, rather than a
+     * silent return to the blind spot.
+     */
+    @Test
+    @DisplayName("the agent pipeline stays watched: pool rejection, safety backlog, undelivered alerts")
+    void agentPipelineCoverageExists() {
+        Set<String> present = new HashSet<>();
+        for (Map<String, Object> rule : loadRules()) {
+            present.add(String.valueOf(rule.get("uid")));
+        }
+        assertThat(present).contains(
+                "nexus-agent-pool-rejected",
+                "nexus-safety-pending-backlog",
+                "nexus-alert-delivery-unprocessed");
     }
 
     // --- helpers -------------------------------------------------------------------------------

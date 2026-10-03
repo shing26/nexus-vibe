@@ -9,6 +9,7 @@ import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.enums.PostStatus;
 import com.nexus.campus.repository.AiReviewLogRepository;
 import com.nexus.campus.repository.VibePostRepository;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -23,10 +24,12 @@ import org.springframework.transaction.support.SimpleTransactionStatus;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.util.List;
 import java.util.concurrent.RejectedExecutionException;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.lenient;
@@ -59,11 +62,14 @@ class PostAgentEventPublisherTest {
     private PlatformTransactionManager transactionManager;
 
     private PostAgentEventPublisher publisher;
+    private SimpleMeterRegistry meters;
 
     @BeforeEach
     void setUp() {
         lenient().when(transactionManager.getTransaction(any())).thenReturn(new SimpleTransactionStatus());
-        publisher = new PostAgentEventPublisher(events, posts, reviewLogs, llmHealthCache, transactionManager);
+        meters = new SimpleMeterRegistry();
+        publisher = new PostAgentEventPublisher(events, posts, reviewLogs, llmHealthCache,
+                transactionManager, meters);
     }
 
     private VibePost post(long id) {
@@ -86,6 +92,9 @@ class PostAgentEventPublisherTest {
         ArgumentCaptor<VibePost> captor = ArgumentCaptor.forClass(VibePost.class);
         verify(posts).update(captor.capture());
         assertEquals(AiReviewStatus.FAILED.getCode(), captor.getValue().getAiReviewed());
+        // The rejection is invisible to every other signal — no error, no 5xx, no failed request —
+        // so this counter is the only thing that makes pool saturation observable at all.
+        assertEquals(1.0, meters.get("agent.pool.rejected.review").counter().count());
     }
 
     @Test
@@ -103,6 +112,8 @@ class PostAgentEventPublisherTest {
         verify(reviewLogs).insert(captor.capture());
         assertEquals("safety-check-agent", captor.getValue().getReviewer());
         assertEquals("pending-llm", captor.getValue().getSeverity());
+        assertEquals(1.0, meters.get("agent.pool.rejected.safety").counter().count());
+        assertEquals(1.0, meters.get("agent.fail.closed").counter().count());
     }
 
     @Test
@@ -119,6 +130,20 @@ class PostAgentEventPublisherTest {
         ArgumentCaptor<AiReviewLog> captor = ArgumentCaptor.forClass(AiReviewLog.class);
         verify(reviewLogs).insert(captor.capture());
         assertEquals("pending-llm", captor.getValue().getSeverity());
+        assertEquals(1.0, meters.get("agent.fail.closed").counter().count());
+    }
+
+    @Test
+    @DisplayName("The pipeline counters exist at zero before anything has gone wrong")
+    void pipelineCountersExistAtZero() {
+        // The alert rules treat absent series as a fault, which is only sound because these are
+        // registered in the constructor rather than created at the first rejection. If this test
+        // ever needs an event to make a series appear, the rule's no-data policy has to change.
+        for (String series : List.of("agent.pool.rejected.review", "agent.pool.rejected.safety",
+                "agent.fail.closed")) {
+            assertNotNull(meters.find(series).counter(), series + " is not registered at zero");
+            assertEquals(0.0, meters.get(series).counter().count(), series);
+        }
     }
 
     @Test
