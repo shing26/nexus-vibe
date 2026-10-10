@@ -2,6 +2,8 @@ import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Bot, Radio } from 'lucide-react';
 import { apiClient } from '../api/client';
+import { ExternalLink } from './ui/ExternalLink';
+import { ADR_INDEX_URL, DRILL_URL, LOADTEST_URL } from '../links';
 
 interface AiLog {
   id: string;
@@ -103,6 +105,17 @@ export default function Footer() {
           <p className="text-xs font-mono text-slate-500">
             &copy; {new Date().getFullYear()} Nexus-Vibe. All rights reserved.
           </p>
+          <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
+            <ExternalLink href={ADR_INDEX_URL} title="Architecture decision records">
+              ADRs
+            </ExternalLink>
+            <ExternalLink href={LOADTEST_URL} title="Async pool load test report">
+              Load test
+            </ExternalLink>
+            <ExternalLink href={DRILL_URL} title="Failure drill, including what it cannot prove">
+              Observability drill
+            </ExternalLink>
+          </div>
           <p className="text-[10px] font-mono text-slate-600">
             Prompt studio · Multi-agent review · Gravity-ranked feed
           </p>
