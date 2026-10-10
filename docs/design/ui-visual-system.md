@@ -6,6 +6,7 @@ Scope: implementation-ready spec for `AiReviewTerminal` and `UserProfilePage`, i
 
 - Keep `BorderBeam` default cyan-purple gradient (`#06B6D4` to `#A855F7`) for the AI terminal.
 - Keep `DecryptedText` only in the terminal header; render static text under reduced motion.
+- `ui/ReviewStepStrip.tsx` (step list in `ui/reviewSteps.ts`) is the strip shared by the review replay and the in-flight review box; `ui/ExternalLink.tsx` carries the outbound-link attributes for the navbar and footer.
 - Keep `SpotlightCard` in feed cards only; profile uses plain dark surfaces.
 - Reuse `EmptyState`; add a `noActivity` preset.
 
@@ -95,6 +96,49 @@ States:
 pending: <div role="status" aria-live="polite" className="flex items-center gap-2 p-3 text-vibe-neon"><Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" /> AI Agent reviewing...</div>
 unavailable: <div role="status" className="flex items-center gap-2 p-3 text-slate-500"><AlertCircle className="h-3.5 w-3.5" /> AI review data unavailable.</div>
 ```
+
+### Replay (data state)
+
+The data state renders a stored, finished review. It reveals instead of appearing: four steps
+confirm in order - Code Quality, Security Concerns, Optimization Suggestions, Score Evaluation,
+the three section names plus the score - each checking off as its section arrives, then the
+score counts in and the meter fills. It is a replay, so the header says so with the run's own
+recorded time: `// replay of completed run · 2026-09-15 10:00`. Never wording that reads as a
+live claim; ADR-0010 removed that claim from the landing card and this is the same surface one
+level down.
+
+```tsx
+<ReviewStepStrip mode="replay" completed={replayCompleted} className="mb-3" />
+```
+
+Row anatomy (`rounded-md`; done = `border-vibe-border bg-vibe-surface/80 text-slate-300` with a `Check` in `text-vibe-emerald` and an `ok` caption; active = `border-vibe-neon/40 bg-vibe-surface text-vibe-neon` with a spinning `Loader2`; waiting = `border-vibe-border/60 bg-vibe-surface/40 text-slate-500` with the step's own icon at 50% opacity):
+
+```tsx
+<li data-step={step.key} data-state={status} className="flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ...">
+  <span className="w-4 shrink-0 text-[10px] font-mono tabular-nums text-slate-500">{String(index + 1).padStart(2, '0')}</span>
+  {icon}
+  <span className="min-w-0 flex-1 truncate text-[11px] font-mono">{step.label}</span>
+  {status === 'done' && <span className="shrink-0 text-[10px] font-mono text-vibe-emerald">ok</span>}
+</li>
+```
+
+Pacing: 500ms per step, then the score over 12 ticks of 50ms; the reveal plays once per mount.
+Section rows dim to `opacity-40` until their step confirms (`transition-opacity duration-500
+motion-reduce:transition-none`); the content is in the DOM from the first render, so this is a
+reveal for the eye and not a fetch. Under `prefers-reduced-motion` the strip renders every step
+done and the score final on first paint.
+
+The in-flight review box on the post detail page (`rounded-lg`, cyan border) uses the same
+strip with `mode="running"`: one step cycles a spinner and none is ever confirmed, because the
+client knows only `aiReviewed === 2`. The strip is `aria-hidden` there; the box keeps
+`role="status" aria-live="polite"`.
+
+### Evidence links
+
+Navbar and footer outbound links use `ui/ExternalLink.tsx`: `text-[10px] font-mono
+text-slate-400 hover:text-vibe-cyan` with a lucide icon in the navbar, `target="_blank"`,
+`rel="noopener noreferrer"`, and a `title` that names what is on the other side. The navbar
+shows them at `lg` and wider; the footer carries them at every width.
 
 ## User Profile Workspace
 

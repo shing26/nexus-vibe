@@ -13,6 +13,7 @@ import Avatar from '../components/Avatar';
 import CommentBody from '../components/CommentBody';
 import CodeBlock from '../components/CodeBlock';
 import { AiReviewTerminal } from '../components/AiReviewTerminal';
+import { ReviewStepStrip } from '../components/ui/ReviewStepStrip';
  import { DecryptedText } from '../components/ui/DecryptedText';
  import EmptyState from '../components/EmptyState';
  import PromptVersionPanel from '../components/PromptVersionPanel';
@@ -508,12 +509,21 @@ export default function PostDetailPage() {
       {/* AI REVIEW STATUS + TERMINAL */}
       {aiPending && (
         <div className="max-w-3xl mx-auto mb-8">
-          <div className="relative rounded-xl border border-vibe-cyan/30 bg-vibe-card/70 p-4 font-mono text-xs">
+          <div role="status" aria-live="polite" className="relative rounded-lg border border-vibe-cyan/30 bg-vibe-card/70 p-4 font-mono text-xs">
             <div className="flex items-center gap-2 text-vibe-cyan">
               <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" />
               <DecryptedText text="AI Co-Pilot is reviewing this post..." speed={25} />
             </div>
-            <p className="mt-1.5 text-slate-500">Review will auto-post a comment with a score when it finishes.</p>
+            {/* The strip cycles to show that something is happening, so it is hidden from
+                assistive technology on purpose: a live region that re-announces four step
+                labels every 1.4s is worse than the line it would talk over. The steps are
+                read for real once the review lands and the panel replays them. */}
+            <div aria-hidden="true" className="mt-2.5">
+              <ReviewStepStrip mode="running" />
+            </div>
+            <p className="mt-2 text-slate-500">
+              Review will auto-post a comment with a score when it finishes. Polling every 5s.
+            </p>
           </div>
         </div>
       )}

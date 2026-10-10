@@ -6,7 +6,7 @@
 ![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
 ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
 ![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-417%20Java%20%2B%2033%20frontend-brightgreen)
+![Tests](https://img.shields.io/badge/tests-417%20Java%20%2B%2042%20frontend-brightgreen)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
 
 Nexus-Vibe is a full-stack AI developer community platform — a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces — all wrapped in an IDE-station dark UI.
@@ -485,7 +485,7 @@ curl http://localhost:8081/api/v1/users/2/summary
 mvn test                      # 417 tests: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 33 tests: axios interceptor, login page, AI review panel, comment body, call-site scan
+cd frontend && npm run test   # 42 tests: axios interceptor, login page, AI review panel + replay, comment body, showcase entry, step strip, nav evidence links, reduced motion, score-zero meter, call-site scan
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28 tests: Feishu sign, body, the values shape, and the address fallback
 ```
 

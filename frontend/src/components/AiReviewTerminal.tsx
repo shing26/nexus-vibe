@@ -1,7 +1,11 @@
 import { AlertCircle, Bot, Code2, Gauge, Loader2, RotateCw, ShieldAlert, ShieldCheck, Wand2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
 import type { FC, ReactNode } from 'react';
+import { useReducedMotion } from 'motion/react';
 import { BorderBeam } from './ui/BorderBeam';
 import { DecryptedText } from './ui/DecryptedText';
+import { ReviewStepStrip } from './ui/ReviewStepStrip';
+import { REVIEW_STEPS } from './ui/reviewSteps';
 import type { AiReviewDetail } from '../types/post';
 
 export type AiReviewTerminalState = 'pending' | 'loading' | 'error' | 'unavailable' | 'data' | 'failed';
@@ -84,6 +88,16 @@ function TerminalChrome({ children }: { children: ReactNode }) {
   );
 }
 
+/** Pacing of the replay. Four steps at 500ms, then the score counts itself in over ~600ms. */
+const REPLAY_STEP_MS = 500;
+const SCORE_COUNT_TICKS = 12;
+const SCORE_COUNT_STEP_MS = 50;
+
+function formatRunTime(value?: string): string {
+  if (!value) return 'time not recorded';
+  return value.replace('T', ' ').slice(0, 16);
+}
+
 function LoadingTerminal() {
   return (
     <TerminalChrome>
@@ -111,6 +125,49 @@ function LoadingTerminal() {
 }
 
 export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, errorMessage, onRetry }) => {
+  const reduceMotion = useReducedMotion();
+  const [replayCompleted, setReplayCompleted] = useState(0);
+  const [countedScore, setCountedScore] = useState(0);
+  const countTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const score = detail?.score ?? null;
+  const finalScore = score == null ? null : score <= 10 ? Math.round(score * 10) : Math.round(score);
+  const replaying = state === 'data' && !!detail && detail.severity !== 'unavailable';
+
+  // The data state is a finished review being replayed, not a review being performed: this
+  // panel renders a stored row, so the steps confirm what already happened and the header
+  // names the run and its time. Anything that read as "working on it now" would be the same
+  // false claim ADR-0010 removed from the landing card, one surface down.
+  useEffect(() => {
+    if (!replaying) return;
+    if (reduceMotion) {
+      setReplayCompleted(REVIEW_STEPS.length);
+      setCountedScore(finalScore ?? 0);
+      return;
+    }
+    let step = 0;
+    const stepTimer = setInterval(() => {
+      step += 1;
+      setReplayCompleted(step);
+      if (step < REVIEW_STEPS.length) return;
+      clearInterval(stepTimer);
+      let tick = 0;
+      countTimerRef.current = setInterval(() => {
+        tick += 1;
+        setCountedScore(Math.round((finalScore ?? 0) * (tick / SCORE_COUNT_TICKS)));
+        if (tick >= SCORE_COUNT_TICKS) {
+          if (countTimerRef.current) clearInterval(countTimerRef.current);
+          countTimerRef.current = null;
+        }
+      }, SCORE_COUNT_STEP_MS);
+    }, REPLAY_STEP_MS);
+    return () => {
+      clearInterval(stepTimer);
+      if (countTimerRef.current) clearInterval(countTimerRef.current);
+      countTimerRef.current = null;
+    };
+  }, [replaying, reduceMotion, finalScore]);
+
   if (state === 'unavailable' || (state === 'data' && !detail) || detail?.severity === 'unavailable') {
     return (
       <div role="status" className="flex items-center gap-2 p-3 text-slate-500">
@@ -165,14 +222,12 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
     return <LoadingTerminal />;
   }
 
-  const score = detail?.score ?? null;
-  const displayScore = score == null ? null : score <= 10 ? Math.round(score * 10) : Math.round(score);
-  const normalizedScore = displayScore ?? 0;
   const securityItems = toList(detail?.securityConcerns);
   const securityClear = securityItems.length === 0;
   const sections = [
     {
       key: 'code',
+      stepKey: 'codeQuality',
       icon: Code2,
       color: 'text-vibe-neon',
       title: 'Code Quality',
@@ -180,6 +235,7 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
     },
     {
       key: 'security',
+      stepKey: 'securityConcerns',
       icon: securityClear ? ShieldCheck : ShieldAlert,
       color: securityClear ? 'text-vibe-emerald' : 'text-red-400',
       title: 'Security Concerns',
@@ -187,6 +243,7 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
     },
     {
       key: 'suggestions',
+      stepKey: 'optimizationSuggestions',
       icon: Wand2,
       color: 'text-vibe-purple',
       title: 'Optimization Suggestions',
@@ -197,29 +254,40 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
   return (
     <TerminalChrome>
       <div className="mb-3 flex flex-wrap items-center justify-between gap-2 border-b border-vibe-border pb-2.5">
-        <span className="flex items-center gap-1.5 font-semibold text-vibe-purple">
-          <Bot className="h-4 w-4" />
-          <DecryptedText text="AI Co-Pilot Automated Review System" speed={30} />
-        </span>
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="flex items-center gap-1.5 font-semibold text-vibe-purple">
+            <Bot className="h-4 w-4" />
+            <DecryptedText text="AI Co-Pilot Automated Review System" speed={30} />
+          </span>
+          <span className="truncate text-[10px] text-slate-500">
+            {'// replay of completed run · ' + formatRunTime(detail?.reviewedAt)}
+          </span>
+        </div>
         <span className="flex flex-wrap items-center gap-2">
           <span className="flex items-center gap-1 text-vibe-neon tabular-nums">
             <Gauge className="h-3.5 w-3.5" />
-            Score: {displayScore ?? '--'}/100
+            Score: {finalScore ?? '--'}/100
           </span>
           <SeverityBadge severity={detail?.severity || 'unknown'} />
           <VerdictPill isApproved={detail?.isApproved ?? 0} />
         </span>
       </div>
 
+      <ReviewStepStrip mode="replay" completed={replayCompleted} className="mb-3" />
+
       <div className="mb-3 flex items-center gap-3">
         <div className="flex h-12 w-16 shrink-0 items-baseline justify-center rounded-lg border border-vibe-neon/30 bg-vibe-surface">
-          <span className="text-xl font-semibold text-vibe-neon tabular-nums">{displayScore ?? '--'}</span>
+          <span className="text-xl font-semibold text-vibe-neon tabular-nums">
+            {finalScore == null ? '--' : countedScore}
+          </span>
           <span className="text-[10px] text-slate-500">/100</span>
         </div>
         <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-vibe-border">
           <div
-            className="h-full rounded-full bg-gradient-to-r from-vibe-emerald to-vibe-neon"
-            style={{ width: `${Math.max(0, Math.min(100, normalizedScore))}%` }}
+            className="h-full rounded-full bg-gradient-to-r from-vibe-emerald to-vibe-neon transition-[width] duration-700 ease-out motion-reduce:transition-none"
+            // Guard the divisor: a stored score of 0 is real (0/100, meter empty) and must not
+            // become NaN% the way 0/0 would.
+            style={{ width: `${!finalScore ? 0 : Math.max(0, Math.min(100, (countedScore / finalScore) * 100))}%` }}
           />
         </div>
       </div>
@@ -227,8 +295,22 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
       <div className="space-y-2">
         {sections.map((section) => {
           const Icon = section.icon;
+          // Which step names this section, found by key rather than by position: the strip's
+          // order is its own, and a positional link between the two lists would rot silently
+          // the day either one is reordered.
+          const stepIndex = REVIEW_STEPS.findIndex((step) => step.key === section.stepKey);
+          // A section comes in with the step that names it, dim before that. The content is in
+          // the DOM from the start - this is a reveal for the eye, not a fetch - so assistive
+          // technology and tests read the finished review either way.
+          const revealed = reduceMotion || replayCompleted > stepIndex;
           return (
-            <section key={section.key} className="rounded-md border border-vibe-border bg-vibe-surface/80 p-3">
+            <section
+              key={section.key}
+              className={
+                'rounded-md border p-3 transition-opacity duration-500 motion-reduce:transition-none ' +
+                (revealed ? 'border-vibe-border bg-vibe-surface/80 opacity-100' : 'border-vibe-border/60 bg-vibe-surface/40 opacity-40')
+              }
+            >
               <h4 className={'mb-1.5 flex items-center gap-1.5 text-[11px] font-semibold ' + section.color}>
                 <Icon className="h-3.5 w-3.5" />
                 [{section.title}]

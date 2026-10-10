@@ -3,8 +3,10 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
 import { ShimmerButton } from './ui/ShimmerButton';
-import { Plus, Search, Sun, Moon, Mail, Settings } from 'lucide-react';
+import { LineChart, Mail, Moon, Plus, ScrollText, Search, Settings, Sun } from 'lucide-react';
 import CommandPalette from './CommandPalette';
+import { ExternalLink } from './ui/ExternalLink';
+import { ADR_INDEX_URL, LOADTEST_URL } from '../links';
 
 export default function Navbar() {
   const navigate = useNavigate();
@@ -62,6 +64,21 @@ export default function Navbar() {
             <div className="hidden md:flex items-center gap-1.5 px-2 py-1 rounded-md bg-vibe-emerald/10 border border-vibe-emerald/20">
               <span className="w-1.5 h-1.5 rounded-full bg-vibe-emerald animate-pulse" />
               <span className="text-[10px] font-mono text-vibe-emerald">Agent Active</span>
+            </div>
+
+            {/* Evidence links. The repository's own decisions and measurements are public on
+                GitHub, and a visitor who wants to check a claim should not have to hunt for
+                them. Wide viewports only: below lg the toolbar is already at its density
+                limit, and the footer carries the same links at every width. */}
+            <div className="hidden lg:flex items-center gap-3">
+              <ExternalLink href={ADR_INDEX_URL} title="Architecture decision records">
+                <ScrollText className="w-3.5 h-3.5" />
+                <span>ADRs</span>
+              </ExternalLink>
+              <ExternalLink href={LOADTEST_URL} title="Async pool load test report">
+                <LineChart className="w-3.5 h-3.5" />
+                <span>Research</span>
+              </ExternalLink>
             </div>
 
             {/* Dark mode toggle */}
