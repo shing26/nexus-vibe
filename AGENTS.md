@@ -74,7 +74,7 @@ prove — keep that habit.
 
 ```bash
 mvn -B test                     # 417 tests / 70 classes; the count is asserted in README.md
-cd frontend && npm run test     # 33 tests / 8 files
+cd frontend && npm run test     # 42 tests / 11 files
 cd frontend && npm run lint
 cd frontend && npm run build
 cd docker/observability/alert-bridge && python -m unittest test_alert_bridge   # 28 tests

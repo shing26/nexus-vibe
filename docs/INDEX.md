@@ -69,6 +69,7 @@ alternatives that were rejected.
 | [evidence-and-gates](tickets/evidence-and-gates.md) | The seven 2/10 dimensions turned into reproducible artifacts: load-test, concurrency, duplicate-write, cross-user, coverage floor, migration rollback, validated config - and the B2 defect that is left open on purpose |
 | [like-count-convergence](tickets/like-count-convergence.md) | The B2 defect fixed (the durable table is the authority), a saturated pool no longer aborting the reconcile batch, and two claims the evidence round had to withdraw |
 | [review-terminal-replay](tickets/review-terminal-replay.md) | The finished AI review replays its steps on the post page, the in-flight box cycles them without confirming any, and the navbar/footer link out to the ADRs and the load test |
+| [readme-open-source](tickets/readme-open-source.md) | The README becomes a front door: the diagnosis of the five stated pain points, the corrections to the circulated draft, the new section order, and the allowed numbers |
 
 ## Plans — `docs/plans/`
 
