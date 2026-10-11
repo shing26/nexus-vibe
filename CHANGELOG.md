@@ -11,6 +11,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The README becomes a front door (`docs/tickets/readme-open-source.md`)**: the diagnosis of the five
+  stated pain points with file evidence, the corrections to the circulated draft (the Docker port, the
+  non-existent demo account, the non-existent Zero-Key Mock, the non-compiling `ReviewPolicy` example,
+  the wrong `application.yml` keys), the new section order with an allowed-numbers table, and the two
+  operations blocks moved verbatim into `docs/runbook/`. The frontend test count is corrected to the
+  measured 42 / 11 in `README.md` and `AGENTS.md`.
 - **Contract truthfulness and the product loop (R1–R6 — `docs/tickets/contract-and-product-loop.md`)**: the
   evidence round asked whether the stack's signals can be trusted. This round asked the same question of the
   API itself. 33 controller sites answered `200 OK` while their own envelope said 401, 403, 404 or 400; the

@@ -105,6 +105,8 @@ alternatives that were rejected.
 | [runbook/restore](runbook/restore.md) | Restore procedure, including the Elasticsearch reindex leg |
 | [runbook/docker-compose.restore-test.yml](runbook/docker-compose.restore-test.yml) | Compose override that gives rehearsal containers distinct names |
 | [blog/llm-code-review-structured-output-injection-defense](blog/llm-code-review-structured-output-injection-defense.md) | The public write-up of the review pipeline |
+| [runbook/feishu-alerting](runbook/feishu-alerting.md) | The six-step Feishu alert-bot walkthrough, its error-code table and the contact-point check, moved out of the README in the front-door rewrite |
+| [runbook/release-and-live-instance](runbook/release-and-live-instance.md) | Release, rollback, backup, the public-tunnel deployment and the live-instance notes, moved out of the README |
 
 Screenshots referenced by the reviews live in
 [`docs/assets/gui-test-screenshots/`](assets/gui-test-screenshots).
