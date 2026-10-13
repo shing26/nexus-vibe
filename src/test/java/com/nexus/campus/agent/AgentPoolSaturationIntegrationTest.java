@@ -119,8 +119,8 @@ class AgentPoolSaturationIntegrationTest {
                     "precondition: the post is still ACTIVE inside the transaction");
         });
 
-        VibePost stored = vibePostMapper.selectById(postId);
-        assertEquals(PostStatus.PENDING_REVIEW.getCode(), stored.getStatus(),
+        int status = awaitPendingReview(postId);
+        assertEquals(PostStatus.PENDING_REVIEW.getCode(), status,
                 "a rejected safety check must fail closed; a publicly visible post here is a moderation bypass");
 
         AiReviewLog marker = aiReviewLogMapper.selectLatestSafetyLogByPostId(postId);
@@ -142,7 +142,8 @@ class AgentPoolSaturationIntegrationTest {
             publisher.publishReview(post, post.getUserId());
         });
 
-        assertEquals(AiReviewStatus.FAILED.getCode(), vibePostMapper.selectById(postId).getAiReviewed(),
+        int aiReviewed = awaitReviewFailed(postId);
+        assertEquals(AiReviewStatus.FAILED.getCode(), aiReviewed,
                 "a rejected review must not sit in REVIEWING with nothing in flight to advance it");
     }
 
@@ -156,6 +157,52 @@ class AgentPoolSaturationIntegrationTest {
         post.setStatus(PostStatus.ACTIVE.getCode());
         post.setAiReviewed(AiReviewStatus.NOT_REVIEWED.getCode());
         vibePostMapper.insert(post);
+    }
+
+    /**
+     * Reads the post status once the safety check has had the chance to fail closed.
+     *
+     * <p>The fail-closed write is not guaranteed to land before the commit returns. When the
+     * saturated pool refuses the event, the publisher's recovery transaction writes the status
+     * inline in afterCommit; when a slot frees up before the dispatch, the listener runs
+     * asynchronously and writes it from its own thread. Reading once after the commit races the
+     * second path, which is what made this test flaky on CI. Polling with a bounded timeout
+     * covers both: the rejection path has already finished, the async path only needs a moment.
+     */
+    private int awaitPendingReview(long postId) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            VibePost stored = vibePostMapper.selectById(postId);
+            if (stored.getStatus() == PostStatus.PENDING_REVIEW.getCode()) {
+                return stored.getStatus();
+            }
+            sleepPollingInterval();
+        }
+        return vibePostMapper.selectById(postId).getStatus();
+    }
+
+    /**
+     * Same bounded wait for the review path: the listener also marks a post FAILED from its own
+     * thread when the pool accepted the event but the LLM was unreachable.
+     */
+    private int awaitReviewFailed(long postId) {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            VibePost stored = vibePostMapper.selectById(postId);
+            if (stored.getAiReviewed() == AiReviewStatus.FAILED.getCode()) {
+                return stored.getAiReviewed();
+            }
+            sleepPollingInterval();
+        }
+        return vibePostMapper.selectById(postId).getAiReviewed();
+    }
+
+    private void sleepPollingInterval() {
+        try {
+            Thread.sleep(20);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void hold(ThreadPoolExecutor pool) {
@@ -180,7 +227,7 @@ class AgentPoolSaturationIntegrationTest {
         ThreadPoolExecutor pool = pool();
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS);
         while (System.nanoTime() < deadline) {
-            if (pool.getActiveCount() == 0 && pool.getQueue().isEmpty()) {
+            if (pool.getActiveCount() == 0 && pool.getQueue().isEmpty() ) {
                 return;
             }
             try {
