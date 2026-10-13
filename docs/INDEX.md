@@ -69,6 +69,7 @@ alternatives that were rejected.
 | [evidence-and-gates](tickets/evidence-and-gates.md) | The seven 2/10 dimensions turned into reproducible artifacts: load-test, concurrency, duplicate-write, cross-user, coverage floor, migration rollback, validated config - and the B2 defect that is left open on purpose |
 | [like-count-convergence](tickets/like-count-convergence.md) | The B2 defect fixed (the durable table is the authority), a saturated pool no longer aborting the reconcile batch, and two claims the evidence round had to withdraw |
 | [review-terminal-replay](tickets/review-terminal-replay.md) | The finished AI review replays its steps on the post page, the in-flight box cycles them without confirming any, and the navbar/footer link out to the ADRs and the load test |
+| [readme-open-source](tickets/readme-open-source.md) | The README becomes a front door: the diagnosis of the five stated pain points, the corrections to the circulated draft, the new section order, and the allowed numbers |
 
 ## Plans — `docs/plans/`
 
@@ -104,6 +105,8 @@ alternatives that were rejected.
 | [runbook/restore](runbook/restore.md) | Restore procedure, including the Elasticsearch reindex leg |
 | [runbook/docker-compose.restore-test.yml](runbook/docker-compose.restore-test.yml) | Compose override that gives rehearsal containers distinct names |
 | [blog/llm-code-review-structured-output-injection-defense](blog/llm-code-review-structured-output-injection-defense.md) | The public write-up of the review pipeline |
+| [runbook/feishu-alerting](runbook/feishu-alerting.md) | The six-step Feishu alert-bot walkthrough, its error-code table and the contact-point check, moved out of the README in the front-door rewrite |
+| [runbook/release-and-live-instance](runbook/release-and-live-instance.md) | Release, rollback, backup, the public-tunnel deployment and the live-instance notes, moved out of the README |
 
 Screenshots referenced by the reviews live in
 [`docs/assets/gui-test-screenshots/`](assets/gui-test-screenshots).
