@@ -1,39 +1,67 @@
-# Nexus-Vibe
+<a name="top"></a>
 
-**AI-Powered Vibe Coding & Developer Community**
+<h1 align="center">Nexus-Vibe</h1>
 
-![CI](https://github.com/shing26/nexus-vibe/actions/workflows/maven.yml/badge.svg)
-![Java](https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white)
-![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white)
-![React](https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white)
-![Tests](https://img.shields.io/badge/tests-417%20Java%20%2B%2042%20frontend-brightgreen)
-[![License: MIT](https://img.shields.io/badge/license-MIT-blue)](LICENSE)
+<p align="center"><b>A full-stack AI developer community whose subject is treating an LLM as an unreliable dependency.</b></p>
 
-Nexus-Vibe is a full-stack AI developer community platform - a modern replacement for the traditional campus forum. Built with Spring Boot 3.3 + React 19, it runs an AI-governed content pipeline: async LLM code review with semantic validation, structured-output safety checks that fail closed, lease-based task claims that survive crashes, and per-user activity workspaces - all wrapped in an IDE-station dark UI.
+<p align="center">
+  <a href="https://github.com/shing26/nexus-vibe/actions"><img src="https://github.com/shing26/nexus-vibe/actions/workflows/maven.yml/badge.svg" alt="CI"></a>
+  <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
+  <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
+  <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
+  <img src="https://img.shields.io/badge/tests-417%20Java%20%2B%2042%20frontend-brightgreen?style=flat-square" alt="417 Java tests + 42 frontend tests">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
+</p>
 
-**The subject is not the forum.** It is a demonstration of treating an LLM as an unreliable dependency, and the code that matters is the failure handling around it: posts queue for review instead of publishing unreviewed, two workers can never claim one post, malformed model output is repaired and retried, and an unreachable model degrades the service instead of taking the site down. Every number in this README names the run that produced it. It is also built to be forked: one compose file, two pipeline seams, and a review terminal whose steps are a data file.
+<p align="center">
+  <a href="https://qualifier-discuss-marry.ngrok-free.dev"><b>Live demo</b></a> ·
+  <a href="#run-it-in-three-minutes"><b>Run locally</b></a> ·
+  <a href="#fork-map"><b>Fork map</b></a> ·
+  <a href="#evidence-wall"><b>Evidence wall</b></a> ·
+  <a href="docs/INDEX.md"><b>Docs index</b></a>
+</p>
 
-## Live demo
+<p align="center"><img src="docs/assets/readme/banner.svg" alt="The resilience chain: a post is lease-claimed, reviewed by the LLM, and its output repaired and validated; an unreachable model sends posts to a fail-closed queue that reconciliation restores." width="100%"></p>
 
-**https://qualifier-discuss-marry.ngrok-free.dev**
+<p align="center">One compose file, two pipeline seams, and a review terminal whose steps are a data file.<br><b>Built to be forked.</b></p>
 
-No account needed to see what this project is actually about. The home page links one
-already-reviewed post, and `/post/900000000000000001` renders the AI review recorded from a
-real pipeline run - score, severity, verdict, findings - to a signed-out visitor. On the post
-page the finished review **replays its steps in order**: the finding sections confirm one by
-one, then the score counts itself in. [ADR-0010](docs/adr/0010-the-showcase-review-is-a-recording.md)
-records why it is a replay of a recorded run rather than a live feed, and `benchmark/showcase/`
-holds the script that produced it, so the claim is reproducible rather than asserted. The seed
-is display-only: a row set written once, not a fixture the app switches to.
+<p align="center"><img src="docs/assets/readme/async-review.png" alt="Dark-mode Nexus-Vibe post detail: a code card, a like counter, and an AI review terminal reading Approved at 70/100" width="760"></p>
 
-![The recorded showcase review rendered by the live deployment](docs/assets/showcase/recorded-review.png)
+*One real run, not a mock-up.* This post was published to a local dev stack on 2026-10-14 and
+reviewed by `qwen2.5:7b` through Ollama; the terminal replays the stored result - the four steps
+light in order, then the score counts itself in
+([ADR-0010](docs/adr/0010-the-showcase-review-is-a-recording.md)). The likes next to it are real
+too: five demo accounts toggled the post through the like endpoint.
 
-The whole stack runs on one Windows machine behind an ngrok tunnel: nginx -> Spring Boot ->
-MySQL / Redis / Elasticsearch, with the LLM pointed at the compose-local Ollama service.
-Registering an account is enough to try it; publish a post containing a code block and an
-AI review appears as a reply once the local model finishes the review.
+## 📖 What this is
 
-Two things worth knowing before you click:
+A modern team/campus forum - Markdown posts, channels, threaded comments, prompt-template
+forking, per-user workspaces - with an AI-governed content pipeline wrapped around it. The
+code that matters is the failure handling around the model:
+
+- Posts containing code blocks are reviewed **asynchronously**, with structured output
+  (score, quality, security, suggestions) that is repair-parsed and semantically validated
+  before it may be recorded at all.
+- An unreachable model **fails closed**: new posts wait in the audit queue instead of
+  publishing unreviewed, and the health endpoint says DEGRADED, not dead.
+- Reviews are claimed by a **lease** - two workers can never process one post, and a
+  crashed worker's task is re-dispatched by reconciliation rather than lost.
+- Every number in this README names the run that produced it.
+
+## 🌐 Live demo
+
+**<https://qualifier-discuss-marry.ngrok-free.dev>** - no account needed. The home page links
+one already-reviewed post, and `/post/900000000000000001` renders an AI review recorded from
+a real pipeline run - score, severity, verdict, findings. On the post page the finished
+review **replays its steps in order**: the finding sections confirm one by one, then the
+score counts itself in. [ADR-0010](docs/adr/0010-the-showcase-review-is-a-recording.md)
+records why it is a recording of one real run rather than a live feed, and
+`benchmark/showcase/` holds the script that produced it, so the claim is reproducible
+rather than asserted.
+
+<p align="center"><img src="docs/assets/showcase/recorded-review.png" alt="The recorded showcase review rendered by the live deployment" width="720"></p>
+
+Two things to know before you click:
 
 - ngrok's free tier shows a one-time "Visit Site" warning page the first time a browser
   sees the domain. It is not part of this project; one click dismisses it for seven days.
@@ -41,49 +69,50 @@ Two things worth knowing before you click:
   piece of evidence below was measured on the same class of machine rather than in a cloud
   region.
 
-## Run it
+<a name="run-it-in-three-minutes"></a>
+
+## 🚀 Run it in three minutes
 
 Three paths, each with its own port. Prerequisites: Docker with Compose v2 for path A;
-JDK 18+ and Maven 3.9+ (plus Node.js 18+) for path B.
+JDK 18+ and Maven 3.9+ (plus Node.js 22+) for path B. There is no `mvnw` wrapper - the
+command is `mvn`.
 
 ### A. Full stack, one command (recommended)
 
 ```bash
 cp .env.example .env
 # fill the four blanks: DB_PASSWORD, MYSQL_ROOT_PASSWORD, JWT_SECRET, BOOTSTRAP_ADMIN_PASSWORD
+# (APP_TAG=dev ships in the example and is required: an anonymous build has no rollback target)
 docker compose up -d --build
 ```
 
-Open **http://localhost:8080** (`WEB_PORT` - the only port the stack publishes). The first run
-builds the `app` and `web` images and takes a few minutes; after that, `up -d` is seconds.
-`nexus-app`, `nexus-db`, `nexus-redis` and `nexus-ollama` stay inside the compose network;
-Elasticsearch is optional and internal as well.
-
-The AI pipeline needs one model pulled into the compose-local Ollama:
+Open **http://localhost:8080** - `WEB_PORT` is the only port the stack publishes. The first
+run builds the `app` and `web` images and takes a few minutes; CI builds the same
+Dockerfiles on every pull request. The AI pipeline needs one model pulled into the
+compose-local Ollama:
 
 ```bash
 docker compose exec ollama ollama pull qwen2.5:3b   # qwen2.5:7b if you have the compute
 ```
 
-**Model quality bar.** The review agent validates output semantically: schema-valid but empty
-or placeholder responses - common from local 7B/3B models - are retried once, then degrade
-silently (logged `unknown`, no score, no AI comment). Until a model is pulled, or while the
-endpoint is unreachable, the safety check fails closed and new posts wait in the audit queue
-rather than publishing unreviewed. Local models exercise the pipeline; for reviews you can
-actually use, point `LLM_ENDPOINT` at a hosted model.
+**Model quality bar.** The review agent validates output semantically: schema-valid but
+empty or placeholder responses - common from local 7B/3B models - are retried once, then
+degrade silently (logged `unknown`, no score, no AI comment). Until a model is pulled, or
+while the endpoint is unreachable, the safety check fails closed and new posts wait in the
+audit queue rather than publishing unreviewed. Local models exercise the pipeline; for
+reviews you can actually use, point `LLM_ENDPOINT` at a hosted model.
 
 ### B. Local development
 
 ```bash
-git clone https://github.com/shing26/nexus-vibe.git
-cd nexus-vibe
 mvn spring-boot:run   # backend on :8081, H2 in-memory, schema and seed auto-created
 cd frontend && npm install && npm run dev   # SPA on :5173, /api proxied to :8081
 ```
 
-Dev mode seeds `admin / 123456` (plus `shing` and `alice`) into the in-memory database. That
-seed is a development convenience; it is not a deployment feature, and the compose stack never
-has it.
+No middleware needed: the dev profile runs on H2 with Redis off, and search degrades to
+the MySQL path when Elasticsearch is unreachable. Dev mode seeds `admin / 123456` (plus
+`shing` and `alice`) into the in-memory database - a development convenience, not a
+deployment feature; the compose stack never has it.
 
 ### C. A forum with no model at all
 
@@ -96,103 +125,136 @@ AI_SAFETY_ENABLED=false
 
 With both switches off, the forum posts, comments and likes normally and nothing calls a
 model - a documented state, not a hack. The switches are independent: review off stops
-code-review comments and scores; safety off stops the LLM classification and its fail-closed
-queueing.
+code-review comments and scores; safety off stops the LLM classification and its
+fail-closed queueing.
 
 ### About the accounts
 
-There is no `admin / Admin@123456`, and there is no mock login. A deployment with seeding off -
-the production default, `DEMO_SEED_ENABLED=false` - holds **no** demo accounts and **no** sample
-posts; the one administrator comes from `BOOTSTRAP_ADMIN_PASSWORD`, created once while the
-database has no `ADMIN` ([ADR-0008](docs/adr/0008-bootstrap-admin-and-empty-production-seed.md)).
-Rotate it after logging in. For a throwaway demo instance, `DEMO_SEED_ENABLED=true` with
-`DEMO_PASSWORD` seeds accounts and sample content - never in production.
+There is no `admin / Admin@123456`, and there is no mock login. A deployment with seeding
+off - the production default, `DEMO_SEED_ENABLED=false` - holds **no** demo accounts and
+**no** sample posts; the one administrator comes from `BOOTSTRAP_ADMIN_PASSWORD`, created
+once while the database has no `ADMIN`
+([ADR-0008](docs/adr/0008-bootstrap-admin-and-empty-production-seed.md)). Rotate it after
+logging in. For a throwaway demo instance, `DEMO_SEED_ENABLED=true` with `DEMO_PASSWORD`
+seeds accounts and sample content - never in production.
 
-## What you get
+## 📦 What you get
 
-**The forum.** Registration and JWT auth with unique-email recovery, Markdown posts with live
-preview, channel browsing with slug routing, threaded comments, prompt-template forking with
-version history and rollback, per-user profile workspace with an activity timeline, and an
-admin audit dashboard with assisted account recovery.
+<p align="center"><img src="docs/assets/readme/community-feed.png" alt="The dark-mode community surface: mission control, the channel rail, and the hot-ranked feed" width="760"></p>
 
-**The AI pipeline.** Posts containing code blocks are reviewed asynchronously with structured
-output (score, quality, security, suggestions) and a visible rubric; fenced output, truncation
-and trailing commas are repair-parsed, and unparseable output is retried with the parser
-error so a review stays within two model calls; a second listener classifies content into
-four safety classes; editing a post re-triggers the review and supersedes the stale comment;
-the whole run history is queryable with severity stats and filters.
+**The forum.** Registration and JWT auth with unique-email recovery, Markdown posts with
+live preview, channel browsing with slug routing, threaded comments, prompt-template
+forking with version history and rollback, per-user profile workspace with an activity
+timeline, and an admin audit dashboard with assisted account recovery.
 
-**The parts that carry the thesis.** Redis Lua like toggle with write-behind flush and hourly
-drift reconciliation, sliding-window rate limiting, DFA sensitive-word filtering with hot
-reload, gravity-decay hot ranking, lease-based review claims with an attempt budget and a
-terminal notification, a dedicated agent pool that turns a saturated dispatch into a
-retryable state instead of failing the request, and an IDE-station dark UI whose motion work
-collapses under `prefers-reduced-motion`.
+**The AI pipeline.** Posts containing code blocks are reviewed asynchronously with
+structured output and a visible rubric; fenced output, truncation and trailing commas are
+repair-parsed, and unparseable output is retried with the parser error so a review stays
+within two model calls; a second listener classifies content into four safety classes;
+editing a post re-triggers the review and supersedes the stale comment; the whole run
+history is queryable with severity stats and filters.
 
-## Adapting it - the fork map
+**The parts that carry the thesis.** Redis Lua like toggle with write-behind flush and
+hourly drift reconciliation, sliding-window rate limiting, DFA sensitive-word filtering
+with hot reload, gravity-decay hot ranking, lease-based review claims with an attempt
+budget and a terminal notification, a dedicated agent pool that turns a saturated dispatch
+into a retryable state instead of failing the request, and an IDE-station dark UI whose
+motion work collapses under `prefers-reduced-motion`.
 
-[ADR-0012](docs/adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md) publishes exactly
-two seams, and everything the seams are not stays fixed.
+<a name="fork-map"></a>
+
+## 🧩 Adapting it - the fork map
+
+[ADR-0012](docs/adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md) publishes
+exactly two seams, and everything the seams are not stays fixed.
 
 - **`ReviewPolicy` - should this post be reviewed?** One method,
   `boolean shouldReview(VibePost post)`, resolved as a Spring bean with
   `@ConditionalOnMissingBean`; the default `CodeBlockReviewPolicy` is today's
-  fenced-code-block rule. Define your own bean and it is the rule, without editing a core file.
-- **`Reviewer` - who produces the verdict?** Decided in ADR-0012 as a verdict object plus a
-  default `LlmReviewer` bean, and **not yet in the tree**: today the producing half still sits
-  inside `AiReviewService`, and the split is tracked as AI-2 in
+  fenced-code-block rule. Define your own bean and it is the rule, without editing a core
+  file:
+
+```java
+package com.nexus.campus.agent;
+
+import com.nexus.campus.entity.VibePost;
+import org.springframework.stereotype.Component;
+
+@Component
+public class PromptOnlyReviewPolicy implements ReviewPolicy {
+    @Override
+    public boolean shouldReview(VibePost post) {
+        return "prompt".equals(post.getPostType());
+    }
+}
+```
+
+- **`Reviewer` - who produces the verdict?** Decided in ADR-0012 as a verdict object plus
+  a default `LlmReviewer` bean, and **not yet in the tree**: no `Reviewer` interface exists
+  in `src/main/java` today - the producing half still sits inside `AiReviewService`, and
+  the split is tracked as AI-2 in
   [docs/tickets/ai-review-seam.md](docs/tickets/ai-review-seam.md), status open. This line
   changes in the commit that lands it.
 
 **What is deliberately not a seam:** the lease claim
-([ADR-0005](docs/adr/0005-lease-based-review-claim.md)), the reconciliation task, fail-closed
-moderation ([ADR-0004](docs/adr/0004-safety-check-fail-closed.md)), the terminal notification
-when the attempt budget runs out, and review validity - the semantic check that decides
-whether a model's output may be recorded at all. These are the thesis; a pipeline that let a
-fork switch them off would delete the reason this repository exists. The couplings that stay
-fixed for now (package and property naming, the `announcements` slug guard, `postType=prompt`
-versioning, core-power rewards) are listed in the same ticket.
+([ADR-0005](docs/adr/0005-lease-based-review-claim.md)), the reconciliation task,
+fail-closed moderation ([ADR-0004](docs/adr/0004-safety-check-fail-closed.md)), the
+terminal notification when the attempt budget runs out, and review validity - the
+semantic check that decides whether a model's output may be recorded at all. These are the
+thesis; a pipeline that let a fork switch them off would delete the reason this repository
+exists.
 
 **Swapping the model** is three environment variables - `LLM_ENDPOINT`, `LLM_MODEL`,
 `LLM_API_KEY` - bound under `campus.ai.llm.*`
 ([ADR-0013](docs/adr/0013-config-validation-moves-to-validated-properties.md)). Any
-OpenAI-compatible chat-completions endpoint works; a provider that rejects strict JSON
+OpenAI-compatible chat-completions endpoint works, including a local Ollama
+(`http://localhost:11434/v1`, any non-empty key); a provider that rejects strict JSON
 schemas degrades into the plain-completion fallback instead of failing, and
 `AI_RESPONSE_FORMAT` picks `json_schema` / `json_object` / `none` per provider.
 
 **The review beats in the UI are data.**
-[reviewSteps.ts](frontend/src/components/ui/reviewSteps.ts) holds the four steps the terminal
-replays, `ReviewStepStrip.tsx` renders the strip, and `AiReviewTerminal.tsx` owns the replay.
-Changing labels, icons or order is a frontend-only edit; a genuinely new assessment dimension
-needs a backend field as well, because each of the first three steps names a field of
-`AiReviewDetail`.
+[reviewSteps.ts](frontend/src/components/ui/reviewSteps.ts) holds the four steps the
+terminal replays, `ReviewStepStrip.tsx` renders the strip, and `AiReviewTerminal.tsx`
+owns the replay. Changing labels, icons or order is a frontend-only edit; a genuinely new
+assessment dimension needs a backend field as well, because each of the first three steps
+names a field of `AiReviewDetail`.
 
 **Running with no review at all** is a supported configuration - path C above.
 
-## Architecture
+## 🏗️ Architecture
 
-```
-React SPA (Vite) ── Nginx ── Spring Boot API
-                                  │
-        ┌─────────────────────────┼──────────────────────────┐
-        ▼                         ▼                          ▼
-   MySQL 8 (truth)          Redis 7 (hot state)      Elasticsearch (search)
-   posts/users/likes        Lua like toggle           CJK analyzer
-   audit queue              sliding-window limiter    MySQL fallback
-   review lease             hot-ranking ZSET
-        ▲                         │
-        │    write-behind flush   │
-        └─────────────────────────┘
-                    +
-        AI Agent Pipeline (agent-llm pool)
-        AiReviewEvent → LlmClient (OpenAI-compatible)
-        → repair-parse → semantic validation
-        → review log + auto-comment + score writeback
-        AiSafetyCheckEvent → 4-class fail-closed moderation
-        Reconciliation task → lease expiry / FAILED / pending-llm retry
+```mermaid
+flowchart TD
+    subgraph Frontend [React 19 + Tailwind CSS]
+        UI[Post feed / discussion]
+    end
+
+    subgraph Backend [Spring Boot 3.3]
+        API[Gateway / Controller]
+        Lua[Redis Lua atomic script]
+        Pool[Async pool / review queue]
+    end
+
+    subgraph Storage [Persistence and index]
+        Redis[(Redis cache and like counts)]
+        MySQL[(MySQL keyset pagination)]
+        ES[(Elasticsearch inverted index)]
+    end
+
+    UI -->|high-frequency likes| API --> Lua --> Redis
+    Redis -.->|scheduled write-behind flush| MySQL
+    UI -->|submit a snippet| API --> Pool --> LLM[Async code-review pipeline]
+    LLM -.->|review ready| UI
+    UI -->|full-text search| API --> ES
+    ES -.->|circuit-breaker fallback| MySQL
 ```
 
-**Resilience chain**（每条链路都实测过故障注入）:
+Behind the picture: `AiReviewEvent` → `LlmClient` (OpenAI-compatible) → repair-parse →
+semantic validation → review log + auto-comment + score writeback. A second listener runs the
+four-class fail-closed moderation, and the reconciliation task sweeps lease expiry, `FAILED`
+and `pending-llm` posts.
+
+**Resilience chain** (every link below was verified with fault injection):
 
 - **Lease-based claims**: an AI review starts with an atomic conditional UPDATE - concurrent instances or re-published events cannot double-process a post; after 5 failed attempts the author is notified once and re-dispatch stops
 - **Fail-closed moderation**: LLM unreachable → new posts enter the audit queue with a `pending-llm` marker; the reconciliation task re-checks them when the LLM recovers and restores Safe posts
@@ -201,7 +263,28 @@ React SPA (Vite) ── Nginx ── Spring Boot API
 - **Count drift reconciliation**: hourly rotating-cursor sweep unions Redis membership with the durable `vibe_post_like` table, repairs either side without deleting members, and rebuilds the hot-ranking ZSET when anything changed
 - **Graceful saturation**: agent events rejected by a saturated pool degrade the post to a retryable state instead of failing the request (verified under a 50-concurrent load: 121k rejections, zero crashes)
 
-## The evidence wall
+### Why the like toggle is one Lua script
+
+A like is three Redis structures that must agree: the member set, the dirty marker and the
+hot-ranking ZSET. `like_toggle.lua` mutates them in one atomic script. The same steps sent as
+separate commands have a window between `SISMEMBER` and `SADD`, so two callers can both read
+"not liked", both write, and both credit the ranking - one member, two weights.
+
+`benchmark/concurrency/lua-vs-naive-consistency.py` runs the shipped
+[`like_toggle.lua`](src/main/resources/lua/like_toggle.lua) against that control, both under 50
+concurrent threads. The invariant is `zscore == scard * weight`; a round that breaks it is a
+round where the two structures disagree about the same like.
+
+<p align="center"><img src="docs/assets/readme/lua-consistency.png" alt="Rounds where the like-set and the hot-ranking ZSET disagreed: the Lua script 0 of 30, the naive control 29 of 30, with drift up to 54" width="720"></p>
+
+*Redis-only probe against a standalone redis-server 5.0.14.1 (not the compose stack); 50 threads,
+30 rounds, weight 3. Data in `benchmark/concurrency/results/lua-vs-naive-20261014.{json,md}`, redrawn
+by `render-lua-consistency-chart.py`. The naive path is a control, not code the application ships,
+and the report lists what the probe cannot prove.*
+
+<a name="evidence-wall"></a>
+
+## 📊 The evidence wall
 
 Every number in this section was measured on this repository's own stack, and each report
 names the command that produced it. The drill report ends with a list of what it cannot
@@ -212,12 +295,12 @@ prove - that habit is kept on purpose.
 | [Async pool load test](docs/research/async-pool-loadtest.md) | 25,204 samples from the reproducible 2026-09-21 run: 13 errors (0.1%), p50/p90/p99 37/1,770/3,353 ms, 6,231 posts left FAILED(3), zero crashes; where the pipeline actually saturates |
 | [Container GC analysis](docs/research/jvm-container-gc-analysis.md) | 768 MB container, 0 full GCs, and why `MaxRAMPercentage=75` is the right ceiling |
 | [Deep pagination](docs/research/late-row-lookup-deep-pagination.md) | A delayed-join optimisation measured 40% *slower* and was rolled back - with the EXPLAIN output kept |
-| [Observability drill](docs/research/observability-drill-2026-09.md) | Scripted failure injections against the real stack, including what the drill cannot prove |
+| [Observability drill](docs/research/observability-drill-2026-09.md) | 23 scripted failure injections against the real stack, including what the drill cannot prove |
 | [Technical blog](docs/blog/llm-code-review-structured-output-injection-defense.md) | How the structured-output review survives injection attempts and malformed model output |
 
 The decisions behind all of it: **[fifteen ADRs, 0001-0015](docs/adr/)** - fail-closed
-moderation, lease-based claims, degraded-is-not-unhealthy, the recording discipline, the two
-seams, metrics and rules.
+moderation, lease-based claims, degraded-is-not-unhealthy, the recording discipline, the
+two seams, metrics and rules.
 
 Where to look, in the time you have:
 
@@ -228,7 +311,7 @@ Where to look, in the time you have:
   [degraded is not unhealthy](docs/adr/0007-degraded-status-is-not-unhealthy.md).
 - **90 minutes** - the table above, in the order it was produced.
 
-## Tech Stack
+## 🛠️ Tech stack
 
 | Layer | Technology |
 |-------|-----------|
@@ -237,21 +320,26 @@ Where to look, in the time you have:
 | **Frontend** | React 19 + Vite + TypeScript + Tailwind CSS |
 | **State** | TanStack Query + Zustand |
 | **Database** | H2 (dev) / MySQL 8 (prod) |
-| **Cache** | Redis 7 (Lettuce) — atomic Lua like toggle, rate limiting, hot ranking |
+| **Cache** | Redis 7 (Lettuce) - atomic Lua like toggle, rate limiting, hot ranking |
 | **Search** | Elasticsearch 7.17 (MySQL fallback) |
 | **LLM** | OpenAI-compatible API / local Ollama |
 | **Auth** | JWT (jjwt 0.12.6) + BCrypt |
+| **Observability** | Prometheus + Grafana + alert-bridge (monitoring profile) |
 | **Build** | Maven 3.9+ + Vite, multi-stage Docker, GitHub Actions CI |
 
-## Configuration quick reference
+## ⚙️ Configuration quick reference
 
-The full list lives in [.env.example](.env.example), one comment per variable. These are the
-ones a first run touches.
+The full list lives in [.env.example](.env.example), one comment per variable, and
+[docs/plans/environment-matrix.md](docs/plans/environment-matrix.md) carries the dev /
+prod / CI values for each. These are the ones a first run touches.
+
+<details>
+<summary><b>Expand the 12 variables a first run touches</b></summary>
 
 | Variable | Default | Purpose |
 |----------|---------|---------|
 | `WEB_PORT` | `8080` | the only port the stack publishes |
-| `APP_TAG` | required | release identity stamped on both images; bump to release, revert to roll back |
+| `APP_TAG` | required (ships `dev`) | release identity stamped on both images; bump to release, revert to roll back |
 | `DB_URL` / `DB_USERNAME` / `DB_PASSWORD` | compose-internal | MySQL application connection (use `nexus_app`, not `root`) |
 | `MYSQL_ROOT_PASSWORD` | required | MySQL root password, used only for initialization and maintenance |
 | `JWT_SECRET` | empty | JWT signing secret (required in prod, fail-fast) |
@@ -262,77 +350,73 @@ ones a first run touches.
 | `AI_REVIEW_ENABLED` / `AI_SAFETY_ENABLED` | `true` / `true` | Independent switches; both off is path C |
 | `AI_LEASE_SECONDS` / `AI_MAX_ATTEMPTS` | `240` / `5` | Lease window and retry budget |
 | `REDIS_ENABLED` | `true` | Off sends likes, rate limiting and ranking down the MySQL fallback path |
-| `LIKE_DRIFT_ENABLED` / `LIKE_SAMPLE_SIZE` | `true` / `200` | Drift reconciliation switch and per-cycle sample size |
-| `DEMO_ENDPOINTS_ENABLED` | `false` | `/api/demo/*` seed endpoints; keep off outside throwaway instances |
 
-## Observability
+</details>
+
+## 🔭 Observability
 
 Three layers - logs, metrics, alerts - and none of them opens a public port.
 
-| Layer | Where | What |
-|----|------|------|
-| Logs | `docker logs` + the `app-logs` volume at `/app/logs` | Prod writes structured JSON to disk (100 MB per file, 7 days kept, 1 GB total, async); one 16-hex `traceId` per request crosses thread pools and scheduled tasks, and the frontend shows its first 8 digits |
-| Metrics | `GET /actuator/prometheus` (compose-internal only) | JVM / HTTP plus the AI link's own numbers: `llm_chat_completions_total{outcome}`, `llm_chat_completion_duration_seconds`, `llm_circuit_breaker_open`, `rate_limit_rejected_total{path}`, `ai_review_pending_posts`, `ai_review_reconcile_repairs_total{kind}`, and the agent pipeline's own `agent_pool_rejected_{review,safety}_total` / `agent_fail_closed_total` / `safety_pending_posts` ([ADR-0015](docs/adr/0015-the-agent-pipeline-gets-metrics-and-rules.md)) |
-| Alerts | Grafana rules → `alert-bridge` → a Feishu bot | Nine rules: circuit breaker open, review backlog, 5xx ratio, rate-limit spike, missing target, error-budget burn, agent-pool rejections, safety backlog, undelivered alerts; webhook and signing secret live in `.env` only |
-| Product funnel | same endpoint | `user_registered_total`, `post_submitted_total{status}`, `post_audited_total{action}`, `comment_submitted_total`, plus two daily gauges, `funnel_activation_ratio` and `funnel_active_content_d7_ratio` |
+- **Logs**: `docker logs` plus the `app-logs` volume at `/app/logs`; prod writes
+  structured JSON to disk (rotated, capped), and one 16-hex `traceId` per request crosses
+  thread pools and scheduled tasks.
+- **Metrics**: `GET /actuator/prometheus`, compose-internal only - JVM / HTTP plus the AI
+  link's own numbers: `llm_chat_completions_total{outcome}`,
+  `llm_chat_completion_duration_seconds`, `llm_circuit_breaker_open`,
+  `rate_limit_rejected_total{path}`, `ai_review_pending_posts`,
+  `ai_review_reconcile_repairs_total{kind}`, and the agent pipeline's own
+  `agent_pool_rejected_{review,safety}_total` / `agent_fail_closed_total` /
+  `safety_pending_posts` ([ADR-0015](docs/adr/0015-the-agent-pipeline-gets-metrics-and-rules.md)).
+- **Alerts**: nine versioned Grafana rules -> `alert-bridge` -> a Feishu bot; webhook and
+  signing secret live in `.env` only. The six-step walkthrough, the error-code table and
+  the contact-point check are in
+  [docs/runbook/feishu-alerting.md](docs/runbook/feishu-alerting.md).
 
-Health is two-layered. The public `/actuator/health` answers through nginx's `servable`
-group and only reports what a visitor can still use - only the storage layer can mark it
-DOWN. The container's own healthcheck asks the aggregate state: Redis, Elasticsearch or the
-LLM dropping out is `DEGRADED` with HTTP 200, never a kill. `/actuator/health/deps`
-explains, also internal; nginx answers 404 to everything else under `/actuator/*`. Why it
-splits this way is [ADR-0007](docs/adr/0007-degraded-status-is-not-unhealthy.md).
+Health is two-layered
+([ADR-0007](docs/adr/0007-degraded-status-is-not-unhealthy.md)): the public
+`/actuator/health` answers through nginx's `servable` group and only reports what a
+visitor can still use - only the storage layer can mark it DOWN. The container's own
+healthcheck asks the aggregate state: Redis, Elasticsearch or the LLM dropping out is
+`DEGRADED` with HTTP 200, never a kill.
 
-The monitoring stack rides a profile, so a plain `docker compose up` never starts it and the
-public surface stays nginx:80:
+The monitoring stack rides a profile, so a plain `docker compose up` never starts it:
 
 ```bash
 docker compose --profile monitoring up -d
 ```
 
-With `FEISHU_ALERT_WEBHOOK` empty, `alert-bridge` refuses to start and names the variable -
-a monitoring profile with no recipient is easier to be fooled by than no monitoring at all.
-The six-step Feishu walkthrough, the error-code table and the contact-point check live in
-[docs/runbook/feishu-alerting.md](docs/runbook/feishu-alerting.md); dashboards and alert
-rules are versioned under `docker/observability/grafana/provisioning/`, so rebuilding a
-machine cannot lose the alerting.
+The 23-step drill is reproduced by `benchmark/observability/drill.ps1` against an isolated
+compose project; its report is
+[the drill](docs/research/observability-drill-2026-09.md). Release, rollback, backup and
+the live-instance notes live in
+[docs/runbook/release-and-live-instance.md](docs/runbook/release-and-live-instance.md);
+the restore rehearsal is [docs/runbook/restore.md](docs/runbook/restore.md).
 
-The drill proves scraping, metric names, rule expressions and the alert path - it does not
-look at the panels. Two scripts cover those: `check_panels.py` replays every panel expression
-through the datasource proxy (telling a broken expression from a series nobody emitted), and
-`render_panels.py` opens the dashboards in a headless browser and counts painted canvases.
-The second exists because `Latency p50/p95/p99` had never drawn since it was committed: Boot
-sends no `_bucket` series without `percentiles-histogram`, and `histogram_quantile()` over a
-missing series returns empty. The conclusion is section nine of
-[the drill report](docs/research/observability-drill-2026-09.md); the 23 steps are
-reproduced by `benchmark/observability/drill.ps1` against an isolated compose project.
+## 🧪 Testing gates
 
-The two funnel ratios are snapshots, not scrape-time queries - same reason as
-`ai_review_pending_posts`. They recompute daily at 03:17 plus once at boot, so the panel is
-at most a day behind, and the active definition is deliberately *content behaviour*: a
-returning visitor who only browses is not measurable. That trade-off is written down rather
-than hidden.
-
-## Testing gates
-
-Measured 2026-10-11: backend **417 tests / 70 classes**, 0 failures, 0 errors, 0 skipped,
-counted from one `mvn -B test` summary line - never `target/surefire-reports/`, which
-accumulates runs and lies. Frontend **42 tests / 11 files**: the axios interceptor (401
-refresh, single-flight, replay, 5xx trace id), the login page, the AI review panel and its
-replay, the comment body, the showcase entry, the step strip, the nav evidence links,
-reduced motion, the score-zero meter and the call-site scan. The alert bridge carries
+Measured 2026-10-14 on this machine: backend **417 tests / 70 classes**, 0 failures, 0
+errors, 0 skipped - counted from one `mvn -B test` summary line, never
+`target/surefire-reports/`, which accumulates runs and lies. Frontend **42 tests / 11
+files**: the axios response interceptor (a 401 replayed once against the refreshed token,
+one refresh shared across concurrent 401s, a refused refresh that logs out without
+looping, a 5xx named with its trace id), the server-error sentence mapping, the login
+page's server reason, the AI review panel (a stored 0-10 shown as the 0-100 it claims, a
+stored zero as an empty meter rather than NaN, the replay that lights the steps in
+order), reduced motion, the mobile tab bar, the nav evidence links, the comment body,
+the showcase entry, the step strip, and the call-site scan. The alert bridge carries
 **28** Python tests.
 
-Coverage is a gate, not a report: `pom.xml` pins `jacoco.line.minimum` to 0.70 for the whole
-bundle (first measured 74.27%), and `mvn test` fails below it. When you squeeze surefire's
-`-DargLine` to fit a smaller heap, pass `-Djacoco.skip=true` with it - `-DargLine=` replaces
-the JaCoCo agent arguments instead of appending, coverage silently measures 0.00, and the
-floor fails the build on a number that was never real.
+Coverage is a gate, not a report: `pom.xml` pins `jacoco.line.minimum` to 0.70 for the
+whole bundle (first measured 74.27%; the 2026-10-14 run measured 74.83% - 3,018 of 4,033
+lines, from `target/site/jacoco/jacoco.csv`), and `mvn test` fails below it. When you
+squeeze surefire's `-DargLine` to fit a smaller heap, pass `-Djacoco.skip=true` with it -
+`-DargLine=` replaces the JaCoCo agent arguments instead of appending, coverage silently
+measures 0.00, and the floor fails the build on a number that was never real.
 
-Beyond unit and H2 integration tests, four contract checks read the source: no entity in a
-controller signature, no MyBatis type in a repository interface, frontend `types/` fields
-matching the DTOs' Jackson types, and no test pairing `isOk()` with a non-200 code; a fifth
-scan requires every frontend `apiClient.` call to sit inside a `try`/`catch` or react-query.
+Four contract checks read the source: no entity in a controller signature, no MyBatis type
+in a repository interface, frontend `types/` fields matching the DTOs' Jackson types, and
+no test pairing `isOk()` with a non-200 code; a fifth scan requires every frontend
+`apiClient.` call to sit inside a `try`/`catch` or react-query.
 
 ```bash
 mvn test                      # 417: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
@@ -345,33 +429,10 @@ cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge 
 CI (`.github/workflows/maven.yml`) runs all of the above plus the `app` and `web` image
 builds.
 
-## API examples
+## 📁 Repository structure
 
-```bash
-# Login
-curl -X POST http://localhost:8081/api/v1/auth/login \
-  -H "Content-Type: application/json" \
-  -d '{"username":"admin","password":"123456"}'
-
-# Create post (authenticated, code block → triggers AI review)
-curl -X POST http://localhost:8081/api/v1/posts \
-  -H "Content-Type: application/json" -H "Authorization: Bearer <TOKEN>" \
-  -d '{"title":"My Vibe Coding Setup","content":"Using Cursor + Claude...","categoryId":2}'
-
-# Latest structured AI review for a post (public)
-curl http://localhost:8081/api/v1/agent-logs/post/100/latest
-
-# User profile stats + recent activity (public)
-curl http://localhost:8081/api/v1/users/2/summary
-```
-
-**响应契约**：HTTP 状态码是唯一真相源，信封里的 `code` 由它派生（`{ code, message, data }`，5xx 多带一个
-`traceId`），所以"状态 200 但 body 说 401"这类事在类型上证不了假。失败一律走
-`BusinessException(HttpStatus, safeMessage)`，controller 不再自己拼错误对象；`GlobalExceptionHandler`
-是唯一决定状态码的地方。本轮**没有** `ErrorCode` 枚举：`HttpStatus` 吸收了那 27 个魔法数字，而评估文档里
-"前端按 message 分支"的动机查证为假（前端 13 处 `message` 全是展示兜底，`code` 一处都不读）。
-
-## Repository structure
+<details>
+<summary><b>Expand the tree</b></summary>
 
 ```
 nexus-vibe/
@@ -379,13 +440,15 @@ frontend/                        # React 19 SPA (Vite + TypeScript + Tailwind)
   src/components/                 # AiReviewTerminal, ui/ReviewStepStrip, Navbar, ...
   src/components/ui/reviewSteps.ts  # the beats the terminal is allowed to name
   src/pages/ src/api/ src/stores/ src/types/ src/test/
+  src/links.ts                    # the navbar/footer evidence links (ADRs, load test, drill)
 src/main/java/com/nexus/campus/  # the package kept the pre-rename domain word (ADR-0001)
   agent/                          # LLM client, repair-parse, review + safety listeners, ReviewPolicy
   task/                           # reconciliation, drift, like-sync, funnels
   filter/ config/                 # XSS wrapper, trace id, dual pools, security, health indicators
-  controller/ service/ repository/ entity/ util/
+  controller/ service/ repository/ entity/ dto/ mapper/ metrics/ ...
 docker/
   mysql/                          # init.sql + one-shot migrations and rollbacks + the 100k-row harness
+  nginx/                          # the only published port: ${WEB_PORT:-8080} -> 80
   observability/                  # Prometheus + Grafana provisioning + the Feishu alert bridge
 benchmark/                        # jmeter / concurrency / migrations / observability / showcase
 scripts/                          # backup, tunnel, rate-limit probe
@@ -394,15 +457,27 @@ docker-compose.yml                # the only compose file at the root; variants 
 CONTEXT.md  CHANGELOG.md  AGENTS.md
 ```
 
-## Contributing
+</details>
+
+The package is `com.nexus.campus` while the product is Nexus-Vibe: ADR-0001 renamed the
+domain entities to Vibe names and deliberately left the package, so the history reads
+straight.
+
+## 🤝 Contributing
 
 Fork, branch, keep the gates green, open a pull request - in this repository, on a
 `codex/<slug>` branch rather than `master`. Read [AGENTS.md](AGENTS.md) for the working
-contract and [CONTEXT.md](CONTEXT.md) for the vocabulary; [docs/INDEX.md](docs/INDEX.md) maps
-every document, and a document that is not in it is a document nobody will find. ADRs are
-append-only and numbered sequentially: a changed mind means a new ADR, never an edit. One
-rule outlives the others - a claim without a reproducible path does not go in.
+contract and [CONTEXT.md](CONTEXT.md) for the vocabulary; [docs/INDEX.md](docs/INDEX.md)
+maps every document, and a document that is not in it is a document nobody will find. ADRs
+are append-only and numbered sequentially: a changed mind means a new ADR, never an edit.
+One rule outlives the others - a claim without a reproducible path does not go in.
 
-## License
+## 📄 License
 
 This project is licensed under the MIT License. See [LICENSE](LICENSE).
+
+---
+
+<p align="center"><sub>Java 18 · Spring Boot 3.3.5 · React 19 · MySQL · Redis · Elasticsearch — and one unreliable LLM</sub></p>
+
+<p align="center"><a href="#top">Back to top</a></p>

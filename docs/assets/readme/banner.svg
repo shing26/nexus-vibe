@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 190" width="1280" height="190" role="img" aria-labelledby="bannerTitle" font-family="Inter, 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif">
+  <title id="bannerTitle">The resilience chain: a post is lease-claimed, reviewed by the LLM, and its output repaired and validated; an unreachable model sends posts to a fail-closed queue that reconciliation restores on recovery.</title>
+  <defs>
+    <radialGradient id="glowA" cx="12%" cy="0%" r="85%">
+      <stop offset="0%" stop-color="#1f6feb" stop-opacity="0.10"/>
+      <stop offset="100%" stop-color="#1f6feb" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="glowB" cx="88%" cy="100%" r="80%">
+      <stop offset="0%" stop-color="#39c5cf" stop-opacity="0.07"/>
+      <stop offset="100%" stop-color="#39c5cf" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6.5" markerHeight="6.5" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#3d444d"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="190" fill="#0d1117"/>
+  <rect width="1280" height="190" fill="url(#glowA)"/>
+  <rect width="1280" height="190" fill="url(#glowB)"/>
+  <line x1="0" y1="189.5" x2="1280" y2="189.5" stroke="#21262d" stroke-width="1"/>
+
+  <text x="56" y="66" font-size="11" font-weight="700" letter-spacing="2.4" fill="#6e7681">THE RESILIENCE CHAIN</text>
+  <text x="56" y="90" font-size="11.5" fill="#484f58">what the pipeline does when</text>
+  <text x="56" y="107" font-size="11.5" fill="#484f58">the model is the unreliable part</text>
+
+  <line x1="300" y1="42" x2="300" y2="150" stroke="#21262d" stroke-width="1"/>
+
+  <rect x="336" y="56" width="190" height="56" rx="10" fill="#161b22" stroke="#2d333b" stroke-width="1.2"/>
+  <text x="431" y="80" text-anchor="middle" font-size="15" font-weight="600" fill="#cdd9e5">Post</text>
+  <text x="431" y="100" text-anchor="middle" font-size="11" fill="#6e7681">code block detected</text>
+
+  <line x1="534" y1="84" x2="558" y2="84" stroke="#3d444d" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <rect x="568" y="56" width="190" height="56" rx="10" fill="#161b22" stroke="#2d333b" stroke-width="1.2"/>
+  <text x="663" y="80" text-anchor="middle" font-size="15" font-weight="600" fill="#cdd9e5">Lease claim</text>
+  <text x="663" y="100" text-anchor="middle" font-size="11" fill="#6e7681">owner + expiry + budget</text>
+
+  <line x1="766" y1="84" x2="790" y2="84" stroke="#3d444d" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <rect x="800" y="56" width="190" height="56" rx="10" fill="#101f26" stroke="#39c5cf" stroke-width="1.6"/>
+  <text x="895" y="80" text-anchor="middle" font-size="15" font-weight="600" fill="#cdd9e5">LLM review</text>
+  <text x="895" y="100" text-anchor="middle" font-size="11" fill="#6e7681">the unreliable dependency</text>
+
+  <line x1="998" y1="84" x2="1022" y2="84" stroke="#3d444d" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+  <rect x="1032" y="56" width="190" height="56" rx="10" fill="#161b22" stroke="#2d333b" stroke-width="1.2"/>
+  <text x="1127" y="80" text-anchor="middle" font-size="15" font-weight="600" fill="#cdd9e5">Repair + validate</text>
+  <text x="1127" y="100" text-anchor="middle" font-size="11" fill="#6e7681">&#8804; 2 calls, then record</text>
+
+  <line x1="895" y1="112" x2="895" y2="136" stroke="#d29922" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <rect x="745" y="138" width="430" height="30" rx="15" fill="#17120a" stroke="#d29922" stroke-opacity="0.45" stroke-width="1"/>
+  <text x="960" y="157" text-anchor="middle" font-size="12" fill="#d29922">unreachable &#8594; audit queue &#8594; reconcile &#8594; restored</text>
+</svg>
