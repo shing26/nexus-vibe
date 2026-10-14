@@ -70,6 +70,7 @@ alternatives that were rejected.
 | [like-count-convergence](tickets/like-count-convergence.md) | The B2 defect fixed (the durable table is the authority), a saturated pool no longer aborting the reconcile batch, and two claims the evidence round had to withdraw |
 | [review-terminal-replay](tickets/review-terminal-replay.md) | The finished AI review replays its steps on the post page, the in-flight box cycles them without confirming any, and the navbar/footer link out to the ADRs and the load test |
 | [readme-open-source](tickets/readme-open-source.md) | The README becomes a front door: the diagnosis of the five stated pain points, the corrections to the circulated draft, the new section order, and the allowed numbers |
+| [readme-visual-front-door](tickets/readme-visual-front-door.md) | The README gets a hero capture, a native Mermaid architecture diagram and a measured Lua-vs-naive consistency figure - and where the brief's score-92 label could not be honoured |
 
 ## Plans — `docs/plans/`
 
@@ -109,4 +110,7 @@ alternatives that were rejected.
 | [runbook/release-and-live-instance](runbook/release-and-live-instance.md) | Release, rollback, backup, the public-tunnel deployment and the live-instance notes, moved out of the README |
 
 Screenshots referenced by the reviews live in
-[`docs/assets/gui-test-screenshots/`](assets/gui-test-screenshots).
+[`docs/assets/gui-test-screenshots/`](assets/gui-test-screenshots). The README's own hero
+capture, community capture and consistency figure live in
+[`docs/assets/readme/`](assets/readme); they are described, with the run that produced each
+one, in [tickets/readme-visual-front-door.md](tickets/readme-visual-front-door.md).

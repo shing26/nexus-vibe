@@ -12,15 +12,15 @@ they are the reason this ticket exists.
 
 | # | Claim | Verdict | Evidence |
 |---|---|---|---|
-| 1 | The narrative reads as a developer's private memo; a visitor cannot find "what is this" or "how do I run it in 3 minutes" | **Partly true** | The first runnable command sits at [README.md:168](../README.md), after 150+ lines of narrative; the runnable Docker path is at line 226. But the "30 seconds / 10 minutes / 90 minutes" ladder at [README.md:44](../README.md) is already the right shape and the demo-first opening is right. The problem is order and depth, not absence of visitor orientation |
-| 2 | The `com.nexus.campus` package name is an unexplained historical burden | **True, minor** | Rename is recorded in [ADR-0001](adr/0001-rename-campus-entities-to-vibe-names.md); nothing in the README says the package kept the old domain word. Costs one sentence |
-| 3 | The anti-forgery discipline (ADR-0010) is presented as a limitation | **True** | [README.md:21](../README.md) opens the demo with "It is a recording rather than a live call" - accurate, framed as an apology. The replay terminal shipped last round (`frontend/src/components/ui/ReviewStepStrip.tsx`) and gives the positive framing the README never adopts |
-| 4 | The extension seams are hidden in `docs/research/` and the source | **True, and worse than the draft knew** | Seam one (`ReviewPolicy`, single method `shouldReview`) is real and wired: `agent/ReviewPolicy.java`, `config/ReviewPolicyConfig.java` (`@ConditionalOnMissingBean`), default `CodeBlockReviewPolicy`. Seam two (`Reviewer`) is *decided* in ADR-0012 and *not built*: no `Reviewer` interface exists in `src/main/java`; [tickets/ai-review-seam.md](tickets/ai-review-seam.md) AI-2 and AI-3 (the README section itself) are both open. The draft publishes a `ReviewPolicy` example with `supports`/`evaluate`/`ReviewResult` that does not compile against the real interface |
+| 1 | The narrative reads as a developer's private memo; a visitor cannot find "what is this" or "how do I run it in 3 minutes" | **Partly true** | The first runnable command sits at [README.md:168](../../README.md), after 150+ lines of narrative; the runnable Docker path is at line 226. But the "30 seconds / 10 minutes / 90 minutes" ladder at [README.md:44](../../README.md) is already the right shape and the demo-first opening is right. The problem is order and depth, not absence of visitor orientation |
+| 2 | The `com.nexus.campus` package name is an unexplained historical burden | **True, minor** | Rename is recorded in [ADR-0001](../adr/0001-rename-campus-entities-to-vibe-names.md); nothing in the README says the package kept the old domain word. Costs one sentence |
+| 3 | The anti-forgery discipline (ADR-0010) is presented as a limitation | **True** | [README.md:21](../../README.md) opens the demo with "It is a recording rather than a live call" - accurate, framed as an apology. The replay terminal shipped last round (`frontend/src/components/ui/ReviewStepStrip.tsx`) and gives the positive framing the README never adopts |
+| 4 | The extension seams are hidden in `docs/research/` and the source | **True, and worse than the draft knew** | Seam one (`ReviewPolicy`, single method `shouldReview`) is real and wired: `agent/ReviewPolicy.java`, `config/ReviewPolicyConfig.java` (`@ConditionalOnMissingBean`), default `CodeBlockReviewPolicy`. Seam two (`Reviewer`) is *decided* in ADR-0012 and *not built*: no `Reviewer` interface exists in `src/main/java`; [ai-review-seam.md](ai-review-seam.md) AI-2 and AI-3 (the README section itself) are both open. The draft publishes a `ReviewPolicy` example with `supports`/`evaluate`/`ReviewResult` that does not compile against the real interface |
 | 5 | Six-plus `docker-compose` variants overload a newcomer | **False** | The root holds exactly one `docker-compose.yml`; the six variants live under `benchmark/` (concurrency, jmeter, migrations, observability drill + render) and `docs/runbook/` (restore test), each driven by its own script. A newcomer meets one compose file. The draft's follow-up ("make `docker compose up -d` reach `localhost:5173`") would introduce the only real error in this area - see the corrections table |
 
 Two further findings the request did not ask for, recorded because they touch the same file:
 
-- **The README contradicts itself on the frontend test count.** [README.md:478](../README.md) still
+- **The README contradicts itself on the frontend test count.** [README.md:478](../../README.md) still
   says "前端 33 用例 / 8 个文件" while its own badge and command comment say 42; `AGENTS.md` also
   says 33. The fresh count (below) is **42 tests in 11 files** - the last round shipped tests and
   updated the badge but not the sentence or the contract file.
@@ -101,11 +101,11 @@ A number not in this table does not go in.
 | Alert bridge tests | 28 | README Testing section | `cd docker/observability/alert-bridge && python -m unittest test_alert_bridge` |
 | Coverage floor | 0.70; first measured 74.27% (2967/3995) | `pom.xml` `jacoco.line.minimum` | `mvn -B test` runs `jacoco:check` |
 | ADRs | 15 (0001-0015) | `docs/adr/` | `ls docs/adr` |
-| Async pool load test | 25,204 samples, 13 errors (0.1%), p50/p90/p99 37/1,770/3,353 ms, 6,231 posts left FAILED(3), zero crashes | [research/async-pool-loadtest.md](research/async-pool-loadtest.md) | `benchmark/jmeter/run-loadtest.ps1` |
-| Like-concurrency probe | ~121k rejections under 50 concurrency, zero crashes | README resilience chain + [research/async-pool-loadtest.md](research/async-pool-loadtest.md) | `benchmark/concurrency/like-concurrency.ps1` |
-| Container GC | 768 MB limit, 0 full GCs | [research/jvm-container-gc-analysis.md](research/jvm-container-gc-analysis.md) | the report's own commands |
-| Deep pagination | delayed join 40% slower, rolled back | [research/late-row-lookup-deep-pagination.md](research/late-row-lookup-deep-pagination.md) | the report's EXPLAIN |
-| Drill | 23 steps | [research/observability-drill-2026-09.md](research/observability-drill-2026-09.md) | `benchmark/observability/drill.ps1` |
+| Async pool load test | 25,204 samples, 13 errors (0.1%), p50/p90/p99 37/1,770/3,353 ms, 6,231 posts left FAILED(3), zero crashes | [async-pool-loadtest.md](../research/async-pool-loadtest.md) | `benchmark/jmeter/run-loadtest.ps1` |
+| Like-concurrency probe | ~121k rejections under 50 concurrency, zero crashes | README resilience chain + [async-pool-loadtest.md](../research/async-pool-loadtest.md) | `benchmark/concurrency/like-concurrency.ps1` |
+| Container GC | 768 MB limit, 0 full GCs | [jvm-container-gc-analysis.md](../research/jvm-container-gc-analysis.md) | the report's own commands |
+| Deep pagination | delayed join 40% slower, rolled back | [late-row-lookup-deep-pagination.md](../research/late-row-lookup-deep-pagination.md) | the report's EXPLAIN |
+| Drill | 23 steps | [observability-drill-2026-09.md](../research/observability-drill-2026-09.md) | `benchmark/observability/drill.ps1` |
 | Ports | web 8080, API dev 8081, vite dev 5173 | `docker-compose.yml` (`WEB_PORT`), `application.yml`, `frontend/vite.config.ts` | the three files |
 
 ## S2 - Corrections to the circulated draft
@@ -219,10 +219,13 @@ Draft claims were checked against `docker-compose.yml`, `.env.example`,
 
 ## Status
 
-Plan proposed on `codex/readme-open-source` (this file, the `docs/INDEX.md` row, the AGENTS.md
-count fix). **The README rewrite itself has not started** - it lands in this branch after the
-plan is confirmed, in the same pull request. The implementation adds no new numbers; it reorders,
-links, and corrects the one stale count.
+Landed 2026-10-14 on this working tree. The plan itself (this file, the `docs/INDEX.md` rows, the
+AGENTS.md count fix) was already in place; **the README rewrite has now landed per S1**: `README.md`
+is reordered as a front door, every number was re-verified against a fresh run rather than trusted
+from the plan (backend 417 / 70 classes, frontend 42 / 11, bridge 28, JaCoCo 74.83% = 3,018 / 4,033
+lines from `target/site/jacoco/jacoco.csv`), and every link is repository-relative. The
+implementation reorders, links, and corrects counts; the only number it adds is the 2026-10-14
+coverage measurement, because the gates were re-run instead of assumed.
 
 ## Known follow-up
 

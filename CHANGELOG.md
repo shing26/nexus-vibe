@@ -11,12 +11,31 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The README gets a visual front door (`docs/tickets/readme-visual-front-door.md`)**: a real
+  dark-mode capture of a post page (code card, five real likes, the AI review terminal replaying a
+  completed run to `Approved` at 70/100), the community feed, and a native Mermaid architecture
+  diagram in place of the ASCII block. The like path gets a measured figure:
+  `benchmark/concurrency/lua-vs-naive-consistency.py` runs the shipped `like_toggle.lua` against a
+  naive control under 50 concurrent threads (0/30 rounds drifted vs 29/30, max abs drift 54),
+  `render-lua-consistency-chart.py` redraws it from the committed JSON, and the assets live under
+  `docs/assets/readme/`. The brief's `Passed (Score: 92)` label is deliberately not printed: no run
+  produced a 92, and the ticket records the substitution. The round also records, without fixing, a
+  display defect it surfaced - request-body HTML escaping reaches fenced code blocks, so `<` and
+  `&` render as `&lt;` and `&amp;` in the code card.
 - **The README becomes a front door (`docs/tickets/readme-open-source.md`)**: the diagnosis of the five
   stated pain points with file evidence, the corrections to the circulated draft (the Docker port, the
   non-existent demo account, the non-existent Zero-Key Mock, the non-compiling `ReviewPolicy` example,
   the wrong `application.yml` keys), the new section order with an allowed-numbers table, and the two
   operations blocks moved verbatim into `docs/runbook/`. The frontend test count is corrected to the
   measured 42 / 11 in `README.md` and `AGENTS.md`.
+- **The README rewrite lands (`docs/tickets/readme-open-source.md`, S1)**: `README.md` is restructured as
+  a front door - positioning, live demo, three run paths (each with its own port), the fork map with the
+  two seams' real status, architecture, the evidence wall, tech stack, the configuration subset,
+  observability, testing gates, structure, contributing - a shorter front door than the 427-line
+  original. Every number was re-verified against a fresh 2026-10-14 run rather than trusted from the
+  plan: backend 417 / 70 classes (0 failures), frontend 42 / 11, alert bridge 28, JaCoCo 74.83%
+  (3,018 / 4,033 lines). All links are repository-relative; the API examples and the in-README
+  operations blocks are gone, the latter having moved to `docs/runbook/` in the previous entry.
 - **Contract truthfulness and the product loop (R1–R6 — `docs/tickets/contract-and-product-loop.md`)**: the
   evidence round asked whether the stack's signals can be trusted. This round asked the same question of the
   API itself. 33 controller sites answered `200 OK` while their own envelope said 401, 403, 404 or 400; the
@@ -141,6 +160,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `campus.ai.review.enabled=false` disables the LLM safety check too, because the publisher gates both
   events on the one flag, and neither flag appears on the env surface at all. Work is split into
   [AI-1 to AI-4](docs/tickets/ai-review-seam.md). No code changed in this entry.
+- **README facade round (`docs/assets/readme/banner.svg`)**: presentation only, no factual content changed. The
+  header block is centered with a flat-square badge row and quick-nav anchors; a hand-drawn SVG banner states
+  the thesis visually - Post → lease claim → LLM review → repair + validate, with the amber fail-closed branch
+  to the audit queue - so the resilience chain is legible before the first paragraph; the four screenshots are
+  centered and width-capped; section markers gained emoji and explicit `<a name>` anchors; the configuration
+  table and the repository tree fold into `<details>`; the footer carries the stack line and a back-to-top link.
 
 ### Fixed
 

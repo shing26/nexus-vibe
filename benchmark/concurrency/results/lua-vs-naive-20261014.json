@@ -1,0 +1,417 @@
+{
+  "date": "20261014",
+  "recordedAtUtc": "2026-10-14T08:47:37.292700+00:00",
+  "label": "redis",
+  "target": "localhost:6390/0",
+  "redisVersion": "5.0.14.1",
+  "threads": 50,
+  "rounds": 30,
+  "weight": 3,
+  "paths": {
+    "lua": {
+      "path": "lua",
+      "distinctUserBurst": {
+        "scard": 50,
+        "zscore": 150,
+        "expectedZscore": 150,
+        "drift": 0,
+        "consistent": true
+      },
+      "sameUserBurst": {
+        "rounds": 30,
+        "driftedRounds": 0,
+        "consistentRounds": 30,
+        "maxAbsDrift": 0,
+        "meanAbsDrift": 0.0,
+        "scardValues": [
+          0
+        ],
+        "samples": [
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          }
+        ]
+      }
+    },
+    "naive": {
+      "path": "naive",
+      "distinctUserBurst": {
+        "scard": 50,
+        "zscore": 150,
+        "expectedZscore": 150,
+        "drift": 0,
+        "consistent": true
+      },
+      "sameUserBurst": {
+        "rounds": 30,
+        "driftedRounds": 29,
+        "consistentRounds": 1,
+        "maxAbsDrift": 54,
+        "meanAbsDrift": 21.6,
+        "scardValues": [
+          0,
+          1
+        ],
+        "samples": [
+          {
+            "scard": 0,
+            "zscore": 36,
+            "expectedZscore": 0,
+            "drift": 36
+          },
+          {
+            "scard": 1,
+            "zscore": 0,
+            "expectedZscore": 3,
+            "drift": -3
+          },
+          {
+            "scard": 0,
+            "zscore": 0,
+            "expectedZscore": 0,
+            "drift": 0
+          },
+          {
+            "scard": 1,
+            "zscore": 24,
+            "expectedZscore": 3,
+            "drift": 21
+          },
+          {
+            "scard": 1,
+            "zscore": 48,
+            "expectedZscore": 3,
+            "drift": 45
+          },
+          {
+            "scard": 0,
+            "zscore": -6,
+            "expectedZscore": 0,
+            "drift": -6
+          },
+          {
+            "scard": 0,
+            "zscore": 18,
+            "expectedZscore": 0,
+            "drift": 18
+          },
+          {
+            "scard": 0,
+            "zscore": 36,
+            "expectedZscore": 0,
+            "drift": 36
+          },
+          {
+            "scard": 1,
+            "zscore": 36,
+            "expectedZscore": 3,
+            "drift": 33
+          },
+          {
+            "scard": 1,
+            "zscore": -24,
+            "expectedZscore": 3,
+            "drift": -27
+          },
+          {
+            "scard": 0,
+            "zscore": 6,
+            "expectedZscore": 0,
+            "drift": 6
+          },
+          {
+            "scard": 0,
+            "zscore": 24,
+            "expectedZscore": 0,
+            "drift": 24
+          },
+          {
+            "scard": 1,
+            "zscore": 12,
+            "expectedZscore": 3,
+            "drift": 9
+          },
+          {
+            "scard": 1,
+            "zscore": 0,
+            "expectedZscore": 3,
+            "drift": -3
+          },
+          {
+            "scard": 1,
+            "zscore": 54,
+            "expectedZscore": 3,
+            "drift": 51
+          },
+          {
+            "scard": 0,
+            "zscore": -18,
+            "expectedZscore": 0,
+            "drift": -18
+          },
+          {
+            "scard": 0,
+            "zscore": 54,
+            "expectedZscore": 0,
+            "drift": 54
+          },
+          {
+            "scard": 0,
+            "zscore": 6,
+            "expectedZscore": 0,
+            "drift": 6
+          },
+          {
+            "scard": 1,
+            "zscore": 48,
+            "expectedZscore": 3,
+            "drift": 45
+          },
+          {
+            "scard": 0,
+            "zscore": 6,
+            "expectedZscore": 0,
+            "drift": 6
+          },
+          {
+            "scard": 1,
+            "zscore": 6,
+            "expectedZscore": 3,
+            "drift": 3
+          },
+          {
+            "scard": 0,
+            "zscore": -18,
+            "expectedZscore": 0,
+            "drift": -18
+          },
+          {
+            "scard": 0,
+            "zscore": 24,
+            "expectedZscore": 0,
+            "drift": 24
+          },
+          {
+            "scard": 0,
+            "zscore": 6,
+            "expectedZscore": 0,
+            "drift": 6
+          },
+          {
+            "scard": 1,
+            "zscore": -18,
+            "expectedZscore": 3,
+            "drift": -21
+          },
+          {
+            "scard": 1,
+            "zscore": 24,
+            "expectedZscore": 3,
+            "drift": 21
+          },
+          {
+            "scard": 0,
+            "zscore": -30,
+            "expectedZscore": 0,
+            "drift": -30
+          },
+          {
+            "scard": 0,
+            "zscore": 30,
+            "expectedZscore": 0,
+            "drift": 30
+          },
+          {
+            "scard": 1,
+            "zscore": 42,
+            "expectedZscore": 3,
+            "drift": 39
+          },
+          {
+            "scard": 1,
+            "zscore": -6,
+            "expectedZscore": 3,
+            "drift": -9
+          }
+        ]
+      }
+    }
+  }
+}
