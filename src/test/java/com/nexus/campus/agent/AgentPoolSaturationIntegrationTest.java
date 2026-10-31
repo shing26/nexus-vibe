@@ -165,12 +165,13 @@ class AgentPoolSaturationIntegrationTest {
      * <p>The fail-closed write is not guaranteed to land before the commit returns. When the
      * saturated pool refuses the event, the publisher's recovery transaction writes the status
      * inline in afterCommit; when a slot frees up before the dispatch, the listener runs
-     * asynchronously and writes it from its own thread. Reading once after the commit races the
-     * second path, which is what made this test flaky on CI. Polling with a bounded timeout
-     * covers both: the rejection path has already finished, the async path only needs a moment.
+     * asynchronously and writes it from its own thread — after the LLM client's own retry
+     * ladder, which on a starved CI runner can take well over five seconds. The deadline is
+     * bounded by the hold tasks' lifetime, not by optimism: the latch keeps the pool occupied
+     * for {@code HOLD_SECONDS}, so nothing can free a slot for the async path before that.</p>
      */
     private int awaitPendingReview(long postId) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS);
         while (System.nanoTime() < deadline) {
             VibePost stored = vibePostMapper.selectById(postId);
             if (stored.getStatus() == PostStatus.PENDING_REVIEW.getCode()) {
@@ -186,7 +187,7 @@ class AgentPoolSaturationIntegrationTest {
      * thread when the pool accepted the event but the LLM was unreachable.
      */
     private int awaitReviewFailed(long postId) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS);
         while (System.nanoTime() < deadline) {
             VibePost stored = vibePostMapper.selectById(postId);
             if (stored.getAiReviewed() == AiReviewStatus.FAILED.getCode()) {
