@@ -104,12 +104,14 @@ CREATE INDEX IF NOT EXISTS `idx_msg_from_user` ON `sys_message`(`from_user_id`);
 CREATE TABLE IF NOT EXISTS `ai_review_log` (
   `id` bigint NOT NULL PRIMARY KEY,
   `post_id` bigint NOT NULL,
+  `comment_id` bigint DEFAULT NULL,
   `reviewer` varchar(50) NOT NULL DEFAULT 'code-review-agent',
   `result_json` text,
   `severity` varchar(20),
   `is_approved` tinyint DEFAULT 0,
   `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS `idx_ai_review_log_comment` ON `ai_review_log`(`comment_id`, `reviewer`);
 
 -- 9. AI Review columns for vibe_post
 ALTER TABLE `vibe_post` ADD COLUMN IF NOT EXISTS `code_snippets` text;

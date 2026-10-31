@@ -122,11 +122,13 @@ CREATE TABLE IF NOT EXISTS `sys_message` (
 CREATE TABLE IF NOT EXISTS `ai_review_log` (
   `id` bigint NOT NULL PRIMARY KEY,
   `post_id` bigint NOT NULL,
+  `comment_id` bigint DEFAULT NULL,
   `reviewer` varchar(50) NOT NULL DEFAULT 'code-review-agent',
   `result_json` text,
   `severity` varchar(20),
   `is_approved` tinyint DEFAULT 0,
-  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP
+  `created_at` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  INDEX `idx_ai_review_log_comment` (`comment_id`, `reviewer`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 CREATE TABLE IF NOT EXISTS `vibe_prompt_version` (

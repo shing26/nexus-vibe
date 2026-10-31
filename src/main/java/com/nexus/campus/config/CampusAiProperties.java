@@ -80,6 +80,24 @@ public class CampusAiProperties {
         private boolean enabled = true;
     }
 
+    @Valid
+    private final Mention mention = new Mention();
+
+    @Getter
+    @Setter
+    public static class Mention {
+
+        private boolean enabled = true;
+
+        /**
+         * Minimum seconds between two agent summons by the same user on the
+         * same post. The anti-abuse layer ADR-0018 chose instead of a quota:
+         * one number, bounded pool backpressure beneath it.
+         */
+        @Positive
+        private long cooldownSeconds = 300;
+    }
+
     @Getter
     @Setter
     public static class Archive {

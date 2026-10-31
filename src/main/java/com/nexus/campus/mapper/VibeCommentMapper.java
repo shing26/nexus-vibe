@@ -40,4 +40,17 @@ public interface VibeCommentMapper extends BaseMapper<VibeComment> {
             "WHERE c.user_id = #{userId} AND c.status = 1 " +
             "ORDER BY c.create_time DESC, c.id DESC LIMIT 10")
     List<VibeComment> selectLatestActiveCommentsByUserId(@Param("userId") Long userId);
+
+    /**
+     * Comments held for a human audit decision (DFA critical hits and suspected
+     * prompt injection share the status-2 queue). Same shape as the thread
+     * queries: joined author fields ride the entity's exist=false columns.
+     */
+    @Select("SELECT c.*, u.nickname as authorName, p.title as postTitle " +
+            "FROM vibe_comment c " +
+            "LEFT JOIN sys_user u ON c.user_id = u.id " +
+            "LEFT JOIN vibe_post p ON c.post_id = p.id " +
+            "WHERE c.status = 2 " +
+            "ORDER BY c.create_time DESC, c.id DESC LIMIT 50")
+    List<VibeComment> selectCommentsInAuditQueue();
 }

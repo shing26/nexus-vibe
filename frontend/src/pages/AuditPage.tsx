@@ -16,10 +16,25 @@ interface PendingPost {
   safetyIsApproved: number | null;
 }
 
+interface PendingComment {
+  id: number;
+  postId: number;
+  postTitle: string | null;
+  authorName: string | null;
+  content: string;
+  createTime: string;
+}
+
 interface PendingPostsResponse {
   code: number;
   message: string;
   data: PendingPost[];
+}
+
+interface PendingCommentsResponse {
+  code: number;
+  message: string;
+  data: PendingComment[];
 }
 
 const safetyTagColors: Record<string, string> = {
@@ -70,6 +85,24 @@ export default function AuditPage() {
     queryFn: () =>
       apiClient.get('/admin/pending-posts').then((r) => r.data as PendingPostsResponse),
   });
+
+  const { data: commentsData } = useQuery<PendingCommentsResponse>({
+    queryKey: ['admin', 'pending-comments'],
+    queryFn: () =>
+      apiClient.get('/admin/audit/comments').then((r) => r.data as PendingCommentsResponse),
+  });
+
+  const commentAuditMutation = useMutation({
+    mutationFn: ({ id, action }: { id: number; action: 'APPROVED' | 'REJECTED' }) =>
+      apiClient.post(`/admin/audit/comments/${id}/${action === 'APPROVED' ? 'approve' : 'reject'}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admin', 'pending-comments'] });
+    },
+  });
+
+  const handleCommentAudit = (id: number, action: 'APPROVED' | 'REJECTED') => {
+    commentAuditMutation.mutate({ id, action });
+  };
 
   const auditMutation = useMutation({
     mutationFn: ({
@@ -122,20 +155,7 @@ export default function AuditPage() {
   }
 
   const posts = data?.data ?? [];
-
-  if (posts.length === 0) {
-    return (
-      <div>
-        <h1 className="text-base font-semibold font-mono text-slate-100 mb-8"><span className="text-vibe-cyan">$</span> Audit Queue</h1>
-        <div className="bg-vibe-surface border border-vibe-border rounded-lg p-12 text-center">
-          <p className="text-slate-400 font-mono text-sm">No pending posts to review.</p>
-          <p className="text-slate-600 text-[11px] font-mono mt-1">
-            All caught up -- new posts will appear here when submitted.
-          </p>
-        </div>
-      </div>
-    );
-  }
+  const pendingComments = commentsData?.data ?? [];
 
   return (
     <div>
@@ -144,10 +164,19 @@ export default function AuditPage() {
           <h1 className="text-base font-semibold font-mono text-slate-100"><span className="text-vibe-cyan">$</span> Audit Queue</h1>
           <p className="text-slate-500 text-xs font-mono mt-1">
             {posts.length} post{posts.length !== 1 ? 's' : ''} pending review
+            {pendingComments.length > 0 && ` · ${pendingComments.length} comment${pendingComments.length !== 1 ? 's' : ''} held`}
           </p>
         </div>
       </div>
 
+      {posts.length === 0 ? (
+        <div className="bg-vibe-surface border border-vibe-border rounded-lg p-12 text-center">
+          <p className="text-slate-400 font-mono text-sm">No pending posts to review.</p>
+          <p className="text-slate-600 text-[11px] font-mono mt-1">
+            All caught up -- new posts will appear here when submitted.
+          </p>
+        </div>
+      ) : (
       <div className="space-y-4">
         {posts.map((post) => (
           <div
@@ -245,6 +274,63 @@ export default function AuditPage() {
             )}
           </div>
         ))}
+      </div>
+      )}
+
+      {/* HELD COMMENTS — the status-2 queue shared by the DFA path and the comment-safety path */}
+      <div className="mt-10">
+        <h2 className="text-sm font-semibold font-mono text-slate-200 mb-4">
+          <span className="text-vibe-cyan">#</span> Held comments
+        </h2>
+        {pendingComments.length === 0 ? (
+          <p className="text-slate-600 text-[11px] font-mono">
+            // No comments held for audit.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {pendingComments.map((comment) => (
+              <div
+                key={comment.id}
+                className="bg-vibe-surface border border-vibe-border rounded-lg p-4"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-3 flex-wrap text-xs font-mono text-slate-500">
+                      <span>by {comment.authorName || `user#${comment.postId}`}</span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                        on {comment.postTitle || `post #${comment.postId}`}
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                        {new Date(comment.createTime).toLocaleString()}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-slate-300 text-xs font-mono leading-relaxed line-clamp-3">
+                      {comment.content}
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      onClick={() => handleCommentAudit(comment.id, 'APPROVED')}
+                      disabled={commentAuditMutation.isPending}
+                      className="px-3 py-1.5 bg-vibe-emerald/20 border border-vibe-emerald/30 text-vibe-emerald text-xs font-mono rounded-lg hover:bg-vibe-emerald/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Approve
+                    </button>
+                    <button
+                      onClick={() => handleCommentAudit(comment.id, 'REJECTED')}
+                      disabled={commentAuditMutation.isPending}
+                      className="px-3 py-1.5 bg-red-900/30 border border-red-500/40 text-red-400 text-xs font-mono rounded-lg hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Reject
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

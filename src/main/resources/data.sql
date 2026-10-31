@@ -1,4 +1,9 @@
 -- Clear old data
+-- The like mirror goes first: it references vibe_post and sys_user, and no
+-- seed data lives in it. A like left over from an earlier test in the same
+-- JVM would otherwise survive this reset and break exactly the total-count
+-- assertion ConcurrentDuplicateWriteTest makes on a contested post.
+DELETE FROM vibe_post_like;
 DELETE FROM ai_review_log;
 DELETE FROM vibe_prompt_version;
 DELETE FROM sys_message;

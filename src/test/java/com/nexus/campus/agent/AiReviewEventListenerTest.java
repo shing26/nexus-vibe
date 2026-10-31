@@ -15,8 +15,12 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
@@ -24,8 +28,9 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.*;
 
 /**
- * Listener-level lease behavior: skip when the claim is lost, terminal
- * notification exactly once when the final attempt fails.
+ * Listener-level behavior: reviewer routing (ADR-0012's second seam), lease
+ * claim loss, and the terminal notification exactly once when the final
+ * attempt fails.
  */
 @ExtendWith(MockitoExtension.class)
 class AiReviewEventListenerTest {
@@ -34,6 +39,8 @@ class AiReviewEventListenerTest {
     private AiReviewService aiReviewService;
     @Mock
     private ReviewPolicy reviewPolicy;
+    @Mock
+    private Reviewer reviewer;
     @Mock
     private VibePostMapper vibePostMapper;
     @Mock
@@ -50,6 +57,9 @@ class AiReviewEventListenerTest {
         aiProperties.getReview().setMaxAttempts(5);
         aiProperties.getReview().setOwnerId("test-node");
         ReflectionTestUtils.setField(listener, "aiProperties", aiProperties);
+        // @InjectMocks does not populate List fields; the reviewer list is
+        // wired by hand so the routing tests below can vary it
+        ReflectionTestUtils.setField(listener, "reviewers", List.of(reviewer));
         VibePost post = new VibePost();
         post.setId(1L);
         post.setStatus(1);
@@ -57,11 +67,53 @@ class AiReviewEventListenerTest {
         post.setContent("```java\nint x = 1;\n```");
         when(vibePostMapper.selectById(anyLong())).thenReturn(post);
         lenient().when(reviewPolicy.shouldReview(any(VibePost.class))).thenReturn(true);
+        lenient().when(reviewer.claims(any(VibePost.class))).thenReturn(true);
+        lenient().when(reviewer.identity()).thenReturn("code-review-agent");
     }
 
     private AiReviewEvent event(long postId, long authorId) {
         return new AiReviewEvent(this, postId, "Title " + postId,
                 "```java\nint x = 1;\n```", authorId, true);
+    }
+
+    @Test
+    @DisplayName("A reviewable post is routed to the reviewer that claims it")
+    void reviewRunsOnClaimingReviewer() {
+        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
+        when(vibePostMapper.selectReviewAttempts(1L)).thenReturn(1);
+
+        listener.handleAiReviewEvent(event(1L, 9L));
+
+        verify(aiReviewService).reviewPost(any(VibePost.class), eq(reviewer), eq(9L), eq(true));
+    }
+
+    @Test
+    @DisplayName("A reviewable post no reviewer claims is treated as ineligible")
+    void unclaimedPostClearsStaleMarker() {
+        when(reviewer.claims(any(VibePost.class))).thenReturn(false);
+
+        listener.handleAiReviewEvent(event(1L, 9L));
+
+        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean());
+        verify(vibePostMapper, never()).tryClaimReview(anyLong(), any(), anyString(), anyInt());
+        verify(vibePostMapper).clearReviewingIfInState(1L, 0);
+    }
+
+    @Test
+    @DisplayName("Routing skips a reviewer that does not claim the post")
+    void firstClaimingReviewerWins() {
+        when(reviewer.claims(any(VibePost.class))).thenReturn(false);
+        Reviewer secondReviewer = mock(Reviewer.class);
+        when(secondReviewer.claims(any(VibePost.class))).thenReturn(true);
+        when(secondReviewer.identity()).thenReturn("prompt-review-agent");
+        ReflectionTestUtils.setField(listener, "reviewers", List.of(reviewer, secondReviewer));
+        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
+        when(vibePostMapper.selectReviewAttempts(1L)).thenReturn(1);
+
+        listener.handleAiReviewEvent(event(1L, 9L));
+
+        verify(aiReviewService).reviewPost(any(VibePost.class), eq(secondReviewer), eq(9L), eq(true));
+        verify(aiReviewService, never()).reviewPost(any(), eq(reviewer), any(), anyBoolean());
     }
 
     @Test
@@ -71,22 +123,8 @@ class AiReviewEventListenerTest {
 
         listener.handleAiReviewEvent(event(1L, 9L));
 
-        verify(aiReviewService, never()).reviewPost(anyLong(), anyString(), anyString(), any(), anyBoolean());
+        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean());
         verify(vibePostMapper, never()).updateById(any(VibePost.class));
-    }
-
-    @Test
-    @DisplayName("Claim won -> post marked REVIEWING, review runs")
-    void claimWonRunsReview() {
-        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
-        when(vibePostMapper.selectReviewAttempts(1L)).thenReturn(1);
-
-        listener.handleAiReviewEvent(event(1L, 9L));
-
-        verify(aiReviewService).reviewPost(eq(1L), eq("Title 1"), anyString(), eq(9L), eq(true));
-        ArgumentCaptor<VibePost> captor = ArgumentCaptor.forClass(VibePost.class);
-        verify(vibePostMapper).updateById(captor.capture());
-        assertEquals(2, captor.getValue().getAiReviewed()); // REVIEWING
     }
 
     @Test
@@ -98,7 +136,7 @@ class AiReviewEventListenerTest {
 
         verify(vibePostMapper, never()).tryClaimReview(anyLong(), any(), anyString(), anyInt());
         verify(vibePostMapper).clearReviewingIfInState(1L, 0);
-        verify(aiReviewService, never()).reviewPost(anyLong(), anyString(), anyString(), any(), anyBoolean());
+        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean());
     }
 
     @Test
@@ -107,7 +145,7 @@ class AiReviewEventListenerTest {
         when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
         when(vibePostMapper.selectReviewAttempts(2L)).thenReturn(5);
         doThrow(new RuntimeException("LLM down")).when(aiReviewService)
-                .reviewPost(anyLong(), anyString(), anyString(), any(), anyBoolean());
+                .reviewPost(any(), any(), any(), anyBoolean());
 
         listener.handleAiReviewEvent(event(2L, 9L));
 
@@ -125,7 +163,7 @@ class AiReviewEventListenerTest {
         when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
         when(vibePostMapper.selectReviewAttempts(3L)).thenReturn(2);
         doThrow(new RuntimeException("LLM down")).when(aiReviewService)
-                .reviewPost(anyLong(), anyString(), anyString(), any(), anyBoolean());
+                .reviewPost(any(), any(), any(), anyBoolean());
 
         listener.handleAiReviewEvent(event(3L, 9L));
 

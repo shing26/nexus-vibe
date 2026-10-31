@@ -3,18 +3,19 @@ package com.nexus.campus.agent;
 import com.nexus.campus.entity.VibePost;
 
 /**
- * The default policy: fenced code blocks decide. Prompt templates are
- * excluded because they are reusable instructions, not code submissions.
+ * The default policy for code posts: fenced code blocks decide. Prompt
+ * templates are excluded because they are claimed by
+ * {@link PromptReviewPolicy} instead.
  *
  * <p>Kept as a plain class resolved by ReviewPolicyConfig so a fork replaces
  * it with one bean definition rather than with a component scan exclusion.</p>
  */
 public class CodeBlockReviewPolicy implements ReviewPolicy {
 
-    private final AiReviewService aiReviewService;
+    private final CodeReviewReviewer codeReviewer;
 
-    public CodeBlockReviewPolicy(AiReviewService aiReviewService) {
-        this.aiReviewService = aiReviewService;
+    public CodeBlockReviewPolicy(CodeReviewReviewer codeReviewer) {
+        this.codeReviewer = codeReviewer;
     }
 
     @Override
@@ -25,6 +26,6 @@ public class CodeBlockReviewPolicy implements ReviewPolicy {
         if ("prompt".equals(post.getPostType())) {
             return false;
         }
-        return !aiReviewService.detectCodeBlocks(post.getContent()).isEmpty();
+        return !codeReviewer.detectCodeBlocks(post.getContent()).isEmpty();
     }
 }

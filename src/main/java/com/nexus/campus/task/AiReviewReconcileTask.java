@@ -1,15 +1,23 @@
 package com.nexus.campus.task;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.nexus.campus.agent.AgentMentionEvent;
+import com.nexus.campus.agent.AiCommentSafetyCheckEvent;
 import com.nexus.campus.agent.AiReviewEvent;
+import com.nexus.campus.agent.AiReviewLog;
+import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
+import com.nexus.campus.enums.CommentStatus;
+import com.nexus.campus.mapper.VibeCommentMapper;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
+import com.nexus.campus.service.impl.AgentReplyComments;
 import com.nexus.campus.util.TraceIds;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.Gauge;
@@ -50,6 +58,12 @@ public class AiReviewReconcileTask {
     private VibePostMapper vibePostMapper;
 
     @Autowired
+    private VibeCommentMapper vibeCommentMapper;
+
+    @Autowired
+    private AiReviewLogMapper aiReviewLogMapper;
+
+    @Autowired
     private ApplicationEventPublisher eventPublisher;
 
     @Autowired
@@ -75,6 +89,21 @@ public class AiReviewReconcileTask {
      */
     private final AtomicLong safetyBacklog = new AtomicLong();
 
+    /**
+     * Comments the comment-safety path is holding on a pending-llm marker. Same
+     * refresh rule as the post backlogs: refreshed before the health gate.
+     */
+    private final AtomicLong commentSafetyBacklog = new AtomicLong();
+
+    /**
+     * Placeholder replies waiting for their real answer (ADR-0018). Same
+     * refresh rule as the other backlogs: refreshed before the health gate.
+     */
+    private final AtomicLong mentionReplyBacklog = new AtomicLong();
+
+    @Autowired
+    private AgentReplyComments agentReplyComments;
+
     @PostConstruct
     void registerBacklogGauge() {
         Gauge.builder("ai.review.pending.posts", reviewBacklog, AtomicLong::doubleValue)
@@ -82,6 +111,12 @@ public class AiReviewReconcileTask {
                 .register(meterRegistry);
         Gauge.builder("safety.pending.posts", safetyBacklog, AtomicLong::doubleValue)
                 .description("Posts held in the audit queue by the safety fail-closed path")
+                .register(meterRegistry);
+        Gauge.builder("safety.pending.comments", commentSafetyBacklog, AtomicLong::doubleValue)
+                .description("Visible comments awaiting a deferred comment-safety recheck")
+                .register(meterRegistry);
+        Gauge.builder("agent.mention.pending.replies", mentionReplyBacklog, AtomicLong::doubleValue)
+                .description("Placeholder replies awaiting their real answer")
                 .register(meterRegistry);
     }
 
@@ -96,7 +131,8 @@ public class AiReviewReconcileTask {
     private void reconcileOnce() {
         boolean reviewEnabled = aiProperties.getReview().isEnabled();
         boolean safetyEnabled = aiProperties.getSafety().isEnabled();
-        if (!reviewEnabled && !safetyEnabled) {
+        boolean mentionEnabled = aiProperties.getMention().isEnabled();
+        if (!reviewEnabled && !safetyEnabled && !mentionEnabled) {
             return;
         }
         // Backlog first, before any gate: an LLM outage is exactly the moment this number has to
@@ -133,6 +169,80 @@ public class AiReviewReconcileTask {
                                 post.getContent(), post.getUserId())), "safety", post.getId());
             }
             countRepair("safety", pendingSafety.size());
+
+            // ADR-0017: comments whose latest comment-safety row is a stale
+            // pending-llm marker, still visible, get their deferred check now.
+            List<Long> pendingComments = aiReviewLogMapper
+                    .selectCommentIdsPendingSafetyRecheck(staleBefore, BATCH_LIMIT);
+            for (Long commentId : pendingComments) {
+                VibeComment comment = vibeCommentMapper.selectById(commentId);
+                if (comment == null || comment.getStatus() == null
+                        || comment.getStatus() != CommentStatus.VISIBLE.getCode()) {
+                    continue;
+                }
+                log.info("[AI-RECONCILE] Re-running safety check for comment {}", commentId);
+                publishSafely(() -> eventPublisher.publishEvent(
+                        new AiCommentSafetyCheckEvent(this, comment.getId(), comment.getPostId(),
+                                comment.getContent(), comment.getUserId())),
+                        "comment-safety", comment.getId());
+            }
+            countRepair("comment_safety", pendingComments.size());
+        }
+
+        // ADR-0018: a mention that failed its first answer owes the thread a
+        // real one. Placeholders whose latest mention-agent row is a stale
+        // pending-llm marker get the reply re-run now; the listener replaces
+        // the placeholder in place, so the thread never shows both.
+        if (mentionEnabled) {
+            List<Long> pendingPlaceholders = aiReviewLogMapper
+                    .selectCommentIdsPendingMentionReplacement(staleBefore, BATCH_LIMIT);
+            for (Long placeholderId : pendingPlaceholders) {
+                VibeComment placeholder = vibeCommentMapper.selectById(placeholderId);
+                if (placeholder == null || placeholder.getStatus() == null
+                        || placeholder.getStatus() != CommentStatus.VISIBLE.getCode()
+                        || placeholder.getUserId() == null
+                        || placeholder.getUserId() != AgentReplyComments.AI_AGENT_USER_ID) {
+                    continue;
+                }
+                VibeComment mention = placeholder.getParentId() == null
+                        ? null : vibeCommentMapper.selectById(placeholder.getParentId());
+                if (mention == null) {
+                    // The mentioning comment was deleted; the placeholder has
+                    // no question to answer anymore. Retire it as orphaned.
+                    log.info("[AI-RECONCILE] Placeholder {} orphaned (mention gone), hiding it", placeholderId);
+                    vibeCommentMapper.update(null, new LambdaUpdateWrapper<VibeComment>()
+                            .eq(VibeComment::getId, placeholderId)
+                            .eq(VibeComment::getStatus, CommentStatus.VISIBLE.getCode())
+                            .set(VibeComment::getStatus, CommentStatus.HIDDEN.getCode()));
+                    logOrphaned(placeholder.getPostId(), placeholderId);
+                    continue;
+                }
+                Long mentionId = mention.getId();
+                Long postId = mention.getPostId();
+                String content = mention.getContent();
+                Long authorId = mention.getUserId();
+                log.info("[AI-RECONCILE] Re-running mention reply for placeholder {}", placeholderId);
+                publishSafely(() -> eventPublisher.publishEvent(
+                        new AgentMentionEvent(this, mentionId, postId, content, authorId, placeholderId)),
+                        "mention", placeholderId);
+            }
+            countRepair("mention_reply", pendingPlaceholders.size());
+        }
+    }
+
+    private void logOrphaned(Long postId, Long placeholderId) {
+        try {
+            AiReviewLog orphaned = new AiReviewLog();
+            orphaned.setPostId(postId);
+            orphaned.setCommentId(placeholderId);
+            orphaned.setReviewer("mention-agent");
+            orphaned.setResultJson("mentioning comment deleted");
+            orphaned.setSeverity("orphaned");
+            orphaned.setIsApproved(0);
+            orphaned.setCreatedAt(LocalDateTime.now());
+            aiReviewLogMapper.insert(orphaned);
+        } catch (Exception e) {
+            log.warn("Failed to log orphaned placeholder {}: {}", placeholderId, e.getMessage());
         }
     }
 
@@ -150,6 +260,16 @@ public class AiReviewReconcileTask {
             safetyBacklog.set(vibePostMapper.countSafetyPendingPosts());
         } catch (Exception e) {
             log.warn("[AI-RECONCILE] Failed to refresh safety backlog gauge: {}", e.getMessage());
+        }
+        try {
+            commentSafetyBacklog.set(aiReviewLogMapper.countCommentsPendingSafetyRecheck());
+        } catch (Exception e) {
+            log.warn("[AI-RECONCILE] Failed to refresh comment safety backlog gauge: {}", e.getMessage());
+        }
+        try {
+            mentionReplyBacklog.set(aiReviewLogMapper.countPendingMentionReplacements());
+        } catch (Exception e) {
+            log.warn("[AI-RECONCILE] Failed to refresh mention reply backlog gauge: {}", e.getMessage());
         }
     }
 

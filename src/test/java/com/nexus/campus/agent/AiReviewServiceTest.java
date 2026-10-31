@@ -1,8 +1,5 @@
 package com.nexus.campus.agent;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.repository.AiReviewLogRepository;
@@ -17,32 +14,27 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.test.util.ReflectionTestUtils;
 
-import java.util.List;
-
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.*;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 /**
- * Unit tests for the AI code-review pipeline.
- *
- * <p>Covers code-block detection, structured-output parsing (including
- * clamping and missing-field defaults), semantic validation of review
- * results, the one-retry-then-degrade policy for invalid output, and the
- * full reviewPost flow with a mocked {@link LlmClient}.</p>
+ * Unit tests for the verdict recorder. Since the reviewer seam (ADR-0012) was
+ * implemented, these tests stub a {@link Reviewer} and assert only on what
+ * core does with a verdict: the validity gate, the log row, the comment, the
+ * score writeback, and the failure notifications. The LLM pipeline itself is
+ * covered by the reviewer tests.
  */
 @ExtendWith(MockitoExtension.class)
 class AiReviewServiceTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
-    @Mock
-    private LlmClient llmClient;
     @Mock
     private VibePostRepository posts;
     @Mock
@@ -55,302 +47,131 @@ class AiReviewServiceTest {
     @InjectMocks
     private AiReviewService aiReviewService;
 
+    private VibePost post;
+
     @BeforeEach
-    void configureContextBudget() {
-        // A @ConfigurationProperties bean is not populated under Mockito; inject one.
-        CampusAiProperties aiProperties = new CampusAiProperties();
-        aiProperties.getReview().setMaxContextTokens(12000);
-        ReflectionTestUtils.setField(aiReviewService, "aiProperties", aiProperties);
+    void setUp() {
+        post = new VibePost();
+        post.setId(42L);
+        post.setTitle("Calculator");
+        post.setPostType("post");
+        post.setStatus(1);
+        post.setContent("```java\nint x = 1;\n```");
     }
 
-    private JsonNode validReview() throws Exception {
-        return objectMapper.readTree(
-                "{\"score\":8,\"severity\":\"low\","
-                        + "\"codeQuality\":\"Clean structure and readable naming throughout the implementation\","
-                        + "\"securityConcerns\":\"No SQL injection or unsafe casts detected\","
-                        + "\"optimizationSuggestions\":\"Extract the division logic into a helper and add unit tests\"}");
+    private Reviewer.Verdict validVerdict() {
+        return new Reviewer.Verdict(8, "low",
+                "Clean structure and readable naming throughout the implementation",
+                "No SQL injection or unsafe casts detected",
+                "Extract the division logic into a helper and add unit tests",
+                true, "**Overall Score**: 8/10", "{\"score\":8}");
     }
 
-    // ── detectCodeBlocks ─────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("detectCodeBlocks extracts fenced code blocks")
-    void detectCodeBlocksShouldExtractFencedBlocks() {
-        String content = "Some text\n```java\nint x = 1;\n```\nMore text\n```python\nprint('hi')\n```";
-        List<String> blocks = aiReviewService.detectCodeBlocks(content);
-
-        assertEquals(2, blocks.size());
-        assertTrue(blocks.get(0).contains("int x = 1;"));
-        assertTrue(blocks.get(1).contains("print('hi')"));
+    private Reviewer reviewerReturning(Reviewer.Verdict verdict) {
+        return new StubReviewer(verdict);
     }
 
-    @Test
-    @DisplayName("detectCodeBlocks returns empty for plain text or null")
-    void detectCodeBlocksShouldReturnEmptyForPlainText() {
-        assertTrue(aiReviewService.detectCodeBlocks("just text, no fences").isEmpty());
-        assertTrue(aiReviewService.detectCodeBlocks(null).isEmpty());
-        assertTrue(aiReviewService.detectCodeBlocks("").isEmpty());
-    }
+    /** Minimal concrete reviewer whose claims() always matches. */
+    private static final class StubReviewer implements Reviewer {
+        private final Verdict verdict;
 
-    // ── parseStructuredResponse ──────────────────────────────────────────
+        StubReviewer(Verdict verdict) {
+            this.verdict = verdict;
+        }
 
-    @Test
-    @DisplayName("parseStructuredResponse reads all fields and approves a good score")
-    void parseStructuredResponseShouldReadFields() throws Exception {
-        JsonNode json = objectMapper.readTree(
-                "{\"score\":7,\"severity\":\"low\",\"codeQuality\":\"clean\","
-                        + "\"securityConcerns\":\"none\",\"optimizationSuggestions\":\"add tests\"}");
+        @Override
+        public String identity() {
+            return "stub-review-agent";
+        }
 
-        AiReviewService.ReviewResult result = aiReviewService.parseStructuredResponse(json);
+        @Override
+        public boolean claims(VibePost post) {
+            return true;
+        }
 
-        assertEquals(7, result.getScore());
-        assertEquals("low", result.getSeverity());
-        assertEquals("clean", result.getQuality());
-        assertEquals("none", result.getSecurity());
-        assertEquals("add tests", result.getSuggestions());
-        assertTrue(result.isApproved());
+        @Override
+        public Verdict review(VibePost post) {
+            return verdict;
+        }
     }
 
     @Test
-    @DisplayName("parseStructuredResponse clamps score to 0..10")
-    void parseStructuredResponseShouldClampScore() throws Exception {
-        JsonNode tooHigh = objectMapper.readTree(
-                "{\"score\":99,\"severity\":\"low\",\"codeQuality\":\"\",\"securityConcerns\":\"\",\"optimizationSuggestions\":\"\"}");
-        assertEquals(10, aiReviewService.parseStructuredResponse(tooHigh).getScore());
+    @DisplayName("A valid verdict is logged, commented and written back with its score")
+    void validVerdictShouldBeRecordedFully() {
+        aiReviewService.reviewPost(post, reviewerReturning(validVerdict()), 42L, false);
 
-        JsonNode tooLow = objectMapper.readTree(
-                "{\"score\":-5,\"severity\":\"low\",\"codeQuality\":\"\",\"securityConcerns\":\"\",\"optimizationSuggestions\":\"\"}");
-        assertEquals(0, aiReviewService.parseStructuredResponse(tooLow).getScore());
-    }
+        ArgumentCaptor<AiReviewLog> logCaptor =
+                ArgumentCaptor.forClass(AiReviewLog.class);
+        verify(reviewLogs).insert(logCaptor.capture());
+        assertEquals(42L, logCaptor.getValue().getPostId());
+        assertEquals("stub-review-agent", logCaptor.getValue().getReviewer());
+        assertEquals("low", logCaptor.getValue().getSeverity());
+        assertEquals(1, logCaptor.getValue().getIsApproved());
 
-    @Test
-    @DisplayName("parseStructuredResponse rejects critical severity regardless of score")
-    void parseStructuredResponseShouldRejectCritical() throws Exception {
-        JsonNode json = objectMapper.readTree(
-                "{\"score\":9,\"severity\":\"critical\",\"codeQuality\":\"ok\",\"securityConcerns\":\"rce\",\"optimizationSuggestions\":\"fix\"}");
-        AiReviewService.ReviewResult result = aiReviewService.parseStructuredResponse(json);
-
-        assertEquals(9, result.getScore());
-        assertFalse(result.isApproved());
-    }
-
-    @Test
-    @DisplayName("parseStructuredResponse tolerates legacy rows with missing fields")
-    void parseStructuredResponseShouldTolerateMissingFields() throws Exception {
-        JsonNode legacy = objectMapper.readTree("{\"score\":9,\"severity\":\"low\"}");
-        AiReviewService.ReviewResult result = aiReviewService.parseStructuredResponse(legacy);
-
-        assertEquals(9, result.getScore());
-        assertEquals("low", result.getSeverity());
-        assertEquals("", result.getQuality());
-        assertTrue(result.isApproved());
-    }
-
-    // ── isValidReviewResult ─────────────────────────────────────────────
-
-    @Test
-    @DisplayName("isValidReviewResult rejects placeholder uppercase fields and empty suggestions")
-    void isValidReviewResultShouldRejectPlaceholders() throws Exception {
-        // Regression: a weak local model returned {"codeQuality":"EVALUATE","optimizationSuggestions":""}
-        JsonNode garbage = objectMapper.readTree(
-                "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
-                        + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
-        AiReviewService.ReviewResult result = aiReviewService.parseStructuredResponse(garbage);
-        assertFalse(aiReviewService.isValidReviewResult(result));
-    }
-
-    @Test
-    @DisplayName("isValidReviewResult rejects unknown severity and too-short fields")
-    void isValidReviewResultShouldRejectUnknownSeverityAndShortFields() {
-        AiReviewService.ReviewResult unknownSeverity = reviewWithSeverity("unknown");
-        assertFalse(aiReviewService.isValidReviewResult(unknownSeverity));
-
-        AiReviewService.ReviewResult shortQuality = validResult();
-        shortQuality.quality = "Solid code";
-        assertFalse(aiReviewService.isValidReviewResult(shortQuality));
-
-        AiReviewService.ReviewResult blankSuggestions = validResult();
-        blankSuggestions.suggestions = "   ";
-        assertFalse(aiReviewService.isValidReviewResult(blankSuggestions));
-    }
-
-    @Test
-    @DisplayName("isValidReviewResult accepts substantive prose with a known severity")
-    void isValidReviewResultShouldAcceptSubstantiveResult() throws Exception {
-        AiReviewService.ReviewResult result = aiReviewService.parseStructuredResponse(validReview());
-        assertTrue(aiReviewService.isValidReviewResult(result));
-    }
-
-    private AiReviewService.ReviewResult validResult() {
-        AiReviewService.ReviewResult result = new AiReviewService.ReviewResult();
-        result.score = 7;
-        result.severity = "low";
-        result.quality = "Clean structure and readable naming throughout the implementation";
-        result.security = "No SQL injection or unsafe casts detected";
-        result.suggestions = "Extract the division logic into a helper and add unit tests";
-        return result;
-    }
-
-    private AiReviewService.ReviewResult reviewWithSeverity(String severity) {
-        AiReviewService.ReviewResult result = validResult();
-        result.severity = severity;
-        return result;
-    }
-
-    // ── reviewPost flow ──────────────────────────────────────────────────
-
-    @Test
-    @DisplayName("reviewPost skips LLM call when post has no code blocks")
-    void reviewPostShouldSkipWithoutCodeBlocks() {
-        aiReviewService.reviewPost(1L, "Some title", "no code here", 99L, false);
-
-        verify(llmClient, never()).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
-        verifyNoInteractions(reviewLogs, comments);
-    }
-
-    @Test
-    @DisplayName("reviewPost marks the post FAILED and logs unavailable when LLM is down")
-    void reviewPostShouldHandleNullLlmResult() {
-        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(null);
-
-        aiReviewService.reviewPost(1L, "Some title", "```java\nint x = 1;\n```", 99L, false);
-
-        // one initial call + one retry
-        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
-
-        ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(reviewLogs).insert((AiReviewLog) logCaptor.capture());
-        assertEquals("code-review-agent", logCaptor.getValue().getReviewer());
-        assertEquals("unavailable", logCaptor.getValue().getSeverity());
-        verify(comments, never()).insert(any(VibeComment.class));
-        // author is informed that the review failed and will be retried
-        verify(sysMessageService).sendMessage(eq(0L), eq(99L), contains("自动重试"), eq(3));
-        ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(posts).update(postCaptor.capture());
-        assertEquals(1L, postCaptor.getValue().getId());
-        assertEquals(3, postCaptor.getValue().getAiReviewed());
-    }
-
-    @Test
-    @DisplayName("reviewPost persists score, logs result and posts AI comment")
-    void reviewPostShouldRunFullPipeline() throws Exception {
-        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(validReview().toString());
-
-        aiReviewService.reviewPost(42L, "Calculator", "```java\npublic void run() {}\n```", 42L, false);
-
-        // a single LLM call — valid results are not retried
-        verify(llmClient, times(1)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
-
-        // review log saved with parsed severity and approval
-        ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(reviewLogs).insert((AiReviewLog) logCaptor.capture());
-        AiReviewLog logEntry = logCaptor.getValue();
-        assertEquals(42L, logEntry.getPostId());
-        assertEquals("code-review-agent", logEntry.getReviewer());
-        assertEquals("low", logEntry.getSeverity());
-        assertEquals(1, logEntry.getIsApproved());
-        assertNotNull(logEntry.getResultJson());
-
-        // AI comment posted on the post
+        // AI comment posted on the post, headed by the shared marker
         ArgumentCaptor<VibeComment> commentCaptor = ArgumentCaptor.forClass(VibeComment.class);
-        verify(comments).insert((VibeComment) commentCaptor.capture());
+        verify(comments).insert(commentCaptor.capture());
         VibeComment comment = commentCaptor.getValue();
         assertEquals(42L, comment.getPostId());
         assertEquals(999L, comment.getUserId());
+        assertTrue(comment.getContent().startsWith("## AI Code Review"));
         assertTrue(comment.getContent().contains("8/10"));
-        assertTrue(comment.getContent().contains("add unit tests"));
         verify(posts).recalculateCommentCount(42L);
 
         // score written back to the post
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(posts).update((VibePost) postCaptor.capture());
+        verify(posts).update(postCaptor.capture());
         assertEquals(42L, postCaptor.getValue().getId());
         assertEquals(8, postCaptor.getValue().getAiReviewScore());
         assertEquals(1, postCaptor.getValue().getAiReviewed());
 
         // a successful review does not ping the author
         verify(sysMessageService, never()).sendMessage(any(), any(), any(), any());
-
-        // NOTE: stale-comment supersede is now a repository call, so this test
-        // only observes that it happens; the MyBatis-Plus wrapper that expresses
-        // the filter lives in MyBatisVibeCommentRepository and is covered by the
-        // Spring test that exercises the full pipeline.
     }
 
     @Test
-    @DisplayName("reviewPost retries an invalid result with the self-correction prompt, then succeeds")
-    void reviewPostShouldRetryInvalidResultOnce() throws Exception {
-        JsonNode garbage = objectMapper.readTree(
-                "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
-                        + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
-        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(garbage.toString())
-                .thenReturn(validReview().toString());
+    @DisplayName("A null verdict marks the post FAILED and logs 'unavailable'")
+    void nullVerdictShouldMarkFailedAndNotify() {
+        aiReviewService.reviewPost(post, reviewerReturning(null), 99L, false);
 
-        aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
-
-        // invalid first result → exactly one retry; garbage is schema-valid but
-        // semantically empty, so it goes to the reinforced-prompt branch
-        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
-        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
-        verify(llmClient, times(2)).sendStructuredRequest(
-                systemCaptor.capture(), anyString(), anyString(), any(), any());
-        assertTrue(systemCaptor.getAllValues().get(1).contains("STRICT OUTPUT REQUIREMENTS"));
-
-        // second result is valid: comment posted, score written back
-        verify(comments).insert(any(VibeComment.class));
-        ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
-        verify(posts).update(postCaptor.capture());
-        assertEquals(8, postCaptor.getValue().getAiReviewScore());
-    }
-
-    @Test
-    @DisplayName("reviewPost self-corrects an unparseable response with a repair prompt")
-    void reviewPostShouldSelfCorrectUnparseableOutput() throws Exception {
-        // structurally broken (missing colon between key and value): unrepairable locally
-        String broken = "{\"score\":5 \"severity\":\"low\"}";
-        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(broken)
-                .thenReturn(validReview().toString());
-
-        aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
-
-        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
-        ArgumentCaptor<String> systemCaptor = ArgumentCaptor.forClass(String.class);
-        ArgumentCaptor<String> userCaptor = ArgumentCaptor.forClass(String.class);
-        verify(llmClient, times(2)).sendStructuredRequest(
-                systemCaptor.capture(), userCaptor.capture(), anyString(), any(), any());
-        assertTrue(systemCaptor.getAllValues().get(1).contains("You fix malformed JSON"));
-        assertTrue(userCaptor.getAllValues().get(1).contains("Parser error"));
-        // repaired review succeeds end to end
-        verify(comments).insert(any(VibeComment.class));
-    }
-
-    @Test
-    @DisplayName("reviewPost degrades silently when both results fail validation")
-    void reviewPostShouldDegradeAfterSecondInvalidResult() throws Exception {
-        JsonNode garbage = objectMapper.readTree(
-                "{\"score\":0,\"severity\":\"low\",\"codeQuality\":\"EVALUATE\","
-                        + "\"securityConcerns\":\"LOW\",\"optimizationSuggestions\":\"\"}");
-        when(llmClient.sendStructuredRequest(anyString(), anyString(), anyString(), any(), any()))
-                .thenReturn(garbage.toString());
-
-        aiReviewService.reviewPost(7L, "Calculator", "```java\nint x = 1;\n```", 7L, false);
-
-        // initial call + one retry, then no further LLM work
-        verify(llmClient, times(2)).sendStructuredRequest(anyString(), anyString(), anyString(), any(), any());
-
-        // logged as unknown, no score, no comment, post FAILED for reconciliation
-        ArgumentCaptor<AiReviewLog> logCaptor = ArgumentCaptor.forClass(AiReviewLog.class);
-        verify(reviewLogs).insert((AiReviewLog) logCaptor.capture());
-        assertEquals("unknown", logCaptor.getValue().getSeverity());
+        ArgumentCaptor<AiReviewLog> logCaptor =
+                ArgumentCaptor.forClass(AiReviewLog.class);
+        verify(reviewLogs).insert(logCaptor.capture());
+        assertEquals("unavailable", logCaptor.getValue().getSeverity());
         verify(comments, never()).insert(any(VibeComment.class));
-        verify(sysMessageService).sendMessage(eq(0L), eq(7L), contains("自动重试"), eq(3));
+        verify(sysMessageService).sendMessage(any(), eq(99L), contains("自动重试"), eq(3));
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
         verify(posts).update(postCaptor.capture());
         assertEquals(3, postCaptor.getValue().getAiReviewed());
         assertNull(postCaptor.getValue().getAiReviewScore());
+    }
+
+    @Test
+    @DisplayName("A verdict failing the validity gate logs 'unknown' and marks FAILED")
+    void invalidVerdictShouldDegrate() {
+        Reviewer.Verdict placeholder = new Reviewer.Verdict(0, "low",
+                "EVALUATE", "LOW", "",
+                false, "placeholder body", "{\"score\":0}");
+        aiReviewService.reviewPost(post, reviewerReturning(placeholder), 7L, false);
+
+        ArgumentCaptor<AiReviewLog> logCaptor =
+                ArgumentCaptor.forClass(AiReviewLog.class);
+        verify(reviewLogs).insert(logCaptor.capture());
+        assertEquals("unknown", logCaptor.getValue().getSeverity());
+        assertNotNull(logCaptor.getValue().getResultJson());
+        verify(comments, never()).insert(any(VibeComment.class));
+        verify(sysMessageService).sendMessage(any(), eq(7L), contains("自动重试"), eq(3));
+        ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
+        verify(posts).update(postCaptor.capture());
+        assertEquals(3, postCaptor.getValue().getAiReviewed());
+    }
+
+    @Test
+    @DisplayName("Reconciliation retries fail silently: no author notification")
+    void retriedReviewShouldNotNotify() {
+        aiReviewService.reviewPost(post, reviewerReturning(null), 99L, true);
+
+        verify(sysMessageService, never()).sendMessage(any(), any(), any(), any());
+        verify(posts).update(any(VibePost.class));
     }
 }

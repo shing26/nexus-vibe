@@ -51,7 +51,14 @@ class ReviewPolicySingleRuleTest {
 
         assertThat(source).contains("ConditionalOnMissingBean");
         assertThat(source).contains("ReviewPolicy");
+        // The default rule is the OR-composition the AI fusion round
+        // introduced; a fork replaces the whole rule with one ReviewPolicy
+        // bean, not by editing the delegates.
+        assertThat(source).contains("DefaultReviewPolicy");
 
+        // The sanctioned implementations are exactly the delegates and their
+        // composition. Anything else implementing ReviewPolicy is a second
+        // trigger rule smuggled past the seam.
         try (Stream<Path> files = Files.walk(Paths.get("src", "main", "java"))) {
             List<String> namedImplementations = files
                     .filter(path -> path.toString().endsWith(".java"))
@@ -63,8 +70,14 @@ class ReviewPolicySingleRuleTest {
                         }
                     })
                     .filter(sourceText -> sourceText.contains("implements ReviewPolicy"))
+                    .map(sourceText -> sourceText.substring(0, sourceText.indexOf('\n')))
+                    .map(path -> Paths.get(path).getFileName().toString())
+                    .sorted()
                     .toList();
-            assertThat(namedImplementations).hasSize(1);
+            assertThat(namedImplementations).containsExactly(
+                    "CodeBlockReviewPolicy.java",
+                    "DefaultReviewPolicy.java",
+                    "PromptReviewPolicy.java");
         }
     }
 }

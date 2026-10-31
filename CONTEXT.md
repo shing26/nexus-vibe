@@ -30,6 +30,18 @@ _Avoid_: ReviewBot
 对已发布 VibePost 做语义安全分类（safe / prompt_injection / harmful / spam）的 Agent。
 _Avoid_: ContentFilter, Moderator
 
+**Comment Safety Check（评论安全检查）**:
+对 VibeComment 的语义安全检查，与帖子共用同一张四分类处置表，但时机语义不同：评论**先可见后检查**（ADR-0017），检出后才隐藏或标记，不复用帖子的 fail-closed。
+_Avoid_: Comment Filter, Comment Moderation
+
+**Prompt Review（Prompt 评审）**:
+对 postType=prompt 的 VibePost 的评审，与 Code Review 并列的另一条 ReviewPolicy 实现（ADR-0012 的缝）：评估 prompt 的结构、变量设计与可复现性，产出与代码评审同形的结构化结果与评分。
+_Avoid_: Prompt Evaluation, Prompt Scoring
+
+**Agent Mention（智能体提及）**:
+用户在评论正文中 @ai-agent 对 AiAgent 的显式召唤：Agent 以回复该评论的 VibeComment 应答，带上帖子与评论链上下文。召唤失败必须对召唤者可见（占位回复原位重试，ADR-0018）；每用户每帖有冷却；Agent 的回复不再触发任何检查或进一步的 Agent 工作。
+_Avoid_: AI Chat, Bot Command, @机器人
+
 **Review Validity（评审结果有效性）**:
 Code Review Agent 的结构化结果必须通过语义校验——severity 合法、quality/suggestions 内容充实且非占位词——才写入评分；无效结果用强化提示词重试一次，仍无效则标记 FAILED 静默降级。
 _Avoid_: Format Check, Output Validation
@@ -123,7 +135,7 @@ _Avoid_: Schema Rollback, DB Rollback, Revert Migration（与 Release Rollback �
 
 ## AI Agent Review
 
-- 触发：由 `ReviewPolicy` 统一判定——默认实现 `CodeBlockReviewPolicy` 只评审含 fenced code block 且可见、且不是 `postType=prompt` 的帖子；fork 可通过定义自己的 `ReviewPolicy` bean 替换这条规则（ADR-0012）
+- 触发：由 `ReviewPolicy` 统一判定——默认实现 `CodeBlockReviewPolicy` 只评审含 fenced code block 且可见、且不是 `postType=prompt` 的帖子；`PromptReviewPolicy` 是它的并列实现，评审 prompt 帖（ADR-0012）；fork 可通过定义自己的 `ReviewPolicy` bean 替换这条规则
 - 内容：结构化四段——评分、代码质量、安全隐患、优化建议
 - 展示：自动回帖（全文）+ 帖子详情页评分徽章
 
@@ -139,3 +151,5 @@ _Avoid_: Schema Rollback, DB Rollback, Revert Migration（与 Release Rollback �
 | 安全 | 仅写入 ai_review_log |
 
 LLM 不可用或输出无法解析时 fail-closed：帖子入审核队列并标记 pending-llm，由对账任务在 LLM 恢复后自动重跑；重跑结果为安全时帖子恢复可见。
+
+评论共用这张分类表与处置表，但时机相反（ADR-0017）：评论先可见后检查，LLM 不可用时评论保持可见并标记 pending-llm，由对账任务补查——暴露窗口期是被接受的代价，评论路径不为一次 LLM 往返付费。

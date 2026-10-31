@@ -36,6 +36,9 @@ public class VibeCommentServiceImpl implements VibeCommentService {
     @Autowired
     private ProductMetrics productMetrics;
 
+    @Autowired
+    private CommentAgentEventPublisher commentAgentEventPublisher;
+
     @Override
     @Transactional
     public VibeComment createComment(CommentCreateRequest request, Long userId) {
@@ -80,6 +83,14 @@ public class VibeCommentServiceImpl implements VibeCommentService {
             user.setCorePower(user.getCorePower() + 2);
             sysUserMapper.updateById(user);
         }
+
+        // Visible-first safety check (ADR-0017): the comment is already public;
+        // the publisher defers the event to after this transaction commits.
+        commentAgentEventPublisher.publishSafetyCheck(comment, userId);
+
+        // The mention trigger (ADR-0018) rides the same path: only comments
+        // that summon @ai-agent dispatch the reply job.
+        commentAgentEventPublisher.publishMentionReply(comment, userId);
 
         return comment;
     }

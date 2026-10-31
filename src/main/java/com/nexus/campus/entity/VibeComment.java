@@ -35,4 +35,7 @@ public class VibeComment implements Serializable {
 
     @TableField(exist = false)
     private String authorAvatar;
+
+    @TableField(exist = false)
+    private String postTitle;
 }

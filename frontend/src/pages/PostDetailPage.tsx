@@ -592,7 +592,7 @@ export default function PostDetailPage() {
           <textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
-            placeholder="// Write your comment..."
+            placeholder="// Write your comment... mention @ai-agent to summon the AI assistant"
             rows={3}
             className="w-full px-4 py-3 text-sm font-mono bg-vibe-bg text-slate-200 resize-none focus:outline-none border-0 placeholder-slate-600 leading-relaxed"
           />

@@ -1,9 +1,12 @@
 package com.nexus.campus.controller;
 
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nexus.campus.dto.ApiResponse;
+import com.nexus.campus.dto.AuditCommentVo;
 import com.nexus.campus.dto.AuditRequest;
 import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.dto.ResetPasswordRequest;
+import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.security.AdminGuard;
@@ -136,6 +139,66 @@ public class AdminController {
         AdminGuard.requireAdmin(role);
         vibePostService.rejectPost(id);
         return ApiResponse.successMessage("Post rejected.");
+    }
+
+    /**
+     * The comment audit queue holds both sources that write status 2: DFA
+     * critical hits and the comment-safety path's suspected prompt injection
+     * (ADR-0017). Approve returns the comment to its thread; reject hides it.
+     */
+    @GetMapping("/audit/comments")
+    public ApiResponse<List<AuditCommentVo>> getPendingAuditComments(@RequestAttribute("currentRole") String role) {
+        AdminGuard.requireAdmin(role);
+        List<AuditCommentVo> comments = vibeCommentMapper.selectCommentsInAuditQueue().stream()
+                .map(comment -> {
+                    AuditCommentVo vo = new AuditCommentVo();
+                    vo.setId(comment.getId());
+                    vo.setPostId(comment.getPostId());
+                    vo.setPostTitle(comment.getPostTitle());
+                    vo.setAuthorName(comment.getAuthorName());
+                    vo.setContent(comment.getContent());
+                    vo.setCreateTime(comment.getCreateTime());
+                    return vo;
+                })
+                .toList();
+        return ApiResponse.success(comments);
+    }
+
+    @PostMapping("/audit/comments/{id}/approve")
+    public ApiResponse<Void> approveComment(@PathVariable Long id, @RequestAttribute("currentRole") String role) {
+        AdminGuard.requireAdmin(role);
+        VibeComment approved = auditComment(id, 1);
+        if (approved != null) {
+            vibePostMapper.recalculateCommentCount(approved.getPostId());
+        }
+        return ApiResponse.successMessage("Comment approved and published.");
+    }
+
+    @PostMapping("/audit/comments/{id}/reject")
+    public ApiResponse<Void> rejectComment(@PathVariable Long id, @RequestAttribute("currentRole") String role) {
+        AdminGuard.requireAdmin(role);
+        VibeComment rejected = auditComment(id, 0);
+        if (rejected != null) {
+            vibePostMapper.recalculateCommentCount(rejected.getPostId());
+        }
+        return ApiResponse.successMessage("Comment rejected.");
+    }
+
+    /**
+     * Conditional transition out of the audit queue: an already-audited or
+     * deleted comment returns null rather than being moved twice.
+     */
+    private VibeComment auditComment(Long id, int targetStatus) {
+        VibeComment comment = vibeCommentMapper.selectById(id);
+        if (comment == null) {
+            throw BusinessException.notFound("Comment not found.");
+        }
+        int updated = vibeCommentMapper.update(null,
+                new LambdaUpdateWrapper<VibeComment>()
+                        .eq(VibeComment::getId, id)
+                        .eq(VibeComment::getStatus, 2)
+                        .set(VibeComment::getStatus, targetStatus));
+        return updated > 0 ? comment : null;
     }
 
     @PostMapping("/search/reindex")

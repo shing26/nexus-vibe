@@ -28,6 +28,9 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0013](adr/0013-config-validation-moves-to-validated-properties.md) | The AI settings bind into one `@Validated` object, and the bespoke validator goes |
 | [0014](adr/0014-agent-dispatch-defers-at-the-publisher-not-the-listener.md) | Agent dispatch defers at the publisher, not at the listener - `@TransactionalEventListener` broke fail-closed |
 | [0015](adr/0015-the-agent-pipeline-gets-metrics-and-rules.md) | The agent pipeline gets metrics and rules - the stack had watched everything except itself |
+| [0016](adr/0016-the-scope-reopens-for-one-argued-ai-fusion-round.md) | The scope reopens for one argued AI-fusion round - three items, each reusing the existing guardrails |
+| [0017](adr/0017-comments-are-checked-after-they-are-visible.md) | Comments are safety-checked after they are visible, not before - a deliberate divergence from fail-closed |
+| [0018](adr/0018-a-comment-mentioning-the-agent-summons-it.md) | A comment mentioning the agent summons it, and silence is not an option - placeholder reply, cooldown, no recursion |
 
 ## Measurements — `docs/research/`
 
@@ -71,6 +74,7 @@ alternatives that were rejected.
 | [review-terminal-replay](tickets/review-terminal-replay.md) | The finished AI review replays its steps on the post page, the in-flight box cycles them without confirming any, and the navbar/footer link out to the ADRs and the load test |
 | [readme-open-source](tickets/readme-open-source.md) | The README becomes a front door: the diagnosis of the five stated pain points, the corrections to the circulated draft, the new section order, and the allowed numbers |
 | [readme-visual-front-door](tickets/readme-visual-front-door.md) | The README gets a hero capture, a native Mermaid architecture diagram and a measured Lua-vs-naive consistency figure - and where the brief's score-92 label could not be honoured |
+| [ai-fusion-round](tickets/ai-fusion-round.md) | ADR-0016's round: comment safety check (post-visible), prompt review on the ADR-0012 seam, and the agent mention with its placeholder-retry semantics |
 
 ## Plans — `docs/plans/`
 
