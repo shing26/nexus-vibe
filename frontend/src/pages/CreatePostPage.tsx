@@ -333,7 +333,9 @@ export default function CreatePostPage() {
         );
       }
       if (res.data.data.status === 2) {
-        addToast("内容含敏感词，已提交审核", "success");
+        // The post was held for moderation, not published — success-colored
+        // relief for a warning event read as "it went through fine".
+        addToast("内容含敏感词，已提交审核", "info");
         navigate(isAdmin ? "/admin/audit" : "/", { replace: true });
       } else {
         addToast("Post published!", "success");
@@ -370,7 +372,7 @@ export default function CreatePostPage() {
           title="Insert AI prompt template"
         >
           <Sparkles className="w-3.5 h-3.5" />
-          AI Polish Prompt
+          Insert prompt scaffold
         </button>
       </div>
 

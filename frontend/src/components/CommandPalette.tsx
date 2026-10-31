@@ -50,6 +50,9 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
+  // The trigger that opened the palette gets focus back on close; without this
+  // focus fell to <body> and keyboard users lost their place in the page.
+  const restoreFocusRef = useRef<HTMLElement | null>(null);
 
   const { data: channels = [] } = useQuery<Channel[]>({
     queryKey: ['channels'],
@@ -75,9 +78,15 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   useEffect(() => {
     if (open) {
+      restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setQuery('');
       setSelected(0);
-      setTimeout(() => inputRef.current?.focus(), 10);
+      const t = setTimeout(() => inputRef.current?.focus(), 10);
+      // Cleanup runs when `open` flips false: hand focus back to the trigger.
+      return () => {
+        clearTimeout(t);
+        restoreFocusRef.current?.focus();
+      };
     }
   }, [open]);
 
@@ -188,6 +197,11 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       runItem(items[selected]);
     } else if (e.key === 'Escape') {
       close();
+    } else if (e.key === 'Tab') {
+      // Focus trap: the palette is a modal dialog, so Tab stays inside. The
+      // listbox keeps keyboard focus on the input (roving via
+      // aria-activedescendant), and Enter already runs the selected row.
+      e.preventDefault();
     }
   };
 
@@ -203,7 +217,12 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       }}
     >
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
-      <div className="relative w-full max-w-xl bg-vibe-surface border border-vibe-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden">
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-label="Command palette"
+        className="relative w-full max-w-xl bg-vibe-surface border border-vibe-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
+      >
         <div className="flex items-center gap-3 px-4 border-b border-vibe-border bg-vibe-card/60">
           <Search className="w-4 h-4 text-vibe-cyan shrink-0" />
           <input
@@ -211,13 +230,18 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={handleKeyDown}
+            role="combobox"
+            aria-expanded="true"
+            aria-controls="command-palette-list"
+            aria-activedescendant={items[selected] ? `palette-item-${items[selected].id}` : undefined}
+            aria-label="Search posts, jump to channels, run commands"
             placeholder="Search posts, jump to channels, run commands..."
             className="flex-1 h-12 bg-transparent text-sm font-mono text-slate-200 placeholder-slate-600 focus:outline-none"
           />
           <kbd className="px-1.5 py-0.5 rounded bg-vibe-bg border border-vibe-border text-[10px] font-mono text-slate-500">esc</kbd>
         </div>
 
-        <div className="max-h-[50vh] overflow-y-auto py-2">
+        <div id="command-palette-list" role="listbox" className="max-h-[50vh] overflow-y-auto py-2">
           {searchEnabled && postsFetching && query.trim().length >= 2 && (
             <div className="px-4 py-3 text-xs font-mono text-slate-500">
               <span className="inline-block w-3 h-3 border border-vibe-cyan border-t-transparent rounded-full animate-spin align-[-2px] mr-2" />
@@ -244,6 +268,9 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   </div>
                 )}
                 <button
+                  id={`palette-item-${item.id}`}
+                  role="option"
+                  aria-selected={i === selected}
                   onMouseEnter={() => setSelected(i)}
                   onClick={() => runItem(item)}
                   className={

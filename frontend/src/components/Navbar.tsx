@@ -13,6 +13,9 @@ export default function Navbar() {
   const { isAuthenticated, user, logout } = useAuthStore();
   const { dark, toggle } = useThemeStore();
   const [paletteOpen, setPaletteOpen] = useState(false);
+  // The shortcut handler accepts both, but the label should name the key this
+  // machine's users actually press; Windows read "⌘K" and tried Win+K.
+  const isMac = /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -51,7 +54,7 @@ export default function Navbar() {
               <span className="w-full flex items-center justify-between pl-9 pr-3 py-1.5 text-xs bg-vibe-surface border border-vibe-border rounded-md text-slate-500 font-mono group-hover:border-vibe-cyan/40 group-hover:text-slate-400 transition-colors">
                 <span className="hidden sm:inline truncate">Search prompts, code...</span>
                 <span className="hidden sm:flex items-center gap-1 pointer-events-none">
-                  <kbd className="px-1 py-0.5 rounded bg-vibe-card border border-vibe-border text-[9px] leading-none">⌘</kbd>
+                  <kbd className="px-1 py-0.5 rounded bg-vibe-card border border-vibe-border text-[9px] leading-none">{isMac ? '⌘' : 'Ctrl'}</kbd>
                   <kbd className="px-1 py-0.5 rounded bg-vibe-card border border-vibe-border text-[9px] leading-none">K</kbd>
                 </span>
               </span>
@@ -122,7 +125,7 @@ export default function Navbar() {
             ) : (
               <div className="flex items-center gap-2">
                 <Link to={'/user/' + user?.id} className="hidden md:inline text-xs font-mono text-slate-400 hover:text-slate-200">{user?.username}</Link>
-                <button onClick={handleLogout} aria-label="Logout" className="text-[10px] font-mono text-slate-600 hover:text-red-400 active:scale-[0.97]">Logout</button>
+                <button onClick={handleLogout} aria-label="Logout" className="text-[10px] font-mono text-slate-500 hover:text-red-400 active:scale-[0.97]">Logout</button>
               </div>
             )}
           </div>
