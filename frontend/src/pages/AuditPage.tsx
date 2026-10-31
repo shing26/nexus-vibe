@@ -25,6 +25,12 @@ interface PendingComment {
   createTime: string;
 }
 
+interface PendingPostsResponse {
+  code: number;
+  message: string;
+  data: PendingPost[];
+}
+
 interface PendingCommentsResponse {
   code: number;
   message: string;

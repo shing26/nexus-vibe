@@ -2,6 +2,7 @@ package com.nexus.campus.controller;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.nexus.campus.dto.ApiResponse;
+import com.nexus.campus.dto.AuditCommentVo;
 import com.nexus.campus.dto.AuditRequest;
 import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.dto.ResetPasswordRequest;
@@ -146,9 +147,21 @@ public class AdminController {
      * (ADR-0017). Approve returns the comment to its thread; reject hides it.
      */
     @GetMapping("/audit/comments")
-    public ApiResponse<List<VibeComment>> getPendingAuditComments(@RequestAttribute("currentRole") String role) {
+    public ApiResponse<List<AuditCommentVo>> getPendingAuditComments(@RequestAttribute("currentRole") String role) {
         AdminGuard.requireAdmin(role);
-        return ApiResponse.success(vibeCommentMapper.selectCommentsInAuditQueue());
+        List<AuditCommentVo> comments = vibeCommentMapper.selectCommentsInAuditQueue().stream()
+                .map(comment -> {
+                    AuditCommentVo vo = new AuditCommentVo();
+                    vo.setId(comment.getId());
+                    vo.setPostId(comment.getPostId());
+                    vo.setPostTitle(comment.getPostTitle());
+                    vo.setAuthorName(comment.getAuthorName());
+                    vo.setContent(comment.getContent());
+                    vo.setCreateTime(comment.getCreateTime());
+                    return vo;
+                })
+                .toList();
+        return ApiResponse.success(comments);
     }
 
     @PostMapping("/audit/comments/{id}/approve")

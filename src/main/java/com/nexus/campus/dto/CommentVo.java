@@ -27,6 +27,7 @@ public class CommentVo implements Serializable {
     private LocalDateTime createTime;
     private String authorName;
     private String authorAvatar;
+    private String postTitle;
 
     public static CommentVo from(VibeComment comment) {
         if (comment == null) {
@@ -43,6 +44,7 @@ public class CommentVo implements Serializable {
         vo.createTime = comment.getCreateTime();
         vo.authorName = comment.getAuthorName();
         vo.authorAvatar = comment.getAuthorAvatar();
+        vo.postTitle = comment.getPostTitle();
         return vo;
     }
 }
