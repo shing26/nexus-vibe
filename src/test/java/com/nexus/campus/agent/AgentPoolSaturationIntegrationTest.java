@@ -9,6 +9,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -51,8 +53,24 @@ import static org.mockito.Mockito.when;
 @Sql({"/data.sql", "/test-users.sql"})
 class AgentPoolSaturationIntegrationTest {
 
+    private static final Logger log = LoggerFactory.getLogger(AgentPoolSaturationIntegrationTest.class);
+
     /** Bounds the blocking tasks, so a leaked thread cannot hang the suite. */
     private static final long HOLD_SECONDS = 30;
+
+    /**
+     * How long the polls wait for the fail-closed write. There are two ways the
+     * write can land, and the deadline has to cover the slower one: the pool
+     * refuses the dispatch and the publisher's recovery transaction writes it
+     * within milliseconds, or the pool takes the submission — CI runs have
+     * shown this can happen even immediately after the precondition below
+     * proved rejection — and the queued listener only starts once the hold
+     * tasks release at {@code HOLD_SECONDS}, then runs the LLM client's retry
+     * ladder (measured ~3-8s on the CI runner) before writing. The deadline is
+     * therefore the hold plus budget for that ladder, not the hold itself: a
+     * 30s deadline failed CI by three seconds in exactly this way.
+     */
+    private static final long POLL_DEADLINE_SECONDS = HOLD_SECONDS + 20;
 
     @Autowired
     private PostAgentEventPublisher publisher;
@@ -97,6 +115,11 @@ class AgentPoolSaturationIntegrationTest {
         // Precondition for both tests: this pool really does refuse work.
         assertThrows(RejectedExecutionException.class, () -> pool.execute(() -> { }),
                 "test precondition: the agent pool must be saturated");
+        // Diagnostic for an open question: two CI runs showed the dispatch's @Async submission
+        // accepted right after this precondition proved rejection, so the snapshot records what
+        // the pool actually looks like at the moment the test body starts.
+        log.info("agent pool saturated for the test: active={}, poolSize={}, queued={}",
+                pool.getActiveCount(), pool.getPoolSize(), pool.getQueue().size());
     }
 
     @AfterEach
@@ -164,14 +187,14 @@ class AgentPoolSaturationIntegrationTest {
      *
      * <p>The fail-closed write is not guaranteed to land before the commit returns. When the
      * saturated pool refuses the event, the publisher's recovery transaction writes the status
-     * inline in afterCommit; when a slot frees up before the dispatch, the listener runs
-     * asynchronously and writes it from its own thread — after the LLM client's own retry
-     * ladder, which on a starved CI runner can take well over five seconds. The deadline is
-     * bounded by the hold tasks' lifetime, not by optimism: the latch keeps the pool occupied
-     * for {@code HOLD_SECONDS}, so nothing can free a slot for the async path before that.</p>
+     * inline in afterCommit; when the pool takes the submission instead (see
+     * {@link #POLL_DEADLINE_SECONDS}), the listener runs asynchronously — queued behind the hold
+     * tasks, released at {@code HOLD_SECONDS}, then behind the LLM client's own retry ladder.
+     * Either way the post ends held in the audit queue; the deadline covers the slower arrival,
+     * not just the fast one.</p>
      */
     private int awaitPendingReview(long postId) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(POLL_DEADLINE_SECONDS);
         while (System.nanoTime() < deadline) {
             VibePost stored = vibePostMapper.selectById(postId);
             if (stored.getStatus() == PostStatus.PENDING_REVIEW.getCode()) {
@@ -184,10 +207,11 @@ class AgentPoolSaturationIntegrationTest {
 
     /**
      * Same bounded wait for the review path: the listener also marks a post FAILED from its own
-     * thread when the pool accepted the event but the LLM was unreachable.
+     * thread, whether it ran on a slot freed before the dispatch or on the queued task released
+     * with the hold tasks.
      */
     private int awaitReviewFailed(long postId) {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(POLL_DEADLINE_SECONDS);
         while (System.nanoTime() < deadline) {
             VibePost stored = vibePostMapper.selectById(postId);
             if (stored.getAiReviewed() == AiReviewStatus.FAILED.getCode()) {
