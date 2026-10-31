@@ -1,9 +1,12 @@
 # AI Fusion Round — Prompt review, comment safety check, agent mention
 
-Status: **open.** Opened by ADR-0016, which reopens the scope ADR-0009 froze, with the reasoning
-and the deferral list. Three items, one branch, one PR; each item lands as its own commit so a
-partial merge is a coherent state. Semantic search, streaming output and composer assistance are
-**not** in this round — they are recorded in the next-cycle backlog, not dropped.
+Status: **done on `codex/ai-fusion-round`** (2026-10-31). Three commits, one per item: the
+comment safety check, the reviewer seam with prompt review, and the agent mention. 456 Java
+tests / 76 classes green with the JaCoCo floor, frontend 42 tests, lint and build clean;
+README counts updated in the same commits. Opened by ADR-0016, which reopens the scope
+ADR-0009 froze, with the reasoning and the deferral list. Semantic search, streaming output
+and composer assistance are **not** in this round — they are recorded in the next-cycle
+backlog, not dropped.
 
 The connecting discipline across all three items: every new AI surface must answer "what happens
 when the LLM is down", not just "what does it do when it works". That is the project's own test for
