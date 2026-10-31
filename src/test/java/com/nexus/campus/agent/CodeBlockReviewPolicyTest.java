@@ -18,7 +18,7 @@ import static org.mockito.Mockito.when;
 class CodeBlockReviewPolicyTest {
 
     @Mock
-    private AiReviewService aiReviewService;
+    private CodeReviewReviewer codeReviewer;
 
     private CodeBlockReviewPolicy policy;
 
@@ -26,7 +26,7 @@ class CodeBlockReviewPolicyTest {
 
     @BeforeEach
     void setUp() {
-        policy = new CodeBlockReviewPolicy(aiReviewService);
+        policy = new CodeBlockReviewPolicy(codeReviewer);
         post = new VibePost();
         post.setStatus(1);
         post.setPostType("post");
@@ -36,7 +36,7 @@ class CodeBlockReviewPolicyTest {
     @Test
     @DisplayName("A visible post with a fenced code block is reviewed")
     void visiblePostWithCodeBlockIsReviewed() {
-        when(aiReviewService.detectCodeBlocks("plain text")).thenReturn(List.of("int x = 1;"));
+        when(codeReviewer.detectCodeBlocks("plain text")).thenReturn(List.of("int x = 1;"));
 
         assertTrue(policy.shouldReview(post));
     }
@@ -44,7 +44,7 @@ class CodeBlockReviewPolicyTest {
     @Test
     @DisplayName("A post without a code block is not reviewed")
     void postWithoutCodeBlockIsNotReviewed() {
-        when(aiReviewService.detectCodeBlocks("plain text")).thenReturn(List.of());
+        when(codeReviewer.detectCodeBlocks("plain text")).thenReturn(List.of());
 
         assertFalse(policy.shouldReview(post));
     }

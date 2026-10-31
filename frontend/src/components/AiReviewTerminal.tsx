@@ -36,6 +36,14 @@ function toList(value?: string | string[] | null): string[] {
     .filter(Boolean);
 }
 
+// The three verdict sections travel in shared JSON keys, but what they mean
+// depends on who reviewed: the prompt reviewer reads codeQuality as structure
+// and clarity, not code. Unknown reviewers fall back to the code headings.
+const REVIEWER_SECTION_TITLES: Record<string, string[]> = {
+  'prompt-review-agent': ['Structure & Clarity', 'Safety & Misuse', 'Reproducibility'],
+};
+const DEFAULT_SECTION_TITLES = ['Code Quality', 'Security Concerns', 'Optimization Suggestions'];
+
 function SeverityBadge({ severity }: { severity: string }) {
   const normalized = (severity || 'unknown').trim().toLowerCase();
   const className = severityStyles[normalized] || severityStyles.unknown;
@@ -224,13 +232,15 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
 
   const securityItems = toList(detail?.securityConcerns);
   const securityClear = securityItems.length === 0;
+  const sectionTitles =
+    (detail?.reviewer && REVIEWER_SECTION_TITLES[detail.reviewer]) || DEFAULT_SECTION_TITLES;
   const sections = [
     {
       key: 'code',
       stepKey: 'codeQuality',
       icon: Code2,
       color: 'text-vibe-neon',
-      title: 'Code Quality',
+      title: sectionTitles[0],
       value: detail?.codeQuality,
     },
     {
@@ -238,7 +248,7 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
       stepKey: 'securityConcerns',
       icon: securityClear ? ShieldCheck : ShieldAlert,
       color: securityClear ? 'text-vibe-emerald' : 'text-red-400',
-      title: 'Security Concerns',
+      title: sectionTitles[1],
       value: detail?.securityConcerns,
     },
     {
@@ -246,7 +256,7 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
       stepKey: 'optimizationSuggestions',
       icon: Wand2,
       color: 'text-vibe-purple',
-      title: 'Optimization Suggestions',
+      title: sectionTitles[2],
       value: detail?.optimizationSuggestions,
     },
   ];

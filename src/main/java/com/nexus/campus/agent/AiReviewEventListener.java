@@ -13,6 +13,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * Async listener for {@link AiReviewEvent}, running on the dedicated
@@ -33,6 +34,14 @@ public class AiReviewEventListener {
 
     @Autowired
     private ReviewPolicy reviewPolicy;
+
+    /**
+     * Every {@link Reviewer} bean, in claims order. The listener does not know
+     * which reviewer exists — a fork can supply its own and the defaults step
+     * aside (ReviewPolicyConfig).
+     */
+    @Autowired
+    private List<Reviewer> reviewers;
 
     @Autowired
     private VibePostMapper vibePostMapper;
@@ -61,6 +70,21 @@ public class AiReviewEventListener {
             return;
         }
 
+        // The trigger rule and the reviewer are separate seams (ADR-0012): the
+        // policy decides whether a post is reviewable, the reviewer decides
+        // what the verdict means. When the two disagree — a reviewable post no
+        // reviewer claims — treat it as ineligible rather than forcing a
+        // reviewer to handle a shape it does not understand.
+        Reviewer reviewer = reviewers.stream()
+                .filter(r -> r.claims(current))
+                .findFirst()
+                .orElse(null);
+        if (reviewer == null) {
+            log.debug("No reviewer claims post {}; correcting any stale REVIEWING marker", postId);
+            clearStaleReviewingMarker(postId);
+            return;
+        }
+
         // Atomic lease claim: wins iff no live lock and attempts remain.
         int attempts = claim(postId);
         if (attempts < 0) {
@@ -71,8 +95,8 @@ public class AiReviewEventListener {
         markReviewing(postId);
 
         try {
-            aiReviewService.reviewPost(postId, event.getTitle(), content, event.getAuthorId(), event.isRetried());
-            log.info("AI review completed for post {} (attempt {})", postId, attempts);
+            aiReviewService.reviewPost(current, reviewer, event.getAuthorId(), event.isRetried());
+            log.info("AI review by {} completed for post {} (attempt {})", reviewer.identity(), postId, attempts);
 
         } catch (Exception e) {
             log.warn("AI review failed for post {}: {}", postId, e.getMessage());
