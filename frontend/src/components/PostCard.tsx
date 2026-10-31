@@ -119,7 +119,7 @@ export default function PostCard({ post }: PostCardProps) {
         <SpotlightCard className="group/card">
           {/* Quick Action Bar — hover reveal */}
           {(preview || post.postType === 'prompt') && (
-            <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 opacity-0 translate-y-1 group-hover/card:opacity-100 group-hover/card:translate-y-0 transition-all duration-200">
+            <div className="absolute top-3 right-3 z-20 flex items-center gap-1.5 opacity-0 translate-y-1 group-hover/card:opacity-100 group-hover/card:translate-y-0 group-focus-within/card:opacity-100 group-focus-within/card:translate-y-0 transition-all duration-200">
               {preview && (
                 <button
                   onClick={handleCopyPrompt}

@@ -26,7 +26,7 @@
    <div className="flex items-center justify-center gap-1 mt-6 text-xs font-mono text-slate-500">
       {page > 1 && (
         <button onClick={() => onPageChange(page - 1)} className="hover:text-vibe-cyan transition-colors px-2 py-1 active:scale-[0.97]">
-         上一页
+         prev
         </button>
       )}
       {getPageNumbers().map((p, i) =>
@@ -44,7 +44,7 @@
       )}
       {page < pages && (
         <button onClick={() => onPageChange(page + 1)} className="hover:text-vibe-cyan transition-colors px-2 py-1 active:scale-[0.97]">
-         下一页
+         next
         </button>
       )}
      </div>

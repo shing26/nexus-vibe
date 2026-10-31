@@ -19,8 +19,12 @@
   --slate-200: 30 41 59;
   --slate-300: 51 65 85;
   --slate-400: 71 85 105;
+  /* slate-600 is the app's secondary-text token. Both themes had it far below
+     the 4.5:1 floor for body-size text on the page background (about 2.3:1
+     light, 2.6:1 dark), so every meta row whispered; slate-500's value sits
+     near 4.5:1 in both. */
   --slate-500: 100 116 139;
-  --slate-600: 148 163 184;
+  --slate-600: 100 116 139;
   --slate-700: 203 213 225;
   --slate-800: 226 232 240;
   --slate-900: 241 245 249;
@@ -42,7 +46,7 @@
   --slate-300: 203 213 225;
   --slate-400: 148 163 184;
   --slate-500: 100 116 139;
-  --slate-600: 71 85 105;
+  --slate-600: 100 116 139;
   --slate-700: 51 65 85;
   --slate-800: 30 41 59;
   --slate-900: 15 23 42;
@@ -71,6 +75,15 @@
      @apply bg-vibe-bg text-slate-200 font-sans antialiased selection:bg-vibe-emerald/30 selection:text-vibe-emerald;
      background-image: radial-gradient(rgba(16, 185, 129, 0.06) 1px, transparent 1px);
      background-size: 24px 24px;
+   }
+
+   /* One keyboard-focus ring for the whole app. The dense terminal greys had
+      outline:none on most interactive elements, leaving keyboard users with no
+      visible caret anywhere; !important wins over the scattered
+      focus:outline-none utilities without hunting each one down. */
+   :focus-visible {
+     outline: 2px solid rgb(var(--vibe-cyan) / 0.8) !important;
+     outline-offset: 2px;
    }
  }
 

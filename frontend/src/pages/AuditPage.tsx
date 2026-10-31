@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { apiClient } from '../api/client';
 import { serverErrorMessage } from '../api/serverErrorMessage';
+import { useToastStore } from '../stores/toastStore';
 
 interface PendingPost {
   id: number;
@@ -77,8 +78,13 @@ function SafetyBadge({ classification }: { classification: string | null }) {
 
 export default function AuditPage() {
   const queryClient = useQueryClient();
+  const addToast = useToastStore((s) => s.addToast);
   const [rejectId, setRejectId] = useState<number | null>(null);
   const [rejectReason, setRejectReason] = useState('');
+  // Rejection here is irreversible (the backend has no un-reject), so the
+  // comment button is a two-step confirm — posts get a reason field instead
+  // because their audit endpoint records one.
+  const [commentRejectId, setCommentRejectId] = useState<number | null>(null);
 
   const { data, isLoading, isError, error } = useQuery<PendingPostsResponse>({
     queryKey: ['admin', 'pending-posts'],
@@ -98,10 +104,21 @@ export default function AuditPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['admin', 'pending-comments'] });
     },
+    onError: (err) => {
+      addToast(serverErrorMessage(err, 'Comment audit failed'), 'error');
+    },
   });
 
   const handleCommentAudit = (id: number, action: 'APPROVED' | 'REJECTED') => {
-    commentAuditMutation.mutate({ id, action });
+    commentAuditMutation.mutate({ id, action }, {
+      onSuccess: () => {
+        setCommentRejectId(null);
+        addToast(
+          action === 'APPROVED' ? 'Comment approved and published' : 'Comment rejected',
+          action === 'APPROVED' ? 'success' : 'info'
+        );
+      },
+    });
   };
 
   const auditMutation = useMutation({
@@ -119,14 +136,21 @@ export default function AuditPage() {
       setRejectId(null);
       setRejectReason('');
     },
+    onError: (err) => {
+      addToast(serverErrorMessage(err, 'Audit action failed'), 'error');
+    },
   });
 
   const handleApprove = (id: number) => {
-    auditMutation.mutate({ id, action: 'APPROVED' });
+    auditMutation.mutate({ id, action: 'APPROVED' }, {
+      onSuccess: () => addToast('Post approved', 'success'),
+    });
   };
 
   const handleReject = (id: number) => {
-    auditMutation.mutate({ id, action: 'REJECTED', reason: rejectReason });
+    auditMutation.mutate({ id, action: 'REJECTED', reason: rejectReason }, {
+      onSuccess: () => addToast('Post rejected', 'info'),
+    });
   };
 
   if (isLoading) {
@@ -296,7 +320,7 @@ export default function AuditPage() {
                 <div className="flex items-start justify-between gap-4">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-3 flex-wrap text-xs font-mono text-slate-500">
-                      <span>by {comment.authorName || `user#${comment.postId}`}</span>
+                      <span>by {comment.authorName || 'unknown'}</span>
                       <span className="inline-flex items-center gap-1">
                         <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
                         on {comment.postTitle || `post #${comment.postId}`}
@@ -319,7 +343,7 @@ export default function AuditPage() {
                       Approve
                     </button>
                     <button
-                      onClick={() => handleCommentAudit(comment.id, 'REJECTED')}
+                      onClick={() => setCommentRejectId(commentRejectId === comment.id ? null : comment.id)}
                       disabled={commentAuditMutation.isPending}
                       className="px-3 py-1.5 bg-red-900/30 border border-red-500/40 text-red-400 text-xs font-mono rounded-lg hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     >
@@ -327,6 +351,26 @@ export default function AuditPage() {
                     </button>
                   </div>
                 </div>
+                {commentRejectId === comment.id && (
+                  <div className="mt-3 pt-3 border-t border-vibe-border flex items-center gap-3 flex-wrap">
+                    <p className="text-xs font-mono text-red-400 flex-1 min-w-[200px]">
+                      Reject this comment? It will be hidden and cannot be restored.
+                    </p>
+                    <button
+                      onClick={() => handleCommentAudit(comment.id, 'REJECTED')}
+                      disabled={commentAuditMutation.isPending}
+                      className="px-3 py-1.5 bg-red-900/30 border border-red-500/40 text-red-400 text-xs font-mono rounded-lg hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      Confirm reject
+                    </button>
+                    <button
+                      onClick={() => setCommentRejectId(null)}
+                      className="px-3 py-1.5 text-slate-500 text-xs font-mono rounded-lg hover:bg-vibe-card transition-colors"
+                    >
+                      Cancel
+                    </button>
+                  </div>
+                )}
               </div>
             ))}
           </div>

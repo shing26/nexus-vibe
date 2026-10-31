@@ -191,7 +191,10 @@ export default function PostDetailPage() {
       // The server count (Redis SCARD after the toggle) is the single truth
       setLiked(nextLiked);
       setLikeCount(res.data.data?.currentLikes ?? likeCount + (nextLiked ? 1 : -1));
-    } catch { /* ignore */ } finally {
+    } catch {
+      // A swallowed failure read as "the like went through"; say otherwise.
+      addToast('Like failed, please retry', 'error');
+    } finally {
       likeInFlight.current = false;
     }
   };
@@ -311,8 +314,9 @@ export default function PostDetailPage() {
 
    return (
      <div className="max-w-[1400px] mx-auto px-4 py-8">
-      {/* HEADER ROW */}
-      <div className="flex items-start gap-3 mb-6">
+      {/* HEADER ROW — wraps so the action buttons drop below the title on
+          narrow screens instead of squeezing it to one word per line */}
+      <div className="flex flex-wrap items-start gap-3 mb-6">
         <Avatar name={post.authorName} size="md" />
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-bold font-mono text-slate-100 leading-snug">{post.title}</h1>

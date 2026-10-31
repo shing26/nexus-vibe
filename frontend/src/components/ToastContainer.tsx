@@ -17,15 +17,16 @@ export default function ToastContainer() {
   const { toasts, removeToast } = useToastStore();
   if (toasts.length === 0) return null;
   return (
-    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm">
+    <div className="fixed top-4 right-4 z-[100] flex flex-col gap-2 max-w-sm" aria-live="polite">
       {toasts.map((t) => (
         <div
           key={t.id}
+          role={t.type === 'error' ? 'alert' : 'status'}
           className={'flex items-center gap-2 px-4 py-3 rounded-xl bg-black/80 border backdrop-blur-sm text-white text-xs font-mono shadow-lg animate-in slide-in-from-right ' + bgMap[t.type]}
         >
           {iconMap[t.type]}
           <span className="flex-1">{t.message}</span>
-          <button onClick={() => removeToast(t.id)} className="text-slate-500 hover:text-white transition-colors">
+          <button onClick={() => removeToast(t.id)} aria-label="Dismiss notification" className="text-slate-500 hover:text-white transition-colors">
             <X className="w-3 h-3" />
           </button>
         </div>

@@ -3,9 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
+import { useAuthStore } from '../stores/authStore';
 import PostCard from '../components/PostCard';
 import EmptyState from '../components/EmptyState';
 import ShowcaseEntry from '../components/ShowcaseEntry';
+import Pagination from '../components/Pagination';
 import { Terminal, Palette, Cpu, Zap, Bug, GitFork, ArrowRight, Megaphone, FolderOpen } from 'lucide-react';
 import type { ChannelStats } from '../types/post';
 
@@ -110,11 +112,18 @@ function SkeletonCard() {
 
 export default function HomePage() {
   const [activeTab, setActiveTab] = useState<Tab>('hot');
+  const [page, setPage] = useState(1);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+
+  const changeTab = (tab: Tab) => {
+    setActiveTab(tab);
+    setPage(1);
+  };
 
   const { data: posts, isLoading } = useQuery({
-    queryKey: ['posts', activeTab],
+    queryKey: ['posts', activeTab, page],
     queryFn: async () => {
-      const params: Record<string, any> = { size: 10 };
+      const params: Record<string, any> = { size: 10, page };
       if (activeTab === 'hot') params.hot = true;
       if (activeTab === 'ai-verified') {
         params.aiScoreMin = 1;
@@ -148,38 +157,43 @@ export default function HomePage() {
   return (
     <div className="max-w-[1200px] mx-auto px-4 py-6 space-y-6">
       <h1 className="sr-only">Nexus-Vibe Terminal</h1>
-      {/* Mission Control — first-screen task entrances */}
-      <div className="border border-vibe-border rounded-xl overflow-hidden bg-vibe-surface/40">
-        <div className="flex items-center justify-between px-4 py-2.5 bg-vibe-card/70 border-b border-vibe-border">
-          <h2 className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Mission Control</h2>
-          <span className="hidden sm:inline text-[10px] font-mono text-vibe-cyan/70">Pick a mission to start</span>
-        </div>
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-3">
-          {missions.map((m) => {
-            const Icon = m.icon;
-            return (
-              <Link
-                key={m.label}
-                to={m.to}
-                className={
-                  'group/mission relative rounded-xl border border-vibe-border bg-vibe-card/40 p-3.5 transition-all active:scale-[0.97] ' + m.ring
-                }
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className={'w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ' + m.accent}>
-                    <Icon className="w-4 h-4" />
+      {/* Mission Control — shown to signed-out visitors only. Signed-in users
+          already have the navbar's New Post button, and this band plus the
+          channel grid below pushed the first post past the fold on every
+          screen size. */}
+      {!isAuthenticated && (
+        <div className="border border-vibe-border rounded-xl overflow-hidden bg-vibe-surface/40">
+          <div className="flex items-center justify-between px-4 py-2.5 bg-vibe-card/70 border-b border-vibe-border">
+            <h2 className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Mission Control</h2>
+            <span className="hidden sm:inline text-[10px] font-mono text-vibe-cyan/70">Pick a mission to start</span>
+          </div>
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-3">
+            {missions.map((m) => {
+              const Icon = m.icon;
+              return (
+                <Link
+                  key={m.label}
+                  to={m.to}
+                  className={
+                    'group/mission relative rounded-xl border border-vibe-border bg-vibe-card/40 p-3.5 transition-all active:scale-[0.97] ' + m.ring
+                  }
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className={'w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ' + m.accent}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                    <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover/mission:text-slate-300 transition-colors" />
                   </div>
-                  <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover/mission:text-slate-300 transition-colors" />
-                </div>
-                <p className="mt-3 text-xs font-mono font-semibold text-slate-200 group-hover/mission:text-white transition-colors">
-                  {m.label}
-                </p>
-                <p className="mt-0.5 text-[10px] font-mono text-slate-500 leading-snug">{m.sub}</p>
-              </Link>
-            );
-          })}
+                  <p className="mt-3 text-xs font-mono font-semibold text-slate-200 group-hover/mission:text-white transition-colors">
+                    {m.label}
+                  </p>
+                  <p className="mt-0.5 text-[10px] font-mono text-slate-500 leading-snug">{m.sub}</p>
+                </Link>
+              );
+            })}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Curated entry for a signed-out visitor: the product's claim, one click away */}
       <ShowcaseEntry />
@@ -216,7 +230,10 @@ export default function HomePage() {
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            onClick={() => setActiveTab(tab.key)}
+            onClick={() => changeTab(tab.key)}
+            // The feed's ranking terms are the product's own dialect; a tooltip
+            // keeps them from being jargon with no way in.
+            title={tab.key === 'hot' ? 'Gravity-decay ranking: score fades as posts age' : undefined}
             className={
               'px-4 py-1.5 rounded-full text-xs font-mono border transition-all active:scale-95 ' +
               (activeTab === tab.key
@@ -246,18 +263,27 @@ export default function HomePage() {
           {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
         </div>
       ) : !isEmpty ? (
-        <div className="space-y-3">
-          {postList.map((post: any, i: number) => (
-            <motion.div
-              key={post.id}
-              initial={{ opacity: 0, y: 12 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.2, delay: i * 0.03 }}
-            >
-              <PostCard post={post} />
-            </motion.div>
-          ))}
-        </div>
+        <>
+          <div className="space-y-3">
+            {postList.map((post: any, i: number) => (
+              <motion.div
+                key={post.id}
+                initial={{ opacity: 0, y: 12 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.2, delay: i * 0.03 }}
+              >
+                <PostCard post={post} />
+              </motion.div>
+            ))}
+          </div>
+          {/* A feed that stops at 10 posts forever is a dead end; the search
+              page already ships this paginator, so the feed uses it too. */}
+          <Pagination
+            page={posts?.page ?? page}
+            pages={posts?.pages ?? 1}
+            onPageChange={setPage}
+          />
+        </>
       ) : null}
     </div>
   );

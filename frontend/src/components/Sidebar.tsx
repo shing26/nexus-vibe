@@ -35,7 +35,7 @@ export default function Sidebar({ className = '' }: { className?: string }) {
               }
             >
               <Icon className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">
+              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">
                 {ch.label}
               </span>
             </Link>
@@ -46,38 +46,38 @@ export default function Sidebar({ className = '' }: { className?: string }) {
 
         <Link
           to="/drafts"
-          title="My Drafts"
+          title="My Drafts" aria-label="My Drafts"
           className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
         >
           <FileText className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">My Drafts</span>
+          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">My Drafts</span>
         </Link>
         <Link
           to="/tags"
-          title="Hot Tags"
+          title="Hot Tags" aria-label="Hot Tags"
           className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
         >
           <Tag className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Hot Tags</span>
+          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Hot Tags</span>
         </Link>
 
         <div className="w-6 h-px bg-vibe-border my-1" />
 
         <Link
           to="/user/messages"
-          title="Messages"
+          title="Messages" aria-label="Messages"
           className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
         >
           <Mail className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Messages</span>
+          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Messages</span>
         </Link>
         <Link
           to="/user/settings"
-          title="Settings"
+          title="Settings" aria-label="Settings"
           className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
         >
           <Settings className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Settings</span>
+          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Settings</span>
         </Link>
 
         {user?.role === 'ADMIN' && (
@@ -85,27 +85,27 @@ export default function Sidebar({ className = '' }: { className?: string }) {
             <div className="w-6 h-px bg-vibe-border my-1" />
             <Link
               to="/admin/audit"
-              title="Audit Queue"
+              title="Audit Queue" aria-label="Audit Queue"
               className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-amber-400/80 hover:bg-vibe-card hover:text-amber-300 transition-all active:scale-[0.92]"
             >
               <ShieldCheck className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Audit Queue</span>
+              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Audit Queue</span>
             </Link>
             <Link
               to="/admin/dashboard"
-              title="Dashboard"
+              title="Dashboard" aria-label="Dashboard"
               className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-amber-400/80 hover:bg-vibe-card hover:text-amber-300 transition-all active:scale-[0.92]"
             >
               <LayoutDashboard className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Dashboard</span>
+              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Dashboard</span>
             </Link>
             <Link
               to="/agent-logs"
-              title="Agent Logs"
+              title="Agent Logs" aria-label="Agent Logs"
               className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-amber-400/80 hover:bg-vibe-card hover:text-amber-300 transition-all active:scale-[0.92]"
             >
               <Activity className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Agent Logs</span>
+              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Agent Logs</span>
             </Link>
           </>
         )}
