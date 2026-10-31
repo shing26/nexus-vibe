@@ -57,7 +57,13 @@ public class AiSafetyCheckListener {
      * per check also meant a fresh {@code ObjectMapper} per check.
      */
     private static final ObjectMapper SCHEMA_MAPPER = new ObjectMapper();
-    private static final JsonNode SAFETY_SCHEMA = buildSafetySchema();
+
+    /**
+     * Package-visible so the comment safety listener reuses the exact schema:
+     * two content surfaces classifying into the same four classes must not be
+     * able to drift into two schemas.
+     */
+    static final JsonNode SAFETY_SCHEMA = buildSafetySchema();
 
     @Autowired
     private LlmClient llmClient;

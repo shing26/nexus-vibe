@@ -3,14 +3,19 @@ package com.nexus.campus.task;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import com.nexus.campus.agent.AiCommentSafetyCheckEvent;
 import com.nexus.campus.agent.AiReviewEvent;
+import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmClient;
 import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
+import com.nexus.campus.enums.CommentStatus;
+import com.nexus.campus.mapper.VibeCommentMapper;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -47,6 +52,10 @@ class AiReviewReconcileTaskTest {
 
     @Mock
     private VibePostMapper vibePostMapper;
+    @Mock
+    private VibeCommentMapper vibeCommentMapper;
+    @Mock
+    private AiReviewLogMapper aiReviewLogMapper;
     @Mock
     private LlmClient llmClient;
     @Mock
@@ -90,6 +99,9 @@ class AiReviewReconcileTaskTest {
         // Every reconcile cycle runs the budget-exhausted sweep first; tests
         // that exercise the sweep override this default with their own stub.
         lenient().when(vibePostMapper.selectReviewingBudgetExhausted(anyInt(), anyInt())).thenReturn(List.of());
+        // Same for the comment-safety sweep: empty unless a test overrides it.
+        lenient().when(aiReviewLogMapper.selectCommentIdsPendingSafetyRecheck(any(), anyInt()))
+                .thenReturn(List.of());
     }
 
     private VibePost post(long id) {
@@ -177,6 +189,54 @@ class AiReviewReconcileTaskTest {
         AiSafetyCheckEvent safetyEvent = events.getValue();
         assertEquals(3L, safetyEvent.getPostId());
         assertEquals(10L, safetyEvent.getAuthorId());
+    }
+
+    @Test
+    @DisplayName("Re-runs comment safety checks for visible comments with a stale pending-llm marker")
+    void shouldReRunPendingCommentSafetyChecks() {
+        when(llmClient.isHealthy()).thenReturn(true);
+        when(vibePostMapper.selectStaleAiReviewPosts(anyInt(), any(), anyInt(), anyInt()))
+                .thenReturn(List.of());
+        when(vibePostMapper.selectPostsPendingSafetyRecheck(any(), anyInt()))
+                .thenReturn(List.of());
+        when(aiReviewLogMapper.selectCommentIdsPendingSafetyRecheck(any(), anyInt()))
+                .thenReturn(List.of(11L, 12L));
+        VibeComment visible = new VibeComment();
+        visible.setId(11L);
+        visible.setPostId(42L);
+        visible.setUserId(10L);
+        visible.setContent("mention content");
+        visible.setStatus(CommentStatus.VISIBLE.getCode());
+        VibeComment hidden = new VibeComment();
+        hidden.setId(12L);
+        hidden.setStatus(CommentStatus.HIDDEN.getCode());
+        when(vibeCommentMapper.selectById(11L)).thenReturn(visible);
+        when(vibeCommentMapper.selectById(12L)).thenReturn(hidden);
+
+        task.reconcile();
+
+        // The hidden comment is skipped: a marker on a comment that is no
+        // longer visible has nothing left to protect.
+        ArgumentCaptor<AiCommentSafetyCheckEvent> events =
+                ArgumentCaptor.forClass(AiCommentSafetyCheckEvent.class);
+        verify(eventPublisher, times(1)).publishEvent(events.capture());
+        assertEquals(11L, events.getValue().getCommentId());
+        assertEquals(42L, events.getValue().getPostId());
+    }
+
+    @Test
+    @DisplayName("The comment safety backlog gauge is refreshed before the health gate")
+    void shouldRefreshCommentSafetyBacklogGauge() {
+        task.registerBacklogGauge();
+        when(llmClient.isHealthy()).thenReturn(false);
+        when(vibePostMapper.countReviewsAwaitingWork()).thenReturn(0L);
+        when(vibePostMapper.countSafetyPendingPosts()).thenReturn(0L);
+        when(aiReviewLogMapper.countCommentsPendingSafetyRecheck()).thenReturn(4L);
+
+        task.reconcile();
+
+        assertThat(meterRegistry.get("safety.pending.comments").gauge().value()).isEqualTo(4.0);
+        verifyNoInteractions(eventPublisher);
     }
 
     @Test

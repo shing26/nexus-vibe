@@ -9,6 +9,7 @@ import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
 import com.nexus.campus.metrics.ProductMetrics;
+import com.nexus.campus.service.impl.CommentAgentEventPublisher;
 import com.nexus.campus.service.impl.VibeCommentServiceImpl;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +49,10 @@ class CommentServiceTest {
     /** Records the funnel event; the assertions here are about the comment, not the meter. */
     @Mock
     private ProductMetrics productMetrics;
+
+    /** Owns the visible-first comment safety dispatch; the service must not do LLM work itself. */
+    @Mock
+    private CommentAgentEventPublisher commentAgentEventPublisher;
 
     @InjectMocks
     private VibeCommentServiceImpl commentService;
@@ -111,6 +116,30 @@ class CommentServiceTest {
         // User core power should be awarded
         assertEquals(52, user.getCorePower());
         verify(sysUserMapper).updateById(user);
+    }
+
+    @Test
+    @DisplayName("createComment() hands the saved comment to the safety publisher and stops there")
+    void createCommentDefersSafetyCheck() {
+        CommentCreateRequest request = new CommentCreateRequest();
+        request.setPostId(postId);
+        request.setContent("Needs a safety verdict");
+        request.setParentId(0L);
+        request.setTargetId(0L);
+
+        when(sensitiveWordService.checkText("Needs a safety verdict"))
+                .thenReturn(PostAuditResult.pass("Needs a safety verdict"));
+        when(vibePostMapper.selectById(postId)).thenReturn(post);
+        when(sysUserMapper.selectById(userId)).thenReturn(user);
+
+        VibeComment result = commentService.createComment(request, userId);
+
+        // The dispatch is the publisher's job (visible-first, ADR-0017): the
+        // service never talks to the LLM path itself, it only hands over the
+        // comment it just made visible.
+        ArgumentCaptor<VibeComment> captor = ArgumentCaptor.forClass(VibeComment.class);
+        verify(commentAgentEventPublisher).publishSafetyCheck(captor.capture(), eq(userId));
+        assertSame(result, captor.getValue());
     }
 
     @Test

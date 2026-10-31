@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Param;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 @Mapper
@@ -37,4 +38,39 @@ public interface AiReviewLogMapper extends BaseMapper<AiReviewLog> {
             "WHERE l.reviewer = 'code-review-agent' AND p.user_id = #{userId} AND p.status = 1 " +
             "ORDER BY l.created_at DESC, l.id DESC")
     List<AiReviewLog> selectLatestCodeReviewLogsByUserId(@Param("userId") Long userId);
+
+    /**
+     * Comment ids whose LATEST comment-safety log row is a pending-llm marker
+     * older than the staleness bound, on a comment that is still visible.
+     * The anti-join instead of a window function keeps this readable on any
+     * MySQL the stack might run, and the comment join is what retires markers
+     * on comments that were since deleted, hidden, or audited.
+     */
+    @Select("SELECT l.comment_id FROM ai_review_log l " +
+            "INNER JOIN vibe_comment c ON c.id = l.comment_id AND c.status = 1 " +
+            "LEFT JOIN ai_review_log newer " +
+            "  ON newer.comment_id = l.comment_id " +
+            " AND newer.reviewer = 'comment-safety-agent' " +
+            " AND (newer.created_at > l.created_at " +
+            "      OR (newer.created_at = l.created_at AND newer.id > l.id)) " +
+            "WHERE l.reviewer = 'comment-safety-agent' " +
+            "  AND l.severity = 'pending-llm' " +
+            "  AND l.created_at < #{staleBefore} " +
+            "  AND newer.id IS NULL " +
+            "LIMIT #{limit}")
+    List<Long> selectCommentIdsPendingSafetyRecheck(@Param("staleBefore") LocalDateTime staleBefore,
+                                                    @Param("limit") int limit);
+
+    /** Same population as {@link #selectCommentIdsPendingSafetyRecheck}, without the staleness bound, for the backlog gauge. */
+    @Select("SELECT COUNT(DISTINCT l.comment_id) FROM ai_review_log l " +
+            "INNER JOIN vibe_comment c ON c.id = l.comment_id AND c.status = 1 " +
+            "LEFT JOIN ai_review_log newer " +
+            "  ON newer.comment_id = l.comment_id " +
+            " AND newer.reviewer = 'comment-safety-agent' " +
+            " AND (newer.created_at > l.created_at " +
+            "      OR (newer.created_at = l.created_at AND newer.id > l.id)) " +
+            "WHERE l.reviewer = 'comment-safety-agent' " +
+            "  AND l.severity = 'pending-llm' " +
+            "  AND newer.id IS NULL")
+    long countCommentsPendingSafetyRecheck();
 }

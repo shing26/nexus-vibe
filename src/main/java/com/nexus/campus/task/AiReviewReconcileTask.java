@@ -1,13 +1,18 @@
 package com.nexus.campus.task;
 
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
+import com.nexus.campus.agent.AiCommentSafetyCheckEvent;
 import com.nexus.campus.agent.AiReviewEvent;
+import com.nexus.campus.agent.AiReviewLogMapper;
 import com.nexus.campus.agent.AiSafetyCheckEvent;
 import com.nexus.campus.agent.LlmHealthCache;
 import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.enums.AiReviewStatus;
+import com.nexus.campus.enums.CommentStatus;
+import com.nexus.campus.mapper.VibeCommentMapper;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.service.SysMessageService;
 import com.nexus.campus.util.TraceIds;
@@ -50,6 +55,12 @@ public class AiReviewReconcileTask {
     private VibePostMapper vibePostMapper;
 
     @Autowired
+    private VibeCommentMapper vibeCommentMapper;
+
+    @Autowired
+    private AiReviewLogMapper aiReviewLogMapper;
+
+    @Autowired
     private ApplicationEventPublisher eventPublisher;
 
     @Autowired
@@ -75,6 +86,12 @@ public class AiReviewReconcileTask {
      */
     private final AtomicLong safetyBacklog = new AtomicLong();
 
+    /**
+     * Comments the comment-safety path is holding on a pending-llm marker. Same
+     * refresh rule as the post backlogs: refreshed before the health gate.
+     */
+    private final AtomicLong commentSafetyBacklog = new AtomicLong();
+
     @PostConstruct
     void registerBacklogGauge() {
         Gauge.builder("ai.review.pending.posts", reviewBacklog, AtomicLong::doubleValue)
@@ -82,6 +99,9 @@ public class AiReviewReconcileTask {
                 .register(meterRegistry);
         Gauge.builder("safety.pending.posts", safetyBacklog, AtomicLong::doubleValue)
                 .description("Posts held in the audit queue by the safety fail-closed path")
+                .register(meterRegistry);
+        Gauge.builder("safety.pending.comments", commentSafetyBacklog, AtomicLong::doubleValue)
+                .description("Visible comments awaiting a deferred comment-safety recheck")
                 .register(meterRegistry);
     }
 
@@ -133,6 +153,24 @@ public class AiReviewReconcileTask {
                                 post.getContent(), post.getUserId())), "safety", post.getId());
             }
             countRepair("safety", pendingSafety.size());
+
+            // ADR-0017: comments whose latest comment-safety row is a stale
+            // pending-llm marker, still visible, get their deferred check now.
+            List<Long> pendingComments = aiReviewLogMapper
+                    .selectCommentIdsPendingSafetyRecheck(staleBefore, BATCH_LIMIT);
+            for (Long commentId : pendingComments) {
+                VibeComment comment = vibeCommentMapper.selectById(commentId);
+                if (comment == null || comment.getStatus() == null
+                        || comment.getStatus() != CommentStatus.VISIBLE.getCode()) {
+                    continue;
+                }
+                log.info("[AI-RECONCILE] Re-running safety check for comment {}", commentId);
+                publishSafely(() -> eventPublisher.publishEvent(
+                        new AiCommentSafetyCheckEvent(this, comment.getId(), comment.getPostId(),
+                                comment.getContent(), comment.getUserId())),
+                        "comment-safety", comment.getId());
+            }
+            countRepair("comment_safety", pendingComments.size());
         }
     }
 
@@ -150,6 +188,11 @@ public class AiReviewReconcileTask {
             safetyBacklog.set(vibePostMapper.countSafetyPendingPosts());
         } catch (Exception e) {
             log.warn("[AI-RECONCILE] Failed to refresh safety backlog gauge: {}", e.getMessage());
+        }
+        try {
+            commentSafetyBacklog.set(aiReviewLogMapper.countCommentsPendingSafetyRecheck());
+        } catch (Exception e) {
+            log.warn("[AI-RECONCILE] Failed to refresh comment safety backlog gauge: {}", e.getMessage());
         }
     }
 
