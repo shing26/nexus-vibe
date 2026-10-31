@@ -88,6 +88,10 @@ public class VibeCommentServiceImpl implements VibeCommentService {
         // the publisher defers the event to after this transaction commits.
         commentAgentEventPublisher.publishSafetyCheck(comment, userId);
 
+        // The mention trigger (ADR-0018) rides the same path: only comments
+        // that summon @ai-agent dispatch the reply job.
+        commentAgentEventPublisher.publishMentionReply(comment, userId);
+
         return comment;
     }
 

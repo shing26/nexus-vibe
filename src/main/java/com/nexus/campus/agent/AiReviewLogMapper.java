@@ -73,4 +73,39 @@ public interface AiReviewLogMapper extends BaseMapper<AiReviewLog> {
             "  AND l.severity = 'pending-llm' " +
             "  AND newer.id IS NULL")
     long countCommentsPendingSafetyRecheck();
+
+    /**
+     * Placeholder replies (agent-authored comments) whose LATEST mention-agent
+     * row is a pending-llm marker older than the staleness bound. ADR-0018:
+     * these are answered by replacing the placeholder in place, so the query
+     * keys on the placeholder's own id — joined against the agent account and
+     * still visible, exactly what the replacement will update.
+     */
+    @Select("SELECT l.comment_id FROM ai_review_log l " +
+            "INNER JOIN vibe_comment c ON c.id = l.comment_id AND c.status = 1 AND c.user_id = 999 " +
+            "LEFT JOIN ai_review_log newer " +
+            "  ON newer.comment_id = l.comment_id " +
+            " AND newer.reviewer = 'mention-agent' " +
+            " AND (newer.created_at > l.created_at " +
+            "      OR (newer.created_at = l.created_at AND newer.id > l.id)) " +
+            "WHERE l.reviewer = 'mention-agent' " +
+            "  AND l.severity = 'pending-llm' " +
+            "  AND l.created_at < #{staleBefore} " +
+            "  AND newer.id IS NULL " +
+            "LIMIT #{limit}")
+    List<Long> selectCommentIdsPendingMentionReplacement(@Param("staleBefore") LocalDateTime staleBefore,
+                                                         @Param("limit") int limit);
+
+    /** Same population as {@link #selectCommentIdsPendingMentionReplacement}, without the staleness bound, for the backlog gauge. */
+    @Select("SELECT COUNT(DISTINCT l.comment_id) FROM ai_review_log l " +
+            "INNER JOIN vibe_comment c ON c.id = l.comment_id AND c.status = 1 AND c.user_id = 999 " +
+            "LEFT JOIN ai_review_log newer " +
+            "  ON newer.comment_id = l.comment_id " +
+            " AND newer.reviewer = 'mention-agent' " +
+            " AND (newer.created_at > l.created_at " +
+            "      OR (newer.created_at = l.created_at AND newer.id > l.id)) " +
+            "WHERE l.reviewer = 'mention-agent' " +
+            "  AND l.severity = 'pending-llm' " +
+            "  AND newer.id IS NULL")
+    long countPendingMentionReplacements();
 }
