@@ -60,17 +60,15 @@ class AgentPoolSaturationIntegrationTest {
 
     /**
      * How long the polls wait for the fail-closed write. There are two ways the
-     * write can land, and the deadline has to cover the slower one: the pool
-     * refuses the dispatch and the publisher's recovery transaction writes it
-     * within milliseconds, or the pool takes the submission — CI runs have
-     * shown this can happen even immediately after the precondition below
-     * proved rejection — and the queued listener only starts once the hold
-     * tasks release at {@code HOLD_SECONDS}, then runs the LLM client's retry
-     * ladder (measured ~3-8s on the CI runner) before writing. The deadline is
-     * therefore the hold plus budget for that ladder, not the hold itself: a
-     * 30s deadline failed CI by three seconds in exactly this way.
+     * write can land: the pool refuses the dispatch and the publisher's recovery
+     * transaction writes it within milliseconds, or the pool takes the submission —
+     * CI runs have shown this can happen even immediately after the precondition
+     * below proved rejection — and the queued listener only starts once the hold
+     * tasks release at {@code HOLD_SECONDS}. The deadline is the hold plus budget
+     * for scheduling the released listener; with {@link #llmClient} mocked the
+     * listener does no network work of its own.
      */
-    private static final long POLL_DEADLINE_SECONDS = HOLD_SECONDS + 20;
+    private static final long POLL_DEADLINE_SECONDS = HOLD_SECONDS + 10;
 
     @Autowired
     private PostAgentEventPublisher publisher;
@@ -95,6 +93,18 @@ class AgentPoolSaturationIntegrationTest {
      */
     @MockBean
     private LlmHealthCache llmHealthCache;
+
+    /**
+     * Mocked so the queued-listener path is deterministic. When the saturated pool accepts the
+     * dispatch, the listener only starts once the hold tasks release, and with a real client its
+     * fail-closed write then waits behind the LLM client's retry ladder — a duration this test does
+     * not control and CI networking moves around (one run needed over 50s). The subject here is the
+     * saturation handling, not the ladder: an unstubbed mock makes every accepted dispatch reach
+     * {@code failClosed} as soon as the listener is scheduled, and the rejection path never touches
+     * the client at all.
+     */
+    @MockBean
+    private LlmClient llmClient;
 
     private CountDownLatch release;
 
@@ -189,9 +199,8 @@ class AgentPoolSaturationIntegrationTest {
      * saturated pool refuses the event, the publisher's recovery transaction writes the status
      * inline in afterCommit; when the pool takes the submission instead (see
      * {@link #POLL_DEADLINE_SECONDS}), the listener runs asynchronously — queued behind the hold
-     * tasks, released at {@code HOLD_SECONDS}, then behind the LLM client's own retry ladder.
-     * Either way the post ends held in the audit queue; the deadline covers the slower arrival,
-     * not just the fast one.</p>
+     * tasks, released at {@code HOLD_SECONDS}. Either way the post ends held in the audit queue;
+     * the deadline covers the slower arrival, not just the fast one.</p>
      */
     private int awaitPendingReview(long postId) {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(POLL_DEADLINE_SECONDS);
