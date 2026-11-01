@@ -280,3 +280,43 @@
 
 > 探测口径：ngrok 免费层对**浏览器导航**会插一页警告，命令行探测必须带
 > `ngrok-skip-browser-warning: true`，否则每个路径都会"返回 200"，那一轮测量就没有任何意义。
+
+## 发布与验收记录（2026-11-02，`20261102-01`）
+
+> 范围：重新发布本机全栈，带上 PR #26（AI 融合轮：评论安全检查、Prompt 专属评审、@ai-agent 提及）
+> 与 PR #27（前端打磨：焦点可见性、审计反馈、首页分页等）。机器曾关机重启，docker 栈是从零拉起的。
+> 结论：**发布与公网验收通过；环境侧撞掉并修复两处故障，记录如下。**
+
+- [x] 代码基线：`master` 合并提交 `a516f0d`（含 #26、#27），CI 两侧全绿后合并。
+- [x] 发布 tag：`APP_TAG=20261102-01`，`GIT_REVISION=a516f0d`；`nexus-vibe-app:20261102-01` 与
+      `nexus-vibe-web:20261102-01` 由宿主产物 + scratch 的 runtime 装配 Dockerfile 构建
+      （多阶段构建依旧受 Docker Hub 拉取故障阻塞，本次表现为匿名 HEAD 请求 401，
+      与 2026-09-16 记录的 metadata 超时是同一条环境故障链）。
+- [x] **环境故障一（Docker Desktop 拒绝启动）**：`com.docker.backend` 在初始化 Inference manager /
+      Secrets Engine 时对陈旧 AF_UNIX socket 文件（`%LOCALAPPDATA%\Docker\run\dockerInference`、
+      `%LOCALAPPDATA%\docker-secrets-engine\engine.sock`）执行 remove 失败即退出。这些条目由强杀
+      `com.docker.backend` 产生，处于任何权限都删不掉、重启也清不掉的损坏状态；父目录改名可以绕开
+      （10-29 的 `run.codex-backup-*` 目录名是同一次事故的遗迹）。本次的解法：重启后由用户手删
+      `Docker\run`（其中由崩溃实例重建的 socket 是健康的，删掉后 Docker 自启重建一切正常）；
+      `EnableDockerAI=false` 与猜测的 `EnableSecretsEngine` 键均无效，如实记录。
+      **教训：永远不要对运行中的 `com.docker.backend` 使用 Stop-Process——先 `docker compose down`。**
+- [x] **环境故障二（Docker Hub 匿名拉取 401）**：宿主上旧基础镜像与 `20260928-02` 旧发布镜像已不存在
+      （回滚镜像链断了，见下一条），重新拉取时 `registry-1.docker.io` 匿名 HEAD 全部 401。
+      解法：改走 `docker.m.daocloud.io` 镜像源拉取 mysql:8.0 / elasticsearch:7.17.24 / ollama:latest /
+      grafana:11.1.4 / prometheus:v2.53.2 / python:3.12-alpine / temurin:21-jre / nginx:1.27-alpine，
+      本地 retag 回官方名；构建用 `DOCKER_BUILDKIT=0`（BuildKit 即使镜像在本地也会先查 registry 元数据）。
+- [x] **回滚目标缺失，如实记录**：宿主机上没有保留最近两个 `APP_TAG` 的镜像（`20260928-02` 已不在），
+      发布纪律中"回滚窗口内禁止 prune"这一条在前一轮的某个时点被打破。本次不补建旧镜像；下一次发布起
+      恢复保留最近两个 tag 的纪律。
+- [x] `docker compose --profile monitoring up -d --no-build`：9 个容器全部 Up
+      （db / redis / es / ollama healthy；app / web / prometheus / grafana / alert-bridge 运行中）。
+- [x] 运行时健康：`/actuator/health` → `{"status":"UP"}`；容器内 `/actuator/health/deps` 的
+      db、elasticsearch、llm、redis 全部 UP；LLM 指向 compose 内 `ollama:11434/v1`，模型 `qwen2.5:3b`
+      （命名卷持久化的那份，与 `.env` 的 `LLM_MODEL` 一致）。`app` 日志无 `/app/logs` 不可写回退警告，
+      卷属主迁移状态保持。
+- [x] 镜像标签核对：两个容器 `Config.Image` 均为 `*:20261102-01`，`org.opencontainers.image.revision=a516f0d`。
+- [x] 公网黑盒验收（带 `ngrok-skip-browser-warning: true`）：SPA `/` → 200 且 `<title>Nexus-Vibe | AI 开发者社区`；
+      `/api/v1/channels` → 200 真实 JSON；`/actuator/health` → UP；
+      `/actuator/prometheus` → 404（公网面收敛未被破坏）。CORS 三源（`localhost:8080`、
+      `nexus-vibe.shing26.is-a.dev`、`qualifier-discuss-marry.ngrok-free.dev`）与隧道域名配对未变。
+- [x] 隧道由 `scripts/tunnel-ngrok.ps1` 手工进程提供，开机自启仍未做（历史遗留，见上节）。
