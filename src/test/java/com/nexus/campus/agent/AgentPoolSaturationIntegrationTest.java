@@ -27,7 +27,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.when;
 
@@ -114,25 +113,55 @@ class AgentPoolSaturationIntegrationTest {
     @BeforeEach
     void occupyAgentPool() {
         when(llmHealthCache.isHealthy()).thenReturn(true);
-        release = new CountDownLatch(1);
+        // Held in a local as well as the field: the tasks must await the gate this test opened,
+        // never one that happens to be sitting in the field when the previous test's teardown
+        // runs. The field alone is how a leftover task ends up waiting on the wrong latch.
+        CountDownLatch gate = new CountDownLatch(1);
+        release = gate;
         ThreadPoolExecutor pool = pool();
         // Submit until the pool refuses: it grows to core, then fills its queue, then grows to
-        // max, and only then rejects. Stopping at the first rejection fills it exactly.
-        for (int i = 0; i < 1000; i++) {
-            try {
-                hold(pool);
-            } catch (RejectedExecutionException saturated) {
-                break;
+        // max, and only then rejects. Filling it exactly means stopping at the first refusal --
+        // but a single refusal is not proof that the pool is still full a moment later, so the
+        // probe below is part of the loop: if it is accepted, a slot freed up between the two
+        // calls, the fill is repeated, and the test does not assert on a pool it never held.
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(HOLD_SECONDS);
+        while (System.nanoTime() < deadline) {
+            boolean refused = false;
+            for (int i = 0; i < 1000 && !refused; i++) {
+                try {
+                    hold(pool, gate);
+                } catch (RejectedExecutionException full) {
+                    refused = true;
+                }
+            }
+            if (!refused) {
+                // Everything we submitted was taken, so the pool is not full by construction.
+                sleepPollingInterval();
+                continue;
+            }
+            if (refuses(pool)) {
+                log.info("agent pool saturated for the test: active={}, poolSize={}, queued={}",
+                        pool.getActiveCount(), pool.getPoolSize(), pool.getQueue().size());
+                return;
             }
         }
-        // Precondition for both tests: this pool really does refuse work.
-        assertThrows(RejectedExecutionException.class, () -> pool.execute(() -> { }),
-                "test precondition: the agent pool must be saturated");
-        // Diagnostic for an open question: two CI runs showed the dispatch's @Async submission
-        // accepted right after this precondition proved rejection, so the snapshot records what
-        // the pool actually looks like at the moment the test body starts.
-        log.info("agent pool saturated for the test: active={}, poolSize={}, queued={}",
-                pool.getActiveCount(), pool.getPoolSize(), pool.getQueue().size());
+        fail("the agent pool could not be held saturated within " + HOLD_SECONDS + "s: corePoolSize="
+                + pool.getCorePoolSize() + ", maxPoolSize=" + pool.getMaximumPoolSize()
+                + ", poolSize=" + pool.getPoolSize() + ", active=" + pool.getActiveCount()
+                + ", queued=" + pool.getQueue().size()
+                + ", queue=" + pool.getQueue().getClass().getSimpleName()
+                + ", remainingCapacity=" + pool.getQueue().remainingCapacity()
+                + ", gate=" + gate.getCount());
+    }
+
+    /** True when the pool refuses new work right now; a one-off probe, not a sentinel task. */
+    private boolean refuses(ThreadPoolExecutor pool) {
+        try {
+            pool.execute(() -> { });
+            return false;
+        } catch (RejectedExecutionException refused) {
+            return true;
+        }
     }
 
     @AfterEach
@@ -271,11 +300,10 @@ class AgentPoolSaturationIntegrationTest {
         }
     }
 
-    private void hold(ThreadPoolExecutor pool) {
-        // Captured, not read from the field: the field is replaced by the next test, and a task
-        // left over from this one would then block on the next test's latch and corrupt its
-        // pool accounting. That is what made this class flaky on CI.
-        CountDownLatch gate = release;
+    private void hold(ThreadPoolExecutor pool, CountDownLatch gate) {
+        // The gate is the caller's local, not the field: the field is replaced by the next test,
+        // and a task left over from this one would then block on the next test's latch and
+        // corrupt its pool accounting. That is what made this class flaky on CI.
         pool.execute(() -> {
             try {
                 gate.await(HOLD_SECONDS, TimeUnit.SECONDS);
