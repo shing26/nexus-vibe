@@ -28,6 +28,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.fail;
 import static org.mockito.Mockito.when;
 
 /**
@@ -59,18 +60,18 @@ class AgentPoolSaturationIntegrationTest {
     private static final long HOLD_SECONDS = 30;
 
     /**
-     * How long the polls wait for the fail-closed write. There are two ways the
-     * write can land, and the deadline has to cover the slower one: the pool
-     * refuses the dispatch and the publisher's recovery transaction writes it
-     * within milliseconds, or the pool takes the submission — CI runs have
-     * shown this can happen even immediately after the precondition below
-     * proved rejection — and the queued listener only starts once the hold
-     * tasks release at {@code HOLD_SECONDS}, then runs the LLM client's retry
-     * ladder (measured ~3-8s on the CI runner) before writing. The deadline is
-     * therefore the hold plus budget for that ladder, not the hold itself: a
-     * 30s deadline failed CI by three seconds in exactly this way.
+     * How long the polls wait for the fail-closed write. Nothing on that path waits behind
+     * {@code HOLD_SECONDS}: the hold is released as soon as the dispatch has been attempted
+     * (see {@link #releaseHoldAfterDispatch()}), so both arrival paths start from the commit.
+     * The pool either refuses the dispatch, and the publisher's recovery transaction writes
+     * inline in {@code afterCommit}, or it takes the submission — CI runs have shown this can
+     * happen even immediately after the precondition below proved rejection — and the queued
+     * listener starts as soon as the released tasks free their slots. The mocked
+     * {@link LlmClient} keeps that second path short too, so what remains is scheduling
+     * latency on a shared CI runner. The deadline covers that with room to spare; a timeout
+     * here is a failure with diagnostics, not a quiet return (see {@link #awaitPendingReview}).
      */
-    private static final long POLL_DEADLINE_SECONDS = HOLD_SECONDS + 20;
+    private static final long POLL_DEADLINE_SECONDS = 20;
 
     @Autowired
     private PostAgentEventPublisher publisher;
@@ -95,6 +96,18 @@ class AgentPoolSaturationIntegrationTest {
      */
     @MockBean
     private LlmHealthCache llmHealthCache;
+
+    /**
+     * Mocked so the queued-listener path is deterministic. When the saturated pool accepts the
+     * dispatch, the listener only starts once the hold tasks release, and with a real client its
+     * fail-closed write then waits behind the LLM client's retry ladder — a duration this test does
+     * not control and CI networking moves around (one run needed over 50s). The subject here is the
+     * saturation handling, not the ladder: an unstubbed mock makes every accepted dispatch reach
+     * {@code failClosed} as soon as the listener is scheduled, and the rejection path never touches
+     * the client at all.
+     */
+    @MockBean
+    private LlmClient llmClient;
 
     private CountDownLatch release;
 
@@ -141,6 +154,7 @@ class AgentPoolSaturationIntegrationTest {
             assertEquals(PostStatus.ACTIVE.getCode(), post.getStatus(),
                     "precondition: the post is still ACTIVE inside the transaction");
         });
+        releaseHoldAfterDispatch();
 
         int status = awaitPendingReview(postId);
         assertEquals(PostStatus.PENDING_REVIEW.getCode(), status,
@@ -164,6 +178,7 @@ class AgentPoolSaturationIntegrationTest {
             vibePostMapper.updateById(post);
             publisher.publishReview(post, post.getUserId());
         });
+        releaseHoldAfterDispatch();
 
         int aiReviewed = awaitReviewFailed(postId);
         assertEquals(AiReviewStatus.FAILED.getCode(), aiReviewed,
@@ -183,15 +198,33 @@ class AgentPoolSaturationIntegrationTest {
     }
 
     /**
+     * Releases the hold tasks as soon as the dispatch has been attempted.
+     *
+     * <p>The saturation only has to exist at dispatch time. The publisher registers an
+     * {@code afterCommit} synchronization, and {@code TransactionTemplate.executeWithoutResult}
+     * returns only after that callback has run, so the accept-or-reject decision is already made
+     * when this is called. Holding the pool any longer only delays the queued listener behind
+     * {@code HOLD_SECONDS} for no benefit — which is what made this test race its own deadline on
+     * CI.</p>
+     */
+    private void releaseHoldAfterDispatch() {
+        release.countDown();
+    }
+
+    /**
      * Reads the post status once the safety check has had the chance to fail closed.
      *
-     * <p>The fail-closed write is not guaranteed to land before the commit returns. When the
-     * saturated pool refuses the event, the publisher's recovery transaction writes the status
-     * inline in afterCommit; when the pool takes the submission instead (see
-     * {@link #POLL_DEADLINE_SECONDS}), the listener runs asynchronously — queued behind the hold
-     * tasks, released at {@code HOLD_SECONDS}, then behind the LLM client's own retry ladder.
-     * Either way the post ends held in the audit queue; the deadline covers the slower arrival,
-     * not just the fast one.</p>
+     * <p>The fail-closed write is not guaranteed to land before the commit returns, so this polls.
+     * Two arrival paths reach the same write: the saturated pool refuses the dispatch and the
+     * publisher's recovery transaction writes the status inline in {@code afterCommit}; or the pool
+     * takes the submission and the listener runs once the released hold tasks free their slots.
+     * Either way it lands in milliseconds to seconds, never behind {@code HOLD_SECONDS} — see
+     * {@link #releaseHoldAfterDispatch()} and {@link #POLL_DEADLINE_SECONDS}.</p>
+     *
+     * <p>Timing out fails rather than returns. Returning the stored value would make a scheduling
+     * timeout indistinguishable from the fail-open outcome this test exists to catch: both would
+     * report {@code expected: <2> but was: <1>}, and the message would say nothing about which one
+     * happened.</p>
      */
     private int awaitPendingReview(long postId) {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(POLL_DEADLINE_SECONDS);
@@ -202,13 +235,17 @@ class AgentPoolSaturationIntegrationTest {
             }
             sleepPollingInterval();
         }
-        return vibePostMapper.selectById(postId).getStatus();
+        VibePost stored = vibePostMapper.selectById(postId);
+        return fail("the fail-closed write did not land within " + POLL_DEADLINE_SECONDS
+                + "s: status=" + stored.getStatus() + " (expected " + PostStatus.PENDING_REVIEW.getCode()
+                + "), pool active=" + pool().getActiveCount() + ", queued=" + pool().getQueue().size()
+                + "; a timeout here means the write never arrived, not that it arrived late");
     }
 
     /**
-     * Same bounded wait for the review path: the listener also marks a post FAILED from its own
-     * thread, whether it ran on a slot freed before the dispatch or on the queued task released
-     * with the hold tasks.
+     * The same bounded wait for the review path: the listener marks the post FAILED from its own
+     * thread on either arrival path, and a timeout fails with diagnostics for the reason
+     * {@link #awaitPendingReview} gives.
      */
     private int awaitReviewFailed(long postId) {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(POLL_DEADLINE_SECONDS);
@@ -219,7 +256,11 @@ class AgentPoolSaturationIntegrationTest {
             }
             sleepPollingInterval();
         }
-        return vibePostMapper.selectById(postId).getAiReviewed();
+        VibePost stored = vibePostMapper.selectById(postId);
+        return fail("the review was not marked FAILED within " + POLL_DEADLINE_SECONDS
+                + "s: aiReviewed=" + stored.getAiReviewed() + " (expected " + AiReviewStatus.FAILED.getCode()
+                + "), pool active=" + pool().getActiveCount() + ", queued=" + pool().getQueue().size()
+                + "; a timeout here means the write never arrived, not that it arrived late");
     }
 
     private void sleepPollingInterval() {
