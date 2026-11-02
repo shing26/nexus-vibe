@@ -1,5 +1,6 @@
 package com.nexus.campus.service.impl;
 
+import com.nexus.campus.dto.TagUsageVo;
 import com.nexus.campus.entity.VibeTag;
 import com.nexus.campus.mapper.VibeTagMapper;
 import com.nexus.campus.service.VibeTagService;
@@ -19,6 +20,12 @@ public class VibeTagServiceImpl implements VibeTagService {
     @Cacheable(value = "tags", key = "'active'")
     public List<VibeTag> getActiveTags() {
         return vibeTagMapper.selectActiveTags();
+    }
+
+    @Override
+    @Cacheable(value = "tags", key = "'active-with-usage'")
+    public List<TagUsageVo> getActiveTagsWithUsage() {
+        return vibeTagMapper.selectActiveTagsWithUsage();
     }
 
     @Override

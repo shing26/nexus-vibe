@@ -49,8 +49,8 @@ Revised order: **OPS-1 -> OPS-2 -> OPS-3 -> SEARCH-1's ADR**, with FE-1 optional
 Progress on that order (2026-09-17): **the sequence is done.** OPS-1 and OPS-2 are closed -- the alert
 path has delivered a real message to a real group and the public address is live. OPS-3 moved three
 drill steps into CI and left its rollback half manual on purpose. SEARCH-1 is decided: the lag is
-accepted and the rebuild is an operator's remedy (ADR-0011). What is left of the verdict table is
-FE-1, and it is optional.
+accepted and the rebuild is an operator's remedy (ADR-0011). What is left of the verdict table was
+FE-1, and it is now closed too (2026-11-02, section below).
 
 None of the three closures went the way its ticket expected, and all three are written below rather
 than smoothed over. OPS-1's negative check surfaced a defect that was swallowing every alert. OPS-2
@@ -273,9 +273,21 @@ heap.
 
 ## FE-1 - Frontend crash reporting
 
-Status: open. `ErrorBoundary` catches render errors and shows a fallback, but nothing
-leaves the browser: the traceId in the toast is the only breadcrumb a user can hand
-over, and only for API failures.
+Status: **closed, 2026-11-02.** `ErrorBoundary.componentDidCatch` and the global
+`error`/`unhandledrejection` handlers (`frontend/src/api/crashReporter.ts`, installed in
+`main.tsx`) each send one report to `POST /api/v1/crash-reports`
+(`CrashReportController`), which writes a single WARN log line through the same MDC
+traceId field as every other request. The reporter self-limits — one report per unique
+kind+message per window, at most five per window — so a broken render loop produces one
+line, not a hundred. The endpoint is unauthenticated but every DTO field is size-capped
+and the controller flattens control characters before logging, so a report can pad the
+log but cannot forge a second log line. No third-party SDK, no new storage, as scoped.
+The reporter is a bare `fetch(keepalive)` rather than `apiClient`: it has to survive the
+failure of the auth/toast stores that `apiClient`'s interceptors depend on. Tests: five
+`CrashReportControllerTest` cases (one line per report, stack flattening, absent-field
+rendering, size caps, closed `kind` set) and eight frontend cases (dedupe, window cap,
+truncation, fetch-failure swallow, synthetic unhandled rejection, resource-noise skip,
+boundary report with component stack).
 
 **Scope:** report unhandled errors from the browser to the backend, tagged with the
 traceId when one exists.

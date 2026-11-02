@@ -40,7 +40,8 @@ public class RateLimitInterceptor implements HandlerInterceptor {
             "/api/v1/posts",
             "/api/v1/comments",
             "/api/v1/auth/login",
-            "/api/v1/auth/register"
+            "/api/v1/auth/register",
+            "/api/v1/crash-reports"
     );
 
     private static final List<String> EXEMPT_PREFIXES = List.of(

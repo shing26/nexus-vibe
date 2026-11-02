@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-456%20Java%20%2B%2042%20frontend-brightgreen?style=flat-square" alt="456 Java tests + 42 frontend tests">
+  <img src="https://img.shields.io/badge/tests-463%20Java%20%2B%2050%20frontend-brightgreen?style=flat-square" alt="463 Java tests + 50 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -394,16 +394,19 @@ the restore rehearsal is [docs/runbook/restore.md](docs/runbook/restore.md).
 
 ## 🧪 Testing gates
 
-Measured 2026-10-31 on this machine: backend **456 tests / 76 classes**, 0 failures, 0
+Measured 2026-11-02 on this machine: backend **463 tests / 78 classes**, 0 failures, 0
 errors, 0 skipped - counted from one `mvn -B test` summary line, never
-`target/surefire-reports/`, which accumulates runs and lies. Frontend **42 tests / 11
+`target/surefire-reports/`, which accumulates runs and lies. Frontend **50 tests / 13
 files**: the axios response interceptor (a 401 replayed once against the refreshed token,
 one refresh shared across concurrent 401s, a refused refresh that logs out without
 looping, a 5xx named with its trace id), the server-error sentence mapping, the login
 page's server reason, the AI review panel (a stored 0-10 shown as the 0-100 it claims, a
 stored zero as an empty meter rather than NaN, the replay that lights the steps in
 order), reduced motion, the mobile tab bar, the nav evidence links, the comment body,
-the showcase entry, the step strip, and the call-site scan. The alert bridge carries
+the showcase entry, the step strip, the call-site scan, and the crash reporter (one
+report per unique crash, five per window, oversized fields truncated, a failed fetch
+swallowed, an unhandled rejection and a boundary error each reported with the component
+stack). The alert bridge carries
 **28** Python tests.
 
 Coverage is a gate, not a report: `pom.xml` pins `jacoco.line.minimum` to 0.70 for the

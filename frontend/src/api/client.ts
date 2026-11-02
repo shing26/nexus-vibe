@@ -3,6 +3,26 @@ import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 
+/**
+ * The last trace id any API response carried, so the crash reporter can tag a
+ * crash with the server-side id that lived when it happened ("tagged with the
+ * traceId when one exists" — FE-1). Set on every response, success or error,
+ * before the interceptors do anything else.
+ */
+let lastTraceId: string | null = null;
+
+export function getLastTraceId(): string | null {
+  return lastTraceId;
+}
+
+function captureTraceId(headers: unknown): void {
+  if (!headers) return;
+  const value = (headers as Record<string, unknown>)['x-trace-id'];
+  if (typeof value === 'string' && value) {
+    lastTraceId = value;
+  }
+}
+
 export const apiClient = axios.create({
   baseURL: '/api/v1',
   headers: {
@@ -62,8 +82,12 @@ function shortTraceId(error: AxiosError): string | null {
 }
 
 apiClient.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    captureTraceId(response.headers);
+    return response;
+  },
   async (error) => {
+    captureTraceId(error.response?.headers);
     const original = error.config;
     const isAuthCall =
       original?.url === '/auth/refresh' || original?.url === '/auth/login';
