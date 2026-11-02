@@ -76,6 +76,7 @@ alternatives that were rejected.
 | [readme-visual-front-door](tickets/readme-visual-front-door.md) | The README gets a hero capture, a native Mermaid architecture diagram and a measured Lua-vs-naive consistency figure - and where the brief's score-92 label could not be honoured |
 | [ai-fusion-round](tickets/ai-fusion-round.md) | ADR-0016's round: comment safety check (post-visible), prompt review on the ADR-0012 seam, and the agent mention with its placeholder-retry semantics |
 | [frontend-polish-round-2](tickets/frontend-polish-round-2.md) | FE-1 crash reporting (browser to one capped log line), a /tags directory with visible-post counts, and the two critique items this round declined |
+| [saturation-test-deflake](tickets/saturation-test-deflake.md) | One test class, three CI failures in a day: a poll deadline racing the retry ladder, a precondition that read one refusal as proof of a full pool, and a latch read from a field |
 
 ## Plans — `docs/plans/`
 

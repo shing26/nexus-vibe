@@ -5,7 +5,8 @@ Source: the residual items of the 2026-10-31 critique round (PR #27) — FE-1 fr
 deliberately did not touch. Written after implementation; the verification numbers come from
 the runs named at the bottom.
 
-Status: implemented in the working tree on 2026-11-02. Backend `mvn -B test` measures
+Status: **merged on master** via PR #30 (2026-11-02); the saturation test that PR carried
+was hardened again in [saturation-test-deflake](saturation-test-deflake.md). Backend `mvn -B test` measures
 **463 tests / 78 classes**, 0 failures, coverage floor met; frontend **50 tests / 13 files**
 and oxlint clean, production build green.
 
