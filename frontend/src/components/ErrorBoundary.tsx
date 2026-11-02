@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
+import { reportCrash } from '../api/crashReporter';
 
 interface Props { children: React.ReactNode; }
 interface State { hasError: boolean; error?: Error; }
@@ -8,6 +9,20 @@ interface State { hasError: boolean; error?: Error; }
 export default class ErrorBoundary extends React.Component<Props, State> {
   constructor(props: Props) { super(props); this.state = { hasError: false }; }
   static getDerivedStateFromError(error: Error) { return { hasError: true, error }; }
+  /**
+   * FE-1: a caught render error now also leaves the browser, tagged with the
+   * component stack — the one breadcrumb `error.stack` cannot give. The global
+   * handlers in `crashReporter.ts` cover what no boundary sees; this covers
+   * what one does.
+   */
+  componentDidCatch(error: Error, info: React.ErrorInfo) {
+    void reportCrash({
+      kind: 'boundary',
+      message: error.message,
+      stack: error.stack,
+      componentStack: info.componentStack ?? undefined,
+    });
+  }
   render() {
     if (this.state.hasError) {
       return (
