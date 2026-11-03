@@ -422,10 +422,10 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 `apiClient.` call to sit inside a `try`/`catch` or react-query.
 
 ```bash
-mvn test                      # 456: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
+mvn test                      # 463: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 42
+cd frontend && npm run test   # 50
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28
 ```
 
