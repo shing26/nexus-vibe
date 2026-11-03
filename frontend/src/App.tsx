@@ -77,29 +77,29 @@ export default function App() {
           <ToastContainer />
           <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">Loading...</div>}>
             <Routes>
-              <Route element={<MainLayout />}>
-                <Route path="/" element={<HomePage />} />
-                <Route path="/channel/:slug" element={<ChannelPage />} />
-                <Route path="/post/:id" element={<PostDetailPage />} />
-                <Route path="/search" element={<SearchPage />} />
-                <Route path="/login" element={<LoginPage />} />
-                <Route path="/register" element={<RegisterPage />} />
-                <Route path="/user/:id" element={<UserProfilePage />} />
-                <Route path="/tags" element={<TagsPage />} />
+              <Route path="/" element={<MainLayout />}>
+                <Route index element={<HomePage />} />
+                <Route path="channel/:slug" element={<ErrorBoundary section="the channel page"><ChannelPage /></ErrorBoundary>} />
+                <Route path="post/:id" element={<ErrorBoundary section="the post"><PostDetailPage /></ErrorBoundary>} />
+                <Route path="search" element={<ErrorBoundary section="search"><SearchPage /></ErrorBoundary>} />
+                <Route path="login" element={<ErrorBoundary section="the login page"><LoginPage /></ErrorBoundary>} />
+                <Route path="register" element={<ErrorBoundary section="registration"><RegisterPage /></ErrorBoundary>} />
+                <Route path="user/:id" element={<ErrorBoundary section="the profile"><UserProfilePage /></ErrorBoundary>} />
+                <Route path="tags" element={<ErrorBoundary section="the tag directory"><TagsPage /></ErrorBoundary>} />
                 <Route path="*" element={<NotFoundPage />} />
                 <Route element={<AuthGuard />}>
-                  <Route path="/post/new" element={<CreatePostPage />} />
-                  <Route path="/post/:id/edit" element={<EditPostPage />} />
-                  <Route path="/user/settings" element={<SettingsPage />} />
-                  <Route path="/user/messages" element={<MessagesPage />} />
-                  <Route path="/drafts" element={<DraftsPage />} />
+                  <Route path="post/new" element={<ErrorBoundary section="the post editor"><CreatePostPage /></ErrorBoundary>} />
+                  <Route path="post/:id/edit" element={<ErrorBoundary section="the post editor"><EditPostPage /></ErrorBoundary>} />
+                  <Route path="user/settings" element={<ErrorBoundary section="settings"><SettingsPage /></ErrorBoundary>} />
+                  <Route path="user/messages" element={<ErrorBoundary section="messages"><MessagesPage /></ErrorBoundary>} />
+                  <Route path="drafts" element={<ErrorBoundary section="drafts"><DraftsPage /></ErrorBoundary>} />
                 </Route>
               </Route>
-              <Route element={<AdminLayout />}>
+              <Route path="/" element={<AdminLayout />}>
                 <Route element={<AdminRouteGuard />}>
-                  <Route path="/admin/audit" element={<AuditPage />} />
-                  <Route path="/admin/dashboard" element={<DashboardPage />} />
-                  <Route path="/agent-logs" element={<AgentLogsPage />} />
+                  <Route path="admin/audit" element={<ErrorBoundary section="the audit queue"><AuditPage /></ErrorBoundary>} />
+                  <Route path="admin/dashboard" element={<ErrorBoundary section="the dashboard"><DashboardPage /></ErrorBoundary>} />
+                  <Route path="agent-logs" element={<ErrorBoundary section="the agent logs"><AgentLogsPage /></ErrorBoundary>} />
                 </Route>
               </Route>
             </Routes>
