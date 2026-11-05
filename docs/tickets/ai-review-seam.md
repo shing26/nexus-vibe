@@ -70,7 +70,25 @@ it, and a value nothing reads is a promise to keep it stable for no reason.
 
 ## AI-2 - One place performs the review
 
-Status: open. `AiReviewService.reviewPost` is one 477-line method-bearing class that calls the
+Status: **landed** (ADR-0012, commit `491cbc1`, 2026-10-31 — this note written 2026-11-05 after
+reading the ticket against the tree; the Status line had not been moved). The split exists as
+scoped: `Reviewer` (`src/main/java/com/nexus/campus/agent/Reviewer.java`) answers with a
+`Reviewer.Verdict` (score, severity, quality, security, suggestions, body); the producing half
+lives in `AbstractLlmReviewer` (`CodeReviewReviewer` and `PromptReviewReviewer` extend it), and
+`AiReviewService` (185 lines) only records — `saveReviewLog`, `markPost`, the FAILED transition,
+the unavailable path. It no longer references `LlmClient`. The reviewer identity travels with
+the verdict (`reviewer.identity()` reaches `ai_review_log.reviewer` and the listener's log line).
+
+One acceptance line is **partially met and honestly recorded**: `AiReviewLogMapper`'s two
+code-review queries still filter on the literal `'code-review-agent'` (`AiReviewLogMapper.java:28,38`),
+so a replacement reviewer's rows would not be found by the score lookup or the profile feed. The
+ticket predicted exactly this failure ("swap the reviewer, keep the hard-coded name, and the score
+lookup returns nothing while every test still passes"). The default-bean wiring itself is
+parameterized — `ReviewPolicyConfig` registers `codeReviewReviewer` and `promptReviewReviewer`
+under `@ConditionalOnMissingBean` — so the gap is confined to the two mapper queries.
+
+Original scope, kept for the record: `AiReviewService.reviewPost` is one 477-line method-bearing
+class that calls the
 model *and* writes the result: the AI comment, the `ai_review_score` column, and the
 `ai_review_log` row. A fork cannot change how a review is produced without editing the part
 that records it.
@@ -111,7 +129,14 @@ pipeline is asked to demonstrate.
 
 ## AI-3 - Publish the seam where a fork will find it
 
-Status: open. A seam nobody can find is a private interface. The reuse assessment found the
+Status: **landed**. README's "🧩 Adapting it - the fork map" section carries the fork map: the
+two seams, a compiling `PromptOnlyReviewPolicy` example inline, the not-seams list, and links
+into ADR-0012. One line inside it was stale until 2026-11-05 — the `Reviewer` bullet still said
+"not yet in the tree" and pointed at AI-2 as open — and is corrected in the same commit that
+moves this Status line. ADR-0012 and this ticket are linked from the README section and listed
+in `docs/INDEX.md`.
+
+Original scope, kept for the record: A seam nobody can find is a private interface. The reuse assessment found the
 coupling only by reading the code, and the README has no section that would have answered the
 question.
 
@@ -143,7 +168,16 @@ interface ages; a compiling implementation with a test beside it does not.
 
 ## AI-4 - Prove the seams are not decoration
 
-Status: open, and small on purpose. AI-1 and AI-2 each assert their own seam, which leaves one
+Status: **not done, and honestly left open.** The tree has a `StubReviewer implements Reviewer`
+(`AiReviewServiceTest`) asserting the recording half against a fixed verdict, and seam-level
+wiring is covered by `ReviewPolicyConfig`'s `@ConditionalOnMissingBean` registration — but the
+test this ticket asks for, *both defaults replaced together through a real publish*, does not
+exist. No test in the tree configures a reviews-everything policy plus a canned reviewer and
+asserts the dispatch, the lease, the recorded row and the replacement identity end to end. The
+ticket stays open rather than being closed as done: the pair is the evidence, and half the pair
+is not evidence.
+
+Original scope, kept for the record: AI-1 and AI-2 each assert their own seam, which leaves one
 question they cannot answer separately: whether replacing *both* is enough to retarget the
 pipeline at a different subject.
 
