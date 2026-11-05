@@ -189,12 +189,45 @@ public class PromptOnlyReviewPolicy implements ReviewPolicy {
 }
 ```
 
-- **`Reviewer` - who produces the verdict?** Decided in ADR-0012 as a verdict object plus
-  a default `LlmReviewer` bean, and **not yet in the tree**: no `Reviewer` interface exists
-  in `src/main/java` today - the producing half still sits inside `AiReviewService`, and
-  the split is tracked as AI-2 in
-  [docs/tickets/ai-review-seam.md](docs/tickets/ai-review-seam.md), status open. This line
-  changes in the commit that lands it.
+- **`Reviewer` - who produces the verdict?** One method,
+  `Verdict review(VibePost post)`, with `Verdict` carrying score, severity, the findings and
+  the reviewer identity. Two implementations ship: `CodeReviewReviewer` (the default for
+  code posts) and `PromptReviewReviewer` (prompt posts), both extending
+  `AbstractLlmReviewer` for the prompt assembly, JSON repair and retry ladder; both are
+  registered in `ReviewPolicyConfig` under `@ConditionalOnMissingBean`, so your own bean
+  replaces them without editing a core file. The recording half (lease, validity rules,
+  score writes, the log row) stays in core regardless of the reviewer:
+
+```java
+package com.nexus.campus.agent;
+
+import com.nexus.campus.entity.VibePost;
+import org.springframework.stereotype.Component;
+
+@Component
+public class ApprovedAlwaysReviewer implements Reviewer {
+    @Override
+    public String identity() {
+        return "my-reviewer";
+    }
+
+    @Override
+    public boolean claims(VibePost post) {
+        return true;
+    }
+
+    @Override
+    public Verdict review(VibePost post) {
+        return new Verdict(7, "low", "ok", "ok", "nothing", true,
+                "Reviewed by my own reviewer.", "{\"score\":7}");
+    }
+}
+```
+
+  The one coupling to know about: `AiReviewLogMapper`'s code-review queries still filter on
+  the literal `'code-review-agent'`, so a replacement reviewer's rows are recorded but not
+  read back by the score lookup and the profile feed — tracked as the open half of AI-2 in
+  [docs/tickets/ai-review-seam.md](docs/tickets/ai-review-seam.md).
 
 **What is deliberately not a seam:** the lease claim
 ([ADR-0005](docs/adr/0005-lease-based-review-claim.md)), the reconciliation task,
