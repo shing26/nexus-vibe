@@ -168,14 +168,26 @@ interface ages; a compiling implementation with a test beside it does not.
 
 ## AI-4 - Prove the seams are not decoration
 
-Status: **not done, and honestly left open.** The tree has a `StubReviewer implements Reviewer`
-(`AiReviewServiceTest`) asserting the recording half against a fixed verdict, and seam-level
-wiring is covered by `ReviewPolicyConfig`'s `@ConditionalOnMissingBean` registration — but the
-test this ticket asks for, *both defaults replaced together through a real publish*, does not
-exist. No test in the tree configures a reviews-everything policy plus a canned reviewer and
-asserts the dispatch, the lease, the recorded row and the replacement identity end to end. The
-ticket stays open rather than being closed as done: the pair is the evidence, and half the pair
-is not evidence.
+Status: **landed, 2026-11-05.** The pair the ticket asks for exists and is green:
+
+- `BothSeamsReplacedIntegrationTest` — both defaults swapped in one `@TestConfiguration`
+  (an everything-passing `@Primary` policy plus a `canned-review-agent` reviewer that claims
+  everything), publishing a plain-prose post through the real `PostAgentEventPublisher` and a
+  real commit. Asserts the full path: the post the default rule would skip ends `REVIEWED`
+  with the canned score, `ai_review_log` carries exactly one row stamped
+  `canned-review-agent` with the canned severity and approval, and one visible AI comment
+  from the agent account carries the canned body.
+- `DefaultsOnlyIntegrationTest` — the same prose shape against the untouched context
+  (Spring TestContext caches one context per unique configuration, so the pair runs in two
+  classes). Asserts the skip: `NOT_REVIEWED`, score 0, no log row.
+
+The pair is the evidence, per the ticket's own wording: the replaced half alone could be the
+default policy matching anyway, and the skipped half alone could be a replacement failing
+silently. The canned verdict is deliberately built to pass `ReviewValidity` — a replacement
+that could not pass the gate could not prove the recording half accepts it.
+
+Both classes green locally (`mvn -B test`, 2026-11-05); the targeted run measured 2/2, the
+full suite 465 tests / 80 classes. The README count changes in the same commit.
 
 Original scope, kept for the record: AI-1 and AI-2 each assert their own seam, which leaves one
 question they cannot answer separately: whether replacing *both* is enough to retarget the
