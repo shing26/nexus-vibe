@@ -88,6 +88,11 @@ alternatives that were rejected.
 | [deployment-and-blog-plan](plans/deployment-and-blog-plan.md) | The original deployment plan and its local verification log |
 | [portfolio-showcase-plan](plans/portfolio-showcase-plan.md) | The chosen direction: what "done" means for a portfolio artifact |
 | [environment-matrix](plans/environment-matrix.md) | dev / prod / CI values for the key configuration, with the default and the overrider on each row |
+| [fe-3-post-status-visibility](plans/fe-3-post-status-visibility.md) | Frozen contract for round-3 item 1: the author sees their own held posts, nobody else does, and the rejection reason is derived rather than stored |
+| [fe-3-group-a-feed-copy](plans/fe-3-group-a-feed-copy.md) | Frozen contract for round-3 items 2, 4, 6, 8: empty-state copy, the unanswered panel, a per-channel liked ordering, and a test that pins the card's counts |
+| [fe-3-group-b-degradation-banner](plans/fe-3-group-b-degradation-banner.md) | Frozen contract for round-3 item 3: a shaped public capability read model and a dismissible banner, without reopening the actuator paths ADR-0007 closed |
+| [fe-3-group-c-detail-comments](plans/fe-3-group-c-detail-comments.md) | Frozen contract for round-3 items 5 and 7: a worked example on prompt posts, and a rule-based comment sentiment that cannot fail the write or go dark with the LLM |
+| [fe-3-group-d-palette](plans/fe-3-group-d-palette.md) | Frozen contract for round-3 item 9: the palette's second destination is the row's link, not a product the tree does not have |
 
 ## Design and product
 
