@@ -87,6 +87,7 @@ alternatives that were rejected.
 | [deployment-and-blog-plan](plans/deployment-and-blog-plan.md) | The original deployment plan and its local verification log |
 | [portfolio-showcase-plan](plans/portfolio-showcase-plan.md) | The chosen direction: what "done" means for a portfolio artifact |
 | [environment-matrix](plans/environment-matrix.md) | dev / prod / CI values for the key configuration, with the default and the overrider on each row |
+| [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
 
 ## Design and product
 
@@ -103,6 +104,7 @@ alternatives that were rejected.
 |---|---|
 | [reviews/three-persona-journey-2026-09-06](reviews/three-persona-journey-2026-09-06.md) | Full-journey walkthrough from three personas, with `file:line` evidence |
 | [reviews/black-box-exploration-2026-09-09](reviews/black-box-exploration-2026-09-09.md) | Black-box exploration of the running product |
+| [reviews/ai4-acceptance-2026-11-09](reviews/ai4-acceptance-2026-11-09.md) | The AI-4 acceptance record: frozen contract, independent verifier's evidence pack, the four human-review questions, written sign-off |
 | [archive/Nexus-Campus-体验报告](archive/Nexus-Campus-体验报告.md) | The superseded deep experience report |
 | [archive/Nexus-Campus-第二轮修复验证报告](archive/Nexus-Campus-第二轮修复验证报告.md) | Verification pass over the fixes from that report |
 
