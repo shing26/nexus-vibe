@@ -78,6 +78,7 @@ alternatives that were rejected.
 | [frontend-polish-round-2](tickets/frontend-polish-round-2.md) | FE-1 crash reporting (browser to one capped log line), a /tags directory with visible-post counts, and the two critique items this round declined |
 | [fe1-boundary-layering](tickets/fe1-boundary-layering.md) | FE-1's second half: per-route error boundaries under the layout, one broken page no longer unmounts the SPA, and the outer boundary stays as the last resort |
 | [saturation-test-deflake](tickets/saturation-test-deflake.md) | One test class, three CI failures in a day: a poll deadline racing the retry ladder, a precondition that read one refusal as proof of a full pool, and a latch read from a field |
+| [frontend-polish-round-3](tickets/frontend-polish-round-3.md) | Nine patterns from a comparable product, arbitrated against the tree: one is a defect (the author cannot see their own held post), five are cheap, and three are declined with the reason written down |
 
 ## Plans — `docs/plans/`
 
