@@ -241,12 +241,27 @@ describe('CommandPalette dual destination', () => {
     expect(screen.getByText(/copy link/i)).toBeInTheDocument();
   });
 
-  it('D5: the footer omits the secondary hint while an action row is selected', async () => {
-    postHits = [];
+  it('D5: the footer hint tracks the selection, not the mere presence of a secondary row', async () => {
+    // One render holds both kinds of row: the query "post" keeps the two post
+    // rows (each with a secondary) and the "New Vibe Post" action row (without
+    // one). The hint must follow the selection across those rows, so this single
+    // list proves both directions — an empty list of secondary rows could not.
     renderPalette();
-    await search('new');
-    await screen.findByText('New Vibe Post');
+    const input = await search('post');
+    await screen.findByText('First post');
 
+    // Row 0 is a post: the hint is present.
+    expect(screen.getByText(/ctrl\/⌘/)).toBeInTheDocument();
+    expect(screen.getByText(/copy link/i)).toBeInTheDocument();
+
+    // Arrow onto "New Vibe Post" (order: post-1, post-2, new-post). The post
+    // rows are still in the list and still carry a secondary; only the
+    // selection moved.
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+    fireEvent.keyDown(input, { key: 'ArrowDown' });
+
+    expect(input).toHaveAttribute('aria-activedescendant', 'palette-item-new-post');
+    expect(screen.getByText('New Vibe Post')).toBeInTheDocument();
     expect(screen.queryByText(/ctrl\/⌘/)).not.toBeInTheDocument();
     expect(screen.queryByText(/copy link/i)).not.toBeInTheDocument();
   });
