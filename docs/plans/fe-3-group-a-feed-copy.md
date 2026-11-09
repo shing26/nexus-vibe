@@ -50,7 +50,12 @@ case says why. A caller can override any field without forking the component (th
 - A4-3: A post leaves the list once it receives a comment; asserted by a test that seeds a
   zero-comment post, adds a comment, and re-queries.
 - A4-4: The panel renders the item-2 empty copy when the list is empty, and is not rendered
-  below the `md` breakpoint.
+  below the `md` breakpoint. *Amended 2026-11-09:* mounting the page would need the router
+  and query providers this group does not own, so the checkable form is a **source-level
+  assertion in `ChannelPage.test.tsx`**: the empty branch renders the `EmptyState` preset
+  carrying the item-2 copy, and the panel is mounted only under the `useIsDesktop` gate
+  whose media query is `(min-width: 768px)`. Runtime responsive behaviour stays
+  observed-by-inspection — say so in the report rather than implying a browser pass.
 
 ## Item 6 — objective per-channel "best of"
 
@@ -70,7 +75,11 @@ value rather than a new endpoint, so it composes with the existing channel filte
 - A6-3: Existing `sort` values (`latest`, and whatever `filterPosts` already accepts) keep
   their current behaviour; their tests pass unmodified.
 - A6-4: The channel page offers the two orderings as a visible toggle, and the choice is in
-  the URL so it survives a refresh and can be linked.
+  the URL so it survives a refresh and can be linked. *Amended 2026-11-09:* same reason as
+  A4-4 — asserted by a source-level check in `ChannelPage.test.tsx` that `sort` is read from
+  `useSearchParams`, written back through its setter, and included in the query key, plus
+  that both ordering options are rendered by the toggle. A mounted-page test is not
+  required; the limit is stated in the report.
 
 ## Item 8 — counts on the card (verify, do not rebuild)
 
@@ -85,7 +94,11 @@ value rather than a new endpoint, so it composes with the existing channel filte
 ## Allowed paths
 
 - `frontend/src/components/EmptyState.tsx`, `frontend/src/components/EmptyState.test.tsx` (new)
-- `frontend/src/components/PostCard.test.tsx` (new or extended)
+- `frontend/src/components/PostCard.test.tsx` (extended — it exists from item 1)
+- `frontend/src/pages/ChannelPage.test.tsx` (new) — **granted 2026-11-09 for A4-4 and A6-4
+  only.** It carries source-level assertions about `ChannelPage`'s wiring, not a mounted
+  page; the page's providers belong to no group in this round. Do not mount the page, and do
+  not move another page's tests here.
 - `frontend/src/pages/ChannelPage.tsx`, `frontend/src/pages/HomePage.tsx`,
   `frontend/src/pages/AgentLogsPage.tsx`, `frontend/src/pages/SearchPage.tsx`,
   `frontend/src/pages/TagsPage.tsx`, `frontend/src/pages/UserProfilePage.tsx`

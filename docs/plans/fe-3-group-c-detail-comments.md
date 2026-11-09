@@ -34,7 +34,15 @@ playground. No schema change: the column is already `text`.
 - A5-5: Existing `promptMetadata` values without the new keys parse and render exactly as
   today; the JSON is read defensively (the existing `try/catch` shape stays).
 - A5-6: The create/edit form round-trips both fields: creating with an example, then
-  editing the post, shows the example still there.
+  editing the post, shows the example still there. *Amended 2026-11-09:* mounting the two
+  pages would need providers this group does not own, and the repository has exactly one
+  page-level test. The criterion is therefore proven at the two points the round trip can
+  actually break: (a) a test that both helpers round-trip the two keys through the create
+  and edit paths without dropping the existing `role`/`recommendedModel`/`temperature`/
+  `variables` keys; and (b) a source-level assertion that `CreatePostPage` and
+  `EditPostPage` bind the two fields through those helpers, so the wiring cannot be dropped
+  while the helpers stay green. State in the report that field-level DOM interaction in the
+  two forms remains inspected, not asserted.
 
 ## Item 7 — three-way comment sentiment
 
@@ -82,7 +90,12 @@ is out of scope and `0` must render sensibly.
   example fields only
 - `frontend/src/components/PromptVersionPanel.tsx` — only if the example block belongs
   inside it; prefer a sibling block
-- `frontend/src/components/` — one new comment-filter or example component + tests
+- `frontend/src/components/` — **a worked-example component and a comment-filter component,
+  each with its tests, plus one pure helper module for reading and merging
+  `promptMetadata`.** *Amended 2026-11-09:* this line said "one new comment-filter **or**
+  example component", which was a drafting error — this group holds both items 5 and 7, and
+  each needs its own asserted UI. The grant is two components and one pure, tested helper;
+  no file outside this list may change.
 - `frontend/src/types/post.ts`, `frontend/src/types/comment.ts` — the new optional fields
 - `src/main/java/com/nexus/campus/entity/VibeComment.java`
 - `src/main/java/com/nexus/campus/dto/CommentVo.java`

@@ -36,6 +36,9 @@ Not the raw `deps` document. A shaped read model with a closed vocabulary.
 - B3: The endpoint is public (no token) and rate-limited by the same per-IP POST limiter
   family — it is a GET, so confirm the existing GET behaviour and do not invent a new
   limiter; if GETs are unthrottled today, say so in the report rather than adding one.
+  Publicness is decided in `JwtAuthFilter.isPublicGet`, which is why that file is now in
+  Allowed paths; the anonymous-GET test belongs in `src/test/**` and must hit the
+  contracted path through MockMvc, not a rewritten one.
 - B4: The banner renders only when the list is non-empty, names the consequence in the
   user's words ("search results may be incomplete"), and links to ADR-0007.
 - B5: Dismissal is per-session (sessionStorage), and a capability that was not in the
@@ -51,6 +54,11 @@ Not the raw `deps` document. A shaped read model with a closed vocabulary.
 - `src/main/java/com/nexus/campus/config/health/**`
 - `src/main/java/com/nexus/campus/controller/` — one new controller only
 - `src/main/java/com/nexus/campus/dto/` — one new DTO only
+- `src/main/java/com/nexus/campus/security/JwtAuthFilter.java` — **one entry in
+  `isPublicGet` (`:84-103`) for `/api/v1/status`.** Granted 2026-11-09 after the first
+  implementer stopped on it: B3 requires an anonymous GET, and the filter is the only
+  place that decides which GETs are anonymous. The grant is a single prefix, not a
+  rewrite of the filter, and nothing else may change in this file.
 - `src/main/resources/application.yml` — only if a health group needs a companion
 - `docker/nginx/nginx.conf`
 - `frontend/src/components/` — one new banner component + its test

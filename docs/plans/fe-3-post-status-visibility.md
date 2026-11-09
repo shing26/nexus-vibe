@@ -33,6 +33,12 @@ Implementation may modify only:
 - `frontend/src/lib/postStatus.ts` (new)
 - `frontend/src/lib/postStatus.test.ts` (new)
 - `frontend/src/components/PostCard.tsx`
+- `frontend/src/components/PostCard.test.tsx` (new) — **granted 2026-11-09 for A7 only.**
+  A7 says a `PostCard` rendered without the new prop looks exactly as it does today, and the
+  only honest proof is a committed test comparing the rendered output against the component
+  at the base commit. A7's proof was previously a throwaway test deleted after it ran,
+  because this list named only `postStatus.test.ts` as a new frontend test. Group A extends
+  this file later; do not write its count or empty-state assertions here.
 - `frontend/src/pages/UserProfilePage.tsx`
 - `frontend/src/types/**` or `frontend/src/api/types.ts` — only if `PostPageVo`'s frontend
   type needs the new nullable field
@@ -50,8 +56,10 @@ Implementation may modify only:
   hand-crafted `userId` on the public list.
 - Changing, deleting or weakening an existing assertion to make the suite pass; skipping a
   test without recording it; disabling lint or typecheck.
-- Committing, pushing, or opening a pull request.
-- Editing this contract file.
+- Pushing, opening a pull request, or editing this file. **Do commit** on your own branch:
+  the acceptance chain binds evidence to a HEAD SHA, and an uncommitted tree has none.
+  Granted 2026-11-09 — this line originally forbade committing, which left A7's proof with
+  nowhere to live and the evidence package with no SHA to bind to.
 
 ## Acceptance criteria
 
@@ -62,8 +70,11 @@ A's posts with `status` 1, 2 and 3. `PENDING_REVIEW` and `REJECTED` rows are pre
 filtered out.
 
 **A2 — nobody else does.** The same URL, anonymous or authenticated as B, returns only
-`status = 1` rows. B's result is byte-identical to today's result for the same
-`page`/`size`.
+`status = 1` rows, with the same rows, statuses and page metadata as today for the same
+`page`/`size`. *Amended 2026-11-09:* this said "byte-identical", which A6 makes impossible
+— A6 permits the new nullable `rejectionReason` field, so every row carries one extra
+`null` key. The criterion is now the behaviour it was trying to state: no row appears or
+disappears, and no row's `status` changes, for anyone but the owner.
 
 **A3 — the reason travels with the rejection.** A `REJECTED` row in the owner's view
 carries a non-null `rejectionReason` derived from the latest `ai_review_log` row for that
@@ -83,8 +94,13 @@ four distinguishable labels through one module; `FAILED(3)` does not render as
 listing pass unchanged. No new field appears in those responses except the nullable
 `rejectionReason`, which is null there.
 
-**A7 — the card is unchanged for everyone else.** `PostCard` without the new optional prop
-renders exactly as today; its existing tests pass without modification.
+**A7 — the card is unchanged for everyone else.** `PostCard` rendered without the new
+optional prop produces the same markup as the component at the base commit. *Amended
+2026-11-09:* there were no `PostCard` tests at `1ce682a`, so "the existing tests pass" was
+vacuously true and the proof lived in a throwaway test that was deleted. The proof is now
+`frontend/src/components/PostCard.test.tsx`, committed: it renders each fixture without the
+new prop and compares the output against the base-commit markup, recorded inline in the
+test so the expectation does not depend on git at run time.
 
 **A8 — pagination is honest.** `total` in the owner's view counts the non-active rows it
 returns, so page 2 is reachable when the author has more held posts than `size`.
