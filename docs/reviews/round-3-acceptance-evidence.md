@@ -3,8 +3,8 @@
 Round [frontend-polish-round-3](../tickets/frontend-polish-round-3.md), nine items, five
 groups. Base commit `1ce682a`; integration branch `codex/fe3-integration`.
 
-**Status: verified, awaiting the maintainer's four-question review and signoff.** Every row
-is bound to a HEAD SHA and was re-run by a verifier that did not write the code.
+**Status: verified and reviewed, 2026-11-09; awaiting written approval on the pull request.**
+Every row is bound to a HEAD SHA and was re-run by a verifier that did not write the code.
 
 ## Method
 
@@ -128,9 +128,22 @@ re-render, with the four item-1 fixtures untouched.
 This section is the point of the document. Each line is a claim the evidence does not
 support, kept here so a reader does not infer it.
 
-- **No browser pass anywhere in the round.** Every frontend claim is jsdom/Vitest plus
-  `tsc` and `vite build`. Responsive layout, the degradation banner, the unanswered panel
-  and the sort toggle were not observed in a running browser.
+- **The browser pass is one manual walk, not a test.** On 2026-11-09 the five runtime
+  scenarios were walked against the dev backend (H2, port 8085) and the Vite dev server.
+  Observed: the feed and alice's public profile omit her `PENDING_REVIEW` post while her own
+  profile lists it as "Pending review" / "AI review: Not reviewed"; the banner rendered
+  "Search results may be incomplete." while Elasticsearch was `DEGRADED`, and dismissing it
+  hid the banner and wrote `["search"]` to `sessionStorage`; "Most liked" set `?sort=liked`,
+  survived a reload in the 42 / 35 / 9 like order, and the unanswered `aside` was absent from
+  the DOM at 375px and present at 832px; `Ctrl+Enter` in the palette copied
+  `http://localhost:5173/post/102` and closed the dialog; after an edit round-trip the prompt
+  post's example block rendered both INPUT and OUTPUT, `Copy Input` copied the input, and
+  `Copy Prompt` copied the 271-character rendered prompt. What this walk does not cover: the
+  rejected-post reason was not seen in a browser because the dev seed has no rejected row
+  (that path is `PostStatusVisibilityIntegrationTest` plus the card tests); the clipboard was
+  captured by replacing `navigator.clipboard.writeText`, since the pane cannot read the
+  system clipboard; and only one capability was degraded, so cross-capability dismissal
+  rests on the component tests.
 - **Item 1, A3:** "the latest safety log" is `ORDER BY created_at DESC LIMIT 1` in
   `AiReviewLogMapper` — code-inspected, with one safety log per fixture. The
   `Prompt injection` and `Safe` branches are implemented but not exercised on a rejected
@@ -227,12 +240,32 @@ worked around silently (`5853f8a`):
 
 ## Four-question review
 
-To be completed by the maintainer before merge; the graded answers are part of the record,
-not a formality.
+Graded 2026-11-09 against `87961c6` with a clean `git status --short`, at the maintainer's
+instruction and by a reviewer who did not write the group branches.
 
-1. **Does it do what was asked?**
-2. **Is it correct?**
-3. **What could go wrong?**
-4. **What did we not do, and why?**
+1. **Does it do what was asked?** Yes, and the disagreements are on the record rather than
+   hidden. All nine items landed; items 6, 7 and 9 were built against the ticket's own
+   defer/decline verdicts because the maintainer instructed the round to finish them, and
+   item 8 was verified rather than rebuilt. Item 3 added a public capability endpoint that
+   ADR-0007 had deliberately kept closed; ADR-0019 records the decision and the closed
+   vocabulary that makes it safe.
+2. **Is it correct?** The four verification commands pass on the merged, fixed tree — 530
+   Java tests / 90 classes, 115 frontend tests / 21 files, lint and build clean, JaCoCo floor
+   met. A verifier re-ran every command per branch; three adversarial mutations failed only
+   the intended test, and the post-review fixes were re-checked by the same four commands.
+   The browser walk above corroborates the observable behaviour.
+3. **What could go wrong?** The capability endpoint is unthrottled and each anonymous call
+   evaluates the `deps` group (R3-1). The migration rehearsal does not run on this machine
+   and the script covers only 0005–0007, so 0008 and 0009 have never been rehearsed
+   (R3-2). `NginxEdgeSurfaceTest` cannot see regex locations (R3-4). The sentiment classifier
+   has documented false positives and is labelled a heuristic in the UI. The rejection
+   fallback names the policy check, not the content class.
+4. **What did we not do, and why?** No limiter or cache on the new public GET: the contract
+   forbade inventing one, and it is backlog R3-1. No browser automation was committed: the
+   five scenarios are a one-time manual walk and their assertions live in Vitest. No
+   genuinely degraded-database test: the `db` exclusion is proven at the mapping level
+   (B1/B2). No migration rehearsal under Docker: PowerShell binding and the daemon's 500 are
+   environment faults, and nothing was fabricated in their place.
 
-Signoff: pending.
+Signoff: the review accepts the round for merge on the evidence above. Written maintainer
+approval on the pull request remains the merge gate.
