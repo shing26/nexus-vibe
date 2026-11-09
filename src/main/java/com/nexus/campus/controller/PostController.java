@@ -142,7 +142,11 @@ public class PostController {
                 || (sort != null && !sort.isEmpty() && !"latest".equals(sort))
                 || (keyword != null && !keyword.isEmpty() && resolvedCategoryId != null);
         if (userId != null) {
-            result = vibePostService.getPostsByUserId(userId, page, size);
+            // The JWT filter fills this best-effort on public GETs, so a valid token for
+            // the profile's owner opens the owner view; everyone else gets the public one.
+            Object attr = request.getAttribute("currentUserId");
+            boolean ownerView = attr instanceof Long currentUserId && currentUserId.equals(userId);
+            result = vibePostService.getPostsByUserId(userId, page, size, ownerView);
         } else if (hasExtraFilters) {
             result = vibePostService.filterPosts(page, size, keyword, resolvedCategoryId, language, aiScoreMin, type, sort);
         } else if (keyword != null && !keyword.isEmpty()) {
