@@ -90,6 +90,11 @@ public class MyBatisVibePostRepository implements VibePostRepository {
     }
 
     @Override
+    public List<VibePost> findUnanswered(int limit) {
+        return mapper.selectUnansweredPosts(limit);
+    }
+
+    @Override
     public boolean incrementView(Long id) {
         return mapper.incrementViewCount(id) > 0;
     }

@@ -63,6 +63,10 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
             "</if>",
             "<choose>",
             "<when test='sort == \"hot\"'> ORDER BY p.is_pinned DESC, p.like_count DESC, p.create_time DESC </when>",
+            // All-time best of a channel: a total order so paging cannot repeat or skip.
+            // Pinning is deliberately ignored: the point is an objective ordering the
+            // reader can verify by eye, not a second editorial surface.
+            "<when test='sort == \"liked\"'> ORDER BY p.like_count DESC, p.create_time DESC, p.id DESC </when>",
             // AI-curated tab: only reviewed posts; the equality also enables the
             // idx_post_ai_sort fast path (docs/research/mysql-ai-sort-index-explain.md)
             "<when test='sort == \"ai\"'> AND p.ai_reviewed = 1 ORDER BY p.ai_reviewed DESC, p.ai_review_score DESC, p.create_time DESC </when>",
@@ -159,6 +163,18 @@ public interface VibePostMapper extends BaseMapper<VibePost> {
             "ORDER BY p.like_count DESC, p.create_time DESC " +
             "LIMIT #{limit}")
     List<VibePost> selectTopLikedPosts(@Param("limit") int limit);
+
+    // "Waiting for an answer": the newest active posts nobody has replied to.
+    // comment_count is maintained by VibeCommentServiceImpl.recalculateCommentCount,
+    // so a post leaves this list on the next query after its first comment.
+    @Select("SELECT p.*, u.nickname as authorName, c.name as categoryName " +
+            "FROM vibe_post p " +
+            "LEFT JOIN sys_user u ON p.user_id = u.id " +
+            "LEFT JOIN vibe_channel c ON p.category_id = c.id " +
+            "WHERE p.status = 1 AND p.comment_count = 0 " +
+            "ORDER BY p.create_time DESC, p.id DESC " +
+            "LIMIT #{limit}")
+    List<VibePost> selectUnansweredPosts(@Param("limit") int limit);
 
     @Select({"<script>",
             "SELECT p.*, u.nickname as authorName, c.name as categoryName ",

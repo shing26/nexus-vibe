@@ -11,6 +11,12 @@ import java.util.List;
 
 public interface VibePostService {
 
+    /** Default page the "waiting for an answer" panel asks for. */
+    int DEFAULT_UNANSWERED_SIZE = 5;
+
+    /** Hard ceiling, so the panel can never become a second feed. */
+    int MAX_UNANSWERED_SIZE = 20;
+
     VibePost createPost(PostCreateRequest request, Long userId);
 
     VibePost updatePost(Long postId, PostUpdateRequest request, Long userId);
@@ -43,6 +49,12 @@ public interface VibePostService {
                                        String language, Integer aiScoreMin, String type, String sort);
 
     List<PostPageVo> getHotPosts(int limit);
+
+    /**
+     * Recent active posts with no visible comments, newest first. {@code size} is
+     * clamped to {@code 1..MAX_UNANSWERED_SIZE}; an empty result is a normal answer.
+     */
+    List<PostPageVo> getUnansweredPosts(int size);
 
     PostPageVo getPostDetail(Long id);
 

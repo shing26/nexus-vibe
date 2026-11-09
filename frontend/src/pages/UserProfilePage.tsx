@@ -324,6 +324,11 @@ export default function UserProfilePage() {
           <div className="rounded-lg border border-vibe-border bg-vibe-surface/70">
             <EmptyState
               preset="noPosts"
+              desc={
+                isOwnProfile
+                  ? 'Your posts appear here once you publish one; the composer is where they start.'
+                  : 'Posts appear here once this author publishes one; a visitor has nothing to add until then.'
+              }
               action={isOwnProfile ? '/post/new' : null}
               actionLabel={isOwnProfile ? 'Create First Post' : null}
             />

@@ -255,6 +255,12 @@ public class VibePostServiceImpl implements VibePostService {
     }
 
     @Override
+    public List<PostPageVo> getUnansweredPosts(int size) {
+        int capped = Math.min(Math.max(size, 1), MAX_UNANSWERED_SIZE);
+        return convertToPageVos(posts.findUnanswered(capped));
+    }
+
+    @Override
     public PostPageVo getPostDetail(Long id) {
         VibePost post = posts.findWithDetails(id).orElse(null);
         if (post == null || post.getStatus() == null || post.getStatus() != 1) {
