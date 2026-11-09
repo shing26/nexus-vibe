@@ -94,6 +94,7 @@ alternatives that were rejected.
 | [fe-3-group-b-degradation-banner](plans/fe-3-group-b-degradation-banner.md) | Frozen contract for round-3 item 3: a shaped public capability read model and a dismissible banner, without reopening the actuator paths ADR-0007 closed |
 | [fe-3-group-c-detail-comments](plans/fe-3-group-c-detail-comments.md) | Frozen contract for round-3 items 5 and 7: a worked example on prompt posts, and a rule-based comment sentiment that cannot fail the write or go dark with the LLM |
 | [fe-3-group-d-palette](plans/fe-3-group-d-palette.md) | Frozen contract for round-3 item 9: the palette's second destination is the row's link, not a product the tree does not have |
+| [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
 
 ## Design and product
 
@@ -111,6 +112,7 @@ alternatives that were rejected.
 | [reviews/three-persona-journey-2026-09-06](reviews/three-persona-journey-2026-09-06.md) | Full-journey walkthrough from three personas, with `file:line` evidence |
 | [reviews/black-box-exploration-2026-09-09](reviews/black-box-exploration-2026-09-09.md) | Black-box exploration of the running product |
 | [reviews/round-3-acceptance-evidence](reviews/round-3-acceptance-evidence.md) | Round 3's verdicts bound to a HEAD SHA each, the commands the verifier re-ran, the contract amendments, and what the round does not prove |
+| [reviews/ai4-acceptance-2026-11-09](reviews/ai4-acceptance-2026-11-09.md) | The AI-4 acceptance record: frozen contract, independent verifier's evidence pack, the four human-review questions, written sign-off |
 | [archive/Nexus-Campus-体验报告](archive/Nexus-Campus-体验报告.md) | The superseded deep experience report |
 | [archive/Nexus-Campus-第二轮修复验证报告](archive/Nexus-Campus-第二轮修复验证报告.md) | Verification pass over the fixes from that report |
 
