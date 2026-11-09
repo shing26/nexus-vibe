@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { AlertTriangle, X } from 'lucide-react';
 import { useDegradedCapabilities } from '../api/useCapabilities';
 import { ExternalLink } from './ui/ExternalLink';
+import { ADR_0007_URL } from '../links';
 
 /**
  * Says which optional capability is running limited, in the visitor's terms.
@@ -18,11 +19,6 @@ import { ExternalLink } from './ui/ExternalLink';
  */
 
 const DISMISSED_KEY = 'nexus.degraded-capabilities.dismissed';
-
-// links.ts is outside this change's allowed paths, so the ADR URL is built here. ADR-0007 is the
-// decision this banner links to: a degraded dependency is not an unhealthy site.
-const ADR_0007_URL =
-  'https://github.com/shing26/nexus-vibe/blob/master/docs/adr/0007-degraded-status-is-not-unhealthy.md';
 
 function readDismissed(): string[] {
   try {
@@ -85,7 +81,7 @@ export default function DegradationBanner() {
           type="button"
           onClick={dismiss}
           aria-label="Dismiss status notice"
-          className="mt-0.5 shrink-0 rounded p-1 text-amber-400/70 transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-neon"
+          className="mt-0.5 shrink-0 rounded-md p-1 text-amber-400/70 transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-neon"
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>

@@ -152,6 +152,25 @@ class PostStatusVisibilityIntegrationTest {
         assertThat(reasonOf(data, PENDING_POST_ID)).isNull();
     }
 
+    @Test
+    @DisplayName("A3: a rejected row with no classifiable log still explains itself")
+    void rejectedRow_withoutAClassifiableLog_fallsBackToThePolicyLine() throws Exception {
+        long unclassifiedId = 204L;
+        long noLogId = 205L;
+        insertHeldPost(unclassifiedId, "Held rejected post with no class", 3, LocalDateTime.now().minusMinutes(5));
+        insertHeldPost(noLogId, "Held rejected post with no log", 3, LocalDateTime.now().minusMinutes(4));
+        insertSafetyLog(unclassifiedId, "{\"verdict\":\"escalated\"}");
+
+        JsonNode data = body(get(POSTS_URL)
+                .param("userId", String.valueOf(OWNER_ID))
+                .param("size", "20")
+                .header("Authorization", bearer(OWNER_ID)))
+                .get("data");
+
+        assertThat(reasonOf(data, unclassifiedId)).isEqualTo("Content policy check");
+        assertThat(reasonOf(data, noLogId)).isEqualTo("Content policy check");
+    }
+
     // ---------------------------------------------------------------- A4
 
     @Test

@@ -164,7 +164,7 @@ export default function ChannelPage() {
 
           {channel && (
             <div className="mb-4 flex items-center gap-2 font-mono text-[11px]">
-              <span className="text-slate-500">Order:</span>
+              <span className="text-slate-400">Order:</span>
               {(['latest', 'liked'] as const).map((option) => (
                 <button
                   key={option}
@@ -222,11 +222,11 @@ export default function ChannelPage() {
 
         {isDesktop && channel && (
           <aside aria-label="Waiting for an answer" className="w-72 shrink-0">
-            <div className="rounded-xl border border-vibe-border bg-vibe-surface/80 p-4">
+            <div className="rounded-lg border border-vibe-border bg-vibe-surface/80 p-4">
               <h2 className="mb-1 font-mono text-xs font-semibold text-slate-300">
                 // Waiting for an answer
               </h2>
-              <p className="mb-3 font-mono text-[10px] text-slate-500">
+              <p className="mb-3 font-mono text-[10px] text-slate-400">
                 Active posts with no replies yet.
               </p>
               {unanswered === undefined ? null : unanswered.length > 0 ? (
@@ -240,7 +240,7 @@ export default function ChannelPage() {
                         <p className="line-clamp-2 font-mono text-[11px] leading-snug text-slate-300 group-hover:text-vibe-cyan">
                           {post.title}
                         </p>
-                        <p className="mt-1 font-mono text-[10px] text-slate-500">
+                        <p className="mt-1 font-mono text-[10px] text-slate-400">
                           {post.authorName} · {post.likeCount} likes · no replies
                         </p>
                       </Link>

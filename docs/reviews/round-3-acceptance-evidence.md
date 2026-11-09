@@ -30,11 +30,12 @@ a checkable one and none lowers a criterion. They are listed under
 | 9 | D | `codex/fe3-group-d-palette` | `9a5cc6f` | **PASS** | unchanged | 68 / 14 |
 | 2, 4, 6, 8 | A | `codex/fe3-group-a-feed-copy` | `7d64eef` | **PASS** | 482 / 82 | 77 / 17 |
 
-On the merged tree all five branches together read **529 Java tests / 90 classes** and
+On the merged tree all five branches together read **530 Java tests / 90 classes** and
 **115 frontend tests / 21 files**, 0 failures, 0 errors, 0 skipped, with the JaCoCo floor
 met — the same four commands, run by the integrator on the merge result rather than on any
-one branch. That number is the sum of the branches' deltas (465 + 9 + 22 + 25 + 8), which is
-the check that no branch silently displaced another's tests.
+one branch, and re-run after the post-review fixes below. The per-branch deltas sum to 529
+(465 + 9 + 22 + 25 + 8), which is the check that no branch silently displaced another's
+tests; the extra test is the A3 fallback test added during the review.
 
 Every verdict above rests on the same four commands, re-run by the verifier in the
 worktree: `mvn -B test`, and `npm run test && npm run lint && npm run build` in
@@ -47,7 +48,8 @@ runs and was not used.
 
 A1 owner listing carries statuses 1/2/3; A2 anonymous and other-user listings return only
 status 1 with the same rows, statuses and page metadata; A3 a rejected row carries its own
-reason read from the latest safety log; A4 no reason reaches a non-owner or an active row;
+reason read from the latest safety log, and a row whose log is missing or names no class
+falls back to `Content policy check`; A4 no reason reaches a non-owner or an active row;
 A5 the four AI-review codes map distinctly through one module with a visible unknown
 fallback; A6 public surfaces unchanged; A7 the card without the owner prop renders the
 base commit's markup; A8 pagination totals count held rows.
@@ -132,11 +134,10 @@ support, kept here so a reader does not infer it.
 - **Item 1, A3:** "the latest safety log" is `ORDER BY created_at DESC LIMIT 1` in
   `AiReviewLogMapper` — code-inspected, with one safety log per fixture. The
   `Prompt injection` and `Safe` branches are implemented but not exercised on a rejected
-  row. A rejected row with no safety log renders `rejectionReason: null`; the contract sets
-  no fallback.
-- **Item 1, dead prop:** `PostCard` gained an optional `showStatus` prop that no production
-  caller passes — the profile page renders `PostStateBadges` directly. It is covered by
-  tests but is dead code.
+  row. A rejected row with no classifiable log now falls back to `Content policy check`,
+  pinned by `rejectedRow_withoutAClassifiableLog_fallsBackToThePolicyLine` (post 204 logs
+  `escalated`, post 205 has no log); the fallback itself is not a classification of the
+  content, only a sentence that names the policy check that produced the status.
 - **Item 3, B1/B2:** the exclusion of `db` from the vocabulary is proven at the mapping
   level, not by an HTTP request against a genuinely degraded database.
 - **Item 3, B7:** `NginxEdgeSurfaceTest` deliberately skips regex locations because the
@@ -173,6 +174,38 @@ support, kept here so a reader does not infer it.
   copy is genuine; the check is a floor, not a proof of the copy's quality.
 - **Items 2/4/6/8, A2-4:** asserted for preset copy only; a page-level override was read by
   hand, not tested.
+
+## Post-review fixes
+
+The round was reviewed on two axes against `1ce682a...HEAD` after integration. Findings that
+were substantive were fixed on the integration branch rather than recorded as accepted debt;
+the counts in [Verdicts](#verdicts) are from the fixed tree.
+
+- **Visual system drift.** `PromptWorkedExample` and the channel panel used `rounded-xl`, and
+  several required-secondary labels used `text-slate-500`; both contradict
+  `docs/design/ui-visual-system.md`. They now use `rounded-lg` and `text-slate-400`, the
+  banner's close button uses `rounded-md`, and the doc's `noActivity` sentence was updated to
+  the shipped one rather than the reverse.
+- **Vocabulary.** `CONTEXT.md` said the explanation is given only in `/actuator/health/deps`
+  and listed `Degradation` under `_Avoid_`, while the round shipped a public read model named
+  for it. ADR-0019 records the read model, the entry names it, and the `_Avoid_` line now
+  distinguishes the event ("degradation") from the state (Degraded).
+- **Dead and duplicated code.** `PostCard`'s unused `showStatus` prop and its branch were
+  removed (`PostStateBadges` is still exported for the profile page); the unused three-arg
+  `getPostsByUserId` and the unrequested `fillLikedByMe` call on `/posts/unanswered` were
+  removed; `ADR_0007_URL` moved into `links.ts` so the banner and its test share one constant.
+- **A3's non-null gap.** The rejection reason now has a deterministic fallback, with a test,
+  instead of rendering `null` for a rejected row with no usable log.
+- **One code path for status codes.** `PostDetailPage` compared `aiReviewed` against `3`
+  inline; it now uses `AI_REVIEW.*`. Together with `promptMetadata.ts` — now the only module
+  that parses the string, with `readWorkedExample`, `readRole` and `readVariables` all
+  delegating to `parsePromptMetadata`, and `tsc` rejecting an untyped field access — this
+  closes the ticket's "not inline magic numbers in each page" line.
+- **Naming.** `DegradedCapabilityService.shape` became `toDegradedCapabilities`.
+
+What the review found but this round did not fix is in `docs/tickets/next-cycle-backlog.md`
+as R3-1 (the endpoint is unthrottled), R3-2 (the rehearsal script does not cover 0008/0009)
+and R3-4 (`NginxEdgeSurfaceTest` skips regex locations).
 
 ## Contract amendments
 

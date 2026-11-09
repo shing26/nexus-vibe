@@ -461,22 +461,6 @@ Then run it where Docker works and commit the output under `results/`.
 **Rejected:** hand-running 0009's up/down once without changing the script. It would close
 this migration and leave the next one uncovered, which is how the 0008 gap survived.
 
-## R3-3 - Remove or wire `PostCard`'s unused `showStatus` prop
-
-Round-3 item 1 added an optional `showStatus` prop that renders `PostStateBadges`; no
-production caller passes it, because the profile page renders the badges itself. The branch
-is dead code with test coverage.
-
-**Acceptance:** either the profile page passes the prop and its separate badge render is
-removed, or the prop and branch are deleted and the A7 base-markup test still passes.
-
-**Files:** `frontend/src/components/PostCard.tsx`, `frontend/src/pages/UserProfilePage.tsx`,
-`frontend/src/components/PostCard.test.tsx`.
-
-**Rejected:** keeping it as an extension point. Nothing in the tree asks for one, and the
-project's rule is that unproven or unused things are named rather than left to look
-intentional.
-
 ## R3-4 - `NginxEdgeSurfaceTest` cannot see regex locations
 
 The round-3 config test parses `nginx.conf` and simulates exact-then-longest-prefix

@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import DegradationBanner from './DegradationBanner';
 import { apiClient } from '../api/client';
+import { ADR_0007_URL as ADR_0007 } from '../links';
 
 /**
  * What the banner owes the reader: only the consequence, only when there is one, and a
@@ -20,9 +21,6 @@ vi.mock('../api/client', () => ({
 }));
 
 const get = vi.mocked(apiClient.get);
-
-const ADR_0007 =
-  'https://github.com/shing26/nexus-vibe/blob/master/docs/adr/0007-degraded-status-is-not-unhealthy.md';
 
 function respond(capabilities: Array<{ key: string; impact: string }>) {
   get.mockResolvedValue({ data: { code: 200, message: 'ok', data: capabilities } });

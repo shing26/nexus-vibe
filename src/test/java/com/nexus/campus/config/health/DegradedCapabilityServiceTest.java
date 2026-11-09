@@ -118,11 +118,11 @@ class DegradedCapabilityServiceTest {
     @Test
     @DisplayName("A null component map is silence")
     void nullComponentsAreSilent() {
-        assertThat(serviceWith(Map.of()).shape(null)).isEmpty();
+        assertThat(serviceWith(Map.of()).toDegradedCapabilities(null)).isEmpty();
     }
 
     private static List<CapabilityStatusVo> shapeDegraded(Map<String, HealthComponent> components) {
-        return serviceWith(components).shape(components);
+        return serviceWith(components).toDegradedCapabilities(components);
     }
 
     private static DegradedCapabilityService serviceWith(Map<String, HealthComponent> components) {

@@ -8,15 +8,10 @@ import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { AI_REVIEW, POST_STATUS, aiReviewLabel, postStatusLabel } from '../lib/postStatus';
+import { readRole } from './promptMetadata';
 
 interface PostCardProps {
   post: PostPageVo;
-  /**
-   * Owner-only. Renders the post's own state, the AI review's state, and — for a
-   * rejected row — why it was held. Absent, the card renders exactly as it always
-   * has, because the public feed must not advertise held posts.
-   */
-  showStatus?: boolean;
 }
 
 const SUMMARY_LENGTH = 80;
@@ -105,7 +100,7 @@ function getPreview(post: PostPageVo): PreviewInfo | null {
   };
 }
 
-export default function PostCard({ post, showStatus = false }: PostCardProps) {
+export default function PostCard({ post }: PostCardProps) {
   const navigate = useNavigate();
   const addToast = useToastStore((s) => s.addToast);
   const user = useAuthStore((s) => s.user);
@@ -129,7 +124,7 @@ export default function PostCard({ post, showStatus = false }: PostCardProps) {
   const scoreColor = aiScore >= 80 ? 'text-vibe-cyan' : aiScore >= 50 ? 'text-yellow-400' : 'text-red-400';
   const shortSummary = stripHtml(post.summary || post.content).slice(0, SUMMARY_LENGTH);
 
-  const meta = post.promptMetadata ? (() => { try { return JSON.parse(post.promptMetadata); } catch { return null; } })() : null;
+  const role = readRole(post.promptMetadata);
 
   const handleCopyLink = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -178,7 +173,7 @@ export default function PostCard({ post, showStatus = false }: PostCardProps) {
 
   return (
     <div className="relative overflow-hidden">
-      {post.aiReviewed === 1 && <BorderBeam size={150} duration={6} />}
+      {post.aiReviewed === AI_REVIEW.REVIEWED && <BorderBeam size={150} duration={6} />}
       <div className="active:scale-[0.99] transition-transform">
         <SpotlightCard className="group/card">
           {/* Quick Action Bar — hover reveal */}
@@ -256,13 +251,12 @@ export default function PostCard({ post, showStatus = false }: PostCardProps) {
             {post.postType === 'prompt' && (
               <span className="bg-vibe-purple/10 border border-vibe-purple/30 text-vibe-purple rounded-md px-2 py-0.5 text-[10px] font-mono">Template</span>
             )}
-            {showStatus && <PostStateBadges post={post} />}
-            {!showStatus && post.aiReviewed === 1 && (
+            {post.aiReviewed === AI_REVIEW.REVIEWED && (
               <span className={'font-mono ' + scoreColor}>AI: {aiScore}</span>
             )}
             <span className="text-slate-500">{post.authorName}</span>
-            {meta?.role && (
-              <span className="text-slate-500 truncate max-w-[120px]" title={meta.role}>role: {meta.role}</span>
+            {role && (
+              <span className="text-slate-500 truncate max-w-[120px]" title={role}>role: {role}</span>
             )}
             <span className="text-slate-600">·</span>
             <span className="text-slate-500">{timeAgo(post.createTime)}</span>

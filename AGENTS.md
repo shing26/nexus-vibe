@@ -73,7 +73,7 @@ prove — keep that habit.
 ## Verification before you claim anything works
 
 ```bash
-mvn -B test                     # 529 tests / 90 classes; the count is asserted in README.md
+mvn -B test                     # 530 tests / 90 classes; the count is asserted in README.md
 cd frontend && npm run test     # 115 tests / 21 files
 cd frontend && npm run lint
 cd frontend && npm run build

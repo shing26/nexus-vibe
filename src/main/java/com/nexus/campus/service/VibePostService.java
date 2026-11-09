@@ -60,8 +60,6 @@ public interface VibePostService {
 
     boolean incrementView(Long postId);
 
-    PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size);
-
     /**
      * Same listing, but when {@code ownerView} is true the caller has already proved the
      * requester is {@code userId}, so held rows are returned and a rejected row explains

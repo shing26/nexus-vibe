@@ -11,5 +11,6 @@
 const REPO = 'https://github.com/shing26/nexus-vibe';
 
 export const ADR_INDEX_URL = REPO + '/tree/master/docs/adr';
+export const ADR_0007_URL = REPO + '/blob/master/docs/adr/0007-degraded-status-is-not-unhealthy.md';
 export const LOADTEST_URL = REPO + '/blob/master/docs/research/async-pool-loadtest.md';
 export const DRILL_URL = REPO + '/blob/master/docs/research/observability-drill-2026-09.md';

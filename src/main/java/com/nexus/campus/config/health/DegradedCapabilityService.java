@@ -59,7 +59,7 @@ public class DegradedCapabilityService {
     public List<CapabilityStatusVo> current() {
         HealthComponent deps = healthEndpoint.healthForPath("deps");
         if (deps instanceof CompositeHealth composite) {
-            return shape(composite.getComponents());
+            return toDegradedCapabilities(composite.getComponents());
         }
         // No deps group means no dependency facts to report. Returning nothing is the honest
         // answer: inventing an entry would be worse than the banner staying absent.
@@ -73,7 +73,7 @@ public class DegradedCapabilityService {
      * different incident - the servable group and the top-level document own it - and a
      * component that is UP has nothing to say.</p>
      */
-    List<CapabilityStatusVo> shape(Map<String, HealthComponent> components) {
+    List<CapabilityStatusVo> toDegradedCapabilities(Map<String, HealthComponent> components) {
         List<CapabilityStatusVo> degraded = new ArrayList<>();
         if (components == null) {
             return degraded;

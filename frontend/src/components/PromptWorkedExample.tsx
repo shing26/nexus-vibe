@@ -53,7 +53,7 @@ export default function PromptWorkedExample({
 
   return (
     <div className="max-w-3xl mx-auto mb-8">
-      <div className="bg-vibe-surface border border-vibe-border rounded-xl overflow-hidden">
+      <div className="bg-vibe-surface border border-vibe-border rounded-lg overflow-hidden">
         <div className="flex items-center h-9 bg-vibe-card border-b border-vibe-border select-none">
           <div className="flex items-center gap-1.5 px-3">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
@@ -79,7 +79,7 @@ export default function PromptWorkedExample({
 
           {exampleInput && (
             <div>
-              <h3 className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1.5">Input</h3>
+              <h3 className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">Input</h3>
               <pre className="w-full max-h-48 overflow-y-auto p-3 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
                 {exampleInput}
               </pre>
@@ -88,7 +88,7 @@ export default function PromptWorkedExample({
 
           {exampleOutput && (
             <div>
-              <h3 className="text-[10px] font-mono uppercase tracking-wider text-slate-500 mb-1.5">Output</h3>
+              <h3 className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">Output</h3>
               <pre className="w-full max-h-48 overflow-y-auto p-3 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
                 {exampleOutput}
               </pre>

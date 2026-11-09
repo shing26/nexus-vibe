@@ -201,7 +201,7 @@ Type colors: posts `FileText text-vibe-neon`, comments `MessageSquare text-vibe-
 
 ### Empty, Loading, Error
 
-- No activity: `EmptyState` preset `noActivity` with `Activity`, title `No recent activity`, desc `No public activity has been recorded yet.`, action `null`.
+- No activity: `EmptyState` preset `noActivity` with `Activity`, title `No recent activity`, desc `Activity appears here after this profile publishes posts, comments, versions or forks; it is a record, not a place to act.`, action `null`.
 - No posts: reuse `preset="noPosts"`; for another user's profile override `action={null}` and `actionLabel={null}`.
 - Loading: header skeleton, then `grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6` of `h-16 animate-pulse rounded-lg bg-vibe-card`, then `h-40 animate-pulse rounded-lg bg-vibe-card`.
 - Error: `rounded-lg border border-red-500/40 bg-red-950/40 p-4 font-mono text-xs text-red-400`.

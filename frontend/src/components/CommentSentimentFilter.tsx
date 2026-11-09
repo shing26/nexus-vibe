@@ -99,7 +99,7 @@ export default function CommentSentimentFilter({
           );
         })}
       </div>
-      <p className="mt-1.5 mb-4 text-[10px] font-mono text-slate-600">
+      <p className="mt-1.5 mb-4 text-[10px] font-mono text-slate-400">
         Grouped by keyword — a rule heuristic, not a model&apos;s judgement.
       </p>
 

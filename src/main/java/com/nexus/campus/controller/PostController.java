@@ -175,11 +175,8 @@ public class PostController {
      */
     @GetMapping("/unanswered")
     public ApiResponse<List<PostPageVo>> getUnansweredPosts(
-            @RequestParam(defaultValue = "" + VibePostService.DEFAULT_UNANSWERED_SIZE) int size,
-            HttpServletRequest request) {
-        List<PostPageVo> posts = vibePostService.getUnansweredPosts(size);
-        fillLikedByMe(posts, request);
-        return ApiResponse.success(posts);
+            @RequestParam(defaultValue = "" + VibePostService.DEFAULT_UNANSWERED_SIZE) int size) {
+        return ApiResponse.success(vibePostService.getUnansweredPosts(size));
     }
 
     @GetMapping("/hot")

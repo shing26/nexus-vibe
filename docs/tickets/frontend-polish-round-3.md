@@ -52,7 +52,7 @@ worktree and an independent verifier that re-ran every command. Branch HEADs and
 | D | 9 | `codex/fe3-group-d-palette` `9a5cc6f` | PASS |
 | A | 2, 4, 6, 8 | `codex/fe3-group-a-feed-copy` `7d64eef` | PASS |
 
-The merged tree reads 529 Java tests / 90 classes and 115 frontend tests / 21 files.
+The merged tree reads 530 Java tests / 90 classes and 115 frontend tests / 21 files.
 
 **Where the round disagreed with this ticket.** Item 6 was deferred for needing a
 channel-scoped query; it landed as a `sort=liked` value composing with the existing filter.

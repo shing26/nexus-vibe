@@ -31,6 +31,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0016](adr/0016-the-scope-reopens-for-one-argued-ai-fusion-round.md) | The scope reopens for one argued AI-fusion round - three items, each reusing the existing guardrails |
 | [0017](adr/0017-comments-are-checked-after-they-are-visible.md) | Comments are safety-checked after they are visible, not before - a deliberate divergence from fail-closed |
 | [0018](adr/0018-a-comment-mentioning-the-agent-summons-it.md) | A comment mentioning the agent summons it, and silence is not an option - placeholder reply, cooldown, no recursion |
+| [0019](adr/0019-degraded-capabilities-are-a-closed-server-owned-vocabulary.md) | A degraded capability is published as a closed, server-owned vocabulary - the banner reads consequence, not health |
 
 ## Measurements — `docs/research/`
 

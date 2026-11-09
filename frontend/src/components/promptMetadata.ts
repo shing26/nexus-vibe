@@ -2,9 +2,9 @@
  * The `promptMetadata` JSON helpers.
  *
  * The column is a free-form `text` string; the worked example is two optional
- * keys inside it. These functions are the only place that reads or writes the
- * string, so the create form, the edit form and the detail block cannot drift
- * apart on what "an example is present" means.
+ * keys inside it. This module is the only place that parses or serialises the
+ * string, so the create form, the edit form, the detail block and the post card
+ * cannot drift apart on what "an example is present" means.
  *
  * A pure module on purpose: no React import, so it is testable without a DOM
  * and a component file stays a file of components.
@@ -26,19 +26,22 @@ function nonEmptyString(value: unknown): string | undefined {
  * throwing during render.
  */
 export function readWorkedExample(promptMetadata?: string): WorkedExample {
-  if (!promptMetadata) return {};
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(promptMetadata);
-  } catch {
-    return {};
-  }
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return {};
-  const record = parsed as Record<string, unknown>;
+  const record = parsePromptMetadata(promptMetadata);
   return {
     exampleInput: nonEmptyString(record.exampleInput),
     exampleOutput: nonEmptyString(record.exampleOutput),
   };
+}
+
+/** The stored `role`, or `undefined` when it is absent or not a non-blank string. */
+export function readRole(promptMetadata?: string): string | undefined {
+  return nonEmptyString(parsePromptMetadata(promptMetadata).role);
+}
+
+/** The stored `variables`, keeping only entries that are strings. */
+export function readVariables(promptMetadata?: string): string[] {
+  const value = parsePromptMetadata(promptMetadata).variables;
+  return Array.isArray(value) ? value.filter((entry): entry is string => typeof entry === 'string') : [];
 }
 
 /** The metadata object behind the string, or an empty object when it is not an object. */
