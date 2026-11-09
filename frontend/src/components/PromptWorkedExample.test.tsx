@@ -2,6 +2,13 @@ import { describe, expect, it, vi, beforeEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import PromptWorkedExample from './PromptWorkedExample';
 import { mergeWorkedExample, readWorkedExample, withWorkedExample } from './promptMetadata';
+// Source-level call-site scan (A5-6b), in the style of the repository's
+// contract checks: the pages themselves cannot be mounted here (no providers),
+// so the wiring is read the way NoStaleStatusAssertionTest reads Java sources.
+// Removing the helper call from either page fails this file while the helpers
+// above stay green — which is exactly the drift this asserts against.
+import createPostSource from '../pages/CreatePostPage.tsx?raw';
+import editPostSource from '../pages/EditPostPage.tsx?raw';
 
 /**
  * The worked example (item 5) is two optional keys in the `promptMetadata` JSON
@@ -183,5 +190,35 @@ describe('PromptWorkedExample', () => {
     expect(JSON.parse(mergeWorkedExample('{broken', 'an input', ''))).toEqual({
       exampleInput: 'an input',
     });
+  });
+});
+
+/**
+ * A5-6(b): the helpers above can be perfect while the forms have quietly
+ * stopped calling them. These read the page sources and assert the call sites
+ * themselves — the same shape as the repository's Java contract scans. Deleting
+ * the `withWorkedExample` / `readWorkedExample` / `mergeWorkedExample` call from
+ * a page fails here; changing the helpers does not.
+ */
+describe('the prompt forms bind the example fields to the shared helpers (A5-6b)', () => {
+  it('CreatePostPage serialises both fields through withWorkedExample into promptMetadata', () => {
+    expect(createPostSource).toMatch(
+      /withWorkedExample\(\s*\{[\s\S]*?\}\s*,\s*exampleInput\s*,\s*exampleOutput\s*,?\s*\)/,
+    );
+    expect(createPostSource).toMatch(
+      /body\.promptMetadata\s*=\s*JSON\.stringify\(\s*withWorkedExample\(/,
+    );
+    // Both fields are controlled inputs, so what is serialised is what was typed.
+    expect(createPostSource).toMatch(/value=\{exampleInput\}/);
+    expect(createPostSource).toMatch(/value=\{exampleOutput\}/);
+  });
+
+  it('EditPostPage reads the stored example and merges both fields back on save', () => {
+    expect(editPostSource).toMatch(/readWorkedExample\(\s*post\.promptMetadata\s*\)/);
+    expect(editPostSource).toMatch(
+      /body\.promptMetadata\s*=\s*mergeWorkedExample\(\s*promptMetadata\s*,\s*exampleInput\s*,\s*exampleOutput\s*\)/,
+    );
+    expect(editPostSource).toMatch(/value=\{exampleInput\}/);
+    expect(editPostSource).toMatch(/value=\{exampleOutput\}/);
   });
 });
