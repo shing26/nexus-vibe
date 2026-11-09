@@ -47,4 +47,11 @@ public class PostPageVo implements Serializable {
 
     /** Whether the current (optional) viewer has liked this post; null when anonymous */
     private Boolean likedByMe;
+
+    /**
+     * Why the author's own rejected post was held: Prompt injection, Harmful content,
+     * Spam, Safe, or null. Populated only on the owner view and only for a rejected row;
+     * always null for everyone else and for active rows.
+     */
+    private String rejectionReason;
 }

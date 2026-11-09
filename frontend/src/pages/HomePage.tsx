@@ -58,7 +58,7 @@ const emptyCopy: Record<Tab, { title: string; desc: string; action: string; acti
   },
   latest: {
     title: '还没有新帖',
-    desc: '这里会展示社区最新的讨论。',
+    desc: '发布第一篇帖子后，社区的讨论会按时间出现在这里。',
     action: '/post/new',
     actionLabel: '发布第一个帖子',
   },

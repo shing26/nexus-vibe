@@ -16,6 +16,7 @@ import { apiClient } from '../api/client';
 import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import EmptyState from '../components/EmptyState';
+import { PostStateBadges } from '../components/PostCard';
 import type { PageResponse, PostPageVo, UserProfileSummary } from '../types/post';
 
 function relativeTime(dateStr: string) {
@@ -120,7 +121,11 @@ export default function UserProfilePage() {
   });
 
   const postsQuery = useQuery<PostPageVo[]>({
-    queryKey: ['posts', 'user', id],
+    // The viewer is part of the key: the owner's page and the public page are two
+    // different responses for one URL, and this browser keeps its cache across a
+    // logout. Without the viewer, a second account could be served the first
+    // account's held rows for the remaining staleTime.
+    queryKey: ['posts', 'user', id, isOwnProfile ? 'owner' : 'public'],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<PageResponse<PostPageVo>>>('/posts', {
         params: { userId: id },
@@ -308,7 +313,9 @@ export default function UserProfilePage() {
       ) : null}
 
       <section aria-label="Published posts" className="mb-8">
-        <h2 className="mb-3 font-mono text-sm font-semibold text-slate-400">// Published Posts</h2>
+        <h2 className="mb-3 font-mono text-sm font-semibold text-slate-400">
+          {isOwnProfile ? '// Your Posts' : '// Published Posts'}
+        </h2>
         {postsQuery.isLoading ? (
           <PostsSkeleton />
         ) : postsQuery.isError ? (
@@ -317,6 +324,11 @@ export default function UserProfilePage() {
           <div className="rounded-lg border border-vibe-border bg-vibe-surface/70">
             <EmptyState
               preset="noPosts"
+              desc={
+                isOwnProfile
+                  ? 'Your posts appear here once you publish one; the composer is where they start.'
+                  : 'Posts appear here once this author publishes one; a visitor has nothing to add until then.'
+              }
               action={isOwnProfile ? '/post/new' : null}
               actionLabel={isOwnProfile ? 'Create First Post' : null}
             />
@@ -336,7 +348,8 @@ export default function UserProfilePage() {
                   <span className="min-w-0 flex-1 basis-48 truncate font-mono text-xs text-slate-200 group-hover:text-vibe-neon">
                     {post.title}
                   </span>
-                  {post.aiReviewScore > 0 && (
+                  {isOwnProfile && <PostStateBadges post={post} />}
+                  {!isOwnProfile && post.aiReviewScore > 0 && (
                     <span className="font-mono text-[10px] text-vibe-neon tabular-nums">
                       AI {Math.round(post.aiReviewScore * 10)}
                     </span>

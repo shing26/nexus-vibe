@@ -77,8 +77,21 @@ public class MyBatisVibePostRepository implements VibePostRepository {
     }
 
     @Override
+    public PageSlice<VibePost> pageByUserIncludingHeld(int page, int size, Long userId) {
+        return slice(mapper.selectPage(new Page<>(page, size), new LambdaQueryWrapper<VibePost>()
+                .eq(VibePost::getUserId, userId)
+                .in(VibePost::getStatus, 1, 2, 3)
+                .orderByDesc(VibePost::getCreateTime)));
+    }
+
+    @Override
     public List<VibePost> findPendingAudit() {
         return mapper.selectPendingAuditPosts();
+    }
+
+    @Override
+    public List<VibePost> findUnanswered(int limit) {
+        return mapper.selectUnansweredPosts(limit);
     }
 
     @Override

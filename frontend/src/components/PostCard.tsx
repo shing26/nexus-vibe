@@ -7,12 +7,71 @@ import { useState } from 'react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { AI_REVIEW, POST_STATUS, aiReviewLabel, postStatusLabel } from '../lib/postStatus';
+import { readRole } from './promptMetadata';
 
 interface PostCardProps {
   post: PostPageVo;
 }
 
 const SUMMARY_LENGTH = 80;
+
+const POST_STATUS_TONE: Record<number, string> = {
+  [POST_STATUS.ACTIVE]: 'border-vibe-emerald/40 bg-vibe-emerald/10 text-vibe-emerald',
+  [POST_STATUS.PENDING_REVIEW]: 'border-yellow-500/40 bg-yellow-500/10 text-yellow-400',
+  [POST_STATUS.REJECTED]: 'border-red-500/40 bg-red-500/10 text-red-400',
+};
+
+const AI_REVIEW_TONE: Record<number, string> = {
+  [AI_REVIEW.NOT_REVIEWED]: 'text-slate-500',
+  [AI_REVIEW.REVIEWED]: 'text-vibe-cyan',
+  [AI_REVIEW.REVIEWING]: 'text-yellow-400',
+  [AI_REVIEW.FAILED]: 'text-red-400',
+};
+
+/**
+ * The state of one row, as words. Shared by `PostCard` and `UserProfilePage` so the
+ * codes are read through `lib/postStatus` in both places and an unrecognised code
+ * still renders a visible label. The reason is plain text in the card — a held post
+ * must not look like an ordinary post with its state hidden behind a hover.
+ */
+export function PostStateBadges({ post }: { post: PostPageVo }) {
+  const reason = post.status === POST_STATUS.REJECTED ? post.rejectionReason : null;
+  const score = post.aiReviewScore > 0 ? Math.round(post.aiReviewScore * 10) : null;
+  const aiText =
+    post.aiReviewed === AI_REVIEW.REVIEWED && score != null
+      ? `${aiReviewLabel(post.aiReviewed)} · ${score}`
+      : aiReviewLabel(post.aiReviewed);
+  return (
+    <span className="inline-flex flex-wrap items-center gap-1.5">
+      <span
+        data-testid="post-status-badge"
+        className={
+          'rounded-md border px-2 py-0.5 text-[10px] font-mono ' +
+          (POST_STATUS_TONE[post.status] ?? 'border-vibe-border bg-vibe-card text-slate-400')
+        }
+      >
+        {postStatusLabel(post.status)}
+      </span>
+      <span
+        data-testid="ai-review-badge"
+        className={
+          'text-[10px] font-mono ' + (AI_REVIEW_TONE[post.aiReviewed] ?? 'text-slate-400')
+        }
+      >
+        AI review: {aiText}
+      </span>
+      {reason && (
+        <span
+          data-testid="rejection-reason"
+          className="basis-full text-[10px] font-mono text-red-400"
+        >
+          Reason: {reason}
+        </span>
+      )}
+    </span>
+  );
+}
 
 function stripHtml(text: string): string {
   return text?.replace(/<[^>]*>/g, '') ?? '';
@@ -65,7 +124,7 @@ export default function PostCard({ post }: PostCardProps) {
   const scoreColor = aiScore >= 80 ? 'text-vibe-cyan' : aiScore >= 50 ? 'text-yellow-400' : 'text-red-400';
   const shortSummary = stripHtml(post.summary || post.content).slice(0, SUMMARY_LENGTH);
 
-  const meta = post.promptMetadata ? (() => { try { return JSON.parse(post.promptMetadata); } catch { return null; } })() : null;
+  const role = readRole(post.promptMetadata);
 
   const handleCopyLink = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -114,7 +173,7 @@ export default function PostCard({ post }: PostCardProps) {
 
   return (
     <div className="relative overflow-hidden">
-      {post.aiReviewed === 1 && <BorderBeam size={150} duration={6} />}
+      {post.aiReviewed === AI_REVIEW.REVIEWED && <BorderBeam size={150} duration={6} />}
       <div className="active:scale-[0.99] transition-transform">
         <SpotlightCard className="group/card">
           {/* Quick Action Bar — hover reveal */}
@@ -192,12 +251,12 @@ export default function PostCard({ post }: PostCardProps) {
             {post.postType === 'prompt' && (
               <span className="bg-vibe-purple/10 border border-vibe-purple/30 text-vibe-purple rounded-md px-2 py-0.5 text-[10px] font-mono">Template</span>
             )}
-            {post.aiReviewed === 1 && (
+            {post.aiReviewed === AI_REVIEW.REVIEWED && (
               <span className={'font-mono ' + scoreColor}>AI: {aiScore}</span>
             )}
             <span className="text-slate-500">{post.authorName}</span>
-            {meta?.role && (
-              <span className="text-slate-500 truncate max-w-[120px]" title={meta.role}>role: {meta.role}</span>
+            {role && (
+              <span className="text-slate-500 truncate max-w-[120px]" title={role}>role: {role}</span>
             )}
             <span className="text-slate-600">·</span>
             <span className="text-slate-500">{timeAgo(post.createTime)}</span>

@@ -301,7 +301,11 @@ export default function AgentLogsPage() {
         </div>
       ) : visibleLogs.length === 0 ? (
         <div className="bg-vibe-surface border border-vibe-border rounded-xl">
-          <EmptyState preset="noPosts" />
+          <EmptyState
+            preset="noPosts"
+            title="No agent reviews yet"
+            desc="Reviews appear here after a post is published and an agent finishes checking it; posts with code blocks are scored first."
+          />
         </div>
       ) : (
         <>

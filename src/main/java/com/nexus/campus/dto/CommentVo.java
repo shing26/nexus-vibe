@@ -24,6 +24,7 @@ public class CommentVo implements Serializable {
     private Long targetId;
     private String content;
     private Integer status;
+    private Integer sentiment;
     private LocalDateTime createTime;
     private String authorName;
     private String authorAvatar;
@@ -41,6 +42,7 @@ public class CommentVo implements Serializable {
         vo.targetId = comment.getTargetId();
         vo.content = comment.getContent();
         vo.status = comment.getStatus();
+        vo.sentiment = comment.getSentiment();
         vo.createTime = comment.getCreateTime();
         vo.authorName = comment.getAuthorName();
         vo.authorAvatar = comment.getAuthorAvatar();

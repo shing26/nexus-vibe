@@ -10,6 +10,7 @@ import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.VibeTag;
+import com.nexus.campus.enums.PostStatus;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.repository.AiReviewLogRepository;
@@ -255,6 +256,12 @@ public class VibePostServiceImpl implements VibePostService {
     }
 
     @Override
+    public List<PostPageVo> getUnansweredPosts(int size) {
+        int capped = Math.min(Math.max(size, 1), MAX_UNANSWERED_SIZE);
+        return convertToPageVos(posts.findUnanswered(capped));
+    }
+
+    @Override
     public PostPageVo getPostDetail(Long id) {
         VibePost post = posts.findWithDetails(id).orElse(null);
         if (post == null || post.getStatus() == null || post.getStatus() != 1) {
@@ -295,9 +302,37 @@ public class VibePostServiceImpl implements VibePostService {
     }
 
     @Override
-    public PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size) {
-        PageSlice<VibePost> slice = posts.pageByUser(page, size, userId);
-        return PageResult.of(page, size, slice.total(), convertToPageVos(slice.records()));
+    public PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size, boolean ownerView) {
+        PageSlice<VibePost> slice = ownerView
+                ? posts.pageByUserIncludingHeld(page, size, userId)
+                : posts.pageByUser(page, size, userId);
+        List<PostPageVo> vos = slice.records().stream()
+                .map(post -> ownerView ? convertToOwnerPageVo(post) : convertToPageVo(post))
+                .collect(Collectors.toList());
+        return PageResult.of(page, size, slice.total(), vos);
+    }
+
+    /** Shown when a rejected post's latest safety log does not name one of the classes. */
+    private static final String UNCLASSIFIED_REJECTION_REASON = "Content policy check";
+
+    /**
+     * The author's own row. Only a rejected post explains itself, and the reason is read
+     * from the post's own latest safety log rather than stored on the row. Nothing here
+     * runs for a non-owner request.
+     *
+     * <p>A rejected row always carries a reason. When the latest log is missing or its
+     * payload names none of the four safety classes, the reason falls back to
+     * {@link #UNCLASSIFIED_REJECTION_REASON} rather than rendering a rejection with no
+     * explanation.</p>
+     */
+    private PostPageVo convertToOwnerPageVo(VibePost post) {
+        PostPageVo vo = convertToPageVo(post);
+        if (Integer.valueOf(PostStatus.REJECTED.getCode()).equals(post.getStatus())) {
+            vo.setRejectionReason(reviewLogs.findLatestSafety(post.getId())
+                    .map(log -> classifySafetyResult(log.getResultJson()))
+                    .orElse(UNCLASSIFIED_REJECTION_REASON));
+        }
+        return vo;
     }
 
     @Override

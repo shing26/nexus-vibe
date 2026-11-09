@@ -51,8 +51,8 @@ Safety Check Agent 在 LLM 不可用或输出无法解析时的保守策略：�
 _Avoid_: Fail-safe, Fallback
 
 **Degraded（降级可服务）**:
-依赖（Redis / Elasticsearch / LLM）不可用但主链路仍能服务用户时的健康状态：HTTP 200，容器不被判 unhealthy，解释只在 /actuator/health/deps 里给（ADR-0007）。与 Fail-closed 分属两层——Degraded 是进程对自身的陈述，Fail-closed 是安全路径写入的策略。
-_Avoid_: Unhealthy, Partially Down, Degradation
+依赖（Redis / Elasticsearch / LLM）不可用但主链路仍能服务用户时的健康状态：HTTP 200，容器不被判 unhealthy，依赖层的解释只在 /actuator/health/deps 里给（ADR-0007）。面向访客另有一个公开读模型 `GET /api/v1/status/capabilities`：服务端用封闭词表给出受限的可选能力与一句用户可读的 impact，SPA 原样渲染、逐能力记忆关闭（ADR-0019）。与 Fail-closed 分属两层——Degraded 是进程对自身的陈述，Fail-closed 是安全路径写入的策略。
+_Avoid_: Unhealthy, Partially Down（作为状态名）；"degradation" 只作事件名，状态本身仍称 Degraded
 
 **Servable（可服务性）**:
 顶层 /actuator/health 唯一回答的问题：还能不能服务。只由真实存储决定——db DOWN 才算不可服务，其余依赖最多把总状态压到 Degraded。

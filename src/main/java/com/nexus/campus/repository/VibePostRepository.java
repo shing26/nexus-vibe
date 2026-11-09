@@ -28,7 +28,16 @@ public interface VibePostRepository {
 
     PageSlice<VibePost> pageByUser(int page, int size, Long userId);
 
+    /**
+     * The author's own view: active, pending-review and rejected rows. Callers must
+     * have established that the requester is this user before asking for it.
+     */
+    PageSlice<VibePost> pageByUserIncludingHeld(int page, int size, Long userId);
+
     List<VibePost> findPendingAudit();
+
+    /** Newest active posts with no visible comments, capped at {@code limit}. */
+    List<VibePost> findUnanswered(int limit);
 
     boolean incrementView(Long id);
 

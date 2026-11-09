@@ -31,6 +31,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0016](adr/0016-the-scope-reopens-for-one-argued-ai-fusion-round.md) | The scope reopens for one argued AI-fusion round - three items, each reusing the existing guardrails |
 | [0017](adr/0017-comments-are-checked-after-they-are-visible.md) | Comments are safety-checked after they are visible, not before - a deliberate divergence from fail-closed |
 | [0018](adr/0018-a-comment-mentioning-the-agent-summons-it.md) | A comment mentioning the agent summons it, and silence is not an option - placeholder reply, cooldown, no recursion |
+| [0019](adr/0019-degraded-capabilities-are-a-closed-server-owned-vocabulary.md) | A degraded capability is published as a closed, server-owned vocabulary - the banner reads consequence, not health |
 
 ## Measurements — `docs/research/`
 
@@ -78,6 +79,7 @@ alternatives that were rejected.
 | [frontend-polish-round-2](tickets/frontend-polish-round-2.md) | FE-1 crash reporting (browser to one capped log line), a /tags directory with visible-post counts, and the two critique items this round declined |
 | [fe1-boundary-layering](tickets/fe1-boundary-layering.md) | FE-1's second half: per-route error boundaries under the layout, one broken page no longer unmounts the SPA, and the outer boundary stays as the last resort |
 | [saturation-test-deflake](tickets/saturation-test-deflake.md) | One test class, three CI failures in a day: a poll deadline racing the retry ladder, a precondition that read one refusal as proof of a full pool, and a latch read from a field |
+| [frontend-polish-round-3](tickets/frontend-polish-round-3.md) | Nine patterns from a comparable product, arbitrated against the tree: one is a defect (the author cannot see their own held post), five are cheap, and three are declined with the reason written down |
 
 ## Plans — `docs/plans/`
 
@@ -87,6 +89,11 @@ alternatives that were rejected.
 | [deployment-and-blog-plan](plans/deployment-and-blog-plan.md) | The original deployment plan and its local verification log |
 | [portfolio-showcase-plan](plans/portfolio-showcase-plan.md) | The chosen direction: what "done" means for a portfolio artifact |
 | [environment-matrix](plans/environment-matrix.md) | dev / prod / CI values for the key configuration, with the default and the overrider on each row |
+| [fe-3-post-status-visibility](plans/fe-3-post-status-visibility.md) | Frozen contract for round-3 item 1: the author sees their own held posts, nobody else does, and the rejection reason is derived rather than stored |
+| [fe-3-group-a-feed-copy](plans/fe-3-group-a-feed-copy.md) | Frozen contract for round-3 items 2, 4, 6, 8: empty-state copy, the unanswered panel, a per-channel liked ordering, and a test that pins the card's counts |
+| [fe-3-group-b-degradation-banner](plans/fe-3-group-b-degradation-banner.md) | Frozen contract for round-3 item 3: a shaped public capability read model and a dismissible banner, without reopening the actuator paths ADR-0007 closed |
+| [fe-3-group-c-detail-comments](plans/fe-3-group-c-detail-comments.md) | Frozen contract for round-3 items 5 and 7: a worked example on prompt posts, and a rule-based comment sentiment that cannot fail the write or go dark with the LLM |
+| [fe-3-group-d-palette](plans/fe-3-group-d-palette.md) | Frozen contract for round-3 item 9: the palette's second destination is the row's link, not a product the tree does not have |
 | [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
 
 ## Design and product
@@ -104,6 +111,7 @@ alternatives that were rejected.
 |---|---|
 | [reviews/three-persona-journey-2026-09-06](reviews/three-persona-journey-2026-09-06.md) | Full-journey walkthrough from three personas, with `file:line` evidence |
 | [reviews/black-box-exploration-2026-09-09](reviews/black-box-exploration-2026-09-09.md) | Black-box exploration of the running product |
+| [reviews/round-3-acceptance-evidence](reviews/round-3-acceptance-evidence.md) | Round 3's verdicts bound to a HEAD SHA each, the commands the verifier re-ran, the contract amendments, and what the round does not prove |
 | [reviews/ai4-acceptance-2026-11-09](reviews/ai4-acceptance-2026-11-09.md) | The AI-4 acceptance record: frozen contract, independent verifier's evidence pack, the four human-review questions, written sign-off |
 | [archive/Nexus-Campus-体验报告](archive/Nexus-Campus-体验报告.md) | The superseded deep experience report |
 | [archive/Nexus-Campus-第二轮修复验证报告](archive/Nexus-Campus-第二轮修复验证报告.md) | Verification pass over the fixes from that report |

@@ -27,6 +27,13 @@ public class VibeComment implements Serializable {
 
     private Integer status;
 
+    /**
+     * Three-way keyword split: 0 other/unclassified, 1 question, 2 complaint,
+     * 3 praise. Written once on insert by the deterministic classifier; rows
+     * that predate the column stay 0.
+     */
+    private Integer sentiment;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createTime;
 

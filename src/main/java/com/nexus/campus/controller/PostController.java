@@ -123,6 +123,14 @@ public class PostController {
             @RequestParam(required = false) Integer aiScoreMin,
             @RequestParam(required = false) String sort,
             HttpServletRequest request) {
+        boolean hasChannelOrCategory = (channelSlug != null && !channelSlug.isEmpty()) || categoryId != null;
+        if ("liked".equals(sort) && !hasChannelOrCategory) {
+            // "Most liked" is a per-channel/all-time ordering. Without a scope it has no
+            // meaning, and silently falling back to `latest` would answer a different
+            // question than the one the caller asked.
+            throw BusinessException.badRequest(
+                    "sort=liked requires a channelSlug or categoryId; it has no global ordering.");
+        }
         if (hot) {
             List<PostPageVo> hotPosts = vibePostService.getHotPosts(size);
             fillLikedByMe(hotPosts, request);
@@ -142,7 +150,11 @@ public class PostController {
                 || (sort != null && !sort.isEmpty() && !"latest".equals(sort))
                 || (keyword != null && !keyword.isEmpty() && resolvedCategoryId != null);
         if (userId != null) {
-            result = vibePostService.getPostsByUserId(userId, page, size);
+            // The JWT filter fills this best-effort on public GETs, so a valid token for
+            // the profile's owner opens the owner view; everyone else gets the public one.
+            Object attr = request.getAttribute("currentUserId");
+            boolean ownerView = attr instanceof Long currentUserId && currentUserId.equals(userId);
+            result = vibePostService.getPostsByUserId(userId, page, size, ownerView);
         } else if (hasExtraFilters) {
             result = vibePostService.filterPosts(page, size, keyword, resolvedCategoryId, language, aiScoreMin, type, sort);
         } else if (keyword != null && !keyword.isEmpty()) {
@@ -154,6 +166,17 @@ public class PostController {
         }
         fillLikedByMe(result.getList(), request);
         return ApiResponse.success(result);
+    }
+
+    /**
+     * Recent active posts nobody has replied to yet. Public like the feed, and an
+     * empty list is a normal answer rather than an error: most of the time there may
+     * be nothing waiting.
+     */
+    @GetMapping("/unanswered")
+    public ApiResponse<List<PostPageVo>> getUnansweredPosts(
+            @RequestParam(defaultValue = "" + VibePostService.DEFAULT_UNANSWERED_SIZE) int size) {
+        return ApiResponse.success(vibePostService.getUnansweredPosts(size));
     }
 
     @GetMapping("/hot")

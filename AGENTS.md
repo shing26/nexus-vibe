@@ -73,8 +73,8 @@ prove — keep that habit.
 ## Verification before you claim anything works
 
 ```bash
-mvn -B test                     # 417 tests / 70 classes; the count is asserted in README.md
-cd frontend && npm run test     # 42 tests / 11 files
+mvn -B test                     # 530 tests / 90 classes; the count is asserted in README.md
+cd frontend && npm run test     # 115 tests / 21 files
 cd frontend && npm run lint
 cd frontend && npm run build
 cd docker/observability/alert-bridge && python -m unittest test_alert_bridge   # 28 tests

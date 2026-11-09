@@ -92,6 +92,9 @@ public class JwtAuthFilter implements Filter {
                 || uri.startsWith("/api/v1/showcase")) {
             return true;
         }
+        // The degradation banner is for the visitor who has not signed in; a token would hide
+        // exactly the outage it exists to explain.
+        if (uri.startsWith("/api/v1/status")) return true;
         if (uri.equals("/api/v1/users")
                 || (uri.startsWith("/api/v1/users/")
                     && !uri.startsWith("/api/v1/users/profile")

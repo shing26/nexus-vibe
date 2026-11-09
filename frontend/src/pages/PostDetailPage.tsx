@@ -9,6 +9,8 @@ import { apiClient } from '../api/client';
 import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { AI_REVIEW } from '../lib/postStatus';
+import { readVariables } from '../components/promptMetadata';
 import Avatar from '../components/Avatar';
 import CommentBody from '../components/CommentBody';
 import CodeBlock from '../components/CodeBlock';
@@ -17,6 +19,8 @@ import { ReviewStepStrip } from '../components/ui/ReviewStepStrip';
  import { DecryptedText } from '../components/ui/DecryptedText';
  import EmptyState from '../components/EmptyState';
  import PromptVersionPanel from '../components/PromptVersionPanel';
+ import PromptWorkedExample from '../components/PromptWorkedExample';
+ import CommentSentimentFilter from '../components/CommentSentimentFilter';
  
  import type { AiReviewDetail, PostPageVo } from '../types/post';
 
@@ -125,7 +129,7 @@ export default function PostDetailPage() {
       const res = await apiClient.get<ApiResponse<AiReviewDetail | null>>(`/agent-logs/post/${id}/latest`);
       return res.data.data ?? null;
     },
-    enabled: !!id && post?.aiReviewed === 1 && hasCodeBlock,
+    enabled: !!id && post?.aiReviewed === AI_REVIEW.REVIEWED && hasCodeBlock,
     staleTime: 1000 * 60 * 5,
     retry: false,
   });
@@ -134,7 +138,7 @@ export default function PostDetailPage() {
   // 5 minutes — without this, a re-review would leave the terminal showing
   // the old score while the header already shows the new one.
   useEffect(() => {
-    if (post?.aiReviewed === 1 && id) {
+    if (post?.aiReviewed === AI_REVIEW.REVIEWED && id) {
       queryClient.invalidateQueries({ queryKey: ['agent-logs', 'post', id, 'latest'] });
     }
   }, [post?.aiReviewed, id, queryClient]);
@@ -228,12 +232,7 @@ export default function PostDetailPage() {
   };
 
   // Prompt Playground state
-  const promptMeta = useMemo(() => {
-    if (!post?.promptMetadata) return null;
-    try { return JSON.parse(post.promptMetadata); } catch { return null; }
-  }, [post]);
-
-  const variables: string[] = promptMeta?.variables ?? [];
+  const variables = useMemo(() => readVariables(post?.promptMetadata), [post]);
 
   const [varValues, setVarValues] = useState<Record<string, string>>({});
 
@@ -310,7 +309,7 @@ export default function PostDetailPage() {
   const comments = commentsData ?? [];
   const totalComments = comments.length > 0 ? comments.length : post.commentCount;
   // 2 = REVIEWING; 3 = FAILED gets its own quiet terminal notice (backend retries)
-  const aiPending = hasCodeBlock && post.aiReviewed === 2;
+  const aiPending = hasCodeBlock && post.aiReviewed === AI_REVIEW.REVIEWING;
 
    return (
      <div className="max-w-[1400px] mx-auto px-4 py-8">
@@ -439,7 +438,7 @@ export default function PostDetailPage() {
             {copiedLink ? 'Copied!' : 'Share'}
           </button>
         </div>
-        {post.aiReviewed === 1 && post.aiReviewScore > 0 && (
+        {post.aiReviewed === AI_REVIEW.REVIEWED && post.aiReviewScore > 0 && (
           <span
             className="text-[11px] font-mono text-vibe-emerald cursor-help"
             title="Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically."
@@ -454,7 +453,7 @@ export default function PostDetailPage() {
       </div>
 
       {/* PROMPT PLAYGROUND */}
-      {post.postType === 'prompt' && promptMeta && variables.length > 0 && (
+      {post.postType === 'prompt' && variables.length > 0 && (
         <div className="max-w-3xl mx-auto mb-8">
           <TerminalWindow title="prompt_playground — Template Variables">
             <button
@@ -510,6 +509,15 @@ export default function PostDetailPage() {
         </div>
       )}
 
+      {/* WORKED EXAMPLE — sibling of the playground, filled from the two
+          optional keys inside the stored promptMetadata. Renders nothing when
+          the post is not a prompt or has no example. */}
+      <PromptWorkedExample
+        postType={post.postType}
+        promptMetadata={post.promptMetadata}
+        prompt={renderedPrompt}
+      />
+
       {/* AI REVIEW STATUS + TERMINAL */}
       {aiPending && (
         <div className="max-w-3xl mx-auto mb-8">
@@ -531,7 +539,7 @@ export default function PostDetailPage() {
           </div>
         </div>
       )}
-      {hasCodeBlock && post.aiReviewed === 1 && (
+      {hasCodeBlock && post.aiReviewed === AI_REVIEW.REVIEWED && (
         <div className="max-w-3xl mx-auto mb-8">
           {aiReviewLoading ? (
             <AiReviewTerminal state="loading" />
@@ -575,7 +583,7 @@ export default function PostDetailPage() {
           )}
         </div>
       )}
-      {hasCodeBlock && post.aiReviewed === 3 && (
+      {hasCodeBlock && post.aiReviewed === AI_REVIEW.FAILED && (
         <div className="max-w-3xl mx-auto mb-8">
           <AiReviewTerminal state="failed" />
         </div>
@@ -612,10 +620,13 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Comment List */}
+        {/* Comment List — grouped client-side by the stored sentiment label.
+            The component owns the filter and the grouping; the rows come from
+            the already-fetched list, so switching groups sends no request. */}
         {comments.length > 0 ? (
-          <div className="space-y-4">
-            {comments.map((comment: any, i: number) => {
+          <CommentSentimentFilter
+            comments={comments}
+            renderComment={(comment: any, i: number) => {
               const isAi = Number(comment.userId) === AI_USER_ID;
               return (
                 <motion.div
@@ -638,10 +649,15 @@ export default function PostDetailPage() {
                   </div>
                 </motion.div>
               );
-            })}
-          </div>
+            }}
+          />
         ) : (
-         <EmptyState preset="noComments" className="py-8" />
+          <EmptyState
+            preset="noComments"
+            className="py-8"
+            title="No comments yet"
+            desc="Nothing is waiting for an answer right now. The form above is how the first one gets here."
+          />
         )}
 
       </section>

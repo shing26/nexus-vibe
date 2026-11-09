@@ -1,5 +1,5 @@
-﻿import { useState } from 'react';
-import { useParams } from 'react-router-dom';
+﻿import { useEffect, useState } from 'react';
+import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { motion } from 'motion/react';
 import { apiClient } from '../api/client';
@@ -7,11 +7,51 @@ import PostCard from '../components/PostCard';
 import Pagination from '../components/Pagination';
 import Sidebar from '../components/Sidebar';
 import EmptyState from '../components/EmptyState';
-import type { Channel } from '../types/post';
+import type { Channel, PostPageVo } from '../types/post';
+
+const DESKTOP_QUERY = '(min-width: 768px)';
+
+/**
+ * A4-4: the unanswered panel is not mounted below `md`, rather than mounted and
+ * hidden with CSS. At phone widths it would push the feed below the fold, and
+ * "not rendered" is a stronger promise than `display: none`.
+ */
+function useIsDesktop(): boolean {
+  const [matches, setMatches] = useState(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
+    return window.matchMedia(DESKTOP_QUERY).matches;
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
+    const mql = window.matchMedia(DESKTOP_QUERY);
+    const onChange = () => setMatches(mql.matches);
+    onChange();
+    mql.addEventListener('change', onChange);
+    return () => mql.removeEventListener('change', onChange);
+  }, []);
+
+  return matches;
+}
 
 export default function ChannelPage() {
   const { slug } = useParams<{ slug: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
+  const isDesktop = useIsDesktop();
+  // A6-4: the ordering lives in the URL so a refresh keeps it and a link shares it.
+  const sort = searchParams.get('sort') === 'liked' ? 'liked' : 'latest';
+
+  const changeSort = (next: 'latest' | 'liked') => {
+    const nextParams = new URLSearchParams(searchParams);
+    if (next === 'liked') {
+      nextParams.set('sort', 'liked');
+    } else {
+      nextParams.delete('sort');
+    }
+    setSearchParams(nextParams, { replace: true });
+    setPage(1);
+  };
 
   const { data: channels } = useQuery({
     queryKey: ['channels'],
@@ -65,14 +105,29 @@ export default function ChannelPage() {
   const emptyGuide = channel ? emptyGuides[channel.slug] : undefined;
 
   const { data: postsData, isLoading } = useQuery({
-    queryKey: ['posts', 'channel', slug, page, slug === 'prompts' ? 'prompt' : 'all'],
+    queryKey: ['posts', 'channel', slug, page, sort, slug === 'prompts' ? 'prompt' : 'all'],
     queryFn: async () => {
       const res = await apiClient.get('/posts', {
-        params: { channelSlug: slug, page, size: 10, type: slug === 'prompts' ? 'prompt' : 'all' },
+        params: {
+          channelSlug: slug,
+          page,
+          size: 10,
+          type: slug === 'prompts' ? 'prompt' : 'all',
+          ...(sort === 'liked' ? { sort: 'liked' } : {}),
+        },
       });
       return res.data.data;
     },
     enabled: !!slug && !!channel,
+    staleTime: 1000 * 60 * 2,
+  });
+
+  const { data: unanswered } = useQuery<PostPageVo[]>({
+    queryKey: ['posts', 'unanswered'],
+    queryFn: async () => {
+      const res = await apiClient.get('/posts/unanswered', { params: { size: 5 } });
+      return (res.data.data ?? []) as PostPageVo[];
+    },
     staleTime: 1000 * 60 * 2,
   });
 
@@ -105,6 +160,28 @@ export default function ChannelPage() {
             <h1 className="text-xl font-bold font-mono text-slate-100 pb-3 border-b border-vibe-border mb-6">
               # {channel.name}
             </h1>
+          )}
+
+          {channel && (
+            <div className="mb-4 flex items-center gap-2 font-mono text-[11px]">
+              <span className="text-slate-400">Order:</span>
+              {(['latest', 'liked'] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  onClick={() => changeSort(option)}
+                  aria-pressed={sort === option}
+                  className={
+                    'rounded-md border px-2.5 py-1 transition-colors active:scale-[0.97] ' +
+                    (sort === option
+                      ? 'border-vibe-cyan/40 bg-vibe-cyan/15 text-vibe-cyan'
+                      : 'border-vibe-border text-slate-400 hover:border-vibe-cyan/40 hover:text-slate-200')
+                  }
+                >
+                  {option === 'latest' ? 'Latest' : 'Most liked'}
+                </button>
+              ))}
+            </div>
           )}
 
           {isLoading ? (
@@ -142,6 +219,47 @@ export default function ChannelPage() {
             <EmptyState preset="noPosts" {...emptyGuide} />
           )}
         </div>
+
+        {isDesktop && channel && (
+          <aside aria-label="Waiting for an answer" className="w-72 shrink-0">
+            <div className="rounded-lg border border-vibe-border bg-vibe-surface/80 p-4">
+              <h2 className="mb-1 font-mono text-xs font-semibold text-slate-300">
+                // Waiting for an answer
+              </h2>
+              <p className="mb-3 font-mono text-[10px] text-slate-400">
+                Active posts with no replies yet.
+              </p>
+              {unanswered === undefined ? null : unanswered.length > 0 ? (
+                <ul className="space-y-1">
+                  {unanswered.map((post) => (
+                    <li key={post.id}>
+                      <Link
+                        to={'/post/' + post.id}
+                        className="group block rounded-lg p-2 transition-colors hover:bg-vibe-card/70"
+                      >
+                        <p className="line-clamp-2 font-mono text-[11px] leading-snug text-slate-300 group-hover:text-vibe-cyan">
+                          {post.title}
+                        </p>
+                        <p className="mt-1 font-mono text-[10px] text-slate-400">
+                          {post.authorName} · {post.likeCount} likes · no replies
+                        </p>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <EmptyState
+                  preset="noPosts"
+                  title="Nothing is waiting"
+                  desc="Posts with no replies appear here; write the first reply on a post and it leaves this list."
+                  action={null}
+                  actionLabel={null}
+                  className="py-8"
+                />
+              )}
+            </div>
+          </aside>
+        )}
       </div>
     </div>
   );

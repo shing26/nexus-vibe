@@ -19,6 +19,12 @@
    versionCount?: number;
    /** Whether the logged-in viewer has liked this post; null/absent when anonymous */
    likedByMe?: boolean | null;
+   /**
+    * Why the author's own rejected post was held (`Prompt injection`, `Harmful content`,
+    * `Spam`, `Safe`). Only the owner's view of a `status === 3` row fills it; null
+    * everywhere else.
+    */
+   rejectionReason?: string | null;
  }
 
  export interface PromptVersion {
@@ -50,6 +56,12 @@
    content: string;
    userId: string;
    createTime: string;
+   /**
+    * Stored keyword-heuristic label: 0 unclassified/other, 1 question,
+    * 2 complaint, 3 praise. Absent on responses from a build that predates the
+    * column; treat that the same as 0.
+    */
+   sentiment?: number;
  }
 
  export interface PageResponse<T> {

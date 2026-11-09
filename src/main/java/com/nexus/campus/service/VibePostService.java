@@ -11,6 +11,12 @@ import java.util.List;
 
 public interface VibePostService {
 
+    /** Default page the "waiting for an answer" panel asks for. */
+    int DEFAULT_UNANSWERED_SIZE = 5;
+
+    /** Hard ceiling, so the panel can never become a second feed. */
+    int MAX_UNANSWERED_SIZE = 20;
+
     VibePost createPost(PostCreateRequest request, Long userId);
 
     VibePost updatePost(Long postId, PostUpdateRequest request, Long userId);
@@ -44,11 +50,22 @@ public interface VibePostService {
 
     List<PostPageVo> getHotPosts(int limit);
 
+    /**
+     * Recent active posts with no visible comments, newest first. {@code size} is
+     * clamped to {@code 1..MAX_UNANSWERED_SIZE}; an empty result is a normal answer.
+     */
+    List<PostPageVo> getUnansweredPosts(int size);
+
     PostPageVo getPostDetail(Long id);
 
     boolean incrementView(Long postId);
 
-    PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size);
+    /**
+     * Same listing, but when {@code ownerView} is true the caller has already proved the
+     * requester is {@code userId}, so held rows are returned and a rejected row explains
+     * itself. A false flag is the public view: active rows only, no reason.
+     */
+    PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size, boolean ownerView);
 
     /** Throws 404 when the post is absent and 409 when it is not pinnable. */
     void pinPost(Long postId);
