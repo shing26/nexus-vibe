@@ -109,6 +109,11 @@ value rather than a new endpoint, so it composes with the existing channel filte
 - The unanswered panel goes on **`ChannelPage.tsx`**, not `Sidebar.tsx`. `Sidebar.tsx` is
   not yours; group B's banner host decision is separate and neither group touches it.
 - `src/main/java/com/nexus/campus/repository/VibePostRepository.java` + its MyBatis impl
+- `src/main/java/com/nexus/campus/mapper/VibePostMapper.java` — **granted 2026-11-09.** The
+  new read paths' SQL lives here as `@Select` annotations, so "its MyBatis impl" could not
+  be changed without this file. The grant is the two new queries (the unanswered feed and
+  the `liked` ordering) plus the existing `@Select`s they sit beside; nothing else in the
+  mapper.
 - `src/main/java/com/nexus/campus/service/VibePostService.java` + impl
 - `src/main/java/com/nexus/campus/controller/PostController.java`
 - `src/test/java/com/nexus/campus/**`
