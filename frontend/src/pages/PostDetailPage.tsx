@@ -17,6 +17,8 @@ import { ReviewStepStrip } from '../components/ui/ReviewStepStrip';
  import { DecryptedText } from '../components/ui/DecryptedText';
  import EmptyState from '../components/EmptyState';
  import PromptVersionPanel from '../components/PromptVersionPanel';
+ import PromptWorkedExample from '../components/PromptWorkedExample';
+ import CommentSentimentFilter from '../components/CommentSentimentFilter';
  
  import type { AiReviewDetail, PostPageVo } from '../types/post';
 
@@ -510,6 +512,15 @@ export default function PostDetailPage() {
         </div>
       )}
 
+      {/* WORKED EXAMPLE — sibling of the playground, filled from the two
+          optional keys inside the stored promptMetadata. Renders nothing when
+          the post is not a prompt or has no example. */}
+      <PromptWorkedExample
+        postType={post.postType}
+        promptMetadata={post.promptMetadata}
+        prompt={renderedPrompt}
+      />
+
       {/* AI REVIEW STATUS + TERMINAL */}
       {aiPending && (
         <div className="max-w-3xl mx-auto mb-8">
@@ -612,10 +623,13 @@ export default function PostDetailPage() {
           </div>
         </div>
 
-        {/* Comment List */}
+        {/* Comment List — grouped client-side by the stored sentiment label.
+            The component owns the filter and the grouping; the rows come from
+            the already-fetched list, so switching groups sends no request. */}
         {comments.length > 0 ? (
-          <div className="space-y-4">
-            {comments.map((comment: any, i: number) => {
+          <CommentSentimentFilter
+            comments={comments}
+            renderComment={(comment: any, i: number) => {
               const isAi = Number(comment.userId) === AI_USER_ID;
               return (
                 <motion.div
@@ -638,10 +652,15 @@ export default function PostDetailPage() {
                   </div>
                 </motion.div>
               );
-            })}
-          </div>
+            }}
+          />
         ) : (
-         <EmptyState preset="noComments" className="py-8" />
+          <EmptyState
+            preset="noComments"
+            className="py-8"
+            title="No comments yet"
+            desc="Nothing is waiting for an answer right now. The form above is how the first one gets here."
+          />
         )}
 
       </section>

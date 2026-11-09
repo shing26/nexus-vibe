@@ -5,6 +5,7 @@ import remarkGfm from 'remark-gfm';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useChannels, type Channel } from '../api/useChannels';
+import { mergeWorkedExample, readWorkedExample } from '../components/promptMetadata';
 
 function estimateTokens(text: string): number {
   if (!text.trim()) return 0;
@@ -26,6 +27,10 @@ export default function EditPostPage() {
   const [content, setContent] = useState('');
   const [postType, setPostType] = useState('post');
   const [promptMetadata, setPromptMetadata] = useState('');
+  // Item 5: the worked example lives inside promptMetadata, so it is edited as
+  // two fields and merged back on save, leaving every other key untouched.
+  const [exampleInput, setExampleInput] = useState('');
+  const [exampleOutput, setExampleOutput] = useState('');
   const [changeNote, setChangeNote] = useState('');
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -34,10 +39,12 @@ export default function EditPostPage() {
 
   // Unsaved-changes guard: dirty once fields drift from the loaded baseline;
   // beforeunload warns on reload/close, Cancel asks before discarding.
-  const baseline = useRef({ title: '', content: '', changeNote: '' });
+  const baseline = useRef({ title: '', content: '', changeNote: '', exampleInput: '', exampleOutput: '' });
   const dirty = title !== baseline.current.title
     || content !== baseline.current.content
-    || changeNote !== baseline.current.changeNote;
+    || changeNote !== baseline.current.changeNote
+    || exampleInput !== baseline.current.exampleInput
+    || exampleOutput !== baseline.current.exampleOutput;
   useEffect(() => {
     if (!dirty) return;
     const handler = (e: BeforeUnloadEvent) => {
@@ -78,10 +85,15 @@ export default function EditPostPage() {
         setContent(post.content || '');
         setPostType(post.postType || 'post');
         setPromptMetadata(post.promptMetadata || '');
+        const storedExample = readWorkedExample(post.promptMetadata);
+        setExampleInput(storedExample.exampleInput ?? '');
+        setExampleOutput(storedExample.exampleOutput ?? '');
         baseline.current = {
           title: post.title || '',
           content: post.content || '',
           changeNote: '',
+          exampleInput: storedExample.exampleInput ?? '',
+          exampleOutput: storedExample.exampleOutput ?? '',
         };
       } catch {
         setError('Failed to load post.');
@@ -139,7 +151,7 @@ export default function EditPostPage() {
         changeNote: changeNote.trim(),
       };
       if (postType === 'prompt') {
-        body.promptMetadata = promptMetadata;
+        body.promptMetadata = mergeWorkedExample(promptMetadata, exampleInput, exampleOutput);
       }
       await apiClient.put(`/posts/${id}`, body);
       navigate(`/post/${id}`);
@@ -238,17 +250,43 @@ export default function EditPostPage() {
         </div>
 
         {postType === 'prompt' && (
-          <div className="flex items-center gap-3 border border-vibe-border rounded-lg bg-vibe-surface px-3 py-2.5">
-            <span className="text-[10px] font-mono text-vibe-purple bg-vibe-purple/10 border border-vibe-purple/30 rounded px-1.5 py-0.5 shrink-0">
-              New version
-            </span>
-            <input
-              type="text"
-              value={changeNote}
-              onChange={(e) => setChangeNote(e.target.value)}
-              placeholder="Change note, e.g. tighten role instructions (optional)"
-              className="flex-1 bg-transparent text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none"
-            />
+          <div className="space-y-3">
+            <div className="flex items-center gap-3 border border-vibe-border rounded-lg bg-vibe-surface px-3 py-2.5">
+              <span className="text-[10px] font-mono text-vibe-purple bg-vibe-purple/10 border border-vibe-purple/30 rounded px-1.5 py-0.5 shrink-0">
+                New version
+              </span>
+              <input
+                type="text"
+                value={changeNote}
+                onChange={(e) => setChangeNote(e.target.value)}
+                placeholder="Change note, e.g. tighten role instructions (optional)"
+                className="flex-1 bg-transparent text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <label htmlFor="edit-example-input" className="text-[10px] font-mono text-slate-500">Example input (optional)</label>
+                <textarea
+                  id="edit-example-input"
+                  value={exampleInput}
+                  onChange={(e) => setExampleInput(e.target.value)}
+                  placeholder="What a reader would paste into this prompt..."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="edit-example-output" className="text-[10px] font-mono text-slate-500">Example output (optional)</label>
+                <textarea
+                  id="edit-example-output"
+                  value={exampleOutput}
+                  onChange={(e) => setExampleOutput(e.target.value)}
+                  placeholder="What this prompt produced for that input..."
+                  rows={3}
+                  className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
+                />
+              </div>
+            </div>
           </div>
         )}
 

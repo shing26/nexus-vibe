@@ -6,6 +6,7 @@ import { apiClient } from "../api/client";
 import { useAuthStore } from "../stores/authStore";
 import { useToastStore } from "../stores/toastStore";
 import { useChannels, type Channel } from "../api/useChannels";
+import { withWorkedExample } from "../components/promptMetadata";
 import {
   Terminal, Sparkles, Tag, Code2, Save, Send, Bug, Palette, Cpu,
 } from "lucide-react";
@@ -156,6 +157,10 @@ export default function CreatePostPage() {
   const [recommendedModel, setRecommendedModel] = useState("");
   const [temperature, setTemperature] = useState(0.7);
   const [variablesStr, setVariablesStr] = useState("");
+  // Optional worked example (item 5): two keys inside the same promptMetadata
+  // JSON, so the column and the API stay unchanged.
+  const [exampleInput, setExampleInput] = useState("");
+  const [exampleOutput, setExampleOutput] = useState("");
   const [template, setTemplate] = useState<string>(searchParams.get("template") || "");
 
   // Unsaved-changes guard: content is dirty once it drifts from the last
@@ -185,6 +190,8 @@ export default function CreatePostPage() {
     setRecommendedModel("recommendedModel" in tpl && tpl.recommendedModel ? tpl.recommendedModel : "");
     setTemperature("temperature" in tpl && tpl.temperature != null ? tpl.temperature : 0.7);
     setVariablesStr("variablesStr" in tpl && tpl.variablesStr ? tpl.variablesStr : "");
+    setExampleInput("");
+    setExampleOutput("");
     setActiveTab("editor");
     baseline.current = { title: "", content: tpl.scaffold };
   }, [template, channels, draftId]);
@@ -222,6 +229,8 @@ export default function CreatePostPage() {
       setRecommendedModel(draft.recommendedModel || "");
       setTemperature(draft.temperature ?? 0.7);
       setVariablesStr(draft.variablesStr || "");
+      setExampleInput(draft.exampleInput || "");
+      setExampleOutput(draft.exampleOutput || "");
       baseline.current = { title: draft.title || "", content: draft.content || "" };
     } catch {
       // ignore malformed local drafts
@@ -268,6 +277,8 @@ export default function CreatePostPage() {
       recommendedModel,
       temperature,
       variablesStr,
+      exampleInput,
+      exampleOutput,
       updatedAt: new Date().toISOString(),
     };
     const index = drafts.findIndex((d: any) => String(d.id) === String(payload.id));
@@ -322,7 +333,13 @@ export default function CreatePostPage() {
       if (postType === "prompt") {
         body.postType = "prompt";
         const variables = variablesStr.split(",").map((v) => v.trim()).filter(Boolean);
-        body.promptMetadata = JSON.stringify({ role: promptRole.trim(), recommendedModel: recommendedModel.trim(), temperature, variables });
+        body.promptMetadata = JSON.stringify(
+          withWorkedExample(
+            { role: promptRole.trim(), recommendedModel: recommendedModel.trim(), temperature, variables },
+            exampleInput,
+            exampleOutput,
+          ),
+        );
       }
       const res = await apiClient.post("/posts", body);
       if (draftId) {
@@ -536,6 +553,28 @@ export default function CreatePostPage() {
                       onChange={(e) => setVariablesStr(e.target.value)}
                       placeholder="e.g. language, framework, style"
                       className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono text-slate-500">Example input (optional)</label>
+                    <textarea
+                      value={exampleInput}
+                      onChange={(e) => setExampleInput(e.target.value)}
+                      placeholder="What a reader would paste into this prompt..."
+                      rows={3}
+                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <label className="text-[10px] font-mono text-slate-500">Example output (optional)</label>
+                    <textarea
+                      value={exampleOutput}
+                      onChange={(e) => setExampleOutput(e.target.value)}
+                      placeholder="What this prompt produced for that input..."
+                      rows={3}
+                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
                     />
                   </div>
                 </div>

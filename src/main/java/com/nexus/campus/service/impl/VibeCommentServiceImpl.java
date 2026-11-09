@@ -3,20 +3,35 @@ package com.nexus.campus.service.impl;
 import com.nexus.campus.dto.CommentCreateRequest;
 import com.nexus.campus.dto.PostAuditResult;
 import com.nexus.campus.entity.*;
+import com.nexus.campus.enums.CommentSentiment;
 import com.nexus.campus.exception.BusinessException;
 import com.nexus.campus.mapper.*;
 import com.nexus.campus.metrics.ProductMetrics;
 import com.nexus.campus.security.AdminGuard;
+import com.nexus.campus.service.CommentSentimentClassifier;
 import com.nexus.campus.service.SensitiveWordService;
 import com.nexus.campus.service.VibeCommentService;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 
+@Slf4j
 @Service
 public class VibeCommentServiceImpl implements VibeCommentService {
+
+    /**
+     * The one seam the sentiment rule sits behind. Inline-initialised rather
+     * than injected: the classifier is pure and has no collaborators, so a
+     * container bean would only make it look more capable than it is. Tests
+     * replace it to prove the write path survives a classifier that throws.
+     */
+    @FunctionalInterface
+    public interface SentimentClassifier {
+        int classify(String text);
+    }
 
     @Autowired
     private VibeCommentMapper vibeCommentMapper;
@@ -39,6 +54,9 @@ public class VibeCommentServiceImpl implements VibeCommentService {
     @Autowired
     private CommentAgentEventPublisher commentAgentEventPublisher;
 
+    /** Replaced only by tests; the production value is the pure rule function. */
+    private SentimentClassifier sentimentClassifier = CommentSentimentClassifier::classify;
+
     @Override
     @Transactional
     public VibeComment createComment(CommentCreateRequest request, Long userId) {
@@ -53,6 +71,7 @@ public class VibeCommentServiceImpl implements VibeCommentService {
         PostAuditResult audit = sensitiveWordService.checkText(request.getContent());
         comment.setContent(audit.getFilteredContent());
         comment.setStatus(audit.isContainsCritical() ? 2 : 1);
+        comment.setSentiment(classifyWithoutFailingTheWrite(comment.getContent()));
 
         vibeCommentMapper.insert(comment);
         // Counted at the insert, not after the notification and the core-power award:
@@ -93,6 +112,24 @@ public class VibeCommentServiceImpl implements VibeCommentService {
         commentAgentEventPublisher.publishMentionReply(comment, userId);
 
         return comment;
+    }
+
+    /**
+     * Classifies the text that is actually stored — the DFA-filtered content,
+     * not the raw request — so the label describes the row a reader will see.
+     *
+     * <p>Fail-open by contract: sentiment is a cosmetic tab split, so a rule
+     * that throws must never cost a comment. Any exception falls back to
+     * {@link CommentSentiment#OTHER} and the write proceeds; the failure is
+     * logged, not surfaced.
+     */
+    private int classifyWithoutFailingTheWrite(String storedContent) {
+        try {
+            return sentimentClassifier.classify(storedContent);
+        } catch (RuntimeException e) {
+            log.warn("Comment sentiment classification failed; storing as other: {}", e.toString());
+            return CommentSentiment.OTHER.getCode();
+        }
     }
 
     @Override
