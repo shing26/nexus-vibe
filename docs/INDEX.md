@@ -109,6 +109,7 @@ alternatives that were rejected.
 |---|---|
 | [reviews/three-persona-journey-2026-09-06](reviews/three-persona-journey-2026-09-06.md) | Full-journey walkthrough from three personas, with `file:line` evidence |
 | [reviews/black-box-exploration-2026-09-09](reviews/black-box-exploration-2026-09-09.md) | Black-box exploration of the running product |
+| [reviews/round-3-acceptance-evidence](reviews/round-3-acceptance-evidence.md) | Round 3's verdicts bound to a HEAD SHA each, the commands the verifier re-ran, the contract amendments, and what the round does not prove |
 | [archive/Nexus-Campus-体验报告](archive/Nexus-Campus-体验报告.md) | The superseded deep experience report |
 | [archive/Nexus-Campus-第二轮修复验证报告](archive/Nexus-Campus-第二轮修复验证报告.md) | Verification pass over the fixes from that report |
 
