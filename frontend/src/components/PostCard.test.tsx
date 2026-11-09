@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render } from '@testing-library/react';
+import { render, screen } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import PostCard from './PostCard';
 import type { PostPageVo } from '../types/post';
@@ -112,4 +112,45 @@ describe('PostCard rendered without the status prop (A7)', () => {
       expect(container.innerHTML).toBe(BASE_MARKUP[name]);
     });
   }
+});
+
+describe('PostCard counts (A8)', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('renders view, like and comment counts from the post object, not constants', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+
+    const post: PostPageVo = {
+      ...fixtures.activeText,
+      viewCount: 4321,
+      likeCount: 17,
+      commentCount: 9,
+    };
+
+    const { rerender } = render(
+      <MemoryRouter>
+        <PostCard post={post} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('4321')).toBeInTheDocument();
+    expect(screen.getByText('17')).toBeInTheDocument();
+    expect(screen.getByText('9')).toBeInTheDocument();
+
+    // Same card, different object: all three counts follow their fields.
+    rerender(
+      <MemoryRouter>
+        <PostCard post={{ ...post, viewCount: 8765, likeCount: 23, commentCount: 11 }} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.getByText('8765')).toBeInTheDocument();
+    expect(screen.getByText('23')).toBeInTheDocument();
+    expect(screen.getByText('11')).toBeInTheDocument();
+    expect(screen.queryByText('4321')).not.toBeInTheDocument();
+    expect(screen.queryByText('17')).not.toBeInTheDocument();
+    expect(screen.queryByText('9')).not.toBeInTheDocument();
+  });
 });

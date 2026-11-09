@@ -36,6 +36,9 @@ public interface VibePostRepository {
 
     List<VibePost> findPendingAudit();
 
+    /** Newest active posts with no visible comments, capped at {@code limit}. */
+    List<VibePost> findUnanswered(int limit);
+
     boolean incrementView(Long id);
 
     int recalculateCommentCount(Long postId);
