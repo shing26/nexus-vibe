@@ -50,6 +50,13 @@ public interface VibePostService {
 
     PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size);
 
+    /**
+     * Same listing, but when {@code ownerView} is true the caller has already proved the
+     * requester is {@code userId}, so held rows are returned and a rejected row explains
+     * itself. A false flag is the public view: active rows only, no reason.
+     */
+    PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size, boolean ownerView);
+
     /** Throws 404 when the post is absent and 409 when it is not pinnable. */
     void pinPost(Long postId);
 

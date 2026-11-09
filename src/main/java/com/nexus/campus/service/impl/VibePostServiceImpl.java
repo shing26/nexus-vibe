@@ -296,8 +296,33 @@ public class VibePostServiceImpl implements VibePostService {
 
     @Override
     public PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size) {
-        PageSlice<VibePost> slice = posts.pageByUser(page, size, userId);
-        return PageResult.of(page, size, slice.total(), convertToPageVos(slice.records()));
+        return getPostsByUserId(userId, page, size, false);
+    }
+
+    @Override
+    public PageResult<PostPageVo> getPostsByUserId(Long userId, int page, int size, boolean ownerView) {
+        PageSlice<VibePost> slice = ownerView
+                ? posts.pageByUserIncludingHeld(page, size, userId)
+                : posts.pageByUser(page, size, userId);
+        List<PostPageVo> vos = slice.records().stream()
+                .map(post -> ownerView ? convertToOwnerPageVo(post) : convertToPageVo(post))
+                .collect(Collectors.toList());
+        return PageResult.of(page, size, slice.total(), vos);
+    }
+
+    /**
+     * The author's own row. Only a rejected post explains itself, and the reason is read
+     * from the post's own latest safety log rather than stored on the row. Nothing here
+     * runs for a non-owner request.
+     */
+    private PostPageVo convertToOwnerPageVo(VibePost post) {
+        PostPageVo vo = convertToPageVo(post);
+        if (Integer.valueOf(3).equals(post.getStatus())) {
+            vo.setRejectionReason(reviewLogs.findLatestSafety(post.getId())
+                    .map(log -> classifySafetyResult(log.getResultJson()))
+                    .orElse(null));
+        }
+        return vo;
     }
 
     @Override
