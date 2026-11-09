@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
+import { useToastStore } from '../stores/toastStore';
 
 interface Channel {
   id: string;
@@ -37,6 +38,13 @@ interface PaletteItem {
   icon: React.ElementType;
   section: string;
   run: () => void;
+  // A second destination for the same row, reached with the modifier. Rows that
+  // have nothing else to offer (the action rows) leave it out, and the modifier
+  // falls through to `run` rather than doing nothing.
+  secondary?: {
+    label: string;
+    run: () => void;
+  };
 }
 
 interface CommandPaletteProps {
@@ -47,6 +55,7 @@ interface CommandPaletteProps {
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const addToast = useToastStore((s) => s.addToast);
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -98,6 +107,21 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     onClose();
     setQuery('');
     setSelected(0);
+  };
+
+  // The address is the row's second destination. It is absolute because a
+  // relative path pasted into a chat window is not a link.
+  const copyLink = (route: string) => {
+    const url = window.location.origin + route;
+    const write = navigator.clipboard?.writeText(url);
+    if (!write) {
+      addToast('Could not copy link', 'error');
+      return;
+    }
+    write.then(
+      () => addToast('Link copied to clipboard', 'success'),
+      () => addToast('Could not copy link', 'error'),
+    );
   };
 
   const baseActions: PaletteItem[] = [
@@ -154,6 +178,10 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     icon: Terminal,
     section: 'Channels',
     run: () => navigate('/channel/' + ch.slug),
+    secondary: {
+      label: 'Copy link',
+      run: () => copyLink('/channel/' + ch.slug),
+    },
   }));
 
   const postItems: PaletteItem[] = postHits.map((p) => ({
@@ -163,6 +191,10 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     icon: FileText,
     section: 'Posts',
     run: () => navigate('/post/' + p.id),
+    secondary: {
+      label: 'Copy link',
+      run: () => copyLink('/post/' + p.id),
+    },
   }));
 
   const visibleActions = baseActions.filter((a) => {
@@ -179,9 +211,15 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     return [...postItems, ...channelItems.filter((c) => c.label.toLowerCase().includes(q) || c.hint!.toLowerCase().includes(q)), ...visibleActions];
   }, [query, channelItems, postItems, visibleActions]);
 
-  const runItem = (item: PaletteItem | undefined) => {
+  // `useSecondary` is the modifier state at the keystroke. A row without a
+  // secondary still runs its primary action, so the modifier is never dead.
+  const runItem = (item: PaletteItem | undefined, useSecondary = false) => {
     if (!item) return;
-    item.run();
+    if (useSecondary && item.secondary) {
+      item.secondary.run();
+    } else {
+      item.run();
+    }
     close();
   };
 
@@ -194,7 +232,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       setSelected((s) => (items.length === 0 ? 0 : (s - 1 + items.length) % items.length));
     } else if (e.key === 'Enter') {
       e.preventDefault();
-      runItem(items[selected]);
+      runItem(items[selected], e.ctrlKey || e.metaKey);
     } else if (e.key === 'Escape') {
       close();
     } else if (e.key === 'Tab') {
@@ -207,6 +245,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   if (!open) return null;
 
+  const selectedItem = items[selected];
   let lastSection = '';
 
   return (
@@ -297,6 +336,15 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
         <div className="flex items-center gap-4 px-4 py-2.5 border-t border-vibe-border bg-vibe-card/40 text-[10px] font-mono text-slate-600">
           <span><kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">↑↓</kbd> navigate</span>
           <span><kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">↵</kbd> open</span>
+          {/* Only rows with a second destination advertise the modifier; the
+              label names the same Ctrl/Meta the handler listens for. */}
+          {selectedItem?.secondary && (
+            <span>
+              <kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">ctrl/⌘</kbd> +{' '}
+              <kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">↵</kbd>{' '}
+              {selectedItem.secondary.label.toLowerCase()}
+            </span>
+          )}
           <span className="ml-auto text-slate-700">NEXUS.VIBE ⌘PALETTE</span>
         </div>
       </div>
