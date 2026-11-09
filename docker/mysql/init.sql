@@ -102,6 +102,7 @@ CREATE TABLE IF NOT EXISTS `vibe_comment` (
   `target_id` bigint NOT NULL DEFAULT 0,
   `content` text NOT NULL,
   `status` tinyint NOT NULL DEFAULT 1,
+  `sentiment` tinyint NOT NULL DEFAULT 0,
   `create_time` datetime NOT NULL DEFAULT CURRENT_TIMESTAMP,
   INDEX `idx_comment_post_id` (`post_id`),
   INDEX `idx_comment_parent_id` (`parent_id`)

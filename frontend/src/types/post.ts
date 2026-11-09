@@ -56,6 +56,12 @@
    content: string;
    userId: string;
    createTime: string;
+   /**
+    * Stored keyword-heuristic label: 0 unclassified/other, 1 question,
+    * 2 complaint, 3 praise. Absent on responses from a build that predates the
+    * column; treat that the same as 0.
+    */
+   sentiment?: number;
  }
 
  export interface PageResponse<T> {
