@@ -5,6 +5,7 @@ import Navbar from '../Navbar';
 import Footer from '../Footer';
 import MobileTabBar from '../MobileTabBar';
 import BackButton from '../BackButton';
+import DegradationBanner from '../DegradationBanner';
 
 export default function MainLayout() {
   const { pathname } = useLocation();
@@ -20,6 +21,9 @@ export default function MainLayout() {
        plus a row of air; lg:pb-0 restores the desktop layout exactly. */
     <div className="min-h-screen flex flex-col pb-20 lg:pb-0">
       <Navbar />
+      {/* Site-wide, so it sits in the one shell every public route renders under. The
+          component renders nothing on a healthy deployment. */}
+      <DegradationBanner />
      <main className="flex-1">
        <motion.div
          initial={{ opacity: 0, y: 6 }}
