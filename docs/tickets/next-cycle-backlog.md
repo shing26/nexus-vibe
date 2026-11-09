@@ -425,3 +425,68 @@ canary either.
 stack's Grafana has been up continuously through the recorded deployment, and the operational cost
 of a blackout is silence rather than corruption. It belongs to a round that can afford to restate
 all nine rules.
+
+## R3-1 - Rate-limit or cache the public capability endpoint
+
+Raised by round 3's [degradation banner](../plans/fe-3-group-b-degradation-banner.md). The
+new `GET /api/v1/status/capabilities` evaluates the whole `deps` group on every call: an
+Elasticsearch HTTP probe with a 2 s timeout, an LLM check behind its five-minute cache, a
+Redis ping and a database validation query. GETs are unthrottled — `RateLimitInterceptor`
+returns true for every non-POST and is not registered on `/api/v1/status/**` — so an
+anonymous caller can multiply those probes at will.
+
+**Acceptance:** a burst of anonymous requests produces at most one probe per capability per
+TTL, or is refused by a limiter; a test asserts the second request inside the window does
+not re-probe; `/actuator/health` and `/actuator/health/servable` stay byte-identical.
+
+**Files:** `src/main/java/com/nexus/campus/config/health/`, `StatusController`, whichever of
+`RateLimitInterceptor`/`WebMvcConfig` or a cache is chosen, `src/test/**`.
+
+**Rejected:** doing it inside round 3. The contract that created the endpoint forbade
+inventing a limiter, and it said so in writing rather than shipping one unmeasured.
+
+## R3-2 - The migration rehearsal script does not rehearse the current migrations
+
+Round 3 added `migrate-0009`/`rollback-0009` and could not rehearse them: Docker was
+unavailable on the machine. Reading the script afterwards found the larger problem —
+`rehearse-migrations.ps1` hardcodes `0005/0006/0007`. The 0008 round carried the same gap.
+A green rehearsal therefore proves the three oldest pairs, not the pair just written.
+
+**Acceptance:** the script takes the migration/rollback pairs as data (or reads the
+directory), exercises every pair present, and its result file names the migrations it ran.
+Then run it where Docker works and commit the output under `results/`.
+
+**Files:** `benchmark/migrations/rehearse-migrations.ps1`, `benchmark/migrations/results/**`.
+
+**Rejected:** hand-running 0009's up/down once without changing the script. It would close
+this migration and leave the next one uncovered, which is how the 0008 gap survived.
+
+## R3-3 - Remove or wire `PostCard`'s unused `showStatus` prop
+
+Round-3 item 1 added an optional `showStatus` prop that renders `PostStateBadges`; no
+production caller passes it, because the profile page renders the badges itself. The branch
+is dead code with test coverage.
+
+**Acceptance:** either the profile page passes the prop and its separate badge render is
+removed, or the prop and branch are deleted and the A7 base-markup test still passes.
+
+**Files:** `frontend/src/components/PostCard.tsx`, `frontend/src/pages/UserProfilePage.tsx`,
+`frontend/src/components/PostCard.test.tsx`.
+
+**Rejected:** keeping it as an extension point. Nothing in the tree asks for one, and the
+project's rule is that unproven or unused things are named rather than left to look
+intentional.
+
+## R3-4 - `NginxEdgeSurfaceTest` cannot see regex locations
+
+The round-3 config test parses `nginx.conf` and simulates exact-then-longest-prefix
+matching. It skips `~` and `~*` locations because the fixture URIs contain no dot. That is
+valid for the two regexes shipped today; it is not nginx's matcher, and a future regex
+location that matched `/actuator/...` without containing one of the literal tokens the test
+searches for would be applied by nginx while the test stayed green.
+
+**Acceptance:** either implement nginx's regex order (regex wins over a plain prefix) with
+fixtures that exercise it, or make the test state the boundary in its own failure message so
+a future edit is warned rather than silently trusted.
+
+**Files:** `src/test/java/com/nexus/campus/contract/NginxEdgeSurfaceTest.java`.

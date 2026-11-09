@@ -7,8 +7,14 @@ project's subject; this ticket is the arbitration of those nine against the curr
 It is a **candidate list**, not a plan: [ADR-0009](../adr/0009-scope-is-done-at-deployment.md)
 froze the project at deployment, so every item below has to earn its round.
 
-Status: **proposed, 2026-11-09.** Nothing implemented. Each item's "what the tree already
-has" line is read from the working tree at `84aff27`, not from the observation notes.
+Status: **implemented and verified, 2026-11-09.** The verdicts below are the original
+arbitration and are kept as written. The round then took on items 6, 7 and 9 by explicit
+instruction rather than leaving them deferred or declined, and verified item 8 instead of
+rebuilding it; the outcome is recorded under [Outcome](#outcome). Every item's evidence,
+including what it does not prove, is in
+[round-3-acceptance-evidence](../reviews/round-3-acceptance-evidence.md). Each item's "what
+the tree already has" line was read from the working tree at `84aff27`, not from the
+observation notes.
 
 ## The filter that produced the list
 
@@ -32,6 +38,35 @@ discipline this project's backend already practices.
 | 7 | Three-way comment sentiment | decline | `VibeComment` has no sentiment or type column; this is a schema migration plus a moderation-policy question, for a cosmetic split |
 | 8 | Counts on the card | **already done** | `PostCard` renders `viewCount`, `likeCount` and `commentCount` at [PostCard.tsx:210-212](../../frontend/src/components/PostCard.tsx) |
 | 9 | Command palette dual-destination | decline | `CommandPalette` has one verb (navigate/execute) and the tree has no second destination — there is no note or asset to "save" to. The pattern needs a product it does not have |
+
+## Outcome
+
+Five groups, each with a frozen contract in `docs/plans/`, an implementer in its own
+worktree and an independent verifier that re-ran every command. Branch HEADs and verdicts:
+
+| Group | Items | Branch / HEAD | Verdict |
+| --- | --- | --- | --- |
+| — | 1 | `codex/fe3-post-status-visibility` `d29874d` | PASS |
+| B | 3 | `codex/fe3-group-b-degradation` `0ed9c7c` | PASS |
+| C | 5, 7 | `codex/fe3-group-c-detail` `50a7928` | PASS |
+| D | 9 | `codex/fe3-group-d-palette` `9a5cc6f` | PASS |
+| A | 2, 4, 6, 8 | `codex/fe3-group-a-feed-copy` `7d64eef` | PASS |
+
+The merged tree reads 529 Java tests / 90 classes and 115 frontend tests / 21 files.
+
+**Where the round disagreed with this ticket.** Item 6 was deferred for needing a
+channel-scoped query; it landed as a `sort=liked` value composing with the existing filter.
+Item 7 was declined because "who classifies" was unanswered; the round answered it with a
+deterministic Java rule that cannot go dark with the LLM and cannot fail the write, labelled
+as a keyword heuristic in the UI. Item 9 was declined because "the tree has no second
+destination"; inspecting the palette showed that a row's own address is the second
+destination, so `Ctrl`/`Meta`+Enter copies it. Item 8 was marked already done, and that
+held — a test now pins the three counts.
+
+Four follow-ups the round found but did not take on are in
+[next-cycle-backlog](next-cycle-backlog.md) as R3-1..R3-4: the unthrottled capability
+endpoint, the rehearsal script that never covered new migrations, the dead `showStatus`
+prop, and the nginx test's blind spot for regex locations.
 
 ## 1 - Show the moderation state to its author (do first)
 
