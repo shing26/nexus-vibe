@@ -375,7 +375,13 @@
       ——拦截不止 DNS 一层，SNI/TLS 层大概率也在拦。ngrok 域名在大陆被间歇性过滤是已知
       现象，本轮从 DNS 层深入到了 TLS 层。是否等待自愈、或迁移隧道方案（ngrok 付费自定义
       域名 / Cloudflare Tunnel——后者受限于没有 is-a.dev 的 DNS 编辑权），留给维护者决定；
-      在此之前，边缘定点探测是"栈完好"的既存证据。
+      在此之前，边缘定点探测是"栈完好"的既存证据。**本机侧的解法（2026-11-14）**：直连
+      `13.158.194.126:443`（腾讯 DoH 给出的边缘 IP）+ 正确 SNI 实测可达且未被 SNI 拦，
+      唯一坏的是本机 DNS 解析，故往本机 hosts 写入
+      `13.158.194.126 qualifier-discuss-marry.ngrok-free.dev` 后本机浏览器可正常打开公网地址
+      （不经代理）。这是机器本地条目：边缘 IP 可能轮换，届时用
+      `https://doh.pub/dns-query?name=qualifier-discuss-marry.ngrok-free.dev&type=A` 重查并更新；
+      它不改变外部访客的处境。
 - [x] 环境故障链补记（Docker Desktop 启动崩溃循环，比 11-02 的记录多一层）：**崩溃本身会把
       刚建好的 socket 留成死 ReparsePoint**，下次启动在第一个死 socket 处再崩溃，循环自我喂养
       （`engine.sock` → `dockerInference` → 新 `engine.sock`）。`chkdsk C: /f` 修复过一次
