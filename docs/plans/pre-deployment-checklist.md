@@ -184,6 +184,7 @@
 
 - [x] 部署已按上面这一节在本机执行（应用层）；仍需用户提供飞书 webhook 并完成 Cloudflare Tunnel 登录后，公网发布才算完成。
 
+
 ## 容器与升级路径（R5，2026-09-15，分支 `codex/http-contract-and-product-loop`）
 
 - [x] `Dockerfile` 运行时阶段建 `appuser`（uid/gid 10001，`--no-create-home`、`nologin`），jar 用 `--chown` 落盘，`/app`、`/app/uploads`、`/app/logs` 一并 `chown`，最后 `USER appuser`。8080 不是特权端口，非 root 不需要任何额外放行。
@@ -320,3 +321,82 @@
       `/actuator/prometheus` → 404（公网面收敛未被破坏）。CORS 三源（`localhost:8080`、
       `nexus-vibe.shing26.is-a.dev`、`qualifier-discuss-marry.ngrok-free.dev`）与隧道域名配对未变。
 - [x] 隧道由 `scripts/tunnel-ngrok.ps1` 手工进程提供，开机自启仍未做（历史遗留，见上节）。
+
+## 发布与验收记录（2026-11-14，`20261114-01`）
+
+> 范围：重新发布本机全栈，带上 PR [#36](https://github.com/shing26/nexus-vibe/pull/36)
+> （前端打磨第三轮九项 + ADR-0019）与 PR [#37](https://github.com/shing26/nexus-vibe/pull/37)
+> （R3-2：迁移演练覆盖全部迁移对）。此前机器因 Docker 损坏 socket 修过两轮 chkdsk 并重启。
+> 结论：**发布通过（本机全栈全绿）；公网黑盒验收在本机侧无法完成——两条本地网络路径当前
+> 都到不了 ngrok 域名，隧道会话本身已建立，如实记录。**
+
+- [x] 代码基线：`master` 合并提交 `6b69fe1`（#36、#37 已合并）；#37 在 CI 全绿（四项 pass，
+      Docker image build 按检测任务判定 skip）后按"盯一轮、绿灯才合"的方式条件合并。
+- [x] 发布 tag：`APP_TAG=20261114-01`，`GIT_REVISION=6b69fe1`；宿主产物
+      （`mvn -DskipTests -Djacoco.skip=true package` + `npm run build`）+ scratch 的
+      `Dockerfile.app-release`/`Dockerfile.web-release` 装配（`DOCKER_BUILDKIT=0`，多阶段构建仍受
+      Docker Hub 拉取故障阻塞，与 09-16/11-02 是同一条环境故障链）。两容器 `Config.Image` 为
+      `nexus-vibe-{app,web}:20261114-01`，`org.opencontainers.image.revision=6b69fe1`。
+      **`-Djacoco.skip` 说明**：`-DskipTests` 时 JaCoCo 的 check 会按 0% 覆盖率挂掉（AGENTS.md
+      记录过这个交互）；同一提交的全量覆盖率已由 #37 的 CI 后端 job 验证通过，这里跳过的只是
+      发布构建里的本地重复。
+- [x] **数据卷完好，未做恢复**：出厂重置没有清掉命名卷。起库后实测 17 用户 / 37 帖 / 23 评论 /
+      966 评审日志，与 2026-09-28 验收时定下的演示基线一致。`E:\nexus-backups\20260918-135855`
+      不需要也不应该恢复——那份 dump 先于 QA 数据删除，恢复它会把已清的账号和帖子带回来。
+- [x] 运行时健康：9 个容器全部 Up（db / redis / es / ollama healthy；app healthy 且日志无
+      `/app/logs` 回退警告，卷属主迁移状态保持）；`/actuator/health` UP，容器内
+      `/actuator/health/deps` 的 db / elasticsearch / llm / redis 全部 UP。
+- [x] 新增公面核对：`GET /api/v1/status/capabilities` → 200 `{"data":[]}`（ADR-0019 的闭合词表，
+      一切健康时为空表——这是健康形状，不是缺陷）；`/actuator/prometheus` 与
+      `/actuator/health/deps` 公开面 404 收敛未破；`/api/v1/posts` 200。
+- [x] 回滚目标：宿主机保留 `20261102-01` 与 `20261114-01` 两个 tag 的镜像（上轮发布的"最近两个
+      tag"纪律恢复执行）。
+- [x] 隧道：`scripts/tunnel-ngrok.ps1` 起的 ngrok agent 会话建立（13:25:43，前两次
+      `lookup connect.ngrok-agent.com: i/o timeout` 后第三次成功；agent 与边缘
+      `52.220.69.60:443` 连接存活），`started tunnel` 日志在案。
+- [x] **隧道端到端已验证（绕过 DNS 的定点探测）**：腾讯 DoH（doh.pub）给出域名的真实边缘 IP
+      （13.158.194.126 等）后，`curl --proxy --connect-to` 以正确 SNI 直连**两个不同的边缘 IP**
+      （13.158.194.126 与 18.139.9.214），都拿回本栈的 200：`/actuator/health` →
+      `{"status":"UP"}`，`/` → 真实 SPA（`<title>Nexus-Vibe | AI 开发者社区</title>`）；
+      ngrok agent 日志同期出现真实的 `join connections` 流量。域名在边缘侧已绑定且服务正常。
+      **共域隐患记一笔**：本机另一个项目 moa-gateway 的飞书回调测试脚本
+      （`D:\HermesData\moa-gateway\test_feishu_challenge.py`）指向同一个保留域名的
+      `/feishu/event` 路径——ngrok 不按路径路由，两个项目不能同时共用一个免费域名；为
+      moa-gateway 起 ngrok 会把本隧道踢掉（或其自身拿到 `ERR_NGROK_3121`）。moa-gateway 需要
+      自己的公网入口（如它实际使用的 Tailscale），那条测试脚本里的常量迟早要改。
+- [x] **上线后首个功能缺陷与修复：线上库 schema 缺 0008/0009**。用户报告"评论不能发送"，复现为
+      `POST /api/v1/comments` → 500，日志 `Unknown column 'sentiment' in 'field list'`。根因：数据卷
+      从出厂重置中幸存，但其 schema 停在 20260928-02——**0008/0009 从未跑在这个卷上**（R3-2 预演的
+      正是这一步；无 schema 版本表，卷的历史由 dump 日期 + 探针判断，本次探针三对象全缺）。修复按
+      纪律执行：先手工 mysqldump 备份到 `E:\nexus-backups\20261114-pre-migrate\`
+      （205KB，"Dump completed" 尾标在，SHA256 前缀 `a057a6077a4e36b5`；迁移前 23 评论 / 37 帖），
+      再升序应用 `migrate-0008-add-comment-safety.sql` 与 `migrate-0009-add-comment-sentiment.sql`
+      （演练过的同一对文件），三对象复核齐全；此后评论创建 200、`sentiment=0` 落库、中文 UTF-8 无损、
+      `AiCommentSafetyCheckListener` 对新评论正常触发（探针评论被安全流水线判有害并隐藏——流水线
+      活着）。探针账号与探针评论已清除，库回到 23 评论；维护者本人 11-14 注册的 `shing426` 保留。
+      **教训**：卷幸存 ≠ schema 是最新的；"卷的历史"必须在每次发布时用探针核对，这正是 DB-1
+      （schema 版本表）反复出现在 backlog 上的原因。
+- [ ] **公网访问被解析器层挡住（外部条件，不是栈）**：手机实测"找不到服务器"（DNS 失败）。
+      诊断结论：`*.ngrok-free.dev` 的 DNS 记录在权威侧健康（腾讯 DoH 对本域名与随机子域都答
+      Status 0、TTL 60 的边缘 IP），但**大陆侧解析器对这个 zone 间歇性 SERVFAIL**——阿里 DoH
+      在同一次诊断里先对随机子域解析成功、随后连随机子域一起全 SERVFAIL（RA=false 的策略性
+      拒答形状）；本机直连 DNS 与手机运营商 DNS 同病。本机用户层代理（`127.0.0.1:31180/31181`）
+      对 baidu 正常（200）但对 ngrok 域名失败，另占去早期两次 400/000 的假象——那些不是栈的
+      答案。栈在 `localhost:8080` 的等效探测全部通过。09-28 与 11-02 两次发布时公网都可达，
+      说明这是最近才出现的解析器侧行为；**手机换用腾讯 DNS（119.29.29.29）后仍然打不开**
+      ——拦截不止 DNS 一层，SNI/TLS 层大概率也在拦。ngrok 域名在大陆被间歇性过滤是已知
+      现象，本轮从 DNS 层深入到了 TLS 层。是否等待自愈、或迁移隧道方案（ngrok 付费自定义
+      域名 / Cloudflare Tunnel——后者受限于没有 is-a.dev 的 DNS 编辑权），留给维护者决定；
+      在此之前，边缘定点探测是"栈完好"的既存证据。**本机侧的解法（2026-11-14）**：直连
+      `13.158.194.126:443`（腾讯 DoH 给出的边缘 IP）+ 正确 SNI 实测可达且未被 SNI 拦，
+      唯一坏的是本机 DNS 解析，故往本机 hosts 写入
+      `13.158.194.126 qualifier-discuss-marry.ngrok-free.dev` 后本机浏览器可正常打开公网地址
+      （不经代理）。这是机器本地条目：边缘 IP 可能轮换，届时用
+      `https://doh.pub/dns-query?name=qualifier-discuss-marry.ngrok-free.dev&type=A` 重查并更新；
+      它不改变外部访客的处境。
+- [x] 环境故障链补记（Docker Desktop 启动崩溃循环，比 11-02 的记录多一层）：**崩溃本身会把
+      刚建好的 socket 留成死 ReparsePoint**，下次启动在第一个死 socket 处再崩溃，循环自我喂养
+      （`engine.sock` → `dockerInference` → 新 `engine.sock`）。`chkdsk C: /f` 修复过一次
+      （修后该文件首次变得可删），提权 + 停 WSLService 也删不掉的是另一种。绕行方案不变：
+      停净进程后把父目录改名（本轮留下 `run.broken-20261114-*` 与
+      `docker-secrets-engine.broken-20261114-045626`），空目录由 Docker 自建重建。
