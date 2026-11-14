@@ -359,6 +359,11 @@
       （13.158.194.126 与 18.139.9.214），都拿回本栈的 200：`/actuator/health` →
       `{"status":"UP"}`，`/` → 真实 SPA（`<title>Nexus-Vibe | AI 开发者社区</title>`）；
       ngrok agent 日志同期出现真实的 `join connections` 流量。域名在边缘侧已绑定且服务正常。
+      **共域隐患记一笔**：本机另一个项目 moa-gateway 的飞书回调测试脚本
+      （`D:\HermesData\moa-gateway\test_feishu_challenge.py`）指向同一个保留域名的
+      `/feishu/event` 路径——ngrok 不按路径路由，两个项目不能同时共用一个免费域名；为
+      moa-gateway 起 ngrok 会把本隧道踢掉（或其自身拿到 `ERR_NGROK_3121`）。moa-gateway 需要
+      自己的公网入口（如它实际使用的 Tailscale），那条测试脚本里的常量迟早要改。
 - [ ] **公网访问被解析器层挡住（外部条件，不是栈）**：手机实测"找不到服务器"（DNS 失败）。
       诊断结论：`*.ngrok-free.dev` 的 DNS 记录在权威侧健康（腾讯 DoH 对本域名与随机子域都答
       Status 0、TTL 60 的边缘 IP），但**大陆侧解析器对这个 zone 间歇性 SERVFAIL**——阿里 DoH
