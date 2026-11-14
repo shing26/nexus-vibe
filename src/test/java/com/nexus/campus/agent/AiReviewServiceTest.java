@@ -1,5 +1,6 @@
 package com.nexus.campus.agent;
 
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.repository.AiReviewLogRepository;
@@ -13,6 +14,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
+import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -20,9 +22,11 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.contains;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 
 /**
@@ -43,6 +47,13 @@ class AiReviewServiceTest {
     private VibeCommentRepository comments;
     @Mock
     private SysMessageService sysMessageService;
+    /**
+     * A real properties object behind a spy: the notification regime reads the
+     * configured maxAttempts (default 5) instead of a stubbed number, so the
+     * attempt counts in the tests below are the production defaults.
+     */
+    @Spy
+    private CampusAiProperties aiProperties = new CampusAiProperties();
 
     @InjectMocks
     private AiReviewService aiReviewService;
@@ -98,7 +109,7 @@ class AiReviewServiceTest {
     @Test
     @DisplayName("A valid verdict is logged, commented and written back with its score")
     void validVerdictShouldBeRecordedFully() {
-        aiReviewService.reviewPost(post, reviewerReturning(validVerdict()), 42L, false);
+        aiReviewService.reviewPost(post, reviewerReturning(validVerdict()), 42L, false, 1);
 
         ArgumentCaptor<AiReviewLog> logCaptor =
                 ArgumentCaptor.forClass(AiReviewLog.class);
@@ -130,20 +141,49 @@ class AiReviewServiceTest {
     }
 
     @Test
-    @DisplayName("A null verdict marks the post FAILED and logs 'unavailable'")
+    @DisplayName("A null verdict mid-budget marks the post FAILED and announces the automatic retry")
     void nullVerdictShouldMarkFailedAndNotify() {
-        aiReviewService.reviewPost(post, reviewerReturning(null), 99L, false);
+        aiReviewService.reviewPost(post, reviewerReturning(null), 99L, false, 2);
 
         ArgumentCaptor<AiReviewLog> logCaptor =
                 ArgumentCaptor.forClass(AiReviewLog.class);
         verify(reviewLogs).insert(logCaptor.capture());
         assertEquals("unavailable", logCaptor.getValue().getSeverity());
         verify(comments, never()).insert(any(VibeComment.class));
-        verify(sysMessageService).sendMessage(any(), eq(99L), contains("自动重试"), eq(3));
+        // retry budget remains: the author is told once that a retry will come
+        verify(sysMessageService, times(1)).sendMessage(any(), eq(99L), contains("系统会自动重试"), eq(3));
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
         verify(posts).update(postCaptor.capture());
         assertEquals(3, postCaptor.getValue().getAiReviewed());
         assertNull(postCaptor.getValue().getAiReviewScore());
+    }
+
+    @Test
+    @DisplayName("A null verdict on the final attempt sends the terminal notification exactly once")
+    void nullVerdictAtFinalAttemptSendsTerminalNotification() {
+        aiReviewService.reviewPost(post, reviewerReturning(null), 99L, false, 5);
+
+        // the attempt budget is spent: no retry is coming, so the wording
+        // switches to the shared terminal sentence and nothing else is sent
+        verify(sysMessageService, times(1)).sendMessage(any(), eq(99L),
+                contains("已停止自动重试"), eq(3));
+        verify(sysMessageService, times(1)).sendMessage(any(), eq(99L), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("An invalid verdict on the final attempt sends the terminal notification even when retried")
+    void invalidVerdictAtFinalAttemptNotifiesEvenWhenRetried() {
+        Reviewer.Verdict placeholder = new Reviewer.Verdict(0, "low",
+                "EVALUATE", "LOW", "",
+                false, "placeholder body", "{\"score\":0}");
+        aiReviewService.reviewPost(post, reviewerReturning(placeholder), 7L, true, 5);
+
+        // the last attempt usually arrives through a reconciled retry, whose
+        // mid-budget attempts stay silent — at the budget ceiling the terminal
+        // notification must still go out, or the author never learns the outcome
+        verify(sysMessageService, times(1)).sendMessage(any(), eq(7L),
+                contains("已停止自动重试"), eq(3));
+        verify(sysMessageService, times(1)).sendMessage(any(), eq(7L), any(), anyInt());
     }
 
     @Test
@@ -152,7 +192,7 @@ class AiReviewServiceTest {
         Reviewer.Verdict placeholder = new Reviewer.Verdict(0, "low",
                 "EVALUATE", "LOW", "",
                 false, "placeholder body", "{\"score\":0}");
-        aiReviewService.reviewPost(post, reviewerReturning(placeholder), 7L, false);
+        aiReviewService.reviewPost(post, reviewerReturning(placeholder), 7L, false, 2);
 
         ArgumentCaptor<AiReviewLog> logCaptor =
                 ArgumentCaptor.forClass(AiReviewLog.class);
@@ -160,16 +200,16 @@ class AiReviewServiceTest {
         assertEquals("unknown", logCaptor.getValue().getSeverity());
         assertNotNull(logCaptor.getValue().getResultJson());
         verify(comments, never()).insert(any(VibeComment.class));
-        verify(sysMessageService).sendMessage(any(), eq(7L), contains("自动重试"), eq(3));
+        verify(sysMessageService, times(1)).sendMessage(any(), eq(7L), contains("系统会自动重试"), eq(3));
         ArgumentCaptor<VibePost> postCaptor = ArgumentCaptor.forClass(VibePost.class);
         verify(posts).update(postCaptor.capture());
         assertEquals(3, postCaptor.getValue().getAiReviewed());
     }
 
     @Test
-    @DisplayName("Reconciliation retries fail silently: no author notification")
+    @DisplayName("Reconciliation retries fail silently mid-budget: no author notification")
     void retriedReviewShouldNotNotify() {
-        aiReviewService.reviewPost(post, reviewerReturning(null), 99L, true);
+        aiReviewService.reviewPost(post, reviewerReturning(null), 99L, true, 2);
 
         verify(sysMessageService, never()).sendMessage(any(), any(), any(), any());
         verify(posts).update(any(VibePost.class));

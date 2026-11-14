@@ -15,9 +15,8 @@ import java.util.Arrays;
  * Global XSS (Cross-Site Scripting) filter configuration.
  *
  * Registers an {@link XssFilter} with the highest precedence so that every
- * incoming HTTP request — URL parameters, headers, and JSON request bodies —
- * is HTML-escaped (<b>via {@code HtmlUtils.htmlEscape()}</b>) before the data
- * reaches any Controller or service layer.
+ * incoming HTTP request is processed before the data reaches any Controller
+ * or service layer.
  *
  * <h3>What is sanitised</h3>
  * <ul>
@@ -26,8 +25,9 @@ import java.util.Arrays;
  *       {@code getParameterValues()}, {@code getParameterMap()}</li>
  *   <li><b>Request headers</b> — through
  *       {@code getHeader()}, {@code getHeaders()}</li>
- *   <li><b>JSON request bodies</b> — parsed with Jackson; every
- *       {@code TextNode} value is escaped, then the tree is re-serialised</li>
+ *   <li><b>JSON request bodies</b> — cached and passed through verbatim
+ *       (ADR-0021): markdown and code are content, not markup, so the XSS
+ *       defense for body content lives at egress, not ingress</li>
  *   <li><b>All other content-type bodies</b> — the raw body is run through
  *       {@code HtmlUtils.htmlEscape()}</li>
  * </ul>

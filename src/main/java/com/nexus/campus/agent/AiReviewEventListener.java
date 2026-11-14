@@ -95,7 +95,11 @@ public class AiReviewEventListener {
         markReviewing(postId);
 
         try {
-            aiReviewService.reviewPost(current, reviewer, event.getAuthorId(), event.isRetried());
+            // attempts decides the notification regime inside reviewPost: at
+            // the budget ceiling this is the last attempt, and the degraded
+            // branches owe the author the terminal notification themselves
+            // (this path returns normally, so the catch below never fires).
+            aiReviewService.reviewPost(current, reviewer, event.getAuthorId(), event.isRetried(), attempts);
             log.info("AI review by {} completed for post {} (attempt {})", reviewer.identity(), postId, attempts);
 
         } catch (Exception e) {

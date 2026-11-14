@@ -84,7 +84,7 @@ class AiReviewEventListenerTest {
 
         listener.handleAiReviewEvent(event(1L, 9L));
 
-        verify(aiReviewService).reviewPost(any(VibePost.class), eq(reviewer), eq(9L), eq(true));
+        verify(aiReviewService).reviewPost(any(VibePost.class), eq(reviewer), eq(9L), eq(true), eq(1));
     }
 
     @Test
@@ -94,7 +94,7 @@ class AiReviewEventListenerTest {
 
         listener.handleAiReviewEvent(event(1L, 9L));
 
-        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean());
+        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean(), anyInt());
         verify(vibePostMapper, never()).tryClaimReview(anyLong(), any(), anyString(), anyInt());
         verify(vibePostMapper).clearReviewingIfInState(1L, 0);
     }
@@ -112,8 +112,8 @@ class AiReviewEventListenerTest {
 
         listener.handleAiReviewEvent(event(1L, 9L));
 
-        verify(aiReviewService).reviewPost(any(VibePost.class), eq(secondReviewer), eq(9L), eq(true));
-        verify(aiReviewService, never()).reviewPost(any(), eq(reviewer), any(), anyBoolean());
+        verify(aiReviewService).reviewPost(any(VibePost.class), eq(secondReviewer), eq(9L), eq(true), eq(1));
+        verify(aiReviewService, never()).reviewPost(any(), eq(reviewer), any(), anyBoolean(), anyInt());
     }
 
     @Test
@@ -123,7 +123,7 @@ class AiReviewEventListenerTest {
 
         listener.handleAiReviewEvent(event(1L, 9L));
 
-        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean());
+        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean(), anyInt());
         verify(vibePostMapper, never()).updateById(any(VibePost.class));
     }
 
@@ -136,7 +136,7 @@ class AiReviewEventListenerTest {
 
         verify(vibePostMapper, never()).tryClaimReview(anyLong(), any(), anyString(), anyInt());
         verify(vibePostMapper).clearReviewingIfInState(1L, 0);
-        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean());
+        verify(aiReviewService, never()).reviewPost(any(), any(), any(), anyBoolean(), anyInt());
     }
 
     @Test
@@ -145,7 +145,7 @@ class AiReviewEventListenerTest {
         when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
         when(vibePostMapper.selectReviewAttempts(2L)).thenReturn(5);
         doThrow(new RuntimeException("LLM down")).when(aiReviewService)
-                .reviewPost(any(), any(), any(), anyBoolean());
+                .reviewPost(any(), any(), any(), anyBoolean(), anyInt());
 
         listener.handleAiReviewEvent(event(2L, 9L));
 
@@ -153,7 +153,10 @@ class AiReviewEventListenerTest {
         ArgumentCaptor<VibePost> captor = ArgumentCaptor.forClass(VibePost.class);
         verify(vibePostMapper, times(2)).updateById(captor.capture());
         assertEquals(3, captor.getAllValues().get(1).getAiReviewed());
-        // terminal notification, exactly one
+        // the claim's attempt count reached reviewPost: the service owns the
+        // terminal notification for its own degraded returns, the listener's
+        // catch branch owns it for exceptions
+        verify(aiReviewService).reviewPost(any(VibePost.class), eq(reviewer), eq(9L), eq(true), eq(5));
         verify(sysMessageService, times(1)).sendMessage(anyLong(), eq(9L), contains("停止自动重试"), eq(SysMessage.TYPE_SYSTEM));
     }
 
@@ -163,10 +166,24 @@ class AiReviewEventListenerTest {
         when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
         when(vibePostMapper.selectReviewAttempts(3L)).thenReturn(2);
         doThrow(new RuntimeException("LLM down")).when(aiReviewService)
-                .reviewPost(any(), any(), any(), anyBoolean());
+                .reviewPost(any(), any(), any(), anyBoolean(), anyInt());
 
         listener.handleAiReviewEvent(event(3L, 9L));
 
+        verify(sysMessageService, never()).sendMessage(anyLong(), anyLong(), anyString(), anyInt());
+    }
+
+    @Test
+    @DisplayName("A normal (non-throwing) review at the budget ceiling notifies nobody here — the service already did")
+    void normalCompletionAtFinalAttemptDoesNotDuplicateNotification() {
+        when(vibePostMapper.tryClaimReview(anyLong(), any(), anyString(), anyInt())).thenReturn(1);
+        when(vibePostMapper.selectReviewAttempts(4L)).thenReturn(5);
+
+        listener.handleAiReviewEvent(event(4L, 9L));
+
+        // reviewPost returned normally: its degraded branches sent the terminal
+        // notification themselves. The catch branch must not fire a second copy.
+        verify(aiReviewService).reviewPost(any(VibePost.class), eq(reviewer), eq(9L), eq(true), eq(5));
         verify(sysMessageService, never()).sendMessage(anyLong(), anyLong(), anyString(), anyInt());
     }
 }

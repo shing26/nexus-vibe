@@ -3,6 +3,7 @@ package com.nexus.campus.agent;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.SysMessage;
+import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.enums.AiReviewStatus;
 import com.nexus.campus.repository.AiReviewLogRepository;
 import com.nexus.campus.repository.VibeCommentRepository;
@@ -45,13 +46,24 @@ public class AiReviewService {
     @Autowired
     private SysMessageService sysMessageService;
 
+    @Autowired
+    private CampusAiProperties aiProperties;
+
     /**
      * Full recording pipeline for one claimed post. A null verdict means the
      * LLM was unavailable; an invalid verdict degrades after the reviewer's
      * own retry ladder — both mark the post FAILED for reconciliation, the
      * difference is only what the log row records.
+     *
+     * <p>{@code attempts} is the attempt count the listener's claim consumed.
+     * When it has reached the configured maximum, this is the last attempt the
+     * post will ever get — {@code tryClaimReview} refuses any further claim —
+     * so the degraded branches owe the author the terminal "no more retries"
+     * notification here. This path returns normally instead of throwing, so
+     * neither the listener's catch branch nor the reconciliation sweep would
+     * ever notify for it.</p>
      */
-    public void reviewPost(VibePost post, Reviewer reviewer, Long authorId, boolean retried) {
+    public void reviewPost(VibePost post, Reviewer reviewer, Long authorId, boolean retried, int attempts) {
         Long postId = post.getId();
         String title = post.getTitle();
 
@@ -61,7 +73,7 @@ public class AiReviewService {
             log.warn("LLM unavailable for post {}; review marked FAILED for reconciliation", postId);
             saveReviewLog(postId, reviewer.identity(), null, "unavailable", 0);
             markPost(postId, AiReviewStatus.FAILED);
-            notifyReviewFailed(postId, authorId, title, "LLM 暂时不可用", retried);
+            notifyReviewFailed(postId, authorId, title, "LLM 暂时不可用", retried, isFinalAttempt(attempts));
             return;
         }
 
@@ -69,7 +81,7 @@ public class AiReviewService {
             log.warn("Review result for post {} failed validation; degrading silently", postId);
             saveReviewLog(postId, reviewer.identity(), verdict.getResultJson(), "unknown", 0);
             markPost(postId, AiReviewStatus.FAILED);
-            notifyReviewFailed(postId, authorId, title, "评审结果未通过质量校验", retried);
+            notifyReviewFailed(postId, authorId, title, "评审结果未通过质量校验", retried, isFinalAttempt(attempts));
             return;
         }
 
@@ -100,13 +112,43 @@ public class AiReviewService {
     }
 
     /**
-     * Best-effort author notification when a review degrades; the reconciliation
-     * task will retry automatically, so this is informational, not an error.
+     * Author notification when a review degrades. Three regimes, one per
+     * attempt budget state:
+     *
+     * <ul>
+     *   <li><b>final attempt</b> — the budget is spent and no retry path can
+     *       ever claim this post again, so the author gets the terminal
+     *       "已停止自动重试" notification once, even when this last attempt
+     *       was a reconciled retry that would otherwise stay silent;</li>
+     *   <li><b>retried mid-budget</b> — silent: the author was told once and
+     *       each retry cycle would otherwise spam the message inbox;</li>
+     *   <li><b>first failure</b> — the informational "系统会自动重试" notice.</li>
+     * </ul>
+     *
+     * <p>The terminal wording matches {@code AiReviewReconcileTask.notifyBudgetExhausted}
+     * and the listener's {@code notifyBudgetExhausted}: one sentence, one tone,
+     * whichever path delivers it.</p>
      */
-    private void notifyReviewFailed(Long postId, Long authorId, String title, String reason, boolean retried) {
+    private void notifyReviewFailed(Long postId, Long authorId, String title, String reason,
+                                    boolean retried, boolean finalAttempt) {
+        if (authorId == null) {
+            return;
+        }
+        if (finalAttempt) {
+            try {
+                sysMessageService.sendMessage(SysMessage.FROM_SYSTEM, authorId,
+                        "你的帖子《" + title + "》的 AI 评审连续 " + aiProperties.getReview().getMaxAttempts()
+                                + " 次失败，已停止自动重试。内容本身不受影响；如需重新评审，请联系管理员。",
+                        SysMessage.TYPE_SYSTEM);
+            } catch (Exception e) {
+                log.warn("Failed to notify author {} about exhausted review budget on post {}: {}",
+                         authorId, postId, e.getMessage());
+            }
+            return;
+        }
         // Reconciliation retries are silent: the author was told once and each
         // retry cycle would otherwise spam the message inbox.
-        if (retried || authorId == null) {
+        if (retried) {
             return;
         }
         try {
@@ -117,6 +159,16 @@ public class AiReviewService {
             log.warn("Failed to notify author {} about review failure on post {}: {}",
                      authorId, postId, e.getMessage());
         }
+    }
+
+    /**
+     * True when this attempt consumed the last budget slot. The claim refuses
+     * at {@code attempts >= maxAttempts}, so an attempt above the maximum
+     * cannot occur through the listener; comparing with {@code >=} keeps the
+     * final-attempt branch safe even if a caller miscounts.
+     */
+    private boolean isFinalAttempt(int attempts) {
+        return attempts >= aiProperties.getReview().getMaxAttempts();
     }
 
     /**
