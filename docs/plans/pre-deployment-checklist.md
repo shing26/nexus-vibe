@@ -400,3 +400,32 @@
       （修后该文件首次变得可删），提权 + 停 WSLService 也删不掉的是另一种。绕行方案不变：
       停净进程后把父目录改名（本轮留下 `run.broken-20261114-*` 与
       `docker-secrets-engine.broken-20261114-045626`），空目录由 Docker 自建重建。
+
+## 发布与运维记录（2026-11-15，`20261115-01`）
+
+- [x] 代码基线：`master` 合并提交 `8daefc7`（PR #39，core-loop-corrections 轮）。验收链路完整：
+      契约冻结（`plans/core-loop-corrections.md`）→ 独立 worktree 实现 → 独立 Verifier 重跑
+      （`mvn -B test` 539/0/0/0，契约 1–11 全 PASS，证据绑 `c2fe9c3`）→ 人审签收 → CI 五项
+      全绿后合并。该提交已含 ADR-0021（入口原文存储、出口转义）。
+- [x] 发布 tag：`APP_TAG=20261115-01`，`GIT_REVISION=8daefc7`；宿主产物
+      （`mvn -DskipTests -Djacoco.skip=true package` + `npm run build`）+ scratch 的
+      `Dockerfile.app-release`/`Dockerfile.web-release` 装配（`DOCKER_BUILDKIT=0`，同 09-16 /
+      11-02 / 11-14 的环境故障链）。`-Djacoco.skip` 说明同上轮：同一提交的全量覆盖率已由
+      #39 的 Verifier 本机重跑与 CI 双重验证，这里跳过的只是发布构建里的本地重复。
+      两容器 `Config.Image` 为 `nexus-vibe-{app,web}:20261115-01`，
+      `org.opencontainers.image.revision=8daefc7`。
+- [x] **存量工件修复（ADR-0021 的运维步骤，合并签收后执行）**：前置备份
+      `E:\nexus-backups\20261114-pre-migrate\`（205KB，dump 尾标在，SHA256 前缀
+      `a057a6077a4e36b5`）核实在位后，`fix-escaped-content-artifacts.ps1` 先对线上卷
+      dry-run（7/37 帖 + 2/23 评论含 `&lt;`/`&gt;`/`&amp;&amp;` 工件，零写入），再
+      `-Apply`：pass 1 改 7+2 行，修后 0 工件，pass 2 改 0+0（幂等证明）。修复前样本含
+      4 个并发计数器演示帖与 2 条 AI 评审评论。反例帖 id `2096843254191030274` 修复后经
+      线上 API 读回 `a < b and c > d`（存储→JSON→公面全链路字节保真）。
+      独立 `&amp;` 有意不修（markdown 渲染等价，代码围栏内会二次破坏）；jsoup 整段删除的
+      泛型内容不可恢复，已在脚本报告书面记录。
+- [x] 运行时健康：9 容器全部 Up（app healthy；deps 的 db / elasticsearch / llm / redis
+      全 UP；日志无 `/app/logs` 回退警告，卷属主状态保持）；`/actuator/health` UP；
+      `GET /api/v1/status/capabilities` → 200 `{"data":[]}`；`/api/v1/posts` 200；
+      `/actuator/health/deps` 公面 404 收敛未破。
+- [x] 回滚目标：宿主机保留 `20261102-01`、`20261114-01`、`20261115-01` 三个 tag 的镜像
+      （最近两个 tag 纪律之上多留一个，不删）。
