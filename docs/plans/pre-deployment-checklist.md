@@ -354,11 +354,21 @@
 - [x] 隧道：`scripts/tunnel-ngrok.ps1` 起的 ngrok agent 会话建立（13:25:43，前两次
       `lookup connect.ngrok-agent.com: i/o timeout` 后第三次成功；agent 与边缘
       `52.220.69.60:443` 连接存活），`started tunnel` 日志在案。
-- [ ] **公网黑盒验收未完成（本机侧无法验证）**：直连路径对本域名 DNS SERVFAIL（多个公共
-      解析器同判），`curl --resolve` 直连边缘 IP 也 000；用户层代理（`127.0.0.1:31180/31181`）
-      对 baidu 正常（200）但对 ngrok 域名失败。全程出现过的两次 400 与多次 000 的来源分别是
-      本地代理与本地 DNS，不是栈——栈在 `localhost:8080` 的等效探测全部通过。需要换一条网络
-      （如手机热点）由人复验 `https://qualifier-discuss-marry.ngrok-free.dev` 后勾掉这条。
+- [x] **隧道端到端已验证（绕过 DNS 的定点探测）**：腾讯 DoH（doh.pub）给出域名的真实边缘 IP
+      （13.158.194.126 等）后，`curl --proxy --connect-to` 以正确 SNI 直连**两个不同的边缘 IP**
+      （13.158.194.126 与 18.139.9.214），都拿回本栈的 200：`/actuator/health` →
+      `{"status":"UP"}`，`/` → 真实 SPA（`<title>Nexus-Vibe | AI 开发者社区</title>`）；
+      ngrok agent 日志同期出现真实的 `join connections` 流量。域名在边缘侧已绑定且服务正常。
+- [ ] **公网访问被解析器层挡住（外部条件，不是栈）**：手机实测"找不到服务器"（DNS 失败）。
+      诊断结论：`*.ngrok-free.dev` 的 DNS 记录在权威侧健康（腾讯 DoH 对本域名与随机子域都答
+      Status 0、TTL 60 的边缘 IP），但**大陆侧解析器对这个 zone 间歇性 SERVFAIL**——阿里 DoH
+      在同一次诊断里先对随机子域解析成功、随后连随机子域一起全 SERVFAIL（RA=false 的策略性
+      拒答形状）；本机直连 DNS 与手机运营商 DNS 同病。本机用户层代理（`127.0.0.1:31180/31181`）
+      对 baidu 正常（200）但对 ngrok 域名失败，另占去早期两次 400/000 的假象——那些不是栈的
+      答案。栈在 `localhost:8080` 的等效探测全部通过。09-28 与 11-02 两次发布时公网都可达，
+      说明这是最近才出现的解析器侧行为；复验窗口：换用未受影响的 DNS（如手机私人 DNS 填
+      `dns.pub`）打开该域名即证明端到端可达。ngrok 域名在大陆被间歇性 DNS 过滤是已知现象，
+      是否长期化、要不要换隧道方案，留给维护者决定。
 - [x] 环境故障链补记（Docker Desktop 启动崩溃循环，比 11-02 的记录多一层）：**崩溃本身会把
       刚建好的 socket 留成死 ReparsePoint**，下次启动在第一个死 socket 处再崩溃，循环自我喂养
       （`engine.sock` → `dockerInference` → 新 `engine.sock`）。`chkdsk C: /f` 修复过一次
