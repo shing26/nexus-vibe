@@ -19,6 +19,10 @@ content first, zero decorative animation.
 4. **Mono is for code.** `font-mono` appears only inside code blocks, code spans, and the
    trace id. Headings, buttons, labels, timestamps are `font-sans`.
 5. **One accent.** Blue for interactive. Green/red for success/danger semantics only.
+6. **Honest AI surfaces.** Every AI-related surface (review card, live pipeline strip, AI
+   profile) renders real pipeline state — failure, retry, and degradation get the same
+   design care as success, and nothing ever reads as live unless it is (ADR-0010's rule,
+   project-wide). Decoration never claims capability.
 
 ## Tokens
 
