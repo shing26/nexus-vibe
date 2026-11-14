@@ -184,6 +184,7 @@
 
 - [x] 部署已按上面这一节在本机执行（应用层）；仍需用户提供飞书 webhook 并完成 Cloudflare Tunnel 登录后，公网发布才算完成。
 
+
 ## 容器与升级路径（R5，2026-09-15，分支 `codex/http-contract-and-product-loop`）
 
 - [x] `Dockerfile` 运行时阶段建 `appuser`（uid/gid 10001，`--no-create-home`、`nologin`），jar 用 `--chown` 落盘，`/app`、`/app/uploads`、`/app/logs` 一并 `chown`，最后 `USER appuser`。8080 不是特权端口，非 root 不需要任何额外放行。
@@ -320,3 +321,47 @@
       `/actuator/prometheus` → 404（公网面收敛未被破坏）。CORS 三源（`localhost:8080`、
       `nexus-vibe.shing26.is-a.dev`、`qualifier-discuss-marry.ngrok-free.dev`）与隧道域名配对未变。
 - [x] 隧道由 `scripts/tunnel-ngrok.ps1` 手工进程提供，开机自启仍未做（历史遗留，见上节）。
+
+## 发布与验收记录（2026-11-14，`20261114-01`）
+
+> 范围：重新发布本机全栈，带上 PR [#36](https://github.com/shing26/nexus-vibe/pull/36)
+> （前端打磨第三轮九项 + ADR-0019）与 PR [#37](https://github.com/shing26/nexus-vibe/pull/37)
+> （R3-2：迁移演练覆盖全部迁移对）。此前机器因 Docker 损坏 socket 修过两轮 chkdsk 并重启。
+> 结论：**发布通过（本机全栈全绿）；公网黑盒验收在本机侧无法完成——两条本地网络路径当前
+> 都到不了 ngrok 域名，隧道会话本身已建立，如实记录。**
+
+- [x] 代码基线：`master` 合并提交 `6b69fe1`（#36、#37 已合并）；#37 在 CI 全绿（四项 pass，
+      Docker image build 按检测任务判定 skip）后按"盯一轮、绿灯才合"的方式条件合并。
+- [x] 发布 tag：`APP_TAG=20261114-01`，`GIT_REVISION=6b69fe1`；宿主产物
+      （`mvn -DskipTests -Djacoco.skip=true package` + `npm run build`）+ scratch 的
+      `Dockerfile.app-release`/`Dockerfile.web-release` 装配（`DOCKER_BUILDKIT=0`，多阶段构建仍受
+      Docker Hub 拉取故障阻塞，与 09-16/11-02 是同一条环境故障链）。两容器 `Config.Image` 为
+      `nexus-vibe-{app,web}:20261114-01`，`org.opencontainers.image.revision=6b69fe1`。
+      **`-Djacoco.skip` 说明**：`-DskipTests` 时 JaCoCo 的 check 会按 0% 覆盖率挂掉（AGENTS.md
+      记录过这个交互）；同一提交的全量覆盖率已由 #37 的 CI 后端 job 验证通过，这里跳过的只是
+      发布构建里的本地重复。
+- [x] **数据卷完好，未做恢复**：出厂重置没有清掉命名卷。起库后实测 17 用户 / 37 帖 / 23 评论 /
+      966 评审日志，与 2026-09-28 验收时定下的演示基线一致。`E:\nexus-backups\20260918-135855`
+      不需要也不应该恢复——那份 dump 先于 QA 数据删除，恢复它会把已清的账号和帖子带回来。
+- [x] 运行时健康：9 个容器全部 Up（db / redis / es / ollama healthy；app healthy 且日志无
+      `/app/logs` 回退警告，卷属主迁移状态保持）；`/actuator/health` UP，容器内
+      `/actuator/health/deps` 的 db / elasticsearch / llm / redis 全部 UP。
+- [x] 新增公面核对：`GET /api/v1/status/capabilities` → 200 `{"data":[]}`（ADR-0019 的闭合词表，
+      一切健康时为空表——这是健康形状，不是缺陷）；`/actuator/prometheus` 与
+      `/actuator/health/deps` 公开面 404 收敛未破；`/api/v1/posts` 200。
+- [x] 回滚目标：宿主机保留 `20261102-01` 与 `20261114-01` 两个 tag 的镜像（上轮发布的"最近两个
+      tag"纪律恢复执行）。
+- [x] 隧道：`scripts/tunnel-ngrok.ps1` 起的 ngrok agent 会话建立（13:25:43，前两次
+      `lookup connect.ngrok-agent.com: i/o timeout` 后第三次成功；agent 与边缘
+      `52.220.69.60:443` 连接存活），`started tunnel` 日志在案。
+- [ ] **公网黑盒验收未完成（本机侧无法验证）**：直连路径对本域名 DNS SERVFAIL（多个公共
+      解析器同判），`curl --resolve` 直连边缘 IP 也 000；用户层代理（`127.0.0.1:31180/31181`）
+      对 baidu 正常（200）但对 ngrok 域名失败。全程出现过的两次 400 与多次 000 的来源分别是
+      本地代理与本地 DNS，不是栈——栈在 `localhost:8080` 的等效探测全部通过。需要换一条网络
+      （如手机热点）由人复验 `https://qualifier-discuss-marry.ngrok-free.dev` 后勾掉这条。
+- [x] 环境故障链补记（Docker Desktop 启动崩溃循环，比 11-02 的记录多一层）：**崩溃本身会把
+      刚建好的 socket 留成死 ReparsePoint**，下次启动在第一个死 socket 处再崩溃，循环自我喂养
+      （`engine.sock` → `dockerInference` → 新 `engine.sock`）。`chkdsk C: /f` 修复过一次
+      （修后该文件首次变得可删），提权 + 停 WSLService 也删不掉的是另一种。绕行方案不变：
+      停净进程后把父目录改名（本轮留下 `run.broken-20261114-*` 与
+      `docker-secrets-engine.broken-20261114-045626`），空目录由 Docker 自建重建。
