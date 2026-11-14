@@ -447,6 +447,22 @@ inventing a limiter, and it said so in writing rather than shipping one unmeasur
 
 ## R3-2 - The migration rehearsal script does not rehearse the current migrations
 
+Status: **closed, 2026-11-14.** The script no longer hardcodes pairs: it discovers every
+`migrate-*.sql` under `docker/mysql/`, fails the run on any unpaired migrate or rollback,
+and refuses to rehearse a pair that has no schema-shape declaration in `$shapeByNumber` —
+the rule that would have caught the 0008 gap at the 0008 round. It ran on this machine on
+2026-11-14 through `init.sql -> rollback 0005..0009 -> migrate -> rollback -> migrate`
+against a throwaway `nexus-migrate` compose project (own volumes, torn down at the end);
+all five shape assertions passed and the result names the pairs it ran:
+`benchmark/migrations/results/migrations-20261114.md`. Two invocation defects fell out of
+the first real run, both PowerShell 5.1: `$ErrorActionPreference = 'Stop'` aborts a native
+docker call on its own stderr progress lines, and the assert SQL's single quotes do not
+survive the `-e "..."` quoting chain into `docker exec sh -c` (fixed by relaxing the
+preference around native calls and piping the scalar SQL through stdin). What the run
+still does not prove is stated in the result file itself: the lossy rollbacks' data loss
+is declared, not measured, and no pre-migration build is started against the rewound
+schema.
+
 Round 3 added `migrate-0009`/`rollback-0009` and could not rehearse them: Docker was
 unavailable on the machine. Reading the script afterwards found the larger problem —
 `rehearse-migrations.ps1` hardcodes `0005/0006/0007`. The 0008 round carried the same gap.
