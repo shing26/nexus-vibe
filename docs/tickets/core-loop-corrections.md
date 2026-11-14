@@ -1,6 +1,6 @@
 # 核心链路修正轮：P0 入口清洗吃代码 + P1 终态通知缺失
 
-Status: **草案，契约评审中**（契约：[plans/core-loop-corrections.md](../plans/core-loop-corrections.md)。未冻结不得实现。）
+Status: **契约已冻结（2026-11-14，[plans/core-loop-corrections.md](../plans/core-loop-corrections.md)），实现中。**
 
 来源：2026-11-14 外部评审。以下两条已由本会话亲手复核，不是转述。
 

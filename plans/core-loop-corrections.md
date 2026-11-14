@@ -1,7 +1,7 @@
 # 契约草案 — 核心链路修正轮（P0 清洗迁出口 + P1 终态通知）
 
 任务 ID：`core-loop-corrections` · 配套 ticket：[docs/tickets/core-loop-corrections.md](../docs/tickets/core-loop-corrections.md)
-状态：**草案，待用户评审后冻结。未冻结不得实现。**
+状态：**已冻结（2026-11-14，用户书面确认）。** 冻结时的一处澄清：验收第 4 条的"攻击串不存储原样 HTML"读定为"存储层对全部六类输入（含 `<script>`）不做任何 HTML 改写、往返一致；XSS 防线在出口转义，出口审查结论落 ADR-0021"。
 
 来源：2026-11-14 外部评审（P0/P1），关键断言已由本会话亲手复核（代码路径 + 线上库 `angle test` 帖实存值）。
 
