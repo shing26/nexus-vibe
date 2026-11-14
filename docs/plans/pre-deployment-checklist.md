@@ -364,6 +364,18 @@
       `/feishu/event` 路径——ngrok 不按路径路由，两个项目不能同时共用一个免费域名；为
       moa-gateway 起 ngrok 会把本隧道踢掉（或其自身拿到 `ERR_NGROK_3121`）。moa-gateway 需要
       自己的公网入口（如它实际使用的 Tailscale），那条测试脚本里的常量迟早要改。
+- [x] **上线后首个功能缺陷与修复：线上库 schema 缺 0008/0009**。用户报告"评论不能发送"，复现为
+      `POST /api/v1/comments` → 500，日志 `Unknown column 'sentiment' in 'field list'`。根因：数据卷
+      从出厂重置中幸存，但其 schema 停在 20260928-02——**0008/0009 从未跑在这个卷上**（R3-2 预演的
+      正是这一步；无 schema 版本表，卷的历史由 dump 日期 + 探针判断，本次探针三对象全缺）。修复按
+      纪律执行：先手工 mysqldump 备份到 `E:\nexus-backups\20261114-pre-migrate\`
+      （205KB，"Dump completed" 尾标在，SHA256 前缀 `a057a6077a4e36b5`；迁移前 23 评论 / 37 帖），
+      再升序应用 `migrate-0008-add-comment-safety.sql` 与 `migrate-0009-add-comment-sentiment.sql`
+      （演练过的同一对文件），三对象复核齐全；此后评论创建 200、`sentiment=0` 落库、中文 UTF-8 无损、
+      `AiCommentSafetyCheckListener` 对新评论正常触发（探针评论被安全流水线判有害并隐藏——流水线
+      活着）。探针账号与探针评论已清除，库回到 23 评论；维护者本人 11-14 注册的 `shing426` 保留。
+      **教训**：卷幸存 ≠ schema 是最新的；"卷的历史"必须在每次发布时用探针核对，这正是 DB-1
+      （schema 版本表）反复出现在 backlog 上的原因。
 - [ ] **公网访问被解析器层挡住（外部条件，不是栈）**：手机实测"找不到服务器"（DNS 失败）。
       诊断结论：`*.ngrok-free.dev` 的 DNS 记录在权威侧健康（腾讯 DoH 对本域名与随机子域都答
       Status 0、TTL 60 的边缘 IP），但**大陆侧解析器对这个 zone 间歇性 SERVFAIL**——阿里 DoH
