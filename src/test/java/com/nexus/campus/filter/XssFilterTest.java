@@ -20,8 +20,11 @@ import static org.mockito.Mockito.*;
 /**
  * Unit tests for {@link XssHttpServletRequestWrapper}.
  *
- * <p>Verifies that URL parameters and headers are HTML-escaped and JSON
- * request bodies are whitelist-sanitized before the application sees them.</p>
+ * <p>Verifies that URL parameters and headers are HTML-escaped (the reflected
+ * path) and that JSON request bodies are passed through verbatim — since
+ * ADR-0021 the storage layer performs no HTML rewriting of body content; the
+ * XSS defense for that content lives at egress (react-markdown escapes by
+ * default), not at ingress.</p>
  */
 class XssFilterTest {
 
@@ -95,97 +98,43 @@ class XssFilterTest {
     }
 
     @Test
-    @DisplayName("JSON body strips scripts and keeps plain text")
-    void jsonBodyShouldBeSanitized() throws Exception {
+    @DisplayName("JSON body is stored verbatim, including a script tag (safety lives at egress)")
+    void jsonBodyShouldBeStoredVerbatim() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getContentType()).thenReturn("application/json");
         when(request.getCharacterEncoding()).thenReturn("UTF-8");
 
         String json = "{\"title\":\"<script>alert(1)</script>\",\"body\":\"safe text\"}";
-        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
-        ByteArrayInputStream bais = new ByteArrayInputStream(jsonBytes);
-
-        ServletInputStream sis = new ServletInputStream() {
-            @Override public int read() throws IOException { return bais.read(); }
-            @Override public boolean isFinished() { return bais.available() == 0; }
-            @Override public boolean isReady() { return true; }
-            @Override public void setReadListener(ReadListener listener) {}
-        };
-
-        when(request.getInputStream()).thenReturn(sis);
+        when(request.getInputStream()).thenReturn(streamOf(json));
 
         XssHttpServletRequestWrapper wrapper = new XssHttpServletRequestWrapper(request);
-        ServletInputStream resultStream = wrapper.getInputStream();
-        byte[] resultBytes = resultStream.readAllBytes();
-        String resultBody = new String(resultBytes, StandardCharsets.UTF_8);
+        String resultBody = readViaInputStream(wrapper);
 
-        // <script> element (with its payload) is removed entirely
-        assertFalse(resultBody.contains("script"));
-        assertFalse(resultBody.contains("alert"));
+        // No HTML rewriting at ingress, <script> included: the storage layer is
+        // byte-faithful. A stored <script> is inert because egress renders it
+        // through react-markdown, which escapes raw HTML by default (ADR-0021).
+        assertEquals(json, resultBody);
+        assertTrue(resultBody.contains("<script>alert(1)</script>"));
         assertTrue(resultBody.contains("\"body\":\"safe text\""));
     }
 
     @Test
-    @DisplayName("JSON body keeps Markdown and normalizes entities once")
-    void jsonBodyShouldKeepMarkdownAndNormalizeEntities() throws Exception {
+    @DisplayName("JSON body keeps markdown, comparisons and generics untouched")
+    void jsonBodyShouldKeepMarkdownAndComparisons() throws Exception {
         HttpServletRequest request = mock(HttpServletRequest.class);
         when(request.getContentType()).thenReturn("application/json");
         when(request.getCharacterEncoding()).thenReturn("UTF-8");
 
-        String json = "{\"content\":\"# Title **bold** `code` a &amp; b\"}";
-        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
-        ByteArrayInputStream bais = new ByteArrayInputStream(jsonBytes);
-
-        ServletInputStream sis = new ServletInputStream() {
-            @Override public int read() throws IOException { return bais.read(); }
-            @Override public boolean isFinished() { return bais.available() == 0; }
-            @Override public boolean isReady() { return true; }
-            @Override public void setReadListener(ReadListener listener) {}
-        };
-
-        when(request.getInputStream()).thenReturn(sis);
+        String json = "{\"content\":\"# Title **bold** `code`\\n\\n```java\\nif (a < b && c > d) { }\\nMap<String, Value> m;\\n```\\n\\na &amp; b\"}";
+        when(request.getInputStream()).thenReturn(streamOf(json));
 
         XssHttpServletRequestWrapper wrapper = new XssHttpServletRequestWrapper(request);
-        BufferedReader reader = wrapper.getReader();
-        String resultBody = reader.lines().reduce("", (a, b) -> a + b);
+        String resultBody = readViaReader(wrapper);
 
-        // Markdown structure survives
-        assertTrue(resultBody.contains("# Title"));
-        assertTrue(resultBody.contains("**bold**"));
-        assertTrue(resultBody.contains("`code`"));
-        // Entities are normalized exactly once, never double-encoded
-        assertTrue(resultBody.contains("a &amp; b"));
-        assertFalse(resultBody.contains("&amp;amp;"));
-    }
-
-    @Test
-    @DisplayName("JSON body strips event handlers and javascript: URLs")
-    void jsonBodyShouldStripDangerousAttributes() throws Exception {
-        HttpServletRequest request = mock(HttpServletRequest.class);
-        when(request.getContentType()).thenReturn("application/json");
-        when(request.getCharacterEncoding()).thenReturn("UTF-8");
-
-        String json = "{\"content\":\"<img src=x onerror=alert(1)><a href=javascript:alert(1)>click</a><iframe src=x></iframe>\"}";
-        byte[] jsonBytes = json.getBytes(StandardCharsets.UTF_8);
-        ByteArrayInputStream bais = new ByteArrayInputStream(jsonBytes);
-
-        ServletInputStream sis = new ServletInputStream() {
-            @Override public int read() throws IOException { return bais.read(); }
-            @Override public boolean isFinished() { return bais.available() == 0; }
-            @Override public boolean isReady() { return true; }
-            @Override public void setReadListener(ReadListener listener) {}
-        };
-
-        when(request.getInputStream()).thenReturn(sis);
-
-        XssHttpServletRequestWrapper wrapper = new XssHttpServletRequestWrapper(request);
-        BufferedReader reader = wrapper.getReader();
-        String resultBody = reader.lines().reduce("", (a, b) -> a + b);
-
-        assertFalse(resultBody.contains("onerror"));
-        assertFalse(resultBody.contains("javascript:"));
-        assertFalse(resultBody.contains("iframe"));
-        assertTrue(resultBody.contains("<a>click</a>"));
+        // Markdown structure, comparison operators, generics and even a
+        // user-typed entity all survive exactly as sent — nothing is escaped,
+        // normalized or stripped before storage.
+        assertEquals(json, resultBody);
     }
 
     @Test
@@ -196,25 +145,34 @@ class XssFilterTest {
         when(request.getCharacterEncoding()).thenReturn("UTF-8");
 
         String body = "<p>Hello <b>World</b></p>";
-        ByteArrayInputStream bais = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
-
-        ServletInputStream sis = new ServletInputStream() {
-            @Override public int read() throws IOException { return bais.read(); }
-            @Override public boolean isFinished() { return bais.available() == 0; }
-            @Override public boolean isReady() { return true; }
-            @Override public void setReadListener(ReadListener listener) {}
-        };
-
-        when(request.getInputStream()).thenReturn(sis);
+        when(request.getInputStream()).thenReturn(streamOf(body));
 
         XssHttpServletRequestWrapper wrapper = new XssHttpServletRequestWrapper(request);
-        BufferedReader reader = wrapper.getReader();
-        String escaped = reader.lines().reduce("", (a, b) -> a + b);
+        String escaped = readViaReader(wrapper);
 
         assertTrue(escaped.contains("&lt;p&gt;"));
         assertTrue(escaped.contains("&lt;b&gt;"));
         assertTrue(escaped.contains("&lt;/b&gt;"));
         assertTrue(escaped.contains("&lt;/p&gt;"));
         assertFalse(escaped.contains("<p>"));
+    }
+
+    private ServletInputStream streamOf(String body) {
+        ByteArrayInputStream bais = new ByteArrayInputStream(body.getBytes(StandardCharsets.UTF_8));
+        return new ServletInputStream() {
+            @Override public int read() throws IOException { return bais.read(); }
+            @Override public boolean isFinished() { return bais.available() == 0; }
+            @Override public boolean isReady() { return true; }
+            @Override public void setReadListener(ReadListener listener) {}
+        };
+    }
+
+    private String readViaInputStream(XssHttpServletRequestWrapper wrapper) throws IOException {
+        return new String(wrapper.getInputStream().readAllBytes(), StandardCharsets.UTF_8);
+    }
+
+    private String readViaReader(XssHttpServletRequestWrapper wrapper) throws IOException {
+        BufferedReader reader = wrapper.getReader();
+        return reader.lines().reduce("", (a, b) -> a + b);
     }
 }

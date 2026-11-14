@@ -1,54 +1,62 @@
 package com.nexus.campus.filter;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 /**
- * Regression coverage for the XSS wrapper's JSON-array sanitization: array
- * fields (e.g. create-post tag IDs) must survive as clean string arrays, not
- * trigger the html-escape fallback. (Note: PostCreateRequest.tags expects
- * List<Integer> tag IDs — a 400 on string tag names is the documented API
- * contract, not a wrapper issue; this test pins the wrapper's own behavior.)
+ * Regression coverage for the create-post tags array through the XSS wrapper.
+ * When the wrapper rewrote JSON bodies with jsoup, array fields were the shape
+ * most at risk of a mangling fallback; since ADR-0021 the wrapper stores JSON
+ * bodies verbatim, so the array must survive byte-for-byte. (Note:
+ * PostCreateRequest.tags expects List&lt;Integer&gt; tag IDs — a 400 on string
+ * tag names is the documented API contract, not a wrapper issue; this test
+ * pins the wrapper's own behavior.)
  */
 class XssWrapperTagsArrayTest {
 
-    private final ObjectMapper mapper = new ObjectMapper();
-
-    private JsonNode sanitize(String json) throws Exception {
-        XssHttpServletRequestWrapper wrapper = new XssHttpServletRequestWrapper(
-                new org.springframework.mock.web.MockHttpServletRequest());
-        java.lang.reflect.Method m = XssHttpServletRequestWrapper.class
-                .getDeclaredMethod("sanitizeJsonBody", String.class);
-        m.setAccessible(true);
-        String out = (String) m.invoke(wrapper, json);
-        return mapper.readTree(out);
-    }
-
     @Test
-    @DisplayName("tags array survives sanitization as an array of clean strings")
+    @DisplayName("tags array survives the wrapper byte-for-byte")
     void tagsArraySurvives() throws Exception {
         String body = "{\"title\":\"tags test\",\"categoryId\":2,"
                 + "\"content\":\"ascii content\",\"tags\":[\"java\",\"x\"]}";
-        JsonNode out = sanitize(body);
-        assertTrue(out.get("tags").isArray(), "tags must remain an array, got: " + out);
-        assertEquals("java", out.get("tags").get(0).asText());
-        assertFalse(out.toString().contains("&quot;"), "no double-escape fallback expected");
+        assertEquals(body, roundTrip(body));
     }
 
     @Test
-    @DisplayName("html in tag values is stripped, not escaped")
-    void htmlTagValueStripped() throws Exception {
+    @DisplayName("html in tag values is stored verbatim, not stripped or escaped")
+    void htmlTagValueStoredVerbatim() throws Exception {
         String body = "{\"title\":\"t\",\"categoryId\":2,\"content\":\"c\","
                 + "\"tags\":[\"<script>alert(1)</script>safe\"]}";
-        JsonNode out = sanitize(body);
-        assertEquals("safe", out.get("tags").get(0).asText());
+        String out = roundTrip(body);
+        // Ingress is byte-faithful; the stored <script> is inert because egress
+        // renders through react-markdown, which escapes raw HTML (ADR-0021).
+        assertTrue(out.contains("<script>alert(1)</script>safe"));
+    }
+
+    private String roundTrip(String body) throws IOException {
+        org.springframework.mock.web.MockHttpServletRequest request =
+                new org.springframework.mock.web.MockHttpServletRequest();
+        request.setContentType("application/json");
+        request.setCharacterEncoding("UTF-8");
+        request.setContent(body.getBytes(StandardCharsets.UTF_8));
+
+        XssHttpServletRequestWrapper wrapper = new XssHttpServletRequestWrapper(request);
+        BufferedReader reader = wrapper.getReader();
+        StringBuilder sb = new StringBuilder();
+        String line;
+        while ((line = reader.readLine()) != null) {
+            if (sb.length() > 0) sb.append('\n');
+            sb.append(line);
+        }
+        return sb.toString();
     }
 }

@@ -1,12 +1,5 @@
 package com.nexus.campus.filter;
 
-import com.fasterxml.jackson.core.JsonProcessingException;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.node.ArrayNode;
-import com.fasterxml.jackson.databind.node.ObjectNode;
-import com.fasterxml.jackson.databind.node.TextNode;
-import com.nexus.campus.util.ContentSanitizer;
 import org.springframework.web.util.HtmlUtils;
 
 import jakarta.servlet.ReadListener;
@@ -19,14 +12,12 @@ import java.util.*;
 
 public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
 
-    private static final ObjectMapper objectMapper = new ObjectMapper();
-
     private byte[] cachedBody;
-    private boolean bodySanitized;
+    private boolean bodyCached;
 
     public XssHttpServletRequestWrapper(HttpServletRequest request) {
         super(request);
-        this.bodySanitized = false;
+        this.bodyCached = false;
     }
 
     @Override
@@ -91,19 +82,27 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
 
     @Override
     public ServletInputStream getInputStream() throws IOException {
-        ensureBodySanitized();
+        ensureBodyCached();
         return new CachedBodyServletInputStream(cachedBody);
     }
 
     @Override
     public BufferedReader getReader() throws IOException {
-        ensureBodySanitized();
+        ensureBodyCached();
         ByteArrayInputStream bais = new ByteArrayInputStream(cachedBody);
         return new BufferedReader(new InputStreamReader(bais, getCharacterEncodingOrDefault()));
     }
 
-    private void ensureBodySanitized() throws IOException {
-        if (bodySanitized) return;
+    /**
+     * Caches the raw body once so it can be read repeatedly. JSON bodies are
+     * stored byte-for-byte as the client sent them (ADR-0021): markdown and
+     * code are content, not markup, and any rewrite here corrupts them before
+     * storage. The XSS defense for body content lives at egress — the SPA
+     * renders it through react-markdown, which escapes by default — not at
+     * ingress. Non-JSON bodies keep the legacy escape-on-input.
+     */
+    private void ensureBodyCached() throws IOException {
+        if (bodyCached) return;
 
         String contentType = super.getContentType();
         String encoding = getCharacterEncodingOrDefault();
@@ -111,20 +110,18 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
         byte[] raw = readBodyBytes();
         if (raw == null || raw.length == 0) {
             cachedBody = raw;
-            bodySanitized = true;
+            bodyCached = true;
             return;
         }
 
         String body = new String(raw, encoding);
 
-        if (isJsonContent(contentType)) {
-            body = sanitizeJsonBody(body);
-        } else {
+        if (!isJsonContent(contentType)) {
             body = HtmlUtils.htmlEscape(body);
         }
 
         cachedBody = body.getBytes(encoding);
-        bodySanitized = true;
+        bodyCached = true;
     }
 
     private byte[] readBodyBytes() throws IOException {
@@ -144,53 +141,6 @@ public class XssHttpServletRequestWrapper extends HttpServletRequestWrapper {
         return lower.contains("application/json")
                 || lower.contains("+json")
                 || lower.contains("application/vnd.api+json");
-    }
-
-    private String sanitizeJsonBody(String body) {
-        try {
-            JsonNode root = objectMapper.readTree(body);
-            sanitizeJsonNode(root);
-            return objectMapper.writeValueAsString(root);
-        } catch (JsonProcessingException e) {
-            return HtmlUtils.htmlEscape(body);
-        }
-    }
-
-    private void sanitizeJsonNode(JsonNode node) {
-        if (node == null) return;
-        if (node.isObject()) {
-            ObjectNode obj = (ObjectNode) node;
-            Iterator<String> fields = obj.fieldNames();
-            while (fields.hasNext()) {
-                String field = fields.next();
-                JsonNode child = obj.get(field);
-                if (child.isTextual()) {
-                    obj.put(field, sanitizeHtml(child.asText()));
-                } else if (child.isObject() || child.isArray()) {
-                    sanitizeJsonNode(child);
-                }
-            }
-        } else if (node.isArray()) {
-            ArrayNode arr = (ArrayNode) node;
-            for (int i = 0; i < arr.size(); i++) {
-                JsonNode child = arr.get(i);
-                if (child.isTextual()) {
-                    arr.set(i, new TextNode(sanitizeHtml(child.asText())));
-                } else if (child.isObject() || child.isArray()) {
-                    sanitizeJsonNode(child);
-                }
-            }
-        }
-    }
-
-    /**
-     * Whitelist-based sanitization for JSON body string values. Preserves
-     * benign formatting and user content while removing dangerous HTML.
-     * Delegates to the shared {@link ContentSanitizer} (same safelist also
-     * guards server-side writers that bypass this filter).
-     */
-    private String sanitizeHtml(String value) {
-        return ContentSanitizer.clean(value);
     }
 
     /**
