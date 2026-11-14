@@ -1,6 +1,6 @@
 # 核心链路修正轮：P0 入口清洗吃代码 + P1 终态通知缺失
 
-Status: **实现完成（2026-11-14，分支 `codex/core-loop-corrections`），待独立 Verifier 重跑验收。** 契约已冻结（2026-11-14，[plans/core-loop-corrections.md](../../plans/core-loop-corrections.md)）。
+Status: **Verifier 已裁决通过（2026-11-14，全量 `mvn -B test` 539/0/0/0 + 契约 1–11 全 PASS，证据绑定 `c2fe9c3`；其后合并提交仅增契约文档），待人审签收后合并。** 契约已冻结（2026-11-14，[plans/core-loop-corrections.md](../../plans/core-loop-corrections.md)）。线上卷存量工件修复 = 合并后的运维步骤（备份前置）。
 
 来源：2026-11-14 外部评审。以下两条已由本会话亲手复核，不是转述。
 
