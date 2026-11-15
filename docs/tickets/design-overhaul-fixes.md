@@ -1,6 +1,6 @@
 # 设计修复轮：外审 A 档无争议缺陷（design-overhaul-fixes）
 
-Status: **待验收（2026-11-16，实现完成，Verifier 未跑）**。契约：[plans/design-overhaul-fixes.md](../plans/design-overhaul-fixes.md)；
+Status: **已验收（2026-11-16，签收）**。契约：[plans/design-overhaul-fixes.md](../plans/design-overhaul-fixes.md)；
 规范：[docs/design/ui-visual-system-v2.md](../design/ui-visual-system-v2.md)。实现分支 `codex/design-overhaul-fixes`
 （worktree `.claude/worktrees/design-fixes`，基线 c740aa8，契约冻结提交）。
 
@@ -121,3 +121,8 @@ locale zh-CN，networkidle + 3s 后截视口。入库前逐张校验 PNG IHDR（
 - **用持久化 user-data-dir 做干净配置**：playwright 非 persistent context 本就是干净 profile，
   问题根源在 devtools 浮层与 Edge 壳层，换渲染通道（生产 build + bundled Chromium）已解。
 - **顺手修 B 档条目**（登录/注册对称性重设计等）：契约边界；B 档走单独访谈。
+
+## 验收与签收记录
+
+- **Verifier 独立复核**（2026-11-16，全新会话 verifier subagent）：绑定 HEAD `70717fe`，9/9 标准 PASS。证据：前端 120/22 + lint + build 全绿；后端 540/91 全绿 + JaCoCo 0.70 达标（一次 fork JVM OOM 与一次 jacoco.exec 损坏均为环境故障，`mvn clean` 恢复，无断言/配置改动）；18 张截图 IHDR 精确（9×1280x800 + 9×375x812）且抽验四角干净（"热带岛头像"真身为 dev server 的 TanStack Query Devtools 悬浮钮，生产构建重摄已绝）；README 两图 alt 与图内容吻合；35 文件全在 Allowed paths；断言 3 处改动全部留痕，零弱化零删除。两项知悉项：en pending 文案连带改写（"AI Agent reviewing..." → "AI review in progress..."，grep 门禁覆盖词典文件所致，zh 未动）；右栏子集语义（>20 条 unanswered 显示子集，service 层过滤，三处留痕）。
+- **用户书面签收**（2026-11-16）："目验通过，书面签收 design-overhaul-fixes（9/9 PASS，绑定 70717fe），开 PR 走 CI，绿灯合并并冻结 B 轮"——用户已逐张目验 18 张重摄图 + 2 张 README 新图。
