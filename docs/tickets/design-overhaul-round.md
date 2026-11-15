@@ -81,11 +81,15 @@ i18n：i18n/index.ts、locales/{zh,en}.json、lib/channels.ts、lib/time.ts；
 ### 截图（验收第 10 条）
 
 `docs/assets/design-overhaul/`，首页 / 频道页 / 帖子详情 / 个人主页 × 明暗 ×
-1280px 与 375px 全 16 张，另有抽屉展开与 Prompt 详情两张补充。
-截图方法：本机 worktree `npm run dev`（代理临时指向 8080 后还原），preview 工具模拟
-1280×800 与 375×812 视口、`prefers-color-scheme` 明暗各一组，对本地在跑的真实后端数据截图。
-如实说明：入库的是浏览器面板渲染帧（约 750–750px 宽的压缩 JPEG），非原生 1280 物理分辨率；
-视口语义（桌面/移动断点、明暗主题）按模拟值真实生效。
+1280px 与 375px 全 16 张（PNG，精确 1280x800 与 375x812，文件名即视口），
+另有抽屉展开与 Prompt 详情两张补充（18 张）。
+截图方法（2026-11-15 重摄，替代首轮的浏览器面板帧）：本机 worktree `npm run dev`
+（代理临时指向 8080 后还原），`scratch/design-overhaul-shots/capture.cjs` 以
+playwright-core 驱动本机 Edge 无头渲染：每张独立 context，按捕获矩阵设定
+`viewport` 1280x800 / 375x812、`colorScheme` dark/light、`deviceScaleFactor: 1`，
+等待 networkidle + 1.5s 后截取视口。入库前逐张校验像素尺寸（PNG IHDR），
+并抽样角点像素确认主题真实生效（暗 #161B22 / 亮 #F6F8FA，即 v2 表面色）。
+脚本与 playwright-core 均在 worktree 外的 scratch 目录，未进 package.json。
 
 ### 偏差与实现决定
 
