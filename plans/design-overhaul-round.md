@@ -1,7 +1,7 @@
 # 契约草案 — 设计改造轮（forge 风格 + 中英文 i18n）
 
 任务 ID：`design-overhaul-round` · 配套 ticket：[docs/tickets/design-overhaul-round.md](../docs/tickets/design-overhaul-round.md)
-状态：**How 层已定（2026-11-15 grill 访谈 + 定案），待用户确认后冻结。未冻结不得实现。**
+状态：**已冻结（2026-11-15，用户书面确认"冻结 design-overhaul-round.md 契约、走验收链路开工"）。**
 
 规格来源：[docs/design/ui-visual-system-v2.md](../docs/design/ui-visual-system-v2.md)（实现级规范）与
 [ADR-0020](../docs/adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md)（转向决策）。
