@@ -20,6 +20,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.context.jdbc.Sql;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.*;
 
 @SpringBootTest
@@ -216,5 +218,50 @@ class VibePostServiceImplTest {
     @DisplayName("Deleting a nonexistent post returns false")
     void deletePost_missingPost_shouldReturnFalse() {
         assertFalse(VibePostService.deletePost(999999999L, testUserId));
+    }
+
+    @Test
+    @DisplayName("Unanswered posts accept a channel filter; null keeps the site-wide list")
+    void getUnansweredPosts_channelScopedFilter() {
+        // Rows are written through the mapper, not createPost: the moderation
+        // pipeline that runs on created posts fail-closes to pending-review when
+        // the LLM is unreachable (the test environment's normal state), and an
+        // asynchronously held post would make this read race the pipeline.
+        VibePost workshopPost = new VibePost();
+        workshopPost.setUserId(testUserId);
+        workshopPost.setCategoryId(2);
+        workshopPost.setTitle("Unanswered channel-scope workshop post");
+        workshopPost.setContent("Nobody has replied to this workshop post yet.");
+        workshopPost.setStatus(1);
+        workshopPost.setCommentCount(0);
+        workshopPost.setCreateTime(java.time.LocalDateTime.now());
+        VibePostMapper.insert(workshopPost);
+
+        VibePost showcasePost = new VibePost();
+        showcasePost.setUserId(testUserId);
+        showcasePost.setCategoryId(3);
+        showcasePost.setTitle("Unanswered channel-scope showcase post");
+        showcasePost.setContent("Nobody has replied to this showcase post yet.");
+        showcasePost.setStatus(1);
+        showcasePost.setCommentCount(0);
+        showcasePost.setCreateTime(java.time.LocalDateTime.now());
+        VibePostMapper.insert(showcasePost);
+
+        // Site-wide (channelId absent): both fresh unanswered posts are visible —
+        // the pre-existing behaviour, unchanged by the new parameter.
+        List<com.nexus.campus.dto.PostPageVo> siteWide = VibePostService.getUnansweredPosts(20, null);
+        assertTrue(siteWide.stream().anyMatch(p -> workshopPost.getId().equals(p.getId())));
+        assertTrue(siteWide.stream().anyMatch(p -> showcasePost.getId().equals(p.getId())));
+
+        // Scoped to the workshop channel: only that channel's rows survive.
+        List<com.nexus.campus.dto.PostPageVo> workshop = VibePostService.getUnansweredPosts(20, 2L);
+        assertTrue(workshop.stream().anyMatch(p -> workshopPost.getId().equals(p.getId())));
+        assertFalse(workshop.stream().anyMatch(p -> showcasePost.getId().equals(p.getId())));
+        assertTrue(workshop.stream().allMatch(p -> p.getCategoryId() != null && p.getCategoryId() == 2));
+
+        // Scoped to the showcase channel: the mirror image.
+        List<com.nexus.campus.dto.PostPageVo> showcase = VibePostService.getUnansweredPosts(20, 3L);
+        assertTrue(showcase.stream().anyMatch(p -> showcasePost.getId().equals(p.getId())));
+        assertFalse(showcase.stream().anyMatch(p -> workshopPost.getId().equals(p.getId())));
     }
 }

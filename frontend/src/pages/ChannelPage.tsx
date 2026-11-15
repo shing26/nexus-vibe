@@ -125,11 +125,16 @@ export default function ChannelPage() {
   });
 
   const { data: unanswered } = useQuery<PostPageVo[]>({
-    queryKey: ['posts', 'unanswered'],
+    // Channel-aware key and query: the waiting panel belongs to the channel you
+    // are in, so the cache must not hand one channel's rows to another.
+    queryKey: ['posts', 'unanswered', channel?.id],
     queryFn: async () => {
-      const res = await apiClient.get('/posts/unanswered', { params: { size: 5 } });
+      const res = await apiClient.get('/posts/unanswered', {
+        params: { size: 5, ...(channel ? { channelId: channel.id } : {}) },
+      });
       return (res.data.data ?? []) as PostPageVo[];
     },
+    enabled: !!channel,
     staleTime: 1000 * 60 * 2,
   });
 

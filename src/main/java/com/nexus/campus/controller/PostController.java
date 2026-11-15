@@ -171,12 +171,14 @@ public class PostController {
     /**
      * Recent active posts nobody has replied to yet. Public like the feed, and an
      * empty list is a normal answer rather than an error: most of the time there may
-     * be nothing waiting.
+     * be nothing waiting. {@code channelId} optionally scopes the list to one
+     * channel; without it the answer is the site-wide list, unchanged.
      */
     @GetMapping("/unanswered")
     public ApiResponse<List<PostPageVo>> getUnansweredPosts(
-            @RequestParam(defaultValue = "" + VibePostService.DEFAULT_UNANSWERED_SIZE) int size) {
-        return ApiResponse.success(vibePostService.getUnansweredPosts(size));
+            @RequestParam(defaultValue = "" + VibePostService.DEFAULT_UNANSWERED_SIZE) int size,
+            @RequestParam(required = false) Long channelId) {
+        return ApiResponse.success(vibePostService.getUnansweredPosts(size, channelId));
     }
 
     @GetMapping("/hot")
