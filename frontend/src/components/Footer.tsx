@@ -75,7 +75,7 @@ function AgentTicker() {
               <span className="absolute inline-flex h-full w-full rounded-full bg-vibe-success opacity-60 motion-reduce:animate-none animate-ping" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-vibe-success" />
             </span>
-            agent.ticker
+            {t('ticker.label')}
           </span>
           <span className="hidden shrink-0 text-[11px] text-vibe-faint sm:inline">
             <Bot className="mr-1 inline h-3 w-3 align-[-2px]" />

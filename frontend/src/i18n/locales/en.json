@@ -127,6 +127,7 @@
       "drill": "Observability drill"
     },
     "ticker": {
+      "label": "Agent review ticker",
       "idle": "Agent fleet idle. Publish a post with code to trigger auto review.",
       "verified": "[{{time}}] {{reviewer}} verified post \"{{title}}\" · Post #{{id}} · Severity: {{severity}} · Status: {{status}}",
       "status": {
