@@ -47,12 +47,15 @@ const REVIEWER_SECTION_TITLES: Record<string, string[]> = {
 };
 const DEFAULT_SECTION_TITLES = ['codeQuality', 'securityConcerns', 'optimizationSuggestions'];
 
+// The names are shared with the agent-logs surface through the same
+// `agentLogs:severityNames` block: one dictionary per severity, not one per panel.
 function SeverityBadge({ severity }: { severity: string }) {
+  const { t } = useTranslation('agentLogs');
   const normalized = (severity || 'unknown').trim().toLowerCase();
   const className = severityStyles[normalized] || severityStyles.unknown;
   return (
     <span className={'rounded-full border px-2 py-0.5 text-xs font-medium ' + className}>
-      {normalized}
+      {t('severityNames.' + normalized, { defaultValue: normalized })}
     </span>
   );
 }
@@ -211,7 +214,7 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
     return (
       <div role="status" aria-live="polite" className="flex items-center gap-2 p-3 text-sm text-vibe-accent">
         <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
-        AI Agent reviewing...
+        {t('aiPending')}
       </div>
     );
   }

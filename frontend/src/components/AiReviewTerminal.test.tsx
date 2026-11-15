@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
+import i18next from 'i18next';
 import { AiReviewTerminal } from './AiReviewTerminal';
 import type { AiReviewDetail } from '../types/post';
 
@@ -28,15 +29,16 @@ const detail: AiReviewDetail = {
 };
 
 describe('AiReviewTerminal', () => {
-  afterEach(() => {
+  afterEach(async () => {
     vi.useRealTimers();
     vi.unstubAllGlobals();
+    await i18next.changeLanguage('en');
   });
 
   it('says a review is in flight, without inventing a score', () => {
     render(<AiReviewTerminal state="pending" />);
 
-    expect(screen.getByRole('status')).toHaveTextContent('AI Agent reviewing...');
+    expect(screen.getByRole('status')).toHaveTextContent('AI review in progress...');
     expect(screen.queryByText(/Score:/)).not.toBeInTheDocument();
   });
 
@@ -49,6 +51,16 @@ describe('AiReviewTerminal', () => {
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to load AI review.');
     await user.click(screen.getByRole('button', { name: 'Retry AI review' }));
     expect(onRetry).toHaveBeenCalledTimes(1);
+  });
+
+  it('renders the severity through the dictionary (zh shows the translated name)', async () => {
+    await i18next.changeLanguage('zh');
+    render(<AiReviewTerminal state="data" detail={detail} />);
+
+    // The badge no longer echoes the normalized key: zh readers read the
+    // agentLogs severityNames block (高 for high), en readers the English one.
+    expect(screen.getByText('高')).toBeInTheDocument();
+    expect(screen.queryByText('high')).not.toBeInTheDocument();
   });
 
   it('renders a 0-10 score as the 0-100 the panel claims', () => {

@@ -2,6 +2,9 @@
   "common": {
     "appName": "Nexus-Vibe",
     "brand": "Nexus.Vibe",
+    "site": {
+      "title": "Nexus-Vibe | AI 开发者社区"
+    },
     "loading": "加载中...",
     "retry": "重试",
     "cancel": "取消",
@@ -13,6 +16,7 @@
       "placeholder": "搜索帖子、代码、报错...",
       "topBarPlaceholder": "搜索",
       "openPaletteHint": "Ctrl K",
+      "openPaletteHintMac": "⌘ K",
       "go": "搜索",
       "page": {
         "title": "搜索",
