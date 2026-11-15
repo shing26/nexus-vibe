@@ -59,7 +59,9 @@ describe('MobileTabBar', () => {
     await user.click(me);
     expect(me).toHaveAttribute('aria-expanded', 'true');
 
-    const menu = screen.getByRole('menu', { name: 'Account' });
+    // The dictionary label for the fifth tab's menu is "User menu" (was "Account"
+    // before the i18n round); the destinations themselves are unchanged.
+    const menu = screen.getByRole('menu', { name: 'User menu' });
     expect(menu).toBeInTheDocument();
     expect(screen.getByRole('menuitem', { name: /My profile/i })).toHaveAttribute('href', '/user/7');
     expect(screen.getByRole('menuitem', { name: /Drafts/i })).toHaveAttribute('href', '/drafts');

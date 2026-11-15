@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Bot, Radio } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { ExternalLink } from './ui/ExternalLink';
@@ -22,6 +23,7 @@ function formatTime(value: string): string {
 }
 
 function AgentTicker() {
+  const { t } = useTranslation('common');
   const [index, setIndex] = useState(0);
 
   const { data: logsData } = useQuery({
@@ -43,82 +45,96 @@ function AgentTicker() {
 
   const active = logs[index];
   const unavailable = !!active && (active.status === 'unavailable' || (!active.status && !active.severity));
-  const status = !active ? 'IDLE' : unavailable ? 'UNAVAILABLE' : active.isApproved === 1 ? 'APPROVED' : 'FLAGGED';
+  const status = !active
+    ? t('ticker.status.idle')
+    : unavailable
+      ? t('ticker.status.unavailable')
+      : active.isApproved === 1
+        ? t('ticker.status.approved')
+        : t('ticker.status.flagged');
   const severityLabel = active?.severity || '--';
 
   const message = useMemo(() => {
-    if (!active) return 'Agent fleet idle. Publish a post with code to trigger auto review.';
-    return (
-      '[' +
-      formatTime(active.createdAt) +
-      '] ' +
-      active.reviewer +
-      ' verified post "' +
-      active.postTitle +
-      '" · Post #' +
-      active.postId +
-      ' · Severity: ' +
-      severityLabel +
-      ' · Status: ' +
-      status
-    );
-  }, [active, severityLabel, status]);
+    if (!active) return t('ticker.idle');
+    return t('ticker.verified', {
+      time: formatTime(active.createdAt),
+      reviewer: active.reviewer,
+      title: active.postTitle,
+      id: active.postId,
+      severity: severityLabel,
+      status,
+    });
+  }, [active, severityLabel, status, t]);
 
   return (
-    <div className="border-b border-vibe-border bg-vibe-bg/70">
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex items-center gap-3 py-2 min-w-0">
-          <span className="flex items-center gap-1.5 shrink-0 text-[10px] font-mono text-vibe-emerald">
-            <span className="relative flex w-1.5 h-1.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-vibe-emerald opacity-60 animate-ping" />
-              <span className="relative inline-flex w-1.5 h-1.5 rounded-full bg-vibe-emerald" />
+    <div className="border-b border-vibe-border bg-vibe-bg">
+      <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
+        <div className="flex min-w-0 items-center gap-3 py-2">
+          <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-vibe-muted">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full rounded-full bg-vibe-success opacity-60 motion-reduce:animate-none animate-ping" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-vibe-success" />
             </span>
             agent.ticker
           </span>
-          <span className="hidden sm:inline text-[10px] font-mono text-slate-600 shrink-0">
-            <Bot className="w-3 h-3 inline mr-1 align-[-2px]" />
+          <span className="hidden shrink-0 text-[11px] text-vibe-faint sm:inline">
+            <Bot className="mr-1 inline h-3 w-3 align-[-2px]" />
             {logs.length}
           </span>
-          <div className="flex-1 min-w-0 text-[10px] font-mono text-slate-400 truncate">
-            <span className="text-vibe-cyan select-none mr-1.5">$</span>
+          <div className="min-w-0 flex-1 truncate text-[11px] text-vibe-muted">
+            <span className="mr-1.5 select-none text-vibe-accent">$</span>
             <span key={active?.id ?? 'idle'} className="inline-block max-w-full align-middle">
               {message}
-              <span className="inline-block w-1.5 h-3 bg-vibe-cyan/70 ml-0.5 animate-pulse align-[-2px]" />
             </span>
           </div>
-          <span className={'shrink-0 text-[9px] font-mono ring-1 ring-inset rounded px-1.5 py-0.5 ' + (unavailable ? 'text-slate-500 ring-slate-700/40' : active?.isApproved === 1 ? 'text-vibe-emerald ring-vibe-emerald/30' : active ? 'text-amber-400 ring-amber-500/40' : 'text-slate-600 ring-vibe-border')}>
+          <span
+            className={
+              'shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium ' +
+              (unavailable
+                ? 'border-vibe-border text-vibe-faint'
+                : active?.isApproved === 1
+                  ? 'border-vibe-success/40 text-vibe-success'
+                  : active
+                    ? 'border-vibe-warning/40 text-vibe-warning'
+                    : 'border-vibe-border text-vibe-faint')
+            }
+          >
             {status}
           </span>
-          <Radio className="hidden md:block w-3 h-3 text-slate-700 shrink-0" />
+          <Radio className="hidden shrink-0 text-vibe-faint md:block" />
         </div>
       </div>
     </div>
   );
 }
 
+/**
+ * The footer keeps the evidence links at every width: the repository's own
+ * decisions and measurements are public on GitHub, and a visitor who wants to
+ * check a claim should not have to hunt for them. Since the v2 shell the footer
+ * is their only home — the top bar carries no navigation beyond search and the
+ * user menu.
+ */
 export default function Footer() {
+  const { t } = useTranslation('common');
   return (
-    <footer className="bg-vibe-surface border-t border-vibe-border mt-auto">
+    <footer className="mt-auto border-t border-vibe-border bg-vibe-surface">
       <AgentTicker />
-      <div className="max-w-[1400px] mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
-          <p className="text-xs font-mono text-slate-500">
-            &copy; {new Date().getFullYear()} Nexus-Vibe. All rights reserved.
-          </p>
+      <div className="mx-auto max-w-[1400px] px-4 py-6 sm:px-6 lg:px-8">
+        <div className="flex flex-col items-center justify-between gap-3 sm:flex-row">
+          <p className="text-xs text-vibe-muted">{t('footer.rights', { year: new Date().getFullYear() })}</p>
           <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1">
-            <ExternalLink href={ADR_INDEX_URL} title="Architecture decision records">
-              ADRs
+            <ExternalLink href={ADR_INDEX_URL} title={t('footer.adrTitle')}>
+              {t('footer.adrs')}
             </ExternalLink>
-            <ExternalLink href={LOADTEST_URL} title="Async pool load test report">
-              Load test
+            <ExternalLink href={LOADTEST_URL} title={t('footer.loadtestTitle')}>
+              {t('footer.loadtest')}
             </ExternalLink>
-            <ExternalLink href={DRILL_URL} title="Failure drill, including what it cannot prove">
-              Observability drill
+            <ExternalLink href={DRILL_URL} title={t('footer.drillTitle')}>
+              {t('footer.drill')}
             </ExternalLink>
           </div>
-          <p className="text-[10px] font-mono text-slate-600">
-            Prompt studio · Multi-agent review · Gravity-ranked feed
-          </p>
+          <p className="text-[11px] text-vibe-faint">{t('footer.tagline')}</p>
         </div>
       </div>
     </footer>

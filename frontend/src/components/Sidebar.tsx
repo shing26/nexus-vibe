@@ -1,115 +1,101 @@
 ﻿import { Link, useLocation } from 'react-router-dom';
-import { Terminal, Palette, Cpu, Zap, Bug, BookOpen, Megaphone, FileText, Activity, Tag, Mail, Settings, ShieldCheck, LayoutDashboard } from 'lucide-react';
+import { Activity, FileText, LayoutDashboard, Mail, Settings, ShieldCheck, Tag, User } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
+import { CHANNELS } from '../lib/channels';
 
-const channels = [
-  { slug: 'announcements', label: 'Announcements', icon: Megaphone, desc: '平台公告与更新' },
-  { slug: 'prompts', label: 'Prompt 工坊', icon: Terminal, desc: 'System Prompt 设计、CoT' },
-  { slug: 'showcase', label: '作品展示', icon: Palette, desc: 'Vibe Coding 成品展示' },
-  { slug: 'agents', label: 'Agent 实战', icon: Cpu, desc: 'Agent 架构与案例' },
-  { slug: 'vibe-coding', label: 'Vibe Coding', icon: Zap, desc: 'AI Coding 经验分享' },
-  { slug: 'debug', label: '代码急诊室', icon: Bug, desc: 'Bug 诊断与修复讨论' },
-  { slug: 'resources', label: '资源聚合', icon: BookOpen, desc: '学习资源与工具收集' },
-];
+interface SidebarProps {
+  /** Drawer rows close the drawer on navigation. */
+  onNavigate?: () => void;
+}
 
-export default function Sidebar({ className = '' }: { className?: string }) {
+/**
+ * The single navigation surface for channels: the 社区 group (seven channels plus
+ * the tag directory) and, for a signed-in reader, the 我的 group. Signed-out
+ * visitors see only 社区. The active channel gets the accent color and a left rail.
+ */
+export default function Sidebar({ onNavigate }: SidebarProps) {
+  const { t } = useTranslation(['common', 'channel']);
   const location = useLocation();
   const user = useAuthStore((s) => s.user);
+  const isAdmin = user?.role === 'ADMIN';
+
+  const itemClass = (active: boolean) =>
+    'relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors ' +
+    (active
+      ? 'font-medium text-vibe-accent bg-vibe-accent/10'
+      : 'text-vibe-text hover:bg-vibe-card hover:text-vibe-accent');
+
+  const railClass = (active: boolean) =>
+    'before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full ' +
+    (active ? 'before:bg-vibe-accent' : 'before:bg-transparent');
+
+  const handleClick = () => onNavigate?.();
 
   return (
-    <aside className={'w-12 shrink-0 ' + className}>
-      <div className="bg-vibe-surface border border-vibe-border rounded-xl py-3 flex flex-col items-center gap-1">
-        {channels.map((ch) => {
-          const Icon = ch.icon;
-          const isActive = location.pathname === '/channel/' + ch.slug;
-          return (
-            <Link
-              key={ch.slug}
-              to={'/channel/' + ch.slug}
-              title={ch.label + ' — ' + ch.desc}
-              className={
-                'relative group w-8 h-8 flex items-center justify-center rounded-lg text-xs transition-all active:scale-[0.92] ' +
-                (isActive
-                  ? 'bg-vibe-cyan/15 text-vibe-cyan ring-1 ring-vibe-cyan/30'
-                  : 'text-slate-500 hover:bg-vibe-card hover:text-slate-200')
-              }
-            >
-              <Icon className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">
-                {ch.label}
-              </span>
-            </Link>
-          );
-        })}
+    <nav aria-label={t('common:nav.sidebarAria')} className="flex flex-col gap-1 py-2">
+      <p className="px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-vibe-faint">
+        {t('common:nav.community')}
+      </p>
+      {CHANNELS.map((ch) => {
+        const Icon = ch.icon;
+        const href = '/channel/' + ch.slug;
+        const active = location.pathname === href;
+        return (
+          <Link key={ch.slug} to={href} onClick={handleClick} title={t(ch.descKey)} className={itemClass(active) + ' ' + railClass(active)}>
+            <Icon className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t(ch.labelKey)}</span>
+          </Link>
+        );
+      })}
+      <Link to="/tags" onClick={handleClick} className={itemClass(location.pathname === '/tags')}>
+        <Tag className="h-4 w-4 shrink-0" />
+        <span className="min-w-0 flex-1 truncate">{t('common:nav.tags')}</span>
+      </Link>
 
-        <div className="w-6 h-px bg-vibe-border my-1" />
+      {user && (
+        <>
+          <p className="px-2 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-vibe-faint">
+            {t('common:nav.mine')}
+          </p>
+          <Link to={'/user/' + user.id} onClick={handleClick} className={itemClass(location.pathname === '/user/' + user.id)}>
+            <User className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('common:nav.myPosts')}</span>
+          </Link>
+          <Link to="/drafts" onClick={handleClick} className={itemClass(location.pathname === '/drafts')}>
+            <FileText className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('common:nav.drafts')}</span>
+          </Link>
+          <Link to="/user/messages" onClick={handleClick} className={itemClass(location.pathname.startsWith('/user/messages'))}>
+            <Mail className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('common:nav.messages')}</span>
+          </Link>
+          <Link to="/user/settings" onClick={handleClick} className={itemClass(location.pathname.startsWith('/user/settings'))}>
+            <Settings className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('common:nav.settings')}</span>
+          </Link>
+        </>
+      )}
 
-        <Link
-          to="/drafts"
-          title="My Drafts" aria-label="My Drafts"
-          className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
-        >
-          <FileText className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">My Drafts</span>
-        </Link>
-        <Link
-          to="/tags"
-          title="Hot Tags" aria-label="Hot Tags"
-          className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
-        >
-          <Tag className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Hot Tags</span>
-        </Link>
-
-        <div className="w-6 h-px bg-vibe-border my-1" />
-
-        <Link
-          to="/user/messages"
-          title="Messages" aria-label="Messages"
-          className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
-        >
-          <Mail className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Messages</span>
-        </Link>
-        <Link
-          to="/user/settings"
-          title="Settings" aria-label="Settings"
-          className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-slate-500 hover:bg-vibe-card hover:text-slate-200 transition-all active:scale-[0.92]"
-        >
-          <Settings className="w-4 h-4" />
-          <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Settings</span>
-        </Link>
-
-        {user?.role === 'ADMIN' && (
-          <>
-            <div className="w-6 h-px bg-vibe-border my-1" />
-            <Link
-              to="/admin/audit"
-              title="Audit Queue" aria-label="Audit Queue"
-              className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-amber-400/80 hover:bg-vibe-card hover:text-amber-300 transition-all active:scale-[0.92]"
-            >
-              <ShieldCheck className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Audit Queue</span>
-            </Link>
-            <Link
-              to="/admin/dashboard"
-              title="Dashboard" aria-label="Dashboard"
-              className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-amber-400/80 hover:bg-vibe-card hover:text-amber-300 transition-all active:scale-[0.92]"
-            >
-              <LayoutDashboard className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Dashboard</span>
-            </Link>
-            <Link
-              to="/agent-logs"
-              title="Agent Logs" aria-label="Agent Logs"
-              className="relative group w-8 h-8 flex items-center justify-center rounded-lg text-amber-400/80 hover:bg-vibe-card hover:text-amber-300 transition-all active:scale-[0.92]"
-            >
-              <Activity className="w-4 h-4" />
-              <span className="absolute left-full ml-2 px-2 py-1 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-300 whitespace-nowrap opacity-0 invisible group-hover:opacity-100 group-hover:visible group-focus-within:opacity-100 group-focus-within:visible transition-all duration-150 pointer-events-none z-50 shadow-lg">Agent Logs</span>
-            </Link>
-          </>
-        )}
-      </div>
-    </aside>
+      {isAdmin && (
+        <>
+          <p className="px-2 pb-1 pt-4 text-[11px] font-semibold uppercase tracking-wide text-vibe-faint">
+            {t('common:nav.admin')}
+          </p>
+          <Link to="/admin/audit" onClick={handleClick} className={itemClass(location.pathname === '/admin/audit')}>
+            <ShieldCheck className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('common:nav.auditQueue')}</span>
+          </Link>
+          <Link to="/admin/dashboard" onClick={handleClick} className={itemClass(location.pathname === '/admin/dashboard')}>
+            <LayoutDashboard className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('common:nav.dashboard')}</span>
+          </Link>
+          <Link to="/agent-logs" onClick={handleClick} className={itemClass(location.pathname.startsWith('/agent-logs'))}>
+            <Activity className="h-4 w-4 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{t('common:nav.agentLogs')}</span>
+          </Link>
+        </>
+      )}
+    </nav>
   );
 }
