@@ -1,6 +1,11 @@
 # 设计改造轮：forge 风格改造（GitHub/linux.do）+ 中英文 i18n
 
-Status: **已实现（2026-11-15，实现方留痕如下；Verifier 独立复核前不构成验收通过）**（契约：[plans/design-overhaul-round.md](../plans/design-overhaul-round.md)；规格：[docs/design/ui-visual-system-v2.md](../design/ui-visual-system-v2.md)；决策记录：ADR-0020）。
+Status: **已验收（2026-11-15，签收合并）**（契约：[plans/design-overhaul-round.md](../plans/design-overhaul-round.md)；规格：[docs/design/ui-visual-system-v2.md](../design/ui-visual-system-v2.md)；决策记录：ADR-0020）。
+
+## 验收与签收记录
+
+- **Verifier 独立复核**（2026-11-15，全新会话 verifier subagent）：首轮绑定 HEAD `523892b`——13 条标准 12 PASS + C10 PARTIAL（截图为面板渲染 800px 非原生 1280px）；重摄后专项复核绑定 HEAD `cc2ac3b`——C10 转 PASS，**整体 PASS（13/13）**。证据：test 116/21 全绿、lint 0 告警、build 通过、三条 grep 门禁 0 行、Allowed paths 边界干净、断言改写 5 处逐条与留痕吻合无削弱、README 计数吻合、18 张 PNG IHDR 亲读（桌面组精确 1280×800 / 移动组精确 375×812，JPEG 零残留）。非阻塞观察留档：语言切换钮按契约决策表落顶栏（契约自身两处表述不一致，实现取其一）；抽屉焦点圈闭有代码验证无专项测试；AA 对比度比值由 Verifier 从已提交 token 值计算（文本对全部 ≥4.5:1，faint ≥3:1 仅用于占位提示）。
+- **用户书面签收**（2026-11-15）："目验通过，书面签收 design-overhaul-round（13/13 PASS，绑定 cc2ac3b），从 codex/design-overhaul-impl 开 PR 走 CI"——用户已逐张目验 18 张原生截图后签收。
 
 ## Scope
 
