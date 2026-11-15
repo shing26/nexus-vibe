@@ -1,4 +1,5 @@
 import axios from 'axios';
+import i18next from 'i18next';
 import type { AxiosError } from 'axios';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
@@ -111,7 +112,10 @@ apiClient.interceptors.response.use(
     if ((error.response?.status ?? 0) >= 500) {
       const trace = shortTraceId(error as AxiosError);
       useToastStore.getState().addToast(
-        trace ? `服务暂时不可用（追踪号 ${trace}）` : '服务暂时不可用，请稍后重试',
+        i18next.t(
+          trace ? 'common:serviceUnavailableWithTrace' : 'common:serviceUnavailable',
+          { trace },
+        ),
         'error',
       );
     }

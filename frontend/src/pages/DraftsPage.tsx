@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { FileText, Pencil, Trash2 } from 'lucide-react';
 import { useToastStore } from '../stores/toastStore';
 
@@ -16,6 +17,7 @@ interface Draft {
 const DRAFT_KEY = 'nexus_vibe_drafts';
 
 export default function DraftsPage() {
+  const { t } = useTranslation('editor');
   const navigate = useNavigate();
   const addToast = useToastStore((s) => s.addToast);
   const [drafts, setDrafts] = useState<Draft[]>([]);
@@ -36,34 +38,35 @@ export default function DraftsPage() {
   useEffect(loadDrafts, []);
 
   const handleDelete = (id: number) => {
-    if (!window.confirm('Delete this draft?')) return;
+    if (!window.confirm(t('drafts.deleteConfirm'))) return;
     const next = drafts.filter((d) => d.id !== id);
     localStorage.setItem(DRAFT_KEY, JSON.stringify(next));
     setDrafts(next);
-    addToast('Draft deleted', 'success');
+    addToast(t('drafts.deleted'), 'success');
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 flex items-center justify-center">
-          <FileText className="w-4 h-4 text-vibe-cyan" />
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-md border border-vibe-border bg-vibe-surface text-vibe-accent">
+          <FileText className="h-4 w-4" />
         </div>
         <div>
-          <h1 className="text-base font-semibold font-mono text-slate-100">My Drafts</h1>
-          <p className="text-[11px] font-mono text-slate-500">Local drafts saved in this browser</p>
+          <h1 className="text-lg font-semibold text-vibe-text">{t('drafts.title')}</h1>
+          <p className="text-xs text-vibe-muted">{t('drafts.subtitle')}</p>
         </div>
       </div>
 
       {drafts.length === 0 ? (
-        <div className="bg-vibe-surface border border-vibe-border rounded-xl p-10 text-center">
-          <p className="text-xs font-mono text-slate-500">// No drafts yet. Save one from the prompt studio.</p>
+        <div className="rounded-lg border border-vibe-border bg-vibe-surface p-10 text-center">
+          <p className="text-sm text-vibe-muted">{t('drafts.empty')}</p>
           <button
+            type="button"
             onClick={() => navigate('/post/new')}
-            className="mt-4 inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors"
+            className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-4 py-2 text-xs font-medium text-white transition-colors hover:opacity-90"
           >
-            <Pencil className="w-3.5 h-3.5" />
-            New Vibe Post
+            <Pencil className="h-3.5 w-3.5" />
+            {t('drafts.newPost')}
           </button>
         </div>
       ) : (
@@ -71,36 +74,38 @@ export default function DraftsPage() {
           {drafts.map((draft) => (
             <div
               key={draft.id}
-              className="bg-vibe-surface border border-vibe-border rounded-xl p-4 hover:border-vibe-cyan/40 transition-colors"
+              className="rounded-lg border border-vibe-border bg-vibe-surface p-4 transition-colors hover:border-vibe-accent/40"
             >
               <div className="flex items-center justify-between gap-4">
                 <div className="min-w-0 flex-1">
-                  <h3 className="text-sm font-mono font-medium text-slate-200 truncate">
-                    {draft.title || 'Untitled draft'}
+                  <h3 className="truncate text-sm font-medium text-vibe-text">
+                    {draft.title || t('drafts.untitled')}
                   </h3>
-                  <p className="mt-1 text-[11px] font-mono text-slate-500 truncate">
-                    {draft.content ? draft.content.slice(0, 120) : '// empty content'}
+                  <p className="mt-1 truncate text-xs text-vibe-muted">
+                    {draft.content ? draft.content.slice(0, 120) : t('drafts.emptyContent')}
                   </p>
-                  <div className="mt-2 flex items-center gap-3 text-[10px] font-mono text-slate-600">
-                    <span className="text-vibe-cyan">{draft.postType === 'prompt' ? 'prompt' : 'post'}</span>
+                  <div className="mt-2 flex items-center gap-3 text-xs tabular-nums text-vibe-faint">
+                    <span className="text-vibe-accent">{draft.postType === 'prompt' ? 'prompt' : 'post'}</span>
                     {draft.tags && <span>{draft.tags}</span>}
                     <span>{new Date(draft.updatedAt).toLocaleString()}</span>
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex shrink-0 items-center gap-2">
                   <button
+                    type="button"
                     onClick={() => navigate('/post/new?draft=' + draft.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-cyan/15 border border-vibe-cyan/30 text-vibe-cyan text-[11px] font-mono hover:bg-vibe-cyan/25 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs text-vibe-text transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
                   >
-                    <Pencil className="w-3.5 h-3.5" />
-                    Edit
+                    <Pencil className="h-3.5 w-3.5" />
+                    {t('actions.edit')}
                   </button>
                   <button
+                    type="button"
                     onClick={() => handleDelete(draft.id)}
-                    className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-mono hover:bg-red-500/20 transition-colors"
+                    className="inline-flex items-center gap-1.5 rounded-md border border-vibe-danger/40 bg-vibe-danger/10 px-3 py-1.5 text-xs text-vibe-danger transition-colors hover:bg-vibe-danger/20"
                   >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    Delete
+                    <Trash2 className="h-3.5 w-3.5" />
+                    {t('actions.delete')}
                   </button>
                 </div>
               </div>

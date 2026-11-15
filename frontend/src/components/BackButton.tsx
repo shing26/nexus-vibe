@@ -24,11 +24,11 @@ export default function BackButton({ label = 'Back', className = '' }: BackButto
       onClick={goBack}
       aria-label="Go back"
       className={
-        'inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card/60 px-2.5 py-1.5 text-[11px] font-mono text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors active:scale-[0.97] ' +
+        'inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-2.5 py-1.5 text-xs text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-text ' +
         className
       }
     >
-      <ArrowLeft className="w-3.5 h-3.5" />
+      <ArrowLeft className="h-3.5 w-3.5" />
       <span>{label}</span>
     </button>
   );

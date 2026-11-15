@@ -10,10 +10,14 @@ export default {
            surface: 'rgb(var(--vibe-surface) / <alpha-value>)',
            card: 'rgb(var(--vibe-card) / <alpha-value>)',
            border: 'rgb(var(--vibe-border) / <alpha-value>)',
-           cyan: 'rgb(var(--vibe-cyan) / <alpha-value>)',
-           neon: 'rgb(var(--vibe-neon) / <alpha-value>)',
-           purple: 'rgb(var(--vibe-purple) / <alpha-value>)',
-           emerald: 'rgb(var(--vibe-emerald) / <alpha-value>)',
+           accent: 'rgb(var(--vibe-accent) / <alpha-value>)',
+           success: 'rgb(var(--vibe-success) / <alpha-value>)',
+           danger: 'rgb(var(--vibe-danger) / <alpha-value>)',
+           warning: 'rgb(var(--vibe-warning) / <alpha-value>)',
+           high: 'rgb(var(--vibe-high) / <alpha-value>)',
+           text: 'rgb(var(--vibe-text) / <alpha-value>)',
+           muted: 'rgb(var(--vibe-muted) / <alpha-value>)',
+           faint: 'rgb(var(--vibe-faint) / <alpha-value>)',
          },
          slate: {
            100: 'rgb(var(--slate-100) / <alpha-value>)',
@@ -28,19 +32,19 @@ export default {
            950: 'rgb(var(--slate-950) / <alpha-value>)',
          },
        },
+       fontFamily: {
+         sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+         mono: ['JetBrains Mono', 'ui-monospace', 'SFMono-Regular', 'monospace'],
+       },
        animation: {
-         'border-beam': 'border-beam calc(var(--duration, 8) * 1s) infinite linear',
-         'shimmer': 'shimmer 2.5s infinite linear',
+         'fade-in': 'fade-in 0.2s ease-out',
        },
        keyframes: {
-         'border-beam': {
-           '100%': { 'offset-distance': '100%' },
+         'fade-in': {
+           '0%': { opacity: '0' },
+           '100%': { opacity: '1' },
          },
-         'shimmer': {
-           '0%': { backgroundPosition: '200% 0' },
-           '100%': { backgroundPosition: '-200% 0' },
-         }
-       }
+       },
      },
    },
    plugins: [],

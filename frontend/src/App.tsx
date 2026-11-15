@@ -2,6 +2,7 @@ import { lazy, Suspense, useEffect } from 'react';
 import { BrowserRouter, Routes, Route } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ReactQueryDevtools } from '@tanstack/react-query-devtools';
+import { useTranslation } from 'react-i18next';
 import { useThemeStore } from './stores/themeStore';
 import { useAuthStore } from './stores/authStore';
 import { apiClient } from './api/client';
@@ -41,6 +42,7 @@ const queryClient = new QueryClient({
 });
 
 export default function App() {
+  const { t } = useTranslation('common');
   const dark = useThemeStore((s) => s.dark);
   const token = useAuthStore((s) => s.token);
   const authUser = useAuthStore((s) => s.user);
@@ -75,7 +77,7 @@ export default function App() {
       <BrowserRouter>
         <ErrorBoundary>
           <ToastContainer />
-          <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-zinc-500">Loading...</div>}>
+          <Suspense fallback={<div className="flex min-h-screen items-center justify-center text-sm text-vibe-muted">{t('loading')}</div>}>
             <Routes>
               <Route path="/" element={<MainLayout />}>
                 <Route index element={<HomePage />} />

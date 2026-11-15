@@ -1,11 +1,18 @@
 ﻿import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
+import LanguageToggle from '../components/LanguageToggle';
 
 type Tab = 'profile' | 'password';
 
+const fieldClass =
+  'w-full rounded-md border border-vibe-border bg-vibe-bg px-4 py-2.5 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50';
+const labelClass = 'mb-1 block text-xs text-vibe-muted';
+
 export default function SettingsPage() {
+  const { t } = useTranslation('profile');
   const navigate = useNavigate();
   const { isAuthenticated, user, setAuth } = useAuthStore();
 
@@ -51,9 +58,9 @@ export default function SettingsPage() {
       if (res.data.data) {
         setAuth(useAuthStore.getState().token!, res.data.data);
       }
-      setProfileSuccess('Profile updated successfully.');
+      setProfileSuccess(t('settings.profile.updated'));
     } catch (err: any) {
-      setProfileError(err.response?.data?.message || 'Failed to update profile.');
+      setProfileError(err.response?.data?.message || t('settings.profile.failed'));
     } finally {
       setProfileSaving(false);
     }
@@ -65,11 +72,11 @@ export default function SettingsPage() {
     setPasswordSuccess('');
 
     if (newPassword !== confirmPassword) {
-      setPasswordError('New passwords do not match.');
+      setPasswordError(t('settings.password.mismatch'));
       return;
     }
     if (newPassword.length < 8) {
-      setPasswordError('New password must be at least 8 characters.');
+      setPasswordError(t('settings.password.tooShort'));
       return;
     }
 
@@ -79,12 +86,12 @@ export default function SettingsPage() {
         currentPassword,
         newPassword,
       });
-      setPasswordSuccess('Password changed successfully.');
+      setPasswordSuccess(t('settings.password.changed'));
       setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
-      setPasswordError(err.response?.data?.message || 'Failed to change password.');
+      setPasswordError(err.response?.data?.message || t('settings.password.failed'));
     } finally {
       setPasswordSaving(false);
     }
@@ -93,24 +100,36 @@ export default function SettingsPage() {
   if (!isAuthenticated || !user) return null;
 
   const tabs: { key: Tab; label: string }[] = [
-    { key: 'profile', label: 'Profile' },
-    { key: 'password', label: 'Password' },
+    { key: 'profile', label: t('settings.tabs.profile') },
+    { key: 'password', label: t('settings.tabs.password') },
   ];
 
   return (
-    <div className="max-w-3xl mx-auto px-4 py-8">
-      <h1 className="text-base font-semibold font-mono text-slate-100 mb-8"><span className="text-vibe-cyan">$</span> Settings</h1>
+    <div className="mx-auto max-w-3xl px-4 py-8">
+      <h1 className="mb-8 text-lg font-semibold text-vibe-text">{t('settings.title')}</h1>
 
-      {/* Tabs */}
-      <div className="flex border-b border-vibe-border mb-8">
+      {/* Language — the in-place half of the toggle: the user-menu button switches
+          in one tap; this section says what the choice does and where it lives. */}
+      <section className="mb-8 rounded-lg border border-vibe-border bg-vibe-surface p-4">
+        <h2 className="text-sm font-semibold text-vibe-text">{t('settings.language.heading')}</h2>
+        <p className="mt-0.5 text-xs text-vibe-muted">{t('settings.language.description')}</p>
+        <div className="mt-3">
+          <LanguageToggle />
+        </div>
+      </section>
+
+      {/* Tabs — the same GitHub underline style as the home feed */}
+      <div className="mb-8 flex border-b border-vibe-border">
         {tabs.map((tab) => (
           <button
             key={tab.key}
+            type="button"
             onClick={() => setActiveTab(tab.key)}
-            className={`px-6 py-3 text-xs font-mono border-b-2 transition-colors ${
+            aria-pressed={activeTab === tab.key}
+            className={`-mb-px border-b-2 px-6 py-3 text-sm transition-colors ${
               activeTab === tab.key
-                ? 'border-vibe-cyan text-vibe-cyan'
-                : 'border-transparent text-slate-500 hover:text-slate-200'
+                ? 'border-vibe-accent font-medium text-vibe-text'
+                : 'border-transparent text-vibe-muted hover:text-vibe-text'
             }`}
           >
             {tab.label}
@@ -121,60 +140,63 @@ export default function SettingsPage() {
       {activeTab === 'profile' && (
         <form onSubmit={handleProfileSubmit} className="space-y-6">
           {profileError && (
-            <div className="bg-red-900/30 border border-red-500/40 text-red-400 px-4 py-3 rounded-lg text-[11px] font-mono">
+            <div role="alert" className="rounded-md border border-vibe-danger/40 bg-vibe-danger/5 px-4 py-3 text-xs text-vibe-danger">
               {profileError}
             </div>
           )}
           {profileSuccess && (
-            <div className="bg-vibe-emerald/10 border border-vibe-emerald/30 text-vibe-emerald px-4 py-3 rounded-lg text-[11px] font-mono">
+            <div role="status" className="rounded-md border border-vibe-success/40 bg-vibe-success/10 px-4 py-3 text-xs text-vibe-success">
               {profileSuccess}
             </div>
           )}
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1">Username</label>
+            <label className={labelClass}>{t('settings.profile.username')}</label>
             <input
               type="text"
               value={user.username}
               disabled
-              className="w-full px-4 py-2.5 border border-vibe-border rounded-lg text-xs font-mono bg-vibe-card text-slate-500 cursor-not-allowed"
+              className="w-full cursor-not-allowed rounded-md border border-vibe-border bg-vibe-card px-4 py-2.5 text-sm text-vibe-faint"
             />
-            <p className="mt-1 text-[10px] font-mono text-slate-600">Username cannot be changed.</p>
+            <p className="mt-1 text-xs text-vibe-faint">{t('settings.profile.usernameLocked')}</p>
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1">Nickname</label>
+            <label htmlFor="nickname" className={labelClass}>{t('settings.profile.nickname')}</label>
             <input
+              id="nickname"
               type="text"
               value={nickname}
               onChange={(e) => setNickname(e.target.value)}
               maxLength={50}
-              placeholder="Your display name"
-              className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+              placeholder={t('settings.profile.nicknamePlaceholder')}
+              className={fieldClass}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1">Avatar URL</label>
+            <label htmlFor="avatarUrl" className={labelClass}>{t('settings.profile.avatarUrl')}</label>
             <input
+              id="avatarUrl"
               type="text"
               value={avatarUrl}
               onChange={(e) => setAvatarUrl(e.target.value)}
               maxLength={255}
-              placeholder="https://example.com/avatar.jpg"
-              className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+              placeholder={t('settings.profile.avatarPlaceholder')}
+              className={fieldClass}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1">Bio</label>
+            <label htmlFor="bio" className={labelClass}>{t('settings.profile.bio')}</label>
             <textarea
+              id="bio"
               value={bio}
               onChange={(e) => setBio(e.target.value)}
               maxLength={255}
-              placeholder="Tell us about yourself..."
+              placeholder={t('settings.profile.bioPlaceholder')}
               rows={4}
-              className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
+              className={fieldClass + ' resize-none'}
             />
           </div>
 
@@ -182,54 +204,57 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={profileSaving}
-              className="px-6 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="rounded-md bg-vibe-accent px-6 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {profileSaving ? 'Saving...' : 'Save Profile'}
+              {profileSaving ? t('settings.profile.saving') : t('settings.profile.save')}
             </button>
           </div>
         </form>
       )}
 
       {activeTab === 'password' && (
-        <form onSubmit={handlePasswordSubmit} className="space-y-6 max-w-md">
+        <form onSubmit={handlePasswordSubmit} className="max-w-md space-y-6">
           {passwordError && (
-            <div className="bg-red-900/30 border border-red-500/40 text-red-400 px-4 py-3 rounded-lg text-[11px] font-mono">
+            <div role="alert" className="rounded-md border border-vibe-danger/40 bg-vibe-danger/5 px-4 py-3 text-xs text-vibe-danger">
               {passwordError}
             </div>
           )}
           {passwordSuccess && (
-            <div className="bg-vibe-emerald/10 border border-vibe-emerald/30 text-vibe-emerald px-4 py-3 rounded-lg text-[11px] font-mono">
+            <div role="status" className="rounded-md border border-vibe-success/40 bg-vibe-success/10 px-4 py-3 text-xs text-vibe-success">
               {passwordSuccess}
             </div>
           )}
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1">Current Password</label>
+            <label htmlFor="currentPassword" className={labelClass}>{t('settings.password.current')}</label>
             <input
+              id="currentPassword"
               type="password"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
-              className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+              className={fieldClass}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1">New Password</label>
+            <label htmlFor="newPassword" className={labelClass}>{t('settings.password.new')}</label>
             <input
+              id="newPassword"
               type="password"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
-              className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+              className={fieldClass}
             />
           </div>
 
           <div>
-            <label className="block text-[11px] font-mono text-slate-400 mb-1">Confirm New Password</label>
+            <label htmlFor="confirmPassword" className={labelClass}>{t('settings.password.confirm')}</label>
             <input
+              id="confirmPassword"
               type="password"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
-              className="w-full px-4 py-2.5 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+              className={fieldClass}
             />
           </div>
 
@@ -237,9 +262,9 @@ export default function SettingsPage() {
             <button
               type="submit"
               disabled={passwordSaving}
-              className="px-6 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              className="rounded-md bg-vibe-accent px-6 py-2 text-sm font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
-              {passwordSaving ? 'Changing...' : 'Change Password'}
+              {passwordSaving ? t('settings.password.changing') : t('settings.password.change')}
             </button>
           </div>
         </form>

@@ -3,7 +3,6 @@ import { render, screen } from '@testing-library/react';
 import type { ReactElement } from 'react';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import Navbar from './Navbar';
 import Footer from './Footer';
 import { apiClient } from '../api/client';
 
@@ -11,6 +10,10 @@ import { apiClient } from '../api/client';
  * The navigation links exist for one reader: someone deciding whether to believe the
  * project's claims. Each one has to open the real evidence in a new tab, with the
  * attributes that keep the opener away from the opened page.
+ *
+ * <p>The navbar half of this file was retired with the v2 shell: the top bar now
+ * carries no navigation beyond search and the user menu, so the evidence links have
+ * their only home in the footer — which is what the remaining assertions cover.</p>
  */
 
 vi.mock('../api/client', () => ({
@@ -34,8 +37,8 @@ describe('nav evidence links', () => {
     get.mockResolvedValue({ data: { code: 200, data: [] } });
   });
 
-  it('links the navbar out to the ADR index and the load test', () => {
-    renderWithProviders(<Navbar />);
+  it('carries the ADR index and load-test links in the footer', () => {
+    renderWithProviders(<Footer />);
 
     const adr = screen.getByTitle('Architecture decision records');
     expect(adr).toHaveAttribute('href', 'https://github.com/shing26/nexus-vibe/tree/master/docs/adr');

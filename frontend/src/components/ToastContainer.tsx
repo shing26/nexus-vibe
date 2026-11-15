@@ -2,15 +2,15 @@ import { useToastStore, type ToastType } from '../stores/toastStore';
 import { X, CheckCircle, AlertCircle, Info } from 'lucide-react';
 
 const iconMap: Record<ToastType, React.ReactNode> = {
-  success: <CheckCircle className="w-4 h-4 text-vibe-emerald" />,
-  error: <AlertCircle className="w-4 h-4 text-red-400" />,
-  info: <Info className="w-4 h-4 text-vibe-cyan" />,
+  success: <CheckCircle className="h-4 w-4 text-vibe-success" />,
+  error: <AlertCircle className="h-4 w-4 text-vibe-danger" />,
+  info: <Info className="h-4 w-4 text-vibe-accent" />,
 };
 
 const bgMap: Record<ToastType, string> = {
-  success: 'border-vibe-emerald/30',
-  error: 'border-red-500/30',
-  info: 'border-vibe-cyan/30',
+  success: 'border-vibe-success/40',
+  error: 'border-vibe-danger/40',
+  info: 'border-vibe-accent/40',
 };
 
 export default function ToastContainer() {
@@ -22,7 +22,7 @@ export default function ToastContainer() {
         <div
           key={t.id}
           role={t.type === 'error' ? 'alert' : 'status'}
-          className={'flex items-center gap-2 px-4 py-3 rounded-xl bg-black/80 border backdrop-blur-sm text-white text-xs font-mono shadow-lg animate-in slide-in-from-right ' + bgMap[t.type]}
+          className={'flex items-center gap-2 rounded-lg border bg-vibe-card px-4 py-3 text-sm text-vibe-text shadow-lg ' + bgMap[t.type]}
         >
           {iconMap[t.type]}
           <span className="flex-1">{t.message}</span>

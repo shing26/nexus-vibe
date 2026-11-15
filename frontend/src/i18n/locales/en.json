@@ -1,0 +1,844 @@
+{
+  "common": {
+    "appName": "Nexus-Vibe",
+    "brand": "Nexus.Vibe",
+    "loading": "Loading...",
+    "retry": "Retry",
+    "cancel": "Cancel",
+    "back": "Back",
+    "backHome": "← Back to Home",
+    "confirm": "Confirm",
+    "close": "Close",
+    "search": {
+      "placeholder": "Search prompts, code, errors...",
+      "topBarPlaceholder": "Search Nexus-Vibe",
+      "openPaletteHint": "Ctrl K",
+      "go": "Search",
+      "page": {
+        "title": "Search",
+        "titleWithKeyword": "Search: {{keyword}}",
+        "titleFiltered": "Filtered Search",
+        "placeholder": "Search prompts, code, errors...",
+        "noKeyword": "Enter a keyword or use filters to search posts",
+        "filters": {
+          "label": "Filters",
+          "channel": "Channel",
+          "language": "Language",
+          "ai": "AI",
+          "sort": "Sort",
+          "clear": "Clear filters",
+          "allChannels": "All channels",
+          "allLanguages": "All languages",
+          "anyScore": "Any AI score",
+          "aiReviewed": "AI reviewed",
+          "score60": "Score 60+",
+          "score80": "Score 80+",
+          "sortLatest": "Latest",
+          "sortHot": "Hot",
+          "sortAi": "AI score"
+        },
+        "empty": {
+          "title": "No matching results",
+          "desc": "Try adjusting the keyword, language, AI score or channel filter."
+        },
+        "emptyAction": "Publish a Prompt"
+      }
+    },
+    "nav": {
+      "home": "Home",
+      "tags": "Tags",
+      "tagsAria": "Hot Tags",
+      "myPosts": "My Posts",
+      "drafts": "Drafts",
+      "messages": "Messages",
+      "settings": "Settings",
+      "auditQueue": "Audit Queue",
+      "dashboard": "Dashboard",
+      "agentLogs": "Agent Logs",
+      "admin": "Admin",
+      "community": "Community",
+      "mine": "Mine",
+      "primaryAria": "Primary",
+      "sidebarAria": "Channel navigation",
+      "openDrawer": "Open navigation drawer",
+      "closeDrawer": "Close navigation drawer"
+    },
+    "user": {
+      "menu": "User menu",
+      "profile": "My profile",
+      "logout": "Log out",
+      "login": "Login",
+      "register": "Register",
+      "newPost": "New Post"
+    },
+    "language": {
+      "label": "Language",
+      "toggle": "切换到中文",
+      "current": "English"
+    },
+    "theme": {
+      "toLight": "Switch to light mode",
+      "toDark": "Switch to dark mode"
+    },
+    "palette": {
+      "trigger": "Open command palette",
+      "ariaLabel": "Command palette",
+      "inputAria": "Search posts, jump to channels, run commands",
+      "placeholder": "Search posts, jump to channels, run commands...",
+      "esc": "esc",
+      "searching": "Searching posts...",
+      "noResults": "No results found",
+      "noResultsHint": "Try a different keyword or command",
+      "sections": {
+        "actions": "Actions",
+        "channels": "Channels",
+        "posts": "Posts"
+      },
+      "footer": {
+        "navigate": "navigate",
+        "open": "open",
+        "modifier": "ctrl/⌘"
+      },
+      "brandTag": "NEXUS.VIBE ⌘PALETTE",
+      "items": {
+        "newPost": "New Vibe Post",
+        "drafts": "My Drafts",
+        "tags": "Hot Tags",
+        "messages": "Messages",
+        "agentLogs": "Agent Logs",
+        "settings": "Settings",
+        "copyLink": "Copy link"
+      },
+      "hints": {
+        "create": "create",
+        "login": "login",
+        "console": "console",
+        "post": "post"
+      }
+    },
+    "footer": {
+      "rights": "© {{year}} Nexus-Vibe. All rights reserved.",
+      "tagline": "Prompt studio · Multi-agent review · Gravity-ranked feed",
+      "adrTitle": "Architecture decision records",
+      "loadtestTitle": "Async pool load test report",
+      "drillTitle": "Failure drill, including what it cannot prove",
+      "adrs": "ADRs",
+      "loadtest": "Load test",
+      "drill": "Observability drill"
+    },
+    "ticker": {
+      "idle": "Agent fleet idle. Publish a post with code to trigger auto review.",
+      "verified": "[{{time}}] {{reviewer}} verified post \"{{title}}\" · Post #{{id}} · Severity: {{severity}} · Status: {{status}}",
+      "status": {
+        "idle": "IDLE",
+        "unavailable": "UNAVAILABLE",
+        "approved": "APPROVED",
+        "flagged": "FLAGGED"
+      }
+    },
+    "time": {
+      "justNow": "just now",
+      "minutesAgo": "{{n}}m ago",
+      "daysAgo": "{{n}}d ago",
+      "hoursAgo": "{{n}}h ago"
+    },
+    "counts": {
+      "views": "{{n}} views",
+      "likes": "{{n}} likes",
+      "comments": "{{n}} comments",
+      "likesAria": "Like count",
+      "commentsAria": "Comment count",
+      "viewsAria": "View count"
+    },
+    "toast": {
+      "linkCopied": "Link copied to clipboard",
+      "couldNotCopy": "Could not copy link",
+      "promptCopied": "Prompt copied",
+      "templateForked": "Template forked",
+      "forkFailed": "Fork failed",
+      "dismissAria": "Dismiss notification",
+      "loginToLike": "Log in to like posts",
+      "likeFailed": "Like failed, please retry",
+      "postDeleted": "Post deleted",
+      "deleteFailed": "Delete failed"
+    },
+    "serviceUnavailable": "Service temporarily unavailable, please try again later.",
+    "serviceUnavailableWithTrace": "Service temporarily unavailable (trace {{trace}})",
+    "status": {
+      "active": "Active",
+      "pendingReview": "Pending review",
+      "rejected": "Rejected",
+      "notReviewed": "Not reviewed",
+      "reviewed": "Reviewed",
+      "reviewing": "Reviewing",
+      "failed": "Failed",
+      "unknown": "Unknown",
+      "unknownWithCode": "Unknown ({{code}})",
+      "approved": "Approved",
+      "flagged": "Flagged"
+    },
+    "empty": {
+      "noPosts": {
+        "title": "No posts yet",
+        "desc": "Posts appear here once someone publishes one; start the first thread yourself."
+      },
+      "noResults": {
+        "title": "No results found",
+        "desc": "Nothing matched those filters; clear one or search a different keyword to widen the results."
+      },
+      "noComments": {
+        "title": "No comments",
+        "desc": "No one has replied yet; the first comment you write appears here and starts the thread."
+      },
+      "noActivity": {
+        "title": "No recent activity",
+        "desc": "Activity appears here after this profile publishes posts, comments, versions or forks; it is a record, not a place to act."
+      },
+      "notFound": {
+        "title": "Nothing here",
+        "desc": "This page may have moved or never existed; follow a link from the feed to find it."
+      },
+      "actions": {
+        "createFirstPost": "Create First Post",
+        "browseChannels": "Browse Channels",
+        "backHome": "Back Home"
+      }
+    },
+    "errorBoundary": {
+      "title": "Something went wrong",
+      "sectionNote": "a failure inside {{section}}, not of the whole site",
+      "retry": "↻ Retry"
+    },
+    "degradation": {
+      "heading": "Some features are limited",
+      "why": "Why this happens",
+      "dismissAria": "Dismiss status notice",
+      "adrTitle": "ADR-0007: a degraded dependency is not an unhealthy site"
+    },
+    "pagination": {
+      "prev": "prev",
+      "next": "next",
+      "pageAria": "Page {{n}}"
+    },
+    "notFoundPage": {
+      "title": "404 — Page Not Found",
+      "desc": "This route doesn't exist or has been moved.",
+      "backHome": "← Back to Home"
+    },
+    "stateBadgePrefix": "AI review: "
+  },
+  "home": {
+    "srTitle": "Nexus-Vibe community",
+    "tabs": {
+      "hot": "Hot (Decay)",
+      "hotHint": "Gravity-decay ranking: score fades as posts age",
+      "latest": "Latest",
+      "aiVerified": "AI Verified",
+      "debug": "Debug",
+      "prompts": "Prompts"
+    },
+    "missionControl": {
+      "title": "Mission Control",
+      "hint": "Pick a mission to start",
+      "missions": {
+        "debug": {
+          "label": "Debug",
+          "sub": "Post an error, the AI helps locate it"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "sub": "Mint a reusable System Prompt"
+        },
+        "showcase": {
+          "label": "Showcase",
+          "sub": "Publish a Vibe Coding build"
+        },
+        "fork": {
+          "label": "Fork",
+          "sub": "Build on a community template"
+        }
+      }
+    },
+    "showcaseEntry": {
+      "kicker": "Read a real review — no account needed",
+      "desc": "A recorded run of the review pipeline: it scored this snippet {{score}}/10 and wrote the findings on that page. Copied verbatim, not written by hand."
+    },
+    "channelGridAria": "Channel directory",
+    "tags": {
+      "title": "Hot Tags",
+      "subtitle": "Browse the community by topic",
+      "emptyTitle": "No tags yet",
+      "emptyDesc": "Tags are extracted from posts by AI review; publish a prompt and they will grow here.",
+      "emptyAction": "Publish a Prompt"
+    },
+    "empty": {
+      "debug": {
+        "title": "The emergency room is idle",
+        "desc": "Post the error with its context; the AI agent and the community will locate it together.",
+        "actionLabel": "File the first error"
+      },
+      "prompts": {
+        "title": "Terminal ready, awaiting the first prompt",
+        "desc": "Publish a System Prompt template and the AI agent will review it and reply.",
+        "actionLabel": "Fill an example prompt"
+      },
+      "ai-verified": {
+        "title": "No AI-verified posts yet",
+        "desc": "Publish a post with a code block and the AI agent will score it.",
+        "actionLabel": "Publish the first post"
+      },
+      "hot": {
+        "title": "No hot posts yet",
+        "desc": "Publish the first piece of content and become the starting point of the feed.",
+        "actionLabel": "Publish the first post"
+      },
+      "latest": {
+        "title": "No new posts yet",
+        "desc": "Once the first post is published, the discussion appears here by time.",
+        "actionLabel": "Publish the first post"
+      }
+    }
+  },
+  "channel": {
+    "names": {
+      "announcements": {
+        "label": "Announcements",
+        "desc": "Platform news and updates"
+      },
+      "prompts": {
+        "label": "Prompt Workshop",
+        "desc": "System Prompt design, CoT"
+      },
+      "showcase": {
+        "label": "Showcase",
+        "desc": "Vibe Coding builds"
+      },
+      "agents": {
+        "label": "Agent Practice",
+        "desc": "Agent architectures and cases"
+      },
+      "vibe-coding": {
+        "label": "Vibe Coding",
+        "desc": "AI Coding experience"
+      },
+      "debug": {
+        "label": "Code ER",
+        "desc": "Bug diagnosis and fixes"
+      },
+      "resources": {
+        "label": "Resources",
+        "desc": "Learning resources and tools"
+      },
+      "unknown": "Channel"
+    },
+    "orderLabel": "Order:",
+    "sortLatest": "Latest",
+    "sortLiked": "Most liked",
+    "noChannelSpecified": "No channel specified",
+    "notFoundTitle": "Channel Not Found",
+    "notFoundDesc": "Channel \"{{slug}}\" doesn't exist",
+    "waiting": {
+      "ariaLabel": "Waiting for an answer",
+      "title": "Waiting for an answer",
+      "desc": "Active posts with no replies yet.",
+      "rowMeta": "{{author}} · {{likes}} likes · no replies",
+      "emptyTitle": "Nothing is waiting",
+      "emptyDesc": "Posts with no replies appear here; write the first reply on a post and it leaves this list."
+    },
+    "emptyGuides": {
+      "prompts": {
+        "title": "Terminal ready, waiting for the first prompt",
+        "desc": "Publish a System Prompt template and the AI agent will review it and reply.",
+        "actionLabel": "Fill in an example prompt"
+      },
+      "debug": {
+        "title": "The ER is idling",
+        "desc": "Post your error context; the AI agent and the community will locate the problem together.",
+        "actionLabel": "Submit the first error"
+      },
+      "showcase": {
+        "title": "No builds to show yet",
+        "desc": "Publish a website, tool or automation you vibe-coded.",
+        "actionLabel": "Publish the first build"
+      },
+      "agents": {
+        "title": "The agent zone is waiting for cases",
+        "desc": "Share your workflow built on OpenClaw, Codex or a home-grown multi-agent setup.",
+        "actionLabel": "Share agent practice"
+      },
+      "vibe-coding": {
+        "title": "The experience zone is waiting for its first post",
+        "desc": "Talk about context control, hallucination governance and AI-era architecture.",
+        "actionLabel": "Write the first experience"
+      },
+      "resources": {
+        "title": "The resource pool is still empty",
+        "desc": "Recommend toolchains, API reviews and high-quality tutorials.",
+        "actionLabel": "Recommend a resource"
+      }
+    }
+  },
+  "post": {
+    "channelBadgeAria": "Channel",
+    "aiScore": "AI {{score}}",
+    "aiScoreBadge": "AI score {{score}}/100",
+    "scoreRubric": "Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically.",
+    "stateBadgePrefix": "AI review: ",
+    "rejectReasonPrefix": "Reason: ",
+    "template": "Template",
+    "forkedFrom": "Forked from post #{{id}}",
+    "statsAria": "Engagement",
+    "actions": {
+      "like": "Like",
+      "share": "Share",
+      "copied": "Copied",
+      "fork": "Fork",
+      "forking": "Forking",
+      "edit": "Edit",
+      "delete": "Delete",
+      "history": "History",
+      "copyPrompt": "Copy prompt",
+      "copy": "Copy",
+      "copiedLabel": "Copied",
+      "forkTitle": "Fork template",
+      "copyPromptTitle": "Copy prompt",
+      "copyLinkTitle": "Copy link"
+    },
+    "deleteConfirm": "Delete this post? This action cannot be undone.",
+    "notFoundTitle": "404 — Post Not Found",
+    "notFoundDesc": "This post may have been deleted or never existed.",
+    "aiPending": "AI Agent reviewing...",
+    "aiPendingBox": {
+      "title": "AI Co-Pilot is reviewing this post...",
+      "pollNote": "Review will auto-post a comment with a score when it finishes. Polling every 5s."
+    },
+    "scoreDisplay": "AI Score: {{score}}/100",
+    "playground": {
+      "title": "prompt_playground — Template Variables",
+      "sectionTitle": "Template Variables",
+      "tokens": "~{{n}} tokens",
+      "livePreview": "Live preview",
+      "previewPlaceholder": "Fill in the variables above to preview...",
+      "inputPlaceholder": "Enter {{name}}...",
+      "copyPrompt": "Copy Prompt",
+      "copied": "Copied!"
+    },
+    "workedExample": {
+      "title": "worked_example — stored with this prompt",
+      "subtitle": "one input and the output it produced",
+      "input": "Input",
+      "output": "Output",
+      "copyInput": "Copy Input",
+      "copyPrompt": "Copy Prompt",
+      "copied": "Copied"
+    },
+    "review": {
+      "title": "AI Review",
+      "toggleDetails": "Toggle review details",
+      "scoreLabel": "Score: {{score}}/100",
+      "scoreSuffix": "/100",
+      "approved": "Approved",
+      "needsReview": "Needs Review",
+      "noFindings": "No findings.",
+      "unavailable": "AI review data unavailable.",
+      "failed": "AI review failed this round — the system retries automatically; scores return when it succeeds.",
+      "replayCaption": "replay of completed run · {{time}}",
+      "timeNotRecorded": "time not recorded",
+      "retryAria": "Retry AI review",
+      "meterAria": "Review score",
+      "steps": {
+        "codeQuality": "Code Quality",
+        "securityConcerns": "Security Concerns",
+        "optimizationSuggestions": "Optimization Suggestions",
+        "score": "Score Evaluation",
+        "aria": "Review steps",
+        "inProgress": "in progress",
+        "ok": "ok"
+      },
+      "sections": {
+        "codeQuality": "Code Quality",
+        "securityConcerns": "Security Concerns",
+        "optimizationSuggestions": "Optimization Suggestions",
+        "prompt": {
+          "codeQuality": "Structure & Clarity",
+          "securityConcerns": "Safety & Misuse",
+          "optimizationSuggestions": "Reproducibility"
+        }
+      },
+      "history": {
+        "show": "Review History",
+        "hide": "Hide Review History",
+        "title": "past review rounds (newest first)",
+        "empty": "No completed reviews yet.",
+        "approved": "Approved",
+        "needsReview": "Needs Review"
+      },
+      "failedLoading": "Failed to load AI review."
+    },
+    "comments": {
+      "heading": "Comments ({{n}})",
+      "form": {
+        "placeholder": "Write your comment... mention @ai-agent to summon the AI assistant",
+        "ready": "Ready",
+        "typeToComment": "Type to comment",
+        "post": "Post Comment",
+        "posting": "Posting...",
+        "posted": "Comment posted",
+        "newCommentFile": "new_comment.md"
+      },
+      "aiBadge": "AI"
+    },
+    "sentiment": {
+      "groupAria": "Group comments by sentiment",
+      "all": "All",
+      "question": "Questions",
+      "complaint": "Complaints",
+      "praise": "Praise",
+      "other": "Unclassified",
+      "explanation": "Grouped by keyword — a rule heuristic, not a model's judgement.",
+      "emptyGroup": "No comments in this group. Nothing was removed — the other {{n}} are still here.",
+      "showAll": "Show all {{n}}"
+    },
+    "tabBar": {
+      "post": "Post",
+      "me": "Me"
+    },
+    "versions": {
+      "title": "Prompt template versions",
+      "branch": "main",
+      "empty": "No versions recorded yet.",
+      "head": "HEAD",
+      "noChangeNote": "No change note",
+      "restoreNotePlaceholder": "Restore note (optional)",
+      "restore": "Restore",
+      "restored": "Version v{{version}} restored",
+      "restoreFailed": "Restore failed"
+    }
+  },
+  "editor": {
+    "studioTitle": "Vibe Prompt Studio",
+    "studioSubtitle": "Compose & publish your AI prompt / code snippet",
+    "insertScaffold": "Insert prompt scaffold",
+    "insertScaffoldTitle": "Insert AI prompt template",
+    "templateWizard": "Template Wizard",
+    "templateWizardHint": "Select a mission to prefill the studio",
+    "templates": {
+      "debug": {
+        "label": "Debug",
+        "desc": "Post error context",
+        "scaffold": "## Symptom\n<!-- Describe what happened and what you expected -->\n\n## Error context\n```text\nPaste the error output\n```\n\n## What you tried\n- \n\n## Extra details\n- Language/framework:\n- Runtime:"
+      },
+      "prompt": {
+        "label": "Prompt",
+        "desc": "System Prompt template"
+      },
+      "showcase": {
+        "label": "Showcase",
+        "desc": "Vibe Coding build",
+        "scaffold": "## What it is\n<!-- One sentence describing the build -->\n\n## Technical highlights\n- \n\n## Demo / link\n- [Project link]()\n\n## Notes\n<!-- How to run it, screenshots, or extra background -->"
+      },
+      "agents": {
+        "label": "Agent",
+        "desc": "Agent case study",
+        "scaffold": "## Agent goal\n<!-- What is this agent supposed to accomplish -->\n\n## Architecture and tools\n- \n\n## Results\n- \n\n## Pitfalls and lessons\n- "
+      }
+    },
+    "postType": {
+      "post": "Post",
+      "prompt": "Prompt Template"
+    },
+    "metadataTitle": "config.json — Metadata",
+    "titlePlaceholder": "# Post title...",
+    "titleAria": "Post title",
+    "channelAria": "Channel",
+    "adminChannelSuffix": " (Admin)",
+    "tagsPlaceholder": "Tags (comma separated) — e.g. react, tailwind, animation",
+    "promptConfig": {
+      "heading": "Prompt Config",
+      "role": "Role",
+      "rolePlaceholder": "System prompt role description...",
+      "model": "Model",
+      "modelPlaceholder": "Select model...",
+      "temperature": "Temperature (0-1)",
+      "variables": "Variables (comma-separated)",
+      "variablesPlaceholder": "e.g. language, framework, style",
+      "exampleInput": "Example input (optional)",
+      "exampleInputPlaceholder": "What a reader would paste into this prompt...",
+      "exampleOutput": "Example output (optional)",
+      "exampleOutputPlaceholder": "What this prompt produced for that input...",
+      "workedExampleHeading": "worked_example — stored with this prompt"
+    },
+    "adminNotice": "# Announcements channel — admin only",
+    "editorTabs": {
+      "editor": "Editor",
+      "preview": "Preview"
+    },
+    "statusLine": "~{{n}} Tokens",
+    "markdownNote": "Markdown / Code Supported",
+    "contentPlaceholder": "Write your prompt or code in Markdown...",
+    "codeButton": "Code",
+    "insertCodeTitle": "Insert code block",
+    "previewPlaceholder": "Preview will appear here...",
+    "saveDraft": "Save Draft",
+    "publish": "Publish Vibe Post",
+    "publishing": "Publishing...",
+    "errorPrefix": "Error: ",
+    "errors": {
+      "titleAndContent": "Title and content are required",
+      "titleTooLong": "Title must not exceed 150 characters",
+      "failedToPublish": "Failed to publish",
+      "failedToLoad": "Failed to load post.",
+      "failedToUpdate": "Failed to update post."
+    },
+    "heldForReview": "Your content hit a sensitive-word rule and was submitted for review.",
+    "published": "Post published!",
+    "draftSaved": "Draft saved",
+    "editTitle": "Edit Post",
+    "editTitlePlaceholder": "Post title...",
+    "loadingChannels": "Loading channels...",
+    "contentEditPlaceholder": "Write your post content in Markdown...",
+    "codeBlock": "Code Block",
+    "tokensLabel": "~{{n}} tokens",
+    "newVersion": "New version",
+    "changeNotePlaceholder": "Change note, e.g. tighten role instructions (optional)",
+    "cancel": "Cancel",
+    "discardConfirm": "Discard unsaved changes?",
+    "saveChanges": "Save Changes",
+    "saving": "Saving...",
+    "untitledDraft": "Untitled draft",
+    "drafts": {
+      "title": "My Drafts",
+      "subtitle": "Local drafts saved in this browser",
+      "empty": "No drafts yet. Save one from the prompt studio.",
+      "newPost": "New Vibe Post",
+      "deleteConfirm": "Delete this draft?",
+      "deleted": "Draft deleted",
+      "emptyContent": "empty content",
+      "untitled": "Untitled draft"
+    },
+    "promptScaffold": "## System Prompt\nYou are an expert coding assistant. Follow these guidelines:\n- Write clean, well-documented code\n- Prioritize readability over brevity\n- Include error handling\n\n## User Request\n"
+  },
+  "auth": {
+    "login": {
+      "title": "Login",
+      "file": "auth_login.sh",
+      "usernamePlaceholder": "username",
+      "passwordPlaceholder": "password",
+      "submit": "Login",
+      "authenticating": "Authenticating...",
+      "failed": "Login failed",
+      "welcome": "Welcome back!",
+      "noAccount": "No account?",
+      "registerLink": "Register",
+      "errors": {
+        "usernameRequired": "Enter username",
+        "passwordRequired": "Enter password"
+      }
+    },
+    "register": {
+      "title": "Register",
+      "file": "auth_register.sh",
+      "usernamePlaceholder": "username",
+      "emailPlaceholder": "email (for account recovery)",
+      "nicknamePlaceholder": "nickname",
+      "passwordPlaceholder": "password",
+      "confirmPlaceholder": "confirm password",
+      "submit": "Create Account",
+      "creating": "Creating...",
+      "failed": "Registration failed",
+      "created": "Account created!",
+      "hasAccount": "Already have an account?",
+      "loginLink": "Login",
+      "errors": {
+        "usernameShort": "Username needs 3+ chars",
+        "usernameTooLong": "Username must not exceed 50 characters",
+        "emailRequired": "Email is required for account recovery",
+        "emailInvalid": "Email format is invalid",
+        "nicknameRequired": "Nickname is required",
+        "nicknameTooLong": "Nickname must not exceed 50 characters",
+        "passwordLength": "Password must be 8-20 characters",
+        "passwordComplexity": "Password must contain uppercase, lowercase and a number",
+        "passwordMismatch": "Passwords don't match"
+      }
+    }
+  },
+  "profile": {
+    "statsAria": "Profile stats",
+    "activityAria": "Recent activity",
+    "postsAria": "Published posts",
+    "stats": {
+      "posts": "Posts",
+      "comments": "Comments",
+      "likesReceived": "Likes Received",
+      "avgAi": "Avg AI Score",
+      "forks": "Forks",
+      "versions": "Versions"
+    },
+    "statTitles": {
+      "posts": "Published post count",
+      "comments": "Comment count",
+      "likesReceived": "Likes received on public posts",
+      "avgAi": "Avg AI score excludes unreviewed posts",
+      "forks": "Prompt fork count",
+      "versions": "Prompt version count"
+    },
+    "joined": "Joined",
+    "recentActivity": "Recent Activity",
+    "yourPosts": "Your Posts",
+    "publishedPosts": "Published Posts",
+    "failedToLoad": "Failed to load {{label}}.",
+    "retryAria": "Retry {{label}}",
+    "failedLabels": {
+      "summary": "profile summary",
+      "posts": "published posts"
+    },
+    "activity": {
+      "post": "post",
+      "comment": "comment",
+      "version": "prompt version",
+      "fork": "fork",
+      "fallback": "activity"
+    },
+    "emptyPostsOwn": "Your posts appear here once you publish one; the composer is where they start.",
+    "emptyPostsPublic": "Posts appear here once this author publishes one; a visitor has nothing to add until then.",
+    "settings": {
+      "title": "Settings",
+      "tabs": {
+        "profile": "Profile",
+        "password": "Password"
+      },
+      "language": {
+        "heading": "Language",
+        "description": "Switch the interface language; the choice is stored in this browser."
+      },
+      "profile": {
+        "username": "Username",
+        "usernameLocked": "Username cannot be changed.",
+        "nickname": "Nickname",
+        "nicknamePlaceholder": "Your display name",
+        "avatarUrl": "Avatar URL",
+        "avatarPlaceholder": "https://example.com/avatar.jpg",
+        "bio": "Bio",
+        "bioPlaceholder": "Tell us about yourself...",
+        "save": "Save Profile",
+        "saving": "Saving...",
+        "updated": "Profile updated successfully.",
+        "failed": "Failed to update profile."
+      },
+      "password": {
+        "current": "Current Password",
+        "new": "New Password",
+        "confirm": "Confirm New Password",
+        "change": "Change Password",
+        "changing": "Changing...",
+        "changed": "Password changed successfully.",
+        "failed": "Failed to change password.",
+        "mismatch": "New passwords do not match.",
+        "tooShort": "New password must be at least 8 characters."
+      }
+    }
+  },
+  "messages": {
+    "title": "Messages",
+    "markAllRead": "Mark all read",
+    "failedToLoad": "Failed to load messages.",
+    "failedMarkAll": "Failed to mark all messages as read.",
+    "emptyTitle": "No messages yet.",
+    "emptyDesc": "System notifications will appear here.",
+    "system": "System"
+  },
+  "admin": {
+    "auditTitle": "Audit Queue",
+    "pendingSummary": "{{posts}} post(s) pending review{{comments}}",
+    "pendingCommentsSuffix": " · {{n}} comment(s) held",
+    "noPendingPosts": "No pending posts to review.",
+    "allCaughtUp": "All caught up -- new posts will appear here when submitted.",
+    "byAuthor": "by {{name}}",
+    "on": "on {{title}}",
+    "unknownAuthor": "unknown",
+    "noContentPreview": "No content preview available",
+    "approve": "Approve",
+    "reject": "Reject",
+    "rejectReason": "Reason for rejection",
+    "reasonPlaceholder": "Enter reason...",
+    "confirmReject": "Confirm",
+    "commentApproved": "Comment approved and published",
+    "commentRejected": "Comment rejected",
+    "postApproved": "Post approved",
+    "postRejected": "Post rejected",
+    "auditFailed": "Audit action failed",
+    "commentAuditFailed": "Comment audit failed",
+    "rejectCommentWarning": "Reject this comment? It will be hidden and cannot be restored.",
+    "heldComments": "Held comments",
+    "noHeldComments": "No comments held for audit.",
+    "loading": "Loading",
+    "failedToLoadPosts": "Failed to load pending posts",
+    "safety": {
+      "pendingReview": "Pending review",
+      "autoHidden": "Auto-hidden",
+      "clean": "Clean"
+    },
+    "dashboard": {
+      "title": "Dashboard",
+      "totalPosts": "Total Posts",
+      "pendingAudits": "Pending Audits",
+      "todayPosts": "Today's Posts",
+      "failedToLoad": "Failed to load dashboard data",
+      "pendingQueue": "Pending Audit Queue",
+      "waiting": "{{n}} waiting",
+      "queueEmpty": "Queue empty — all clear.",
+      "postsByChannel": "Posts by Channel",
+      "channelsCount": "{{n}} channels",
+      "accountRecovery": "Account Recovery",
+      "recoveryNote": "admin-only · temp password",
+      "recoveryDescription": "No mail delivery yet: generate a temporary password for users who forgot theirs, hand it over out-of-band, and remind them to change it right after logging in.",
+      "usernamePlaceholder": "username",
+      "generate": "Generate temp password",
+      "generating": "Generating...",
+      "resetFailed": "Reset failed",
+      "enterUsername": "Enter a username",
+      "tempPassword": "Temporary password for {{username}}:"
+    },
+    "unexpectedError": "An unexpected error occurred",
+    "cancel": "Cancel"
+  },
+  "agentLogs": {
+    "title": "agent_logs — AI Agent Operations Console",
+    "subtitle": "Review trail from autonomous safety & code agents",
+    "stats": {
+      "totalReviews": "Total Reviews",
+      "approved": "Approved",
+      "flagged": "Flagged",
+      "critical": "Critical",
+      "high": "High Severity"
+    },
+    "recentReviews": "Recent Reviews",
+    "entries": "{{n}} entries",
+    "filters": {
+      "all": "All",
+      "codeReview": "Code Review",
+      "safetyCheck": "Safety Check"
+    },
+    "row": {
+      "fileTitle": "ai_review_log — Log Entry #{{id}}",
+      "severity": "Severity:",
+      "status": "Status:",
+      "timestamp": "Timestamp:",
+      "postRef": "Post #{{id}}"
+    },
+    "failedToLoad": "Failed to load agent logs",
+    "unexpectedError": "An unexpected error occurred",
+    "empty": {
+      "title": "No agent reviews yet",
+      "desc": "Reviews appear here after a post is published and an agent finishes checking it; posts with code blocks are scored first."
+    },
+    "severityNames": {
+      "low": "low",
+      "medium": "medium",
+      "high": "high",
+      "critical": "critical",
+      "unknown": "unknown",
+      "unavailable": "unavailable"
+    }
+  }
+}

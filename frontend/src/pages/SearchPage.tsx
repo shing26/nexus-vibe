@@ -1,69 +1,23 @@
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Search, SlidersHorizontal, X } from 'lucide-react';
 import { apiClient } from '../api/client';
 import PostCard from '../components/PostCard';
 import Pagination from '../components/Pagination';
-import Sidebar from '../components/Sidebar';
+import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { useChannels } from '../api/useChannels';
+import { channelLabel } from '../lib/channels';
 
-const LANGUAGE_OPTIONS = [
-  { value: '', label: 'All languages' },
-  { value: 'python', label: 'Python' },
-  { value: 'javascript', label: 'JavaScript' },
-  { value: 'typescript', label: 'TypeScript' },
-  { value: 'java', label: 'Java' },
-  { value: 'go', label: 'Go' },
-  { value: 'rust', label: 'Rust' },
-  { value: 'sql', label: 'SQL' },
-  { value: 'bash', label: 'Bash' },
-  { value: 'json', label: 'JSON' },
-  { value: 'yaml', label: 'YAML' },
-  { value: 'markdown', label: 'Markdown' },
-];
-
-const SCORE_OPTIONS = [
-  { value: '', label: 'Any AI score' },
-  { value: '1', label: 'AI reviewed' },
-  { value: '60', label: 'Score 60+' },
-  { value: '80', label: 'Score 80+' },
-];
-
-const SORT_OPTIONS = [
-  { value: 'latest', label: 'Latest' },
-  { value: 'hot', label: 'Hot' },
-  { value: 'ai', label: 'AI score' },
-];
-
-interface FilterSelectProps {
-  label: string;
-  value: string;
-  options: { value: string; label: string }[];
-  onChange: (value: string) => void;
-}
-
-function FilterSelect({ label, value, options, onChange }: FilterSelectProps) {
-  return (
-    <label className="flex items-center gap-1.5 min-w-0">
-      <span className="text-[10px] font-mono text-slate-600 shrink-0">{label}</span>
-      <select
-        value={value}
-        onChange={(e) => onChange(e.target.value)}
-        className="w-auto max-w-[130px] px-2 py-1.5 bg-vibe-bg border border-vibe-border rounded-md text-[11px] font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
-      >
-        {options.map((o) => (
-          <option key={o.value} value={o.value} className="bg-vibe-bg">
-            {o.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
-}
-
+/**
+ * Search over the topic-row list. The filter bar keeps its URL-parameter
+ * wiring; every label resolves through the dictionary, and channel rows use
+ * the shared channel constants so names cannot drift from the sidebar.
+ */
 export default function SearchPage() {
+  const { t } = useTranslation('common');
   const [searchParams, setSearchParams] = useSearchParams();
   const keyword = searchParams.get('q') || '';
   const channelSlug = searchParams.get('channel') || '';
@@ -129,90 +83,122 @@ export default function SearchPage() {
   const results = data?.list ?? [];
   const showNoKeyword = !keyword && !hasFilters;
 
+  const LANGUAGE_OPTIONS = [
+    { value: '', label: t('search.page.filters.allLanguages') },
+    { value: 'python', label: 'Python' },
+    { value: 'javascript', label: 'JavaScript' },
+    { value: 'typescript', label: 'TypeScript' },
+    { value: 'java', label: 'Java' },
+    { value: 'go', label: 'Go' },
+    { value: 'rust', label: 'Rust' },
+    { value: 'sql', label: 'SQL' },
+    { value: 'bash', label: 'Bash' },
+    { value: 'json', label: 'JSON' },
+    { value: 'yaml', label: 'YAML' },
+    { value: 'markdown', label: 'Markdown' },
+  ];
+
+  const SCORE_OPTIONS = [
+    { value: '', label: t('search.page.filters.anyScore') },
+    { value: '1', label: t('search.page.filters.aiReviewed') },
+    { value: '60', label: t('search.page.filters.score60') },
+    { value: '80', label: t('search.page.filters.score80') },
+  ];
+
+  const SORT_OPTIONS = [
+    { value: 'latest', label: t('search.page.filters.sortLatest') },
+    { value: 'hot', label: t('search.page.filters.sortHot') },
+    { value: 'ai', label: t('search.page.filters.sortAi') },
+  ];
+
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-8">
-      <div className="flex gap-4">
-        <div className="w-12 shrink-0 hidden lg:block">
-          <Sidebar />
-        </div>
-        <div className="flex-1 min-w-0">
-          <h1 className="text-lg font-bold font-mono text-slate-100 pb-3 border-b border-vibe-border mb-5">
-            {keyword ? 'Search: ' + keyword : hasFilters ? 'Filtered Search' : 'Search'}
+    <div className="mx-auto max-w-[1400px] px-4 py-8">
+      <div className="flex gap-6">
+        {/* The channel rail lives in the app shell; the page owns only its search. */}
+        <div className="min-w-0 flex-1">
+          <h1 className="mb-5 border-b border-vibe-border pb-3 text-lg font-semibold text-vibe-text">
+            {keyword
+              ? t('search.page.titleWithKeyword', { keyword })
+              : hasFilters
+                ? t('search.page.titleFiltered')
+                : t('search.page.title')}
           </h1>
 
           {/* Search input */}
           <form onSubmit={submitQuery} className="relative mb-4 max-w-xl">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-vibe-muted" />
             <input
               value={queryInput}
               onChange={(e) => setQueryInput(e.target.value)}
-              placeholder="Search prompts, code, errors..."
-              className="w-full pl-9 pr-3 py-2 bg-vibe-surface border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+              placeholder={t('search.page.placeholder')}
+              className="w-full rounded-lg border border-vibe-border bg-vibe-surface py-2 pl-9 pr-3 text-sm text-vibe-text placeholder-vibe-faint focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
             />
           </form>
 
           {showNoKeyword ? (
-            <p className="text-slate-500 text-center py-12 text-sm font-mono">Enter a keyword or use filters to search posts</p>
+            <p className="py-12 text-center text-sm text-vibe-muted">{t('search.page.noKeyword')}</p>
           ) : (
             <>
               {/* Filter bar */}
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-2 mb-5 rounded-xl border border-vibe-border bg-vibe-surface/40 p-2.5">
-                <span className="flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
-                  <SlidersHorizontal className="w-3.5 h-3.5" />
-                  Filters
+              <div className="mb-5 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-vibe-border bg-vibe-surface p-2.5">
+                <span className="flex items-center gap-1.5 text-xs text-vibe-muted">
+                  <SlidersHorizontal className="h-3.5 w-3.5" />
+                  {t('search.page.filters.label')}
                 </span>
                 <FilterSelect
-                  label="Channel"
+                  label={t('search.page.filters.channel')}
                   value={channelSlug}
                   onChange={(v) => updateParam('channel', v)}
                   options={[
-                    { value: '', label: 'All channels' },
-                    ...(channels ?? []).map((c: any) => ({ value: c.slug, label: c.name })),
+                    { value: '', label: t('search.page.filters.allChannels') },
+                    ...(channels ?? []).map((c: any) => ({
+                      value: c.slug,
+                      label: channelLabel(c.slug) || c.name,
+                    })),
                   ]}
                 />
                 <FilterSelect
-                  label="Language"
+                  label={t('search.page.filters.language')}
                   value={language}
                   onChange={(v) => updateParam('language', v)}
                   options={LANGUAGE_OPTIONS}
                 />
                 <FilterSelect
-                  label="AI"
+                  label={t('search.page.filters.ai')}
                   value={score}
                   onChange={(v) => updateParam('score', v)}
                   options={SCORE_OPTIONS}
                 />
                 <FilterSelect
-                  label="Sort"
+                  label={t('search.page.filters.sort')}
                   value={sort}
                   onChange={(v) => updateParam('sort', v)}
                   options={SORT_OPTIONS}
                 />
                 {hasFilters && (
                   <button
+                    type="button"
                     onClick={clearFilters}
-                    className="inline-flex items-center gap-1 ml-auto px-2 py-1 rounded-md text-[10px] font-mono text-slate-400 hover:text-red-400 border border-vibe-border hover:border-red-500/40 transition-colors active:scale-[0.97]"
+                    className="ml-auto inline-flex items-center gap-1 rounded-md border border-vibe-border px-2 py-1 text-xs text-vibe-muted transition-colors hover:border-vibe-danger/40 hover:text-vibe-danger"
                   >
-                    <X className="w-3 h-3" />
-                    Clear filters
+                    <X className="h-3 w-3" />
+                    {t('search.page.filters.clear')}
                   </button>
                 )}
               </div>
 
               {isLoading ? (
-                <div className="space-y-3">
+                <div className="space-y-4 px-3 py-2">
                   {[1, 2, 3].map((i) => (
-                    <div key={i} className="bg-vibe-surface/50 border border-vibe-border rounded-xl p-4 relative overflow-hidden">
-                      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-vibe-cyan/5 to-transparent bg-[length:200%_100%] animate-shimmer" />
-                      <div className="h-3 bg-vibe-card rounded w-3/4 mb-3 relative" />
-                      <div className="h-2.5 bg-vibe-card/50 rounded w-1/2 mb-2 relative" />
-                      <div className="h-2 bg-vibe-card/30 rounded w-1/4 relative" />
+                    <div key={i} className="space-y-2">
+                      <Skeleton className="h-4 w-3/4" />
+                      <Skeleton className="h-3 w-1/2" />
                     </div>
                   ))}
                 </div>
               ) : results.length > 0 ? (
                 <>
-                  <div className="space-y-3">
+                  <div>
                     {results.map((post: any) => (
                       <PostCard key={post.id} post={post} />
                     ))}
@@ -223,19 +209,20 @@ export default function SearchPage() {
                 <>
                   <EmptyState
                     preset="noResults"
-                    title="没有匹配的结果"
-                    desc="试试调整关键词、语言、AI 评分或频道筛选。"
+                    title={t('search.page.empty.title')}
+                    desc={t('search.page.empty.desc')}
                     action="/post/new?template=prompt"
-                    actionLabel="发布一个 Prompt"
+                    actionLabel={t('search.page.emptyAction')}
                   />
                   {hasFilters && (
-                    <div className="text-center -mt-8">
+                    <div className="-mt-8 text-center">
                       <button
+                        type="button"
                         onClick={clearFilters}
-                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-vibe-border text-[11px] font-mono text-slate-400 hover:text-vibe-cyan hover:border-vibe-cyan/40 transition-colors active:scale-[0.97]"
+                        className="inline-flex items-center gap-1.5 rounded-lg border border-vibe-border px-3 py-1.5 text-xs text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
                       >
-                        <X className="w-3 h-3" />
-                        清除筛选
+                        <X className="h-3 w-3" />
+                        {t('search.page.filters.clear')}
                       </button>
                     </div>
                   )}
@@ -246,5 +233,31 @@ export default function SearchPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+interface FilterSelectProps {
+  label: string;
+  value: string;
+  options: { value: string; label: string }[];
+  onChange: (value: string) => void;
+}
+
+function FilterSelect({ label, value, options, onChange }: FilterSelectProps) {
+  return (
+    <label className="flex min-w-0 items-center gap-1.5">
+      <span className="shrink-0 text-xs text-vibe-muted">{label}</span>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="w-auto max-w-[130px] rounded-md border border-vibe-border bg-vibe-bg px-2 py-1.5 text-xs text-vibe-text transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
+      >
+        {options.map((o) => (
+          <option key={o.value} value={o.value} className="bg-vibe-bg">
+            {o.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 }

@@ -21,8 +21,8 @@ export const ExternalLink: React.FC<ExternalLinkProps> = ({ href, title, childre
     rel="noopener noreferrer"
     title={title}
     className={
-      'inline-flex items-center gap-1 text-[10px] font-mono text-slate-400 transition-colors hover:text-vibe-cyan ' +
-      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-neon'
+      'inline-flex items-center gap-1 text-xs text-vibe-muted transition-colors hover:text-vibe-accent ' +
+      'focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-accent'
     }
   >
     {children}

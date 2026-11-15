@@ -1,0 +1,844 @@
+{
+  "common": {
+    "appName": "Nexus-Vibe",
+    "brand": "Nexus.Vibe",
+    "loading": "加载中...",
+    "retry": "重试",
+    "cancel": "取消",
+    "back": "返回",
+    "backHome": "返回首页",
+    "confirm": "确认",
+    "close": "关闭",
+    "search": {
+      "placeholder": "搜索帖子、代码、报错...",
+      "topBarPlaceholder": "搜索",
+      "openPaletteHint": "Ctrl K",
+      "go": "搜索",
+      "page": {
+        "title": "搜索",
+        "titleWithKeyword": "搜索：{{keyword}}",
+        "titleFiltered": "筛选搜索",
+        "placeholder": "搜索帖子、代码、报错...",
+        "noKeyword": "输入关键词或使用筛选来搜索帖子",
+        "filters": {
+          "label": "筛选",
+          "channel": "频道",
+          "language": "语言",
+          "ai": "AI",
+          "sort": "排序",
+          "clear": "清除筛选",
+          "allChannels": "全部频道",
+          "allLanguages": "全部语言",
+          "anyScore": "任意 AI 评分",
+          "aiReviewed": "AI 已评审",
+          "score60": "评分 60+",
+          "score80": "评分 80+",
+          "sortLatest": "最新",
+          "sortHot": "热门",
+          "sortAi": "AI 评分"
+        },
+        "empty": {
+          "title": "没有匹配的结果",
+          "desc": "试试调整关键词、语言、AI 评分或频道筛选。"
+        },
+        "emptyAction": "发布一个 Prompt"
+      }
+    },
+    "nav": {
+      "home": "首页",
+      "tags": "标签",
+      "tagsAria": "热门标签",
+      "myPosts": "我的帖子",
+      "drafts": "草稿",
+      "messages": "消息",
+      "settings": "设置",
+      "auditQueue": "审核队列",
+      "dashboard": "看板",
+      "agentLogs": "Agent 日志",
+      "admin": "管理",
+      "community": "社区",
+      "mine": "我的",
+      "primaryAria": "主导航",
+      "sidebarAria": "频道侧栏",
+      "openDrawer": "打开导航抽屉",
+      "closeDrawer": "关闭导航抽屉"
+    },
+    "user": {
+      "menu": "用户菜单",
+      "profile": "个人主页",
+      "logout": "退出登录",
+      "login": "登录",
+      "register": "注册",
+      "newPost": "发帖"
+    },
+    "language": {
+      "label": "语言",
+      "toggle": "切换到 English",
+      "current": "中文"
+    },
+    "theme": {
+      "toLight": "切换到浅色模式",
+      "toDark": "切换到深色模式"
+    },
+    "palette": {
+      "trigger": "打开命令面板",
+      "ariaLabel": "命令面板",
+      "inputAria": "搜索帖子、跳转频道、执行命令",
+      "placeholder": "搜索帖子、跳转频道、执行命令...",
+      "esc": "esc",
+      "searching": "正在搜索帖子...",
+      "noResults": "没有匹配的结果",
+      "noResultsHint": "换个关键词或命令试试",
+      "sections": {
+        "actions": "操作",
+        "channels": "频道",
+        "posts": "帖子"
+      },
+      "footer": {
+        "navigate": "选择",
+        "open": "打开",
+        "modifier": "ctrl/⌘"
+      },
+      "brandTag": "NEXUS.VIBE ⌘PALETTE",
+      "items": {
+        "newPost": "发新帖",
+        "drafts": "我的草稿",
+        "tags": "热门标签",
+        "messages": "消息",
+        "agentLogs": "Agent 日志",
+        "settings": "设置",
+        "copyLink": "复制链接"
+      },
+      "hints": {
+        "create": "创建",
+        "login": "登录",
+        "console": "控制台",
+        "post": "帖子"
+      }
+    },
+    "footer": {
+      "rights": "© {{year}} Nexus-Vibe. 保留所有权利。",
+      "tagline": "Prompt 工坊 · 多 Agent 评审 · 重力排序 feed",
+      "adrTitle": "架构决策记录",
+      "loadtestTitle": "异步线程池压测报告",
+      "drillTitle": "故障演练，包括它无法证明的部分",
+      "adrs": "ADR 索引",
+      "loadtest": "压测报告",
+      "drill": "观测演练"
+    },
+    "ticker": {
+      "idle": "Agent 队列空闲。发布带代码的帖子即可触发自动评审。",
+      "verified": "[{{time}}] {{reviewer}} 评审了帖子「{{title}}」 · 帖子 #{{id}} · 严重度：{{severity}} · 状态：{{status}}",
+      "status": {
+        "idle": "空闲",
+        "unavailable": "不可用",
+        "approved": "通过",
+        "flagged": "标记"
+      }
+    },
+    "time": {
+      "justNow": "刚刚",
+      "minutesAgo": "{{n}} 分钟前",
+      "hoursAgo": "{{n}} 小时前",
+      "daysAgo": "{{n}} 天前"
+    },
+    "counts": {
+      "views": "{{n}} 浏览",
+      "likes": "{{n}} 赞",
+      "comments": "{{n}} 评论",
+      "likesAria": "点赞数",
+      "commentsAria": "评论数",
+      "viewsAria": "浏览数"
+    },
+    "toast": {
+      "linkCopied": "链接已复制到剪贴板",
+      "couldNotCopy": "复制链接失败",
+      "promptCopied": "Prompt 已复制",
+      "templateForked": "模板已 Fork",
+      "forkFailed": "Fork 失败",
+      "dismissAria": "关闭通知",
+      "loginToLike": "登录后才能点赞",
+      "likeFailed": "点赞失败，请重试",
+      "postDeleted": "帖子已删除",
+      "deleteFailed": "删除失败"
+    },
+    "serviceUnavailable": "服务暂时不可用，请稍后重试",
+    "serviceUnavailableWithTrace": "服务暂时不可用（追踪号 {{trace}}）",
+    "status": {
+      "active": "已发布",
+      "pendingReview": "待审核",
+      "rejected": "已驳回",
+      "notReviewed": "未评审",
+      "reviewed": "已评审",
+      "reviewing": "评审中",
+      "failed": "评审失败",
+      "unknown": "未知",
+      "unknownWithCode": "未知 ({{code}})",
+      "approved": "已通过",
+      "flagged": "已标记"
+    },
+    "empty": {
+      "noPosts": {
+        "title": "还没有帖子",
+        "desc": "有人发布后帖子会出现在这里；第一帖由你来发。"
+      },
+      "noResults": {
+        "title": "没有匹配的结果",
+        "desc": "没有命中这些筛选；清除一个筛选或换个关键词来扩大结果。"
+      },
+      "noComments": {
+        "title": "还没有评论",
+        "desc": "还没有人回复；你写下的第一条评论会出现在这里，开启整条讨论。"
+      },
+      "noActivity": {
+        "title": "最近没有动态",
+        "desc": "该主页发布帖子、评论、版本或 Fork 后动态会出现在这里；它是记录，不是行动入口。"
+      },
+      "notFound": {
+        "title": "这里什么都没有",
+        "desc": "这个页面可能已移动或从未存在；从 feed 的链接去找。"
+      },
+      "actions": {
+        "createFirstPost": "发布第一帖",
+        "browseChannels": "浏览频道",
+        "backHome": "返回首页"
+      }
+    },
+    "errorBoundary": {
+      "title": "页面出错了",
+      "sectionNote": "{{section}} 内部出错，而非整站故障",
+      "retry": "重试"
+    },
+    "degradation": {
+      "heading": "部分功能受限",
+      "why": "为什么会这样",
+      "dismissAria": "关闭状态提示",
+      "adrTitle": "ADR-0007：降级的依赖不等于不健康的站点"
+    },
+    "pagination": {
+      "prev": "上一页",
+      "next": "下一页",
+      "pageAria": "第 {{n}} 页"
+    },
+    "notFoundPage": {
+      "title": "404 — 页面不存在",
+      "desc": "这个路由不存在或已被移动。",
+      "backHome": "← 回到首页"
+    },
+    "stateBadgePrefix": "AI 审阅： "
+  },
+  "home": {
+    "srTitle": "Nexus-Vibe 社区",
+    "tabs": {
+      "hot": "热门",
+      "hotHint": "重力衰减排序：分数随帖子变旧而衰减",
+      "latest": "最新",
+      "aiVerified": "AI 验证",
+      "debug": "急诊",
+      "prompts": "Prompt"
+    },
+    "missionControl": {
+      "title": "任务中心",
+      "hint": "选一个任务开始",
+      "missions": {
+        "debug": {
+          "label": "Debug",
+          "sub": "贴报错，AI 协助定位"
+        },
+        "prompt": {
+          "label": "Prompt",
+          "sub": "铸造可复用 System Prompt"
+        },
+        "showcase": {
+          "label": "Showcase",
+          "sub": "发布 Vibe Coding 成品"
+        },
+        "fork": {
+          "label": "Fork",
+          "sub": "从社区模板二次开发"
+        }
+      }
+    },
+    "showcaseEntry": {
+      "kicker": "读一个真实的评审 — 无需账号",
+      "desc": "评审管线的一次记录运行：它给这段代码打了 {{score}}/10，并把发现写在那个页面上。逐字拷贝，非手写。"
+    },
+    "channelGridAria": "频道目录",
+    "tags": {
+      "title": "热门标签",
+      "subtitle": "按话题浏览社区",
+      "emptyTitle": "还没有任何标签",
+      "emptyDesc": "标签由 AI 评审从帖子中自动提取，发布 Prompt 后这里就会长出来。",
+      "emptyAction": "发布一个 Prompt"
+    },
+    "empty": {
+      "debug": {
+        "title": "急诊室空转中",
+        "desc": "贴上报错上下文，AI Agent 与社区会一起定位问题。",
+        "actionLabel": "提交第一个报错"
+      },
+      "prompts": {
+        "title": "终端就绪，等待第一个 Prompt 入库",
+        "desc": "发布一个 System Prompt 模板，AI Agent 会自动审查并回帖。",
+        "actionLabel": "一键填充示例 Prompt"
+      },
+      "ai-verified": {
+        "title": "还没有 AI 验证过的帖子",
+        "desc": "发布带代码块的帖子，AI Agent 会自动评分。",
+        "actionLabel": "发布第一个帖子"
+      },
+      "hot": {
+        "title": "还没有热帖",
+        "desc": "发布第一篇内容，成为社区热度的起点。",
+        "actionLabel": "发布第一个帖子"
+      },
+      "latest": {
+        "title": "还没有新帖",
+        "desc": "发布第一篇帖子后，社区的讨论会按时间出现在这里。",
+        "actionLabel": "发布第一个帖子"
+      }
+    }
+  },
+  "channel": {
+    "names": {
+      "announcements": {
+        "label": "社区公告",
+        "desc": "平台公告与更新"
+      },
+      "prompts": {
+        "label": "Prompt 工坊",
+        "desc": "System Prompt 设计、CoT"
+      },
+      "showcase": {
+        "label": "作品展示",
+        "desc": "Vibe Coding 成品展示"
+      },
+      "agents": {
+        "label": "Agent 实战",
+        "desc": "Agent 架构与案例"
+      },
+      "vibe-coding": {
+        "label": "Vibe Coding",
+        "desc": "AI Coding 经验分享"
+      },
+      "debug": {
+        "label": "代码急诊室",
+        "desc": "Bug 诊断与修复讨论"
+      },
+      "resources": {
+        "label": "资源聚合",
+        "desc": "学习资源与工具收集"
+      },
+      "unknown": "频道"
+    },
+    "orderLabel": "排序",
+    "sortLatest": "最新",
+    "sortLiked": "最多赞",
+    "noChannelSpecified": "未指定频道",
+    "notFoundTitle": "频道不存在",
+    "notFoundDesc": "频道 \"{{slug}}\" 不存在",
+    "waiting": {
+      "ariaLabel": "等待回答",
+      "title": "等待回答",
+      "desc": "还没有回复的活跃帖子。",
+      "rowMeta": "{{author}} · {{likes}} 赞 · 无人回复",
+      "emptyTitle": "没有在等待的帖子",
+      "emptyDesc": "没有回复的帖子会出现在这里；你在某个帖子写下第一条回复后它就会离开这个列表。"
+    },
+    "emptyGuides": {
+      "prompts": {
+        "title": "终端就绪，等待第一个 Prompt 入库",
+        "desc": "发布一个 System Prompt 模板，AI Agent 会自动审查并回帖。",
+        "actionLabel": "一键填充示例 Prompt"
+      },
+      "debug": {
+        "title": "急诊室空转中",
+        "desc": "贴上你的报错上下文，AI Agent 与社区会一起定位问题。",
+        "actionLabel": "提交第一个报错"
+      },
+      "showcase": {
+        "title": "还没有成品展示",
+        "desc": "发布你 Vibe Coding 出来的网页、工具或自动化流程。",
+        "actionLabel": "发布第一个作品"
+      },
+      "agents": {
+        "title": "Agent 实战区等待案例",
+        "desc": "分享你基于 OpenClaw、Codex 或自研 Multi-Agent 的工作流。",
+        "actionLabel": "分享 Agent 实战"
+      },
+      "vibe-coding": {
+        "title": "经验区等待第一篇",
+        "desc": "聊聊上下文控制、幻觉治理与 AI 时代架构设计。",
+        "actionLabel": "写第一篇经验"
+      },
+      "resources": {
+        "title": "资源聚合区还是空的",
+        "desc": "推荐工具链、API 评测与高质量教程链接。",
+        "actionLabel": "推荐一个资源"
+      }
+    }
+  },
+  "post": {
+    "channelBadgeAria": "频道",
+    "aiScore": "AI {{score}}",
+    "aiScoreBadge": "AI 评分 {{score}}/100",
+    "scoreRubric": "评分标准（0-100）：90-100 可直接投产 · 70-80 扎实，有小问题 · 50-60 可用但有明显缺口 · 30-40 问题显著 · 0-20 破损/不安全。评审维度：正确性、代码质量、安全性、改进建议。编辑后的帖子会自动重新评审。",
+    "stateBadgePrefix": "AI 评审：",
+    "rejectReasonPrefix": "原因：",
+    "template": "模板",
+    "forkedFrom": "Fork 自帖子 #{{id}}",
+    "statsAria": "互动数据",
+    "actions": {
+      "like": "点赞",
+      "share": "分享",
+      "copied": "已复制",
+      "fork": "Fork",
+      "forking": "Fork 中...",
+      "edit": "编辑",
+      "delete": "删除",
+      "history": "版本历史",
+      "copyPrompt": "复制 Prompt",
+      "copy": "复制",
+      "copiedLabel": "已复制",
+      "forkTitle": "Fork 此模板",
+      "copyPromptTitle": "复制 Prompt",
+      "copyLinkTitle": "复制链接"
+    },
+    "deleteConfirm": "删除这篇帖子？此操作不可撤销。",
+    "notFoundTitle": "404 — 帖子不存在",
+    "notFoundDesc": "这篇帖子可能已被删除或从未存在。",
+    "aiPending": "AI Agent 正在评审...",
+    "aiPendingBox": {
+      "title": "AI Co-Pilot 正在评审这篇帖子...",
+      "pollNote": "评审完成后会自动回帖并附上评分。每 5 秒轮询一次。"
+    },
+    "scoreDisplay": "AI 评分：{{score}}/100",
+    "playground": {
+      "title": "prompt_playground — 模板变量",
+      "sectionTitle": "模板变量",
+      "tokens": "~{{n}} tokens",
+      "livePreview": "// 实时预览",
+      "previewPlaceholder": "// 在上方填入变量后这里会显示预览...",
+      "inputPlaceholder": "输入 {{name}}...",
+      "copyPrompt": "复制 Prompt",
+      "copied": "已复制"
+    },
+    "workedExample": {
+      "title": "worked_example — 随此 Prompt 存储",
+      "subtitle": "// 一条输入与它产出的输出",
+      "input": "输入",
+      "output": "输出",
+      "copyInput": "复制输入",
+      "copyPrompt": "复制 Prompt",
+      "copied": "已复制"
+    },
+    "review": {
+      "title": "AI 评审",
+      "toggleDetails": "展开或收起评审详情",
+      "scoreLabel": "评分：{{score}}/100",
+      "scoreSuffix": "/100",
+      "approved": "通过",
+      "needsReview": "需要关注",
+      "noFindings": "没有发现内容。",
+      "unavailable": "AI 评审数据不可用。",
+      "failed": "AI 评审本轮失败 — 系统会自动重试；成功后评分会回来。",
+      "replayCaption": "已完成评审的回放 · {{time}}",
+      "timeNotRecorded": "时间未记录",
+      "retryAria": "重试 AI 评审",
+      "meterAria": "评审分数",
+      "steps": {
+        "codeQuality": "代码质量",
+        "securityConcerns": "安全隐患",
+        "optimizationSuggestions": "优化建议",
+        "score": "评分评定",
+        "aria": "评审步骤",
+        "inProgress": "进行中",
+        "ok": "完成"
+      },
+      "sections": {
+        "codeQuality": "代码质量",
+        "securityConcerns": "安全隐患",
+        "optimizationSuggestions": "优化建议",
+        "prompt": {
+          "codeQuality": "结构与清晰度",
+          "securityConcerns": "安全与滥用",
+          "optimizationSuggestions": "可复现性"
+        }
+      },
+      "history": {
+        "show": "评审历史",
+        "hide": "收起评审历史",
+        "title": "过往评审轮次（最新在前）",
+        "empty": "还没有完成的评审。",
+        "approved": "通过",
+        "needsReview": "需要关注"
+      },
+      "failedLoading": "加载 AI 评审失败。"
+    },
+    "comments": {
+      "heading": "评论（{{n}}）",
+      "form": {
+        "placeholder": "写下你的评论... @ai-agent 可以召唤 AI 助手",
+        "ready": "就绪",
+        "typeToComment": "输入以评论",
+        "post": "发表评论",
+        "posting": "发表中...",
+        "posted": "评论已发表",
+        "newCommentFile": "new_comment.md"
+      },
+      "aiBadge": "AI"
+    },
+    "sentiment": {
+      "groupAria": "按情感分组评论",
+      "all": "全部",
+      "question": "提问",
+      "complaint": "吐槽",
+      "praise": "点赞",
+      "other": "未分类",
+      "explanation": "按关键词分组 — 是规则启发式，不是模型的判断。",
+      "emptyGroup": "该分组没有评论。没有删除任何内容 — 其余 {{n}} 条仍在这里。",
+      "showAll": "显示全部 {{n}} 条"
+    },
+    "tabBar": {
+      "post": "发帖",
+      "me": "我的"
+    },
+    "versions": {
+      "title": "Prompt 模板版本",
+      "branch": "main",
+      "empty": "还没有任何版本记录。",
+      "head": "HEAD",
+      "noChangeNote": "无变更说明",
+      "restoreNotePlaceholder": "恢复备注（可选）",
+      "restore": "恢复",
+      "restored": "版本 v{{version}} 已恢复",
+      "restoreFailed": "恢复失败"
+    }
+  },
+  "editor": {
+    "studioTitle": "Vibe Prompt 工坊",
+    "studioSubtitle": "撰写并发布你的 AI prompt / 代码片段",
+    "insertScaffold": "插入 Prompt 骨架",
+    "insertScaffoldTitle": "插入 AI prompt 模板",
+    "templateWizard": "模板向导",
+    "templateWizardHint": "选一个任务来预填工坊",
+    "templates": {
+      "debug": {
+        "label": "Debug",
+        "desc": "贴报错上下文",
+        "scaffold": "## 现象\n<!-- 描述发生了什么，期望结果是什么 -->\n\n## 报错上下文\n```text\n粘贴报错信息\n```\n\n## 已尝试\n- \n\n## 补充信息\n- 语言/框架：\n- 运行环境："
+      },
+      "prompt": {
+        "label": "Prompt",
+        "desc": "System Prompt 模板"
+      },
+      "showcase": {
+        "label": "Showcase",
+        "desc": "Vibe Coding 成品",
+        "scaffold": "## 作品简介\n<!-- 一句话说明这是什么 -->\n\n## 技术亮点\n- \n\n## 演示 / 链接\n- [项目链接]()\n\n## 说明\n<!-- 运行方式、截图或补充背景 -->"
+      },
+      "agents": {
+        "label": "Agent",
+        "desc": "Agent 实战案例",
+        "scaffold": "## Agent 目标\n<!-- 这个 Agent 要完成什么任务 -->\n\n## 架构与工具\n- \n\n## 运行效果\n- \n\n## 踩坑与经验\n- "
+      }
+    },
+    "postType": {
+      "post": "帖子",
+      "prompt": "Prompt 模板"
+    },
+    "metadataTitle": "config.json — 元数据",
+    "titlePlaceholder": "# 帖子标题...",
+    "titleAria": "帖子标题",
+    "channelAria": "频道",
+    "adminChannelSuffix": "（管理员）",
+    "tagsPlaceholder": "标签（逗号分隔）— 例如 react, tailwind, animation",
+    "promptConfig": {
+      "heading": "Prompt 配置",
+      "role": "角色",
+      "rolePlaceholder": "System prompt 角色描述...",
+      "model": "模型",
+      "modelPlaceholder": "选择模型...",
+      "temperature": "温度（0-1）",
+      "variables": "变量（逗号分隔）",
+      "variablesPlaceholder": "例如 language, framework, style",
+      "exampleInput": "示例输入（可选）",
+      "exampleInputPlaceholder": "读者会粘贴进这个 Prompt 的内容...",
+      "exampleOutput": "示例输出（可选）",
+      "exampleOutputPlaceholder": "这个 Prompt 对该输入产出的内容...",
+      "workedExampleHeading": "worked_example — 与此 Prompt 一起存储"
+    },
+    "adminNotice": "# 公告频道 — 仅管理员",
+    "editorTabs": {
+      "editor": "编辑",
+      "preview": "预览"
+    },
+    "statusLine": "~{{n}} Tokens",
+    "markdownNote": "支持 Markdown / 代码",
+    "contentPlaceholder": "// 用 Markdown 写你的 Prompt 或代码...",
+    "codeButton": "代码",
+    "insertCodeTitle": "插入代码块",
+    "previewPlaceholder": "// 预览会显示在这里...",
+    "saveDraft": "保存草稿",
+    "publish": "发布帖子",
+    "publishing": "发布中...",
+    "errorPrefix": "// 错误：",
+    "errors": {
+      "titleAndContent": "标题和正文不能为空",
+      "titleTooLong": "标题不能超过 150 字符",
+      "failedToPublish": "发布失败",
+      "failedToLoad": "加载帖子失败。",
+      "failedToUpdate": "更新帖子失败。"
+    },
+    "heldForReview": "内容含敏感词，已提交审核",
+    "published": "帖子已发布！",
+    "draftSaved": "草稿已保存",
+    "editTitle": "编辑帖子",
+    "editTitlePlaceholder": "帖子标题...",
+    "loadingChannels": "频道加载中...",
+    "contentEditPlaceholder": "用 Markdown 写帖子正文...",
+    "codeBlock": "代码块",
+    "tokensLabel": "~{{n}} tokens",
+    "newVersion": "新版本",
+    "changeNotePlaceholder": "变更说明，例如收紧角色指令（可选）",
+    "cancel": "取消",
+    "discardConfirm": "放弃未保存的修改？",
+    "saveChanges": "保存修改",
+    "saving": "保存中...",
+    "untitledDraft": "未命名草稿",
+    "drafts": {
+      "title": "我的草稿",
+      "subtitle": "保存在此浏览器中的本地草稿",
+      "empty": "// 还没有草稿。在 Prompt 工坊保存一个。",
+      "newPost": "发新帖",
+      "deleteConfirm": "删除这份草稿？",
+      "deleted": "草稿已删除",
+      "emptyContent": "// 空内容",
+      "untitled": "无标题草稿"
+    },
+    "promptScaffold": "## System Prompt\nYou are an expert coding assistant. Follow these guidelines:\n- Write clean, well-documented code\n- Prioritize readability over brevity\n- Include error handling\n\n## User Request\n"
+  },
+  "auth": {
+    "login": {
+      "title": "登录",
+      "file": "auth_login.sh",
+      "usernamePlaceholder": "用户名",
+      "passwordPlaceholder": "密码",
+      "submit": "登录",
+      "authenticating": "认证中...",
+      "failed": "登录失败",
+      "welcome": "欢迎回来！",
+      "noAccount": "还没有账号？",
+      "registerLink": "注册",
+      "errors": {
+        "usernameRequired": "请输入用户名",
+        "passwordRequired": "请输入密码"
+      }
+    },
+    "register": {
+      "title": "注册",
+      "file": "auth_register.sh",
+      "usernamePlaceholder": "用户名",
+      "emailPlaceholder": "邮箱（用于账号找回）",
+      "nicknamePlaceholder": "昵称",
+      "passwordPlaceholder": "密码",
+      "confirmPlaceholder": "确认密码",
+      "submit": "创建账号",
+      "creating": "创建中...",
+      "failed": "注册失败",
+      "created": "账号已创建！",
+      "hasAccount": "已经有账号？",
+      "loginLink": "登录",
+      "errors": {
+        "usernameShort": "用户名至少 3 个字符",
+        "usernameTooLong": "用户名不能超过 50 个字符",
+        "emailRequired": "邮箱用于账号找回，必填",
+        "emailInvalid": "邮箱格式不正确",
+        "nicknameRequired": "昵称必填",
+        "nicknameTooLong": "昵称不能超过 50 个字符",
+        "passwordLength": "密码须为 8-20 个字符",
+        "passwordComplexity": "密码须包含大写字母、小写字母和数字",
+        "passwordMismatch": "两次输入的密码不一致"
+      }
+    }
+  },
+  "profile": {
+    "statsAria": "主页统计",
+    "activityAria": "最近动态",
+    "postsAria": "已发布帖子",
+    "stats": {
+      "posts": "帖子",
+      "comments": "评论",
+      "likesReceived": "收到的赞",
+      "avgAi": "平均 AI 评分",
+      "forks": "Fork",
+      "versions": "版本"
+    },
+    "statTitles": {
+      "posts": "已发布帖子数",
+      "comments": "评论数",
+      "likesReceived": "公开帖子收到的赞数",
+      "avgAi": "平均 AI 评分不含未评审帖子",
+      "forks": "Prompt Fork 数",
+      "versions": "Prompt 版本数"
+    },
+    "joined": "加入于",
+    "recentActivity": "最近动态",
+    "yourPosts": "你的帖子",
+    "publishedPosts": "已发布帖子",
+    "failedToLoad": "加载{{label}}失败。",
+    "retryAria": "重试{{label}}",
+    "failedLabels": {
+      "summary": "主页摘要",
+      "posts": "已发布帖子"
+    },
+    "activity": {
+      "post": "帖子",
+      "comment": "评论",
+      "version": "Prompt 版本",
+      "fork": "Fork",
+      "fallback": "动态"
+    },
+    "emptyPostsOwn": "你发布后帖子会出现在这里；编辑器是它们的起点。",
+    "emptyPostsPublic": "这位作者发布后帖子会出现在这里；在那之前访客无从添加。",
+    "settings": {
+      "title": "设置",
+      "tabs": {
+        "profile": "个人资料",
+        "password": "密码"
+      },
+      "language": {
+        "heading": "语言",
+        "description": "切换界面语言，选择会保存在此浏览器。"
+      },
+      "profile": {
+        "username": "用户名",
+        "usernameLocked": "用户名不可修改。",
+        "nickname": "昵称",
+        "nicknamePlaceholder": "你的显示名称",
+        "avatarUrl": "头像 URL",
+        "avatarPlaceholder": "https://example.com/avatar.jpg",
+        "bio": "简介",
+        "bioPlaceholder": "介绍一下自己...",
+        "save": "保存资料",
+        "saving": "保存中...",
+        "updated": "资料更新成功。",
+        "failed": "资料更新失败。"
+      },
+      "password": {
+        "current": "当前密码",
+        "new": "新密码",
+        "confirm": "确认新密码",
+        "change": "修改密码",
+        "changing": "修改中...",
+        "changed": "密码修改成功。",
+        "failed": "密码修改失败。",
+        "mismatch": "两次输入的新密码不一致。",
+        "tooShort": "新密码至少 8 个字符。"
+      }
+    }
+  },
+  "messages": {
+    "title": "消息",
+    "markAllRead": "全部标为已读",
+    "failedToLoad": "消息加载失败。",
+    "failedMarkAll": "全部标记已读失败。",
+    "emptyTitle": "还没有消息。",
+    "emptyDesc": "系统通知会出现在这里。",
+    "system": "系统"
+  },
+  "admin": {
+    "auditTitle": "审核队列",
+    "pendingSummary": "{{posts}} 篇帖子待审核{{comments}}",
+    "pendingCommentsSuffix": " · {{n}} 条评论被扣留",
+    "noPendingPosts": "没有待审核的帖子。",
+    "allCaughtUp": "全部处理完毕 -- 新帖子提交后会出现在这里。",
+    "byAuthor": "作者 {{name}}",
+    "on": "在 {{title}}",
+    "unknownAuthor": "未知",
+    "noContentPreview": "无内容预览",
+    "approve": "通过",
+    "reject": "驳回",
+    "rejectReason": "驳回原因",
+    "reasonPlaceholder": "输入原因...",
+    "confirmReject": "确认驳回",
+    "commentApproved": "评论已通过并发布",
+    "commentRejected": "评论已驳回",
+    "postApproved": "帖子已通过",
+    "postRejected": "帖子已驳回",
+    "auditFailed": "审核操作失败",
+    "commentAuditFailed": "评论审核失败",
+    "rejectCommentWarning": "驳回这条评论？它将被隐藏且无法恢复。",
+    "heldComments": "被扣留的评论",
+    "noHeldComments": "// 没有被扣留待审的评论。",
+    "loading": "加载中",
+    "failedToLoadPosts": "待审核帖子加载失败",
+    "safety": {
+      "pendingReview": "待审核",
+      "autoHidden": "已自动隐藏",
+      "clean": "无异常"
+    },
+    "dashboard": {
+      "title": "看板",
+      "totalPosts": "总帖子数",
+      "pendingAudits": "待审核数",
+      "todayPosts": "今日帖子",
+      "failedToLoad": "看板数据加载失败",
+      "pendingQueue": "待审核队列",
+      "waiting": "{{n}} 条待处理",
+      "queueEmpty": "// 队列已空 — 一切正常。",
+      "postsByChannel": "各频道帖子数",
+      "channelsCount": "{{n}} 个频道",
+      "accountRecovery": "账号找回",
+      "recoveryNote": "admin-only · 临时密码",
+      "recoveryDescription": "邮件通道尚未开通：为忘记密码的用户生成临时密码，线下转交，并提醒用户登录后立即修改。",
+      "usernamePlaceholder": "用户名",
+      "generate": "生成临时密码",
+      "generating": "生成中...",
+      "resetFailed": "重置失败",
+      "enterUsername": "请输入用户名",
+      "tempPassword": "{{username}} 的临时密码："
+    },
+    "unexpectedError": "发生意外错误",
+    "cancel": "取消"
+  },
+  "agentLogs": {
+    "title": "agent_logs — AI Agent 运维控制台",
+    "subtitle": "来自自治安全与代码 Agent 的评审轨迹",
+    "stats": {
+      "totalReviews": "总评审数",
+      "approved": "通过",
+      "flagged": "标记",
+      "critical": "严重",
+      "high": "高严重度"
+    },
+    "recentReviews": "最近评审",
+    "entries": "{{n}} 条",
+    "filters": {
+      "all": "全部",
+      "codeReview": "代码评审",
+      "safetyCheck": "安全检查"
+    },
+    "row": {
+      "fileTitle": "ai_review_log — 日志条目 #{{id}}",
+      "severity": "严重度：",
+      "status": "状态：",
+      "timestamp": "时间戳：",
+      "postRef": "帖子 #{{id}}"
+    },
+    "failedToLoad": "Agent 日志加载失败",
+    "unexpectedError": "发生意外错误",
+    "empty": {
+      "title": "还没有 Agent 评审",
+      "desc": "帖子发布且某个 Agent 完成检查后评审会出现在这里；带代码块的帖子会先被打分。"
+    },
+    "severityNames": {
+      "low": "低",
+      "medium": "中",
+      "high": "高",
+      "critical": "严重",
+      "unknown": "未知",
+      "unavailable": "不可用"
+    }
+  }
+}

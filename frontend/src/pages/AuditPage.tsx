@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 import { serverErrorMessage } from '../api/serverErrorMessage';
 import { useToastStore } from '../stores/toastStore';
@@ -38,38 +39,40 @@ interface PendingCommentsResponse {
   data: PendingComment[];
 }
 
+/** The v2 severity map: safe is calm, injection and harm are loud. */
 const safetyTagColors: Record<string, string> = {
-  'Prompt injection': 'bg-red-900/30 text-red-400 ring-red-500/40',
-  'Harmful content': 'bg-red-900/30 text-red-400 ring-red-500/40',
-  Spam: 'bg-orange-900/30 text-orange-400 ring-orange-500/40',
-  Safe: 'bg-vibe-emerald/10 text-vibe-emerald ring-vibe-emerald/30',
+  'Prompt injection': 'bg-vibe-danger/10 text-vibe-danger ring-vibe-danger/40',
+  'Harmful content': 'bg-vibe-danger/10 text-vibe-danger ring-vibe-danger/40',
+  Spam: 'bg-vibe-high/10 text-vibe-high ring-vibe-high/40',
+  Safe: 'bg-vibe-success/10 text-vibe-success ring-vibe-success/30',
 };
 
-const safetyStatusMap: Record<string, { label: string; dotColor: string } | null> = {
-  'Prompt injection': { label: 'Pending review', dotColor: 'bg-amber-400' },
-  'Harmful content': { label: 'Auto-hidden', dotColor: 'bg-red-500' },
-  Spam: { label: 'Auto-hidden', dotColor: 'bg-red-500' },
-  Safe: { label: 'Clean', dotColor: 'bg-green-500' },
+const safetyStatusMap: Record<string, { labelKey: string; dotColor: string } | null> = {
+  'Prompt injection': { labelKey: 'safety.pendingReview', dotColor: 'bg-vibe-warning' },
+  'Harmful content': { labelKey: 'safety.autoHidden', dotColor: 'bg-vibe-danger' },
+  Spam: { labelKey: 'safety.autoHidden', dotColor: 'bg-vibe-danger' },
+  Safe: { labelKey: 'safety.clean', dotColor: 'bg-vibe-success' },
 };
 
 function SafetyBadge({ classification }: { classification: string | null }) {
+  const { t } = useTranslation('admin');
   if (!classification) return null;
 
   const tagColor =
-    safetyTagColors[classification] || 'bg-gray-100 text-gray-800 ring-gray-600/20';
+    safetyTagColors[classification] || 'bg-vibe-surface text-vibe-muted ring-vibe-border';
   const statusInfo = safetyStatusMap[classification];
 
   return (
     <div className="flex items-center gap-3">
       <span
-        className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono ring-1 ring-inset ${tagColor}`}
+        className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ${tagColor}`}
       >
         {classification}
       </span>
       {statusInfo && (
-        <span className="inline-flex items-center gap-1.5 text-[10px] font-mono text-slate-500">
-          <span className={`inline-block w-2 h-2 rounded-full ${statusInfo.dotColor}`} />
-          {statusInfo.label}
+        <span className="inline-flex items-center gap-1.5 text-xs text-vibe-muted">
+          <span className={`inline-block h-2 w-2 rounded-full ${statusInfo.dotColor}`} />
+          {t(statusInfo.labelKey)}
         </span>
       )}
     </div>
@@ -77,6 +80,7 @@ function SafetyBadge({ classification }: { classification: string | null }) {
 }
 
 export default function AuditPage() {
+  const { t } = useTranslation('admin');
   const queryClient = useQueryClient();
   const addToast = useToastStore((s) => s.addToast);
   const [rejectId, setRejectId] = useState<number | null>(null);
@@ -105,7 +109,7 @@ export default function AuditPage() {
       queryClient.invalidateQueries({ queryKey: ['admin', 'pending-comments'] });
     },
     onError: (err) => {
-      addToast(serverErrorMessage(err, 'Comment audit failed'), 'error');
+      addToast(serverErrorMessage(err, t('commentAuditFailed')), 'error');
     },
   });
 
@@ -114,7 +118,7 @@ export default function AuditPage() {
       onSuccess: () => {
         setCommentRejectId(null);
         addToast(
-          action === 'APPROVED' ? 'Comment approved and published' : 'Comment rejected',
+          action === 'APPROVED' ? t('commentApproved') : t('commentRejected'),
           action === 'APPROVED' ? 'success' : 'info'
         );
       },
@@ -137,28 +141,28 @@ export default function AuditPage() {
       setRejectReason('');
     },
     onError: (err) => {
-      addToast(serverErrorMessage(err, 'Audit action failed'), 'error');
+      addToast(serverErrorMessage(err, t('auditFailed')), 'error');
     },
   });
 
   const handleApprove = (id: number) => {
     auditMutation.mutate({ id, action: 'APPROVED' }, {
-      onSuccess: () => addToast('Post approved', 'success'),
+      onSuccess: () => addToast(t('postApproved'), 'success'),
     });
   };
 
   const handleReject = (id: number) => {
     auditMutation.mutate({ id, action: 'REJECTED', reason: rejectReason }, {
-      onSuccess: () => addToast('Post rejected', 'info'),
+      onSuccess: () => addToast(t('postRejected'), 'info'),
     });
   };
 
   if (isLoading) {
     return (
       <div>
-        <h1 className="text-base font-semibold font-mono text-slate-100 mb-8"><span className="text-vibe-cyan">$</span> Audit Queue</h1>
+        <h1 className="mb-8 text-lg font-semibold text-vibe-text">{t('auditTitle')}</h1>
         <div className="flex items-center justify-center py-20">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-vibe-cyan" />
+          <div className="h-8 w-8 animate-spin motion-reduce:animate-none rounded-full border-b-2 border-vibe-accent" />
         </div>
       </div>
     );
@@ -167,11 +171,11 @@ export default function AuditPage() {
   if (isError) {
     return (
       <div>
-        <h1 className="text-base font-semibold font-mono text-slate-100 mb-8"><span className="text-vibe-cyan">$</span> Audit Queue</h1>
-        <div className="bg-red-900/30 border border-red-500/40 rounded-lg p-6 text-center">
-          <p className="text-red-400 font-mono text-sm">Failed to load pending posts</p>
-          <p className="text-red-500 text-xs font-mono mt-1">
-            {serverErrorMessage(error, 'An unexpected error occurred')}
+        <h1 className="mb-8 text-lg font-semibold text-vibe-text">{t('auditTitle')}</h1>
+        <div role="alert" className="rounded-lg border border-vibe-danger/40 bg-vibe-danger/5 p-6 text-center">
+          <p className="text-sm text-vibe-danger">{t('failedToLoadPosts')}</p>
+          <p className="mt-1 text-xs text-vibe-danger">
+            {serverErrorMessage(error, t('unexpectedError'))}
           </p>
         </div>
       </div>
@@ -183,94 +187,100 @@ export default function AuditPage() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="mb-8 flex items-center justify-between">
         <div>
-          <h1 className="text-base font-semibold font-mono text-slate-100"><span className="text-vibe-cyan">$</span> Audit Queue</h1>
-          <p className="text-slate-500 text-xs font-mono mt-1">
-            {posts.length} post{posts.length !== 1 ? 's' : ''} pending review
-            {pendingComments.length > 0 && ` · ${pendingComments.length} comment${pendingComments.length !== 1 ? 's' : ''} held`}
+          <h1 className="text-lg font-semibold text-vibe-text">{t('auditTitle')}</h1>
+          <p className="mt-1 text-xs text-vibe-muted">
+            {t('pendingSummary', {
+              posts: posts.length,
+              comments: pendingComments.length > 0
+                ? t('pendingCommentsSuffix', { n: pendingComments.length })
+                : '',
+            })}
           </p>
         </div>
       </div>
 
       {posts.length === 0 ? (
-        <div className="bg-vibe-surface border border-vibe-border rounded-lg p-12 text-center">
-          <p className="text-slate-400 font-mono text-sm">No pending posts to review.</p>
-          <p className="text-slate-600 text-[11px] font-mono mt-1">
-            All caught up -- new posts will appear here when submitted.
-          </p>
+        <div className="rounded-lg border border-vibe-border bg-vibe-surface p-12 text-center">
+          <p className="text-sm text-vibe-muted">{t('noPendingPosts')}</p>
+          <p className="mt-1 text-xs text-vibe-faint">{t('allCaughtUp')}</p>
         </div>
       ) : (
       <div className="space-y-4">
         {posts.map((post) => (
           <div
             key={post.id}
-            className="bg-vibe-surface border border-vibe-border rounded-lg p-6"
+            className="rounded-lg border border-vibe-border bg-vibe-surface p-6"
           >
             <div className="flex items-start justify-between gap-6">
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-3 flex-wrap">
-                  <h3 className="text-sm font-semibold font-mono text-slate-200 truncate">
+              <div className="min-w-0 flex-1">
+                <div className="flex flex-wrap items-center gap-3">
+                  <h3 className="truncate text-sm font-semibold text-vibe-text">
                     {post.title}
                   </h3>
                   <SafetyBadge
                     classification={post.safetyClassification}
-                    
+
                   />
                 </div>
-                <div className="flex items-center gap-4 mt-1 text-xs font-mono text-slate-500">
-                  <span>by {post.authorName}</span>
+                <div className="mt-1 flex items-center gap-4 text-xs text-vibe-muted">
+                  <span>{t('byAuthor', { name: post.authorName })}</span>
                   {post.categoryName && (
                     <span className="inline-flex items-center gap-1">
-                      <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
+                      <span className="h-1.5 w-1.5 rounded-full bg-vibe-faint" />
                       {post.categoryName}
                     </span>
                   )}
                   <span className="inline-flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                    {new Date(post.createTime).toLocaleDateString('en-US', {
-                      year: 'numeric',
-                      month: 'short',
-                      day: 'numeric',
-                      hour: '2-digit',
-                      minute: '2-digit',
-                    })}
+                    <span className="h-1.5 w-1.5 rounded-full bg-vibe-faint" />
+                    <span className="tabular-nums">
+                      {new Date(post.createTime).toLocaleDateString(undefined, {
+                        year: 'numeric',
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </span>
                   </span>
                 </div>
-                <p className="mt-3 text-slate-400 text-xs font-mono leading-relaxed line-clamp-3">
-                {post.summary || 'No content preview available'}
+                <p className="mt-3 line-clamp-3 text-xs leading-relaxed text-vibe-muted">
+                {post.summary || t('noContentPreview')}
                 </p>
               </div>
 
-              <div className="flex items-center gap-2 shrink-0">
+              <div className="flex shrink-0 items-center gap-2">
                 <button
+                  type="button"
                   onClick={() => handleApprove(post.id)}
                   disabled={auditMutation.isPending}
-                  className="px-4 py-2 bg-vibe-emerald/20 border border-vibe-emerald/30 text-vibe-emerald text-xs font-mono rounded-lg hover:bg-vibe-emerald/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="rounded-md border border-vibe-success/40 bg-vibe-success/10 px-4 py-2 text-xs font-medium text-vibe-success transition-colors hover:bg-vibe-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                 >
-                  Approve
+                  {t('approve')}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setRejectId(rejectId === post.id ? null : post.id)}
-                  className="px-4 py-2 bg-red-900/30 border border-red-500/40 text-red-400 text-xs font-mono rounded-lg hover:bg-red-900/50 transition-colors"
+                  className="rounded-md border border-vibe-danger/40 bg-vibe-danger/10 px-4 py-2 text-xs font-medium text-vibe-danger transition-colors hover:bg-vibe-danger/20"
                 >
-                  Reject
+                  {t('reject')}
                 </button>
               </div>
             </div>
 
             {rejectId === post.id && (
-              <div className="mt-4 pt-4 border-t border-vibe-border">
-                <label className="block text-xs font-mono text-slate-400 mb-2">
-                  Reason for rejection
+              <div className="mt-4 border-t border-vibe-border pt-4">
+                <label className="mb-2 block text-xs text-vibe-muted">
+                  {t('rejectReason')}
                 </label>
                 <div className="flex gap-3">
                   <input
                     type="text"
                     value={rejectReason}
                     onChange={(e) => setRejectReason(e.target.value)}
-                    placeholder="Enter reason..."
-                    className="flex-1 px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+                    placeholder={t('reasonPlaceholder')}
+                    className="flex-1 rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && rejectReason.trim()) {
                         handleReject(post.id);
@@ -278,20 +288,22 @@ export default function AuditPage() {
                     }}
                   />
                   <button
+                    type="button"
                     onClick={() => handleReject(post.id)}
                     disabled={auditMutation.isPending || !rejectReason.trim()}
-                    className="px-4 py-2 bg-red-900/30 border border-red-500/40 text-red-400 text-xs font-mono rounded-lg hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="rounded-md border border-vibe-danger/40 bg-vibe-danger/10 px-4 py-2 text-xs font-medium text-vibe-danger transition-colors hover:bg-vibe-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
                   >
-                    Confirm
+                    {t('confirmReject')}
                   </button>
                   <button
+                    type="button"
                     onClick={() => {
                       setRejectId(null);
                       setRejectReason('');
                     }}
-                    className="px-4 py-2 text-slate-500 text-xs font-mono rounded-lg hover:bg-vibe-card transition-colors"
+                    className="rounded-md px-4 py-2 text-xs text-vibe-muted transition-colors hover:bg-vibe-card"
                   >
-                    Cancel
+                    {t('cancel')}
                   </button>
                 </div>
               </div>
@@ -303,71 +315,75 @@ export default function AuditPage() {
 
       {/* HELD COMMENTS — the status-2 queue shared by the DFA path and the comment-safety path */}
       <div className="mt-10">
-        <h2 className="text-sm font-semibold font-mono text-slate-200 mb-4">
-          <span className="text-vibe-cyan">#</span> Held comments
+        <h2 className="mb-4 text-sm font-semibold text-vibe-text">
+          {t('heldComments')}
         </h2>
         {pendingComments.length === 0 ? (
-          <p className="text-slate-600 text-[11px] font-mono">
-            // No comments held for audit.
+          <p className="text-xs text-vibe-faint">
+            {t('noHeldComments')}
           </p>
         ) : (
           <div className="space-y-3">
             {pendingComments.map((comment) => (
               <div
                 key={comment.id}
-                className="bg-vibe-surface border border-vibe-border rounded-lg p-4"
+                className="rounded-lg border border-vibe-border bg-vibe-surface p-4"
               >
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-3 flex-wrap text-xs font-mono text-slate-500">
-                      <span>by {comment.authorName || 'unknown'}</span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-vibe-muted">
+                      <span>{t('byAuthor', { name: comment.authorName || t('unknownAuthor') })}</span>
                       <span className="inline-flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                        on {comment.postTitle || `post #${comment.postId}`}
+                        <span className="h-1.5 w-1.5 rounded-full bg-vibe-faint" />
+                        {t('on', { title: comment.postTitle || `#${comment.postId}` })}
                       </span>
                       <span className="inline-flex items-center gap-1">
-                        <span className="w-1.5 h-1.5 rounded-full bg-slate-600" />
-                        {new Date(comment.createTime).toLocaleString()}
+                        <span className="h-1.5 w-1.5 rounded-full bg-vibe-faint" />
+                        <span className="tabular-nums">{new Date(comment.createTime).toLocaleString()}</span>
                       </span>
                     </div>
-                    <p className="mt-2 text-slate-300 text-xs font-mono leading-relaxed line-clamp-3">
+                    <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-vibe-text">
                       {comment.content}
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 shrink-0">
+                  <div className="flex shrink-0 items-center gap-2">
                     <button
+                      type="button"
                       onClick={() => handleCommentAudit(comment.id, 'APPROVED')}
                       disabled={commentAuditMutation.isPending}
-                      className="px-3 py-1.5 bg-vibe-emerald/20 border border-vibe-emerald/30 text-vibe-emerald text-xs font-mono rounded-lg hover:bg-vibe-emerald/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="rounded-md border border-vibe-success/40 bg-vibe-success/10 px-3 py-1.5 text-xs font-medium text-vibe-success transition-colors hover:bg-vibe-success/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Approve
+                      {t('approve')}
                     </button>
                     <button
+                      type="button"
                       onClick={() => setCommentRejectId(commentRejectId === comment.id ? null : comment.id)}
                       disabled={commentAuditMutation.isPending}
-                      className="px-3 py-1.5 bg-red-900/30 border border-red-500/40 text-red-400 text-xs font-mono rounded-lg hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="rounded-md border border-vibe-danger/40 bg-vibe-danger/10 px-3 py-1.5 text-xs font-medium text-vibe-danger transition-colors hover:bg-vibe-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Reject
+                      {t('reject')}
                     </button>
                   </div>
                 </div>
                 {commentRejectId === comment.id && (
-                  <div className="mt-3 pt-3 border-t border-vibe-border flex items-center gap-3 flex-wrap">
-                    <p className="text-xs font-mono text-red-400 flex-1 min-w-[200px]">
-                      Reject this comment? It will be hidden and cannot be restored.
+                  <div className="mt-3 flex flex-wrap items-center gap-3 border-t border-vibe-border pt-3">
+                    <p className="min-w-[200px] flex-1 text-xs text-vibe-danger">
+                      {t('rejectCommentWarning')}
                     </p>
                     <button
+                      type="button"
                       onClick={() => handleCommentAudit(comment.id, 'REJECTED')}
                       disabled={commentAuditMutation.isPending}
-                      className="px-3 py-1.5 bg-red-900/30 border border-red-500/40 text-red-400 text-xs font-mono rounded-lg hover:bg-red-900/50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      className="rounded-md border border-vibe-danger/40 bg-vibe-danger/10 px-3 py-1.5 text-xs font-medium text-vibe-danger transition-colors hover:bg-vibe-danger/20 disabled:cursor-not-allowed disabled:opacity-50"
                     >
-                      Confirm reject
+                      {t('confirmReject')}
                     </button>
                     <button
+                      type="button"
                       onClick={() => setCommentRejectId(null)}
-                      className="px-3 py-1.5 text-slate-500 text-xs font-mono rounded-lg hover:bg-vibe-card transition-colors"
+                      className="rounded-md px-3 py-1.5 text-xs text-vibe-muted transition-colors hover:bg-vibe-card"
                     >
-                      Cancel
+                      {t('cancel')}
                     </button>
                   </div>
                 )}

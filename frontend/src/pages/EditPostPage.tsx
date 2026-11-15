@@ -1,11 +1,14 @@
 ﻿import { useState, useRef, useCallback, useMemo, useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useChannels, type Channel } from '../api/useChannels';
 import { mergeWorkedExample, readWorkedExample } from '../components/promptMetadata';
+import { channelLabel } from '../lib/channels';
+import { Code2, RotateCw } from 'lucide-react';
 
 function estimateTokens(text: string): number {
   if (!text.trim()) return 0;
@@ -16,6 +19,7 @@ function estimateTokens(text: string): number {
 }
 
 export default function EditPostPage() {
+  const { t } = useTranslation('editor');
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -55,7 +59,7 @@ export default function EditPostPage() {
   }, [dirty]);
 
   const handleCancel = () => {
-    if (dirty && !window.confirm('Discard unsaved changes?')) return;
+    if (dirty && !window.confirm(t('discardConfirm'))) return;
     navigate(`/post/${id}`);
   };
 
@@ -96,12 +100,12 @@ export default function EditPostPage() {
           exampleOutput: storedExample.exampleOutput ?? '',
         };
       } catch {
-        setError('Failed to load post.');
+        setError(t('errors.failedToLoad'));
       } finally {
         setLoading(false);
       }
     })();
-  }, [id]);
+  }, [id, t]);
 
   const insertCodeBlock = useCallback(() => {
     const textarea = textareaRef.current;
@@ -130,11 +134,11 @@ export default function EditPostPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) {
-      setError('Title and content are required.');
+      setError(t('errors.titleAndContent'));
       return;
     }
     if (title.trim().length > 150) {
-      setError('Title must not exceed 150 characters.');
+      setError(t('errors.titleTooLong'));
       return;
     }
     if (!isAuthenticated) {
@@ -156,7 +160,7 @@ export default function EditPostPage() {
       await apiClient.put(`/posts/${id}`, body);
       navigate(`/post/${id}`);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Failed to update post.');
+      setError(err.response?.data?.message || t('errors.failedToUpdate'));
     } finally {
       setSubmitting(false);
     }
@@ -164,22 +168,22 @@ export default function EditPostPage() {
 
   if (loading) {
     return (
-      <div className="max-w-5xl mx-auto px-4 py-8">
-        <div className="animate-pulse space-y-4">
-          <div className="h-3 bg-vibe-card rounded w-1/3" />
-          <div className="h-96 bg-vibe-card/50 rounded" />
+      <div className="mx-auto max-w-5xl px-4 py-8">
+        <div className="animate-pulse motion-reduce:animate-none space-y-4">
+          <div className="h-3 w-1/3 rounded bg-vibe-surface" />
+          <div className="h-96 rounded bg-vibe-surface" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <h1 className="text-3xl font-bold text-slate-200 mb-8"><span className="text-vibe-cyan">$</span> Edit Post</h1>
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <h1 className="mb-8 text-xl font-semibold text-vibe-text">{t('editTitle')}</h1>
 
       <form onSubmit={handleSubmit} className="space-y-6">
       {error && (
-          <div className="bg-red-900/30 border border-red-500/40 text-red-400 px-4 py-3 rounded-lg text-[11px] font-mono">
+          <div role="alert" className="rounded-md border border-vibe-danger/40 bg-vibe-danger/5 px-4 py-3 text-xs text-vibe-danger">
             {error}
           </div>
         )}
@@ -191,99 +195,97 @@ export default function EditPostPage() {
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               maxLength={150}
-              placeholder="Post title..."
-              className="w-full px-4 py-3 border border-vibe-border rounded-lg text-sm font-mono text-slate-200 focus:outline-none focus:ring-2 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 focus:border-transparent"
+              placeholder={t('editTitlePlaceholder')}
+              className="w-full rounded-md border border-vibe-border bg-vibe-bg px-4 py-3 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
             />
           </div>
           <select
             value={categoryId ?? ""}
             onChange={(e) => setCategoryId(Number(e.target.value))}
-            className="px-4 py-3 border border-vibe-border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 focus:border-transparent bg-vibe-surface"
+            className="rounded-md border border-vibe-border bg-vibe-surface px-4 py-3 text-sm text-vibe-text transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
             disabled={channelsLoading}
           >
             {channelsLoading ? (
-                <option value="">Loading channels...</option>
+                <option value="">{t('loadingChannels')}</option>
               ) : (
                 displayChannels.map((ch: Channel) => (
                   <option key={ch.id} value={ch.id}>
-                    {ch.name}
+                    {channelLabel(ch.slug) || ch.name}
                   </option>
                 ))
               )}
           </select>
         </div>
 
-        <div className="flex items-center gap-2 border border-vibe-border rounded-t-lg bg-vibe-surface px-4 py-2">
+        <div className="flex items-center gap-2 rounded-t-lg border border-vibe-border bg-vibe-surface px-4 py-2">
            <button
             type="button"
             onClick={insertCodeBlock}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-mono text-slate-300 bg-vibe-surface border border-vibe-border rounded-md hover:bg-vibe-card/50 transition-colors"
-            title="Insert code block"
+            className="inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs text-vibe-muted transition-colors hover:bg-vibe-surface hover:text-vibe-text"
+            title={t('insertCodeTitle')}
           >
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 20l4-16m4 4l4 4-4 4M6 16l-4-4 4-4" />
-            </svg>
-            Code Block
+            <Code2 className="h-3.5 w-3.5" />
+            {t('codeBlock')}
           </button>
-          <span className="text-[10px] font-mono text-slate-600 ml-auto">
-            ~{tokens} tokens
+          <span className="ml-auto text-xs tabular-nums text-vibe-faint">
+            {t('tokensLabel', { n: tokens })}
           </span>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-0 border-x border-vibe-border rounded-b-lg overflow-hidden">
+        <div className="grid grid-cols-1 gap-0 overflow-hidden rounded-b-lg border border-vibe-border border-t-0 md:grid-cols-2 md:border-x">
             <textarea
             ref={textareaRef}
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            placeholder="Write your post content in Markdown..."
-            className="w-full h-96 p-4 bg-vibe-bg border-r border-vibe-border font-mono text-sm text-slate-200 resize-none focus:outline-none focus:ring-0 border-0"
+            placeholder={t('contentEditPlaceholder')}
+            className="h-96 w-full resize-none border-0 bg-vibe-bg p-4 font-mono text-sm text-vibe-text placeholder-vibe-faint focus:outline-none focus:ring-0 md:border-r md:border-vibe-border"
           />
-          <div className="h-96 overflow-y-auto p-4 bg-vibe-bg prose prose-invert prose-sm max-w-none">
+          <div className="h-96 overflow-y-auto bg-vibe-bg p-4 prose prose-sm max-w-none dark:prose-invert">
             {content ? (
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {content}
               </ReactMarkdown>
             ) : (
-              <p className="text-slate-600 italic font-mono text-xs">// Preview will appear here...</p>
+              <p className="text-xs italic text-vibe-faint">{t('previewPlaceholder')}</p>
             )}
           </div>
         </div>
 
         {postType === 'prompt' && (
           <div className="space-y-3">
-            <div className="flex items-center gap-3 border border-vibe-border rounded-lg bg-vibe-surface px-3 py-2.5">
-              <span className="text-[10px] font-mono text-vibe-purple bg-vibe-purple/10 border border-vibe-purple/30 rounded px-1.5 py-0.5 shrink-0">
-                New version
+            <div className="flex items-center gap-3 rounded-lg border border-vibe-border bg-vibe-surface px-3 py-2.5">
+              <span className="shrink-0 rounded-full border border-vibe-accent/40 bg-vibe-accent/10 px-1.5 py-0.5 text-xs text-vibe-accent">
+                {t('newVersion')}
               </span>
               <input
                 type="text"
                 value={changeNote}
                 onChange={(e) => setChangeNote(e.target.value)}
-                placeholder="Change note, e.g. tighten role instructions (optional)"
-                className="flex-1 bg-transparent text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none"
+                placeholder={t('changeNotePlaceholder')}
+                className="flex-1 bg-transparent text-sm text-vibe-text placeholder-vibe-faint focus:outline-none"
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
               <div className="space-y-1.5">
-                <label htmlFor="edit-example-input" className="text-[10px] font-mono text-slate-500">Example input (optional)</label>
+                <label htmlFor="edit-example-input" className="block text-xs text-vibe-muted">{t('promptConfig.exampleInput')}</label>
                 <textarea
                   id="edit-example-input"
                   value={exampleInput}
                   onChange={(e) => setExampleInput(e.target.value)}
-                  placeholder="What a reader would paste into this prompt..."
+                  placeholder={t('promptConfig.exampleInputPlaceholder')}
                   rows={3}
-                  className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
+                  className="w-full resize-none rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
                 />
               </div>
               <div className="space-y-1.5">
-                <label htmlFor="edit-example-output" className="text-[10px] font-mono text-slate-500">Example output (optional)</label>
+                <label htmlFor="edit-example-output" className="block text-xs text-vibe-muted">{t('promptConfig.exampleOutput')}</label>
                 <textarea
                   id="edit-example-output"
                   value={exampleOutput}
                   onChange={(e) => setExampleOutput(e.target.value)}
-                  placeholder="What this prompt produced for that input..."
+                  placeholder={t('promptConfig.exampleOutputPlaceholder')}
                   rows={3}
-                  className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
+                  className="w-full resize-none rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
                 />
               </div>
             </div>
@@ -294,20 +296,20 @@ export default function EditPostPage() {
           <button
             type="button"
             onClick={handleCancel}
-            className="px-6 py-3 border border-vibe-border text-slate-400 text-xs font-mono rounded-lg hover:bg-vibe-surface transition-colors"
+            className="rounded-md border border-vibe-border px-6 py-3 text-xs text-vibe-muted transition-colors hover:bg-vibe-surface hover:text-vibe-text"
           >
-            Cancel
+            {t('cancel')}
           </button>
           <button
             type="submit"
             disabled={submitting}
-            className="px-6 py-3 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-6 py-3 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
           >
-            {submitting ? 'Saving...' : 'Save Changes'}
+            {submitting && <RotateCw className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />}
+            {submitting ? t('saving') : t('saveChanges')}
           </button>
         </div>
       </form>
     </div>
   );
 }
-

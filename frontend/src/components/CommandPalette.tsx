@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   Search,
   FileText,
@@ -15,6 +16,7 @@ import {
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
+import { channelLabel } from '../lib/channels';
 
 interface Channel {
   id: string;
@@ -53,6 +55,7 @@ interface CommandPaletteProps {
 }
 
 export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
   const addToast = useToastStore((s) => s.addToast);
@@ -90,10 +93,10 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
       restoreFocusRef.current = document.activeElement as HTMLElement | null;
       setQuery('');
       setSelected(0);
-      const t = setTimeout(() => inputRef.current?.focus(), 10);
+      const timer = setTimeout(() => inputRef.current?.focus(), 10);
       // Cleanup runs when `open` flips false: hand focus back to the trigger.
       return () => {
-        clearTimeout(t);
+        clearTimeout(timer);
         restoreFocusRef.current?.focus();
       };
     }
@@ -115,71 +118,71 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
     const url = window.location.origin + route;
     const write = navigator.clipboard?.writeText(url);
     if (!write) {
-      addToast('Could not copy link', 'error');
+      addToast(t('toast.couldNotCopy'), 'error');
       return;
     }
     write.then(
-      () => addToast('Link copied to clipboard', 'success'),
-      () => addToast('Could not copy link', 'error'),
+      () => addToast(t('toast.linkCopied'), 'success'),
+      () => addToast(t('toast.couldNotCopy'), 'error'),
     );
   };
 
   const baseActions: PaletteItem[] = [
     {
       id: 'new-post',
-      label: 'New Vibe Post',
-      hint: isAuthenticated ? 'create' : 'login',
+      label: t('palette.items.newPost'),
+      hint: isAuthenticated ? t('palette.hints.create') : t('palette.hints.login'),
       icon: Plus,
-      section: 'Actions',
+      section: t('palette.sections.actions'),
       run: () => navigate(isAuthenticated ? '/post/new' : '/login'),
     },
     {
       id: 'drafts',
-      label: 'My Drafts',
+      label: t('palette.items.drafts'),
       icon: FileText,
-      section: 'Actions',
+      section: t('palette.sections.actions'),
       run: () => navigate('/drafts'),
     },
     {
       id: 'tags',
-      label: 'Hot Tags',
+      label: t('palette.items.tags'),
       icon: Tag,
-      section: 'Actions',
+      section: t('palette.sections.actions'),
       run: () => navigate('/tags'),
     },
     {
       id: 'messages',
-      label: 'Messages',
+      label: t('palette.items.messages'),
       icon: Mail,
-      section: 'Actions',
+      section: t('palette.sections.actions'),
       run: () => navigate('/user/messages'),
     },
     {
       id: 'agent-logs',
-      label: 'Agent Logs',
-      hint: 'console',
+      label: t('palette.items.agentLogs'),
+      hint: t('palette.hints.console'),
       icon: Activity,
-      section: 'Actions',
+      section: t('palette.sections.actions'),
       run: () => navigate('/agent-logs'),
     },
     {
       id: 'settings',
-      label: 'Settings',
+      label: t('palette.items.settings'),
       icon: Settings,
-      section: 'Actions',
+      section: t('palette.sections.actions'),
       run: () => navigate('/user/settings'),
     },
   ];
 
   const channelItems: PaletteItem[] = channels.map((ch) => ({
     id: 'channel-' + ch.slug,
-    label: ch.name,
+    label: channelLabel(ch.slug) || ch.name,
     hint: '#' + ch.slug,
     icon: Terminal,
-    section: 'Channels',
+    section: t('palette.sections.channels'),
     run: () => navigate('/channel/' + ch.slug),
     secondary: {
-      label: 'Copy link',
+      label: t('palette.items.copyLink'),
       run: () => copyLink('/channel/' + ch.slug),
     },
   }));
@@ -187,12 +190,12 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
   const postItems: PaletteItem[] = postHits.map((p) => ({
     id: 'post-' + p.id,
     label: p.title,
-    hint: p.categoryName || 'post',
+    hint: p.categoryName || t('palette.hints.post'),
     icon: FileText,
-    section: 'Posts',
+    section: t('palette.sections.posts'),
     run: () => navigate('/post/' + p.id),
     secondary: {
-      label: 'Copy link',
+      label: t('palette.items.copyLink'),
       run: () => copyLink('/post/' + p.id),
     },
   }));
@@ -250,20 +253,20 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
 
   return (
     <div
-      className="fixed inset-0 z-[100] flex items-start justify-center pt-[14vh] px-4"
+      className="fixed inset-0 z-[100] flex items-start justify-center px-4 pt-[14vh]"
       onMouseDown={(e) => {
         if (e.target === e.currentTarget) close();
       }}
     >
-      <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" />
+      <div className="absolute inset-0 bg-black/50" />
       <div
         role="dialog"
         aria-modal="true"
-        aria-label="Command palette"
-        className="relative w-full max-w-xl bg-vibe-surface border border-vibe-border rounded-xl shadow-2xl shadow-black/50 overflow-hidden"
+        aria-label={t('palette.ariaLabel')}
+        className="relative w-full max-w-xl overflow-hidden rounded-lg border border-vibe-border bg-vibe-card shadow-lg"
       >
-        <div className="flex items-center gap-3 px-4 border-b border-vibe-border bg-vibe-card/60">
-          <Search className="w-4 h-4 text-vibe-cyan shrink-0" />
+        <div className="flex items-center gap-3 border-b border-vibe-border bg-vibe-surface px-4">
+          <Search className="h-4 w-4 shrink-0 text-vibe-accent" />
           <input
             ref={inputRef}
             value={query}
@@ -273,25 +276,25 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             aria-expanded="true"
             aria-controls="command-palette-list"
             aria-activedescendant={items[selected] ? `palette-item-${items[selected].id}` : undefined}
-            aria-label="Search posts, jump to channels, run commands"
-            placeholder="Search posts, jump to channels, run commands..."
-            className="flex-1 h-12 bg-transparent text-sm font-mono text-slate-200 placeholder-slate-600 focus:outline-none"
+            aria-label={t('palette.inputAria')}
+            placeholder={t('palette.placeholder')}
+            className="h-12 flex-1 bg-transparent text-sm text-vibe-text placeholder-vibe-faint focus:outline-none"
           />
-          <kbd className="px-1.5 py-0.5 rounded bg-vibe-bg border border-vibe-border text-[10px] font-mono text-slate-500">esc</kbd>
+          <kbd className="rounded border border-vibe-border bg-vibe-bg px-1.5 py-0.5 text-[11px] text-vibe-muted">{t('palette.esc')}</kbd>
         </div>
 
         <div id="command-palette-list" role="listbox" className="max-h-[50vh] overflow-y-auto py-2">
           {searchEnabled && postsFetching && query.trim().length >= 2 && (
-            <div className="px-4 py-3 text-xs font-mono text-slate-500">
-              <span className="inline-block w-3 h-3 border border-vibe-cyan border-t-transparent rounded-full animate-spin align-[-2px] mr-2" />
-              Searching posts...
+            <div className="px-4 py-3 text-xs text-vibe-muted">
+              <span className="mr-2 inline-block h-3 w-3 animate-spin motion-reduce:animate-none rounded-full border border-vibe-accent border-t-transparent align-[-2px]" />
+              {t('palette.searching')}
             </div>
           )}
 
           {items.length === 0 && !postsFetching && (
             <div className="px-4 py-8 text-center">
-              <p className="text-sm font-mono text-slate-500">No results found</p>
-              <p className="text-[11px] font-mono text-slate-600 mt-1">Try a different keyword or command</p>
+              <p className="text-sm text-vibe-muted">{t('palette.noResults')}</p>
+              <p className="mt-1 text-[11px] text-vibe-faint">{t('palette.noResultsHint')}</p>
             </div>
           )}
 
@@ -302,7 +305,7 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
             return (
               <div key={item.id}>
                 {showSection && (
-                  <div className="px-4 pt-3 pb-1 text-[10px] font-mono uppercase tracking-widest text-slate-600">
+                  <div className="px-4 pb-1 pt-3 text-[11px] font-semibold uppercase tracking-wide text-vibe-faint">
                     {item.section}
                   </div>
                 )}
@@ -313,19 +316,19 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
                   onMouseEnter={() => setSelected(i)}
                   onClick={() => runItem(item)}
                   className={
-                    'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors ' +
-                    (i === selected ? 'bg-vibe-cyan/10 text-slate-100' : 'text-slate-400')
+                    'flex w-full items-center gap-3 px-4 py-2.5 text-left transition-colors ' +
+                    (i === selected ? 'bg-vibe-surface text-vibe-text' : 'text-vibe-muted')
                   }
                 >
-                  <span className={'w-7 h-7 rounded-lg border flex items-center justify-center shrink-0 ' + (i === selected ? 'bg-vibe-cyan/20 border-vibe-cyan/40 text-vibe-cyan' : 'bg-vibe-card border-vibe-border text-slate-500')}>
-                    <Icon className="w-3.5 h-3.5" />
+                  <span className={'flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ' + (i === selected ? 'border-vibe-accent/40 bg-vibe-accent/10 text-vibe-accent' : 'border-vibe-border bg-vibe-surface text-vibe-muted')}>
+                    <Icon className="h-3.5 w-3.5" />
                   </span>
-                  <span className="flex-1 min-w-0">
-                    <span className="block text-xs font-mono truncate">{item.label}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-xs">{item.label}</span>
                   </span>
-                  <span className="flex items-center gap-1.5 shrink-0">
-                    {item.hint && <span className="text-[10px] font-mono text-slate-600">{item.hint}</span>}
-                    {i === selected && <CornerDownLeft className="w-3 h-3 text-vibe-cyan/70" />}
+                  <span className="flex shrink-0 items-center gap-1.5">
+                    {item.hint && <span className="text-[11px] text-vibe-faint">{item.hint}</span>}
+                    {i === selected && <CornerDownLeft className="h-3 w-3 text-vibe-accent/70" />}
                   </span>
                 </button>
               </div>
@@ -333,19 +336,19 @@ export default function CommandPalette({ open, onClose }: CommandPaletteProps) {
           })}
         </div>
 
-        <div className="flex items-center gap-4 px-4 py-2.5 border-t border-vibe-border bg-vibe-card/40 text-[10px] font-mono text-slate-600">
-          <span><kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">↑↓</kbd> navigate</span>
-          <span><kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">↵</kbd> open</span>
+        <div className="flex items-center gap-4 border-t border-vibe-border bg-vibe-surface px-4 py-2.5 text-[11px] text-vibe-faint">
+          <span><kbd className="rounded border border-vibe-border bg-vibe-bg px-1 py-0.5">↑↓</kbd> {t('palette.footer.navigate')}</span>
+          <span><kbd className="rounded border border-vibe-border bg-vibe-bg px-1 py-0.5">↵</kbd> {t('palette.footer.open')}</span>
           {/* Only rows with a second destination advertise the modifier; the
               label names the same Ctrl/Meta the handler listens for. */}
           {selectedItem?.secondary && (
             <span>
-              <kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">ctrl/⌘</kbd> +{' '}
-              <kbd className="px-1 py-0.5 rounded bg-vibe-bg border border-vibe-border">↵</kbd>{' '}
+              <kbd className="rounded border border-vibe-border bg-vibe-bg px-1 py-0.5">{t('palette.footer.modifier')}</kbd> +{' '}
+              <kbd className="rounded border border-vibe-border bg-vibe-bg px-1 py-0.5">↵</kbd>{' '}
               {selectedItem.secondary.label.toLowerCase()}
             </span>
           )}
-          <span className="ml-auto text-slate-700">NEXUS.VIBE ⌘PALETTE</span>
+          <span className="ml-auto">{t('palette.brandTag')}</span>
         </div>
       </div>
     </div>

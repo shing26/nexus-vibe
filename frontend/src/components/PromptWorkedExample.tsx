@@ -1,8 +1,10 @@
 import { useState } from 'react';
 import { Check, Copy } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { readWorkedExample } from './promptMetadata';
 
 function CopyControl({ label, text }: { label: string; text: string }) {
+  const { t } = useTranslation('post');
   const [copied, setCopied] = useState(false);
 
   const handleCopy = async () => {
@@ -15,10 +17,10 @@ function CopyControl({ label, text }: { label: string; text: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-[11px] font-mono hover:bg-vibe-cyan/30 transition-colors active:scale-[0.97]"
+      className="inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-surface px-3 py-1.5 text-xs font-medium text-vibe-text transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-accent"
     >
-      {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
-      {copied ? 'Copied' : label}
+      {copied ? <Check className="h-3.5 w-3.5 text-vibe-success" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? t('workedExample.copied') : label}
     </button>
   );
 }
@@ -47,40 +49,37 @@ export default function PromptWorkedExample({
   promptMetadata,
   prompt,
 }: PromptWorkedExampleProps) {
+  const { t } = useTranslation('post');
   if (postType !== 'prompt') return null;
   const { exampleInput, exampleOutput } = readWorkedExample(promptMetadata);
   if (!exampleInput && !exampleOutput) return null;
 
   return (
-    <div className="max-w-3xl mx-auto mb-8">
-      <div className="bg-vibe-surface border border-vibe-border rounded-lg overflow-hidden">
-        <div className="flex items-center h-9 bg-vibe-card border-b border-vibe-border select-none">
-          <div className="flex items-center gap-1.5 px-3">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500/60" />
-            <div className="w-2.5 h-2.5 rounded-full bg-yellow-500/60" />
-            <div className="w-2.5 h-2.5 rounded-full bg-green-500/60" />
-          </div>
-          <span className="flex-1 text-center text-[11px] font-mono text-slate-500 truncate px-2">
-            worked_example — stored with this prompt
+    <div className="mx-auto mb-8 max-w-3xl">
+      <div className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+        <div className="flex items-center border-b border-vibe-border bg-vibe-card px-4 py-2.5">
+          <span className="min-w-0 truncate text-xs font-medium text-vibe-text">
+            {t('workedExample.title')}
           </span>
-          <div className="w-16" />
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="space-y-4 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <span className="text-[11px] font-mono text-slate-500">
-              // one input and the output it produced
+            <span className="text-xs text-vibe-faint">
+              {t('workedExample.subtitle')}
             </span>
             <div className="flex flex-wrap gap-2">
-              {exampleInput && <CopyControl label="Copy Input" text={exampleInput} />}
-              <CopyControl label="Copy Prompt" text={prompt} />
+              {exampleInput && <CopyControl label={t('workedExample.copyInput')} text={exampleInput} />}
+              <CopyControl label={t('workedExample.copyPrompt')} text={prompt} />
             </div>
           </div>
 
           {exampleInput && (
             <div>
-              <h3 className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">Input</h3>
-              <pre className="w-full max-h-48 overflow-y-auto p-3 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
+              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+                {t('workedExample.input')}
+              </h3>
+              <pre className="max-h-48 w-full overflow-y-auto whitespace-pre-wrap rounded-lg border border-vibe-border bg-vibe-bg p-3 font-mono text-xs leading-relaxed text-vibe-text">
                 {exampleInput}
               </pre>
             </div>
@@ -88,8 +87,10 @@ export default function PromptWorkedExample({
 
           {exampleOutput && (
             <div>
-              <h3 className="text-[10px] font-mono uppercase tracking-wider text-slate-400 mb-1.5">Output</h3>
-              <pre className="w-full max-h-48 overflow-y-auto p-3 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
+              <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+                {t('workedExample.output')}
+              </h3>
+              <pre className="max-h-48 w-full overflow-y-auto whitespace-pre-wrap rounded-lg border border-vibe-border bg-vibe-bg p-3 font-mono text-xs leading-relaxed text-vibe-text">
                 {exampleOutput}
               </pre>
             </div>

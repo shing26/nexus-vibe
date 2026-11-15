@@ -1,6 +1,6 @@
 ﻿import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
@@ -8,109 +8,20 @@ import PostCard from '../components/PostCard';
 import EmptyState from '../components/EmptyState';
 import ShowcaseEntry from '../components/ShowcaseEntry';
 import Pagination from '../components/Pagination';
-import { Terminal, Palette, Cpu, Zap, Bug, GitFork, ArrowRight, Megaphone, FolderOpen } from 'lucide-react';
+import Skeleton from '../components/Skeleton';
+import { CHANNELS, channelLabel } from '../lib/channels';
+import { ArrowRight, GitFork, Terminal, Bug, Palette } from 'lucide-react';
 import type { ChannelStats } from '../types/post';
 
 type Tab = 'hot' | 'latest' | 'ai-verified' | 'debug' | 'prompts';
 
-const tabs: { key: Tab; label: string }[] = [
-  { key: 'hot', label: 'Hot (Decay)' },
-  { key: 'latest', label: 'Latest' },
-  { key: 'ai-verified', label: 'AI Verified' },
-  { key: 'debug', label: 'Debug' },
-  { key: 'prompts', label: 'Prompts' },
-];
-
-const channelGrid = [
-  { slug: 'announcements', label: '社区公告', icon: Megaphone, desc: '系统公告与更新日志' },
-  { slug: 'prompts', label: 'Prompt 工坊', icon: Terminal, desc: 'System Prompt 设计、CoT' },
-  { slug: 'showcase', label: '作品展示', icon: Palette, desc: 'Vibe Coding 成品展示' },
-  { slug: 'agents', label: 'Agent 实战', icon: Cpu, desc: 'Agent 架构与案例' },
-  { slug: 'vibe-coding', label: 'Vibe Coding', icon: Zap, desc: 'AI Coding 经验分享' },
-  { slug: 'debug', label: '代码急诊室', icon: Bug, desc: 'Bug 诊断与修复讨论' },
-  { slug: 'resources', label: '资源聚合', icon: FolderOpen, desc: '工具链与教程推荐' },
-];
-
-const emptyCopy: Record<Tab, { title: string; desc: string; action: string; actionLabel: string }> = {
-  debug: {
-    title: '急诊室空转中',
-    desc: '贴上报错上下文，AI Agent 与社区会一起定位问题。',
-    action: '/post/new?template=debug',
-    actionLabel: '提交第一个报错',
-  },
-  prompts: {
-    title: '终端就绪，等待第一个 Prompt 入库',
-    desc: '发布一个 System Prompt 模板，AI Agent 会自动审查并回帖。',
-    action: '/post/new?template=prompt',
-    actionLabel: '一键填充示例 Prompt',
-  },
-  'ai-verified': {
-    title: '还没有 AI 验证过的帖子',
-    desc: '发布带代码块的帖子，AI Agent 会自动评分。',
-    action: '/post/new',
-    actionLabel: '发布第一个帖子',
-  },
-  hot: {
-    title: '还没有热帖',
-    desc: '发布第一篇内容，成为社区热度的起点。',
-    action: '/post/new',
-    actionLabel: '发布第一个帖子',
-  },
-  latest: {
-    title: '还没有新帖',
-    desc: '发布第一篇帖子后，社区的讨论会按时间出现在这里。',
-    action: '/post/new',
-    actionLabel: '发布第一个帖子',
-  },
-};
-
-const missions = [
-  {
-    to: '/post/new?template=debug',
-    label: 'Debug',
-    sub: '贴报错，AI 协助定位',
-    icon: Bug,
-    accent: 'text-vibe-cyan bg-vibe-cyan/10 border-vibe-cyan/30 group-hover/mission:bg-vibe-cyan/20',
-    ring: 'hover:border-vibe-cyan/50 hover:shadow-[0_0_24px_-8px_rgba(6,182,212,0.45)]',
-  },
-  {
-    to: '/post/new?template=prompt',
-    label: 'Prompt',
-    sub: '铸造可复用 System Prompt',
-    icon: Terminal,
-    accent: 'text-vibe-purple bg-vibe-purple/10 border-vibe-purple/30 group-hover/mission:bg-vibe-purple/20',
-    ring: 'hover:border-vibe-purple/50 hover:shadow-[0_0_24px_-8px_rgba(168,85,247,0.45)]',
-  },
-  {
-    to: '/post/new?template=showcase',
-    label: 'Showcase',
-    sub: '发布 Vibe Coding 成品',
-    icon: Palette,
-    accent: 'text-vibe-emerald bg-vibe-emerald/10 border-vibe-emerald/30 group-hover/mission:bg-vibe-emerald/20',
-    ring: 'hover:border-vibe-emerald/50 hover:shadow-[0_0_24px_-8px_rgba(16,185,129,0.45)]',
-  },
-  {
-    to: '/channel/prompts',
-    label: 'Fork',
-    sub: '从社区模板二次开发',
-    icon: GitFork,
-    accent: 'text-amber-400 bg-amber-400/10 border-amber-400/30 group-hover/mission:bg-amber-400/20',
-    ring: 'hover:border-amber-400/50 hover:shadow-[0_0_24px_-8px_rgba(251,191,36,0.45)]',
-  },
-];
-
-function SkeletonCard() {
-  return (
-    <div className="bg-vibe-surface/50 border border-vibe-border rounded-xl p-4 relative overflow-hidden">
-      <div className="absolute inset-0 bg-gradient-to-r from-transparent via-vibe-cyan/5 to-transparent bg-[length:200%_100%] animate-shimmer" />
-      <div className="h-3 bg-vibe-card rounded w-3/4 mb-3 relative" />
-      <div className="h-2.5 bg-vibe-card/50 rounded w-1/2 mb-2 relative" />
-      <div className="h-2 bg-vibe-card/30 rounded w-1/4 relative" />
-    </div>
-  );
-}
-
+/**
+ * The home feed. GitHub-style underline tabs over a topic-row list; the channel
+ * grid and the signed-out mission band read their labels through the same
+ * dictionary as the sidebar, so a channel never carries two display names.
+ */
 export default function HomePage() {
+  const { t } = useTranslation(['home', 'common']);
   const [activeTab, setActiveTab] = useState<Tab>('hot');
   const [page, setPage] = useState(1);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -154,40 +65,100 @@ export default function HomePage() {
 
   const statBySlug = new Map((channelStats ?? []).map((s) => [s.slug, s.postCount]));
 
+  const emptyCopy: Record<Tab, { title: string; desc: string; action: string; actionLabel: string }> = {
+    debug: {
+      title: t('home:empty.debug.title'),
+      desc: t('home:empty.debug.desc'),
+      action: '/post/new?template=debug',
+      actionLabel: t('home:empty.debug.actionLabel'),
+    },
+    prompts: {
+      title: t('home:empty.prompts.title'),
+      desc: t('home:empty.prompts.desc'),
+      action: '/post/new?template=prompt',
+      actionLabel: t('home:empty.prompts.actionLabel'),
+    },
+    'ai-verified': {
+      title: t('home:empty.ai-verified.title'),
+      desc: t('home:empty.ai-verified.desc'),
+      action: '/post/new',
+      actionLabel: t('home:empty.ai-verified.actionLabel'),
+    },
+    hot: {
+      title: t('home:empty.hot.title'),
+      desc: t('home:empty.hot.desc'),
+      action: '/post/new',
+      actionLabel: t('home:empty.hot.actionLabel'),
+    },
+    latest: {
+      title: t('home:empty.latest.title'),
+      desc: t('home:empty.latest.desc'),
+      action: '/post/new',
+      actionLabel: t('home:empty.latest.actionLabel'),
+    },
+  };
+
+  const missions = [
+    {
+      to: '/post/new?template=debug',
+      label: t('home:missionControl.missions.debug.label'),
+      sub: t('home:missionControl.missions.debug.sub'),
+      icon: Bug,
+    },
+    {
+      to: '/post/new?template=prompt',
+      label: t('home:missionControl.missions.prompt.label'),
+      sub: t('home:missionControl.missions.prompt.sub'),
+      icon: Terminal,
+    },
+    {
+      to: '/post/new?template=showcase',
+      label: t('home:missionControl.missions.showcase.label'),
+      sub: t('home:missionControl.missions.showcase.sub'),
+      icon: Palette,
+    },
+    {
+      to: '/channel/prompts',
+      label: t('home:missionControl.missions.fork.label'),
+      sub: t('home:missionControl.missions.fork.sub'),
+      icon: GitFork,
+    },
+  ];
+
   return (
-    <div className="max-w-[1200px] mx-auto px-4 py-6 space-y-6">
-      <h1 className="sr-only">Nexus-Vibe Terminal</h1>
+    <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-6">
+      <h1 className="sr-only">{t('home:srTitle')}</h1>
       {/* Mission Control — shown to signed-out visitors only. Signed-in users
           already have the navbar's New Post button, and this band plus the
           channel grid below pushed the first post past the fold on every
           screen size. */}
       {!isAuthenticated && (
-        <div className="border border-vibe-border rounded-xl overflow-hidden bg-vibe-surface/40">
-          <div className="flex items-center justify-between px-4 py-2.5 bg-vibe-card/70 border-b border-vibe-border">
-            <h2 className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Mission Control</h2>
-            <span className="hidden sm:inline text-[10px] font-mono text-vibe-cyan/70">Pick a mission to start</span>
+        <div className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+          <div className="flex items-center justify-between border-b border-vibe-border px-4 py-2.5">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">
+              {t('home:missionControl.title')}
+            </h2>
+            <span className="hidden text-xs text-vibe-faint sm:inline">
+              {t('home:missionControl.hint')}
+            </span>
           </div>
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 p-3">
+          <div className="grid grid-cols-2 gap-2 p-3 lg:grid-cols-4">
             {missions.map((m) => {
               const Icon = m.icon;
               return (
                 <Link
-                  key={m.label}
+                  key={m.to}
                   to={m.to}
-                  className={
-                    'group/mission relative rounded-xl border border-vibe-border bg-vibe-card/40 p-3.5 transition-all active:scale-[0.97] ' + m.ring
-                  }
+                  className="group/mission rounded-lg border border-vibe-border bg-vibe-card p-3.5 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-surface"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className={'w-8 h-8 rounded-lg border flex items-center justify-center transition-colors ' + m.accent}>
-                      <Icon className="w-4 h-4" />
+                    <div className="flex h-8 w-8 items-center justify-center rounded-md border border-vibe-border bg-vibe-bg text-vibe-accent">
+                      <Icon className="h-4 w-4" />
                     </div>
-                    <ArrowRight className="w-3.5 h-3.5 text-slate-600 group-hover/mission:text-slate-300 transition-colors" />
+                    <ArrowRight className="h-3.5 w-3.5 text-vibe-faint transition-colors group-hover/mission:text-vibe-accent" />
                   </div>
-                  <p className="mt-3 text-xs font-mono font-semibold text-slate-200 group-hover/mission:text-white transition-colors">
-                    {m.label}
-                  </p>
-                  <p className="mt-0.5 text-[10px] font-mono text-slate-500 leading-snug">{m.sub}</p>
+                  <p className="mt-3 text-sm font-medium text-vibe-text">{m.label}</p>
+                  <p className="mt-0.5 text-xs leading-snug text-vibe-muted">{m.sub}</p>
                 </Link>
               );
             })}
@@ -199,24 +170,24 @@ export default function HomePage() {
       <ShowcaseEntry />
 
       {/* Channel Grid — full-width, no sidebar */}
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7 gap-3">
-        {channelGrid.map((ch) => {
+      <div aria-label={t('home:channelGridAria')} className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
+        {CHANNELS.map((ch) => {
           const Icon = ch.icon;
           return (
             <Link
               key={ch.slug}
               to={'/channel/' + ch.slug}
-              className="group bg-vibe-surface/50 border border-vibe-border rounded-xl p-3.5 transition-all hover:bg-vibe-card hover:border-vibe-cyan/30 active:scale-[0.97]"
+              className="group rounded-lg border border-vibe-border bg-vibe-surface p-3.5 transition-colors hover:border-vibe-accent/40 hover:bg-vibe-card"
             >
-              <div className="flex items-center gap-2.5 mb-1.5">
-                <div className="w-8 h-8 rounded-lg bg-vibe-cyan/10 border border-vibe-cyan/20 flex items-center justify-center group-hover:bg-vibe-cyan/20 transition-colors">
-                  <Icon className="w-4 h-4 text-vibe-cyan" />
+              <div className="mb-1.5 flex items-center gap-2.5">
+                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-vibe-border bg-vibe-bg text-vibe-accent transition-colors group-hover:bg-vibe-accent/10">
+                  <Icon className="h-4 w-4" />
                 </div>
-                <span className="text-xs font-mono text-slate-300 group-hover:text-white transition-colors truncate">{ch.label}</span>
+                <span className="truncate text-xs font-medium text-vibe-text">{channelLabel(ch.slug)}</span>
               </div>
               <div className="flex items-center justify-between pl-[42px]">
-                <span className="text-[10px] font-mono text-slate-500 truncate">{ch.desc}</span>
-                <span className="text-[11px] font-mono text-vibe-cyan/80 font-semibold shrink-0">
+                <span className="truncate text-xs text-vibe-muted">{t(ch.descKey)}</span>
+                <span className="shrink-0 text-xs font-medium tabular-nums text-vibe-accent">
                   {statBySlug.get(ch.slug) ?? 0}
                 </span>
               </div>
@@ -225,28 +196,30 @@ export default function HomePage() {
         })}
       </div>
 
-      {/* Pill Tabs — full-width */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {tabs.map((tab) => (
+      {/* Underline tabs — GitHub style: a bottom border per tab, the active one
+          carries the accent rail and the text darkens, nothing else moves. */}
+      <div className="flex flex-wrap items-center gap-1 border-b border-vibe-border">
+        {(['hot', 'latest', 'ai-verified', 'debug', 'prompts'] as Tab[]).map((key) => (
           <button
-            key={tab.key}
-            onClick={() => changeTab(tab.key)}
+            key={key}
+            type="button"
+            onClick={() => changeTab(key)}
             // The feed's ranking terms are the product's own dialect; a tooltip
             // keeps them from being jargon with no way in.
-            title={tab.key === 'hot' ? 'Gravity-decay ranking: score fades as posts age' : undefined}
+            title={key === 'hot' ? t('home:tabs.hotHint') : undefined}
             className={
-              'px-4 py-1.5 rounded-full text-xs font-mono border transition-all active:scale-95 ' +
-              (activeTab === tab.key
-                ? 'bg-vibe-cyan/20 text-vibe-cyan border-vibe-cyan/40'
-                : 'bg-transparent text-slate-400 border-vibe-border hover:border-vibe-cyan/40 hover:text-slate-200')
+              '-mb-px border-b-2 px-3 py-2 text-sm transition-colors ' +
+              (activeTab === key
+                ? 'border-vibe-accent font-medium text-vibe-text'
+                : 'border-transparent text-vibe-muted hover:border-vibe-border hover:text-vibe-text')
             }
           >
-            {tab.label}
+            {t('home:tabs.' + (key === 'ai-verified' ? 'aiVerified' : key))}
           </button>
         ))}
       </div>
 
-      {/* Terminal Hero Banner (shown when no posts) */}
+      {/* Empty state (shown when no posts) */}
       {isEmpty && (
         <EmptyState
           preset="noPosts"
@@ -257,23 +230,21 @@ export default function HomePage() {
         />
       )}
 
-      {/* Post Feed */}
+      {/* Post Feed — topic rows directly on the page, no card wrappers */}
       {isLoading ? (
-        <div className="space-y-3">
-          {[1, 2, 3].map((i) => <SkeletonCard key={i} />)}
+        <div className="space-y-3 px-3 py-2">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+            </div>
+          ))}
         </div>
       ) : !isEmpty ? (
         <>
-          <div className="space-y-3">
-            {postList.map((post: any, i: number) => (
-              <motion.div
-                key={post.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.2, delay: i * 0.03 }}
-              >
-                <PostCard post={post} />
-              </motion.div>
+          <div>
+            {postList.map((post: any) => (
+              <PostCard key={post.id} post={post} />
             ))}
           </div>
           {/* A feed that stops at 10 posts forever is a dead end; the search

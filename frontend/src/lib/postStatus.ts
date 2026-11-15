@@ -1,3 +1,5 @@
+import i18next from 'i18next';
+
 /**
  * The two numeric enums the API sends, and the only place their codes become words.
  *
@@ -26,31 +28,35 @@ export const AI_REVIEW = {
   FAILED: 3,
 } as const;
 
-const POST_STATUS_LABELS: Partial<Record<number, string>> = {
-  [POST_STATUS.ACTIVE]: 'Active',
-  [POST_STATUS.PENDING_REVIEW]: 'Pending review',
-  [POST_STATUS.REJECTED]: 'Rejected',
+const POST_STATUS_KEYS: Partial<Record<number, string>> = {
+  [POST_STATUS.ACTIVE]: 'common:status.active',
+  [POST_STATUS.PENDING_REVIEW]: 'common:status.pendingReview',
+  [POST_STATUS.REJECTED]: 'common:status.rejected',
 };
 
-const AI_REVIEW_LABELS: Partial<Record<number, string>> = {
-  [AI_REVIEW.NOT_REVIEWED]: 'Not reviewed',
-  [AI_REVIEW.REVIEWED]: 'Reviewed',
-  [AI_REVIEW.REVIEWING]: 'Reviewing',
-  [AI_REVIEW.FAILED]: 'Failed',
+const AI_REVIEW_KEYS: Partial<Record<number, string>> = {
+  [AI_REVIEW.NOT_REVIEWED]: 'common:status.notReviewed',
+  [AI_REVIEW.REVIEWED]: 'common:status.reviewed',
+  [AI_REVIEW.REVIEWING]: 'common:status.reviewing',
+  [AI_REVIEW.FAILED]: 'common:status.failed',
 };
 
 function unknownLabel(code: number | null | undefined): string {
-  return code == null ? 'Unknown' : `Unknown (${code})`;
+  return code == null
+    ? i18next.t('common:status.unknown')
+    : i18next.t('common:status.unknownWithCode', { code });
 }
 
 /** Label for `PostPageVo.status`; never blank. */
 export function postStatusLabel(code: number | null | undefined): string {
   if (code == null) return unknownLabel(code);
-  return POST_STATUS_LABELS[code] ?? unknownLabel(code);
+  const key = POST_STATUS_KEYS[code];
+  return key ? i18next.t(key) : unknownLabel(code);
 }
 
 /** Label for `PostPageVo.aiReviewed`; never blank, and 3 never reads as 0. */
 export function aiReviewLabel(code: number | null | undefined): string {
   if (code == null) return unknownLabel(code);
-  return AI_REVIEW_LABELS[code] ?? unknownLabel(code);
+  const key = AI_REVIEW_KEYS[code];
+  return key ? i18next.t(key) : unknownLabel(code);
 }

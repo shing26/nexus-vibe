@@ -7,74 +7,68 @@
 
 :root {
   color-scheme: light;
-  --vibe-bg: 246 247 249;
-  --vibe-surface: 255 255 255;
-  --vibe-card: 240 244 248;
-  --vibe-border: 203 213 225;
-  --vibe-cyan: 5 150 105;
-  --vibe-neon: 6 182 212;
-  --vibe-purple: 147 51 234;
-  --vibe-emerald: 5 150 105;
-  --slate-100: 15 23 42;
-  --slate-200: 30 41 59;
-  --slate-300: 51 65 85;
-  --slate-400: 71 85 105;
-  /* slate-600 is the app's secondary-text token. Both themes had it far below
-     the 4.5:1 floor for body-size text on the page background (about 2.3:1
-     light, 2.6:1 dark), so every meta row whispered; slate-500's value sits
-     near 4.5:1 in both. */
-  --slate-500: 100 116 139;
-  --slate-600: 100 116 139;
-  --slate-700: 203 213 225;
-  --slate-800: 226 232 240;
-  --slate-900: 241 245 249;
-  --slate-950: 248 250 252;
+  /* v2 forge palette (docs/design/ui-visual-system-v2.md). Values are RGB triplets
+     consumed through tailwind's `rgb(var(--x) / <alpha-value>)` mapping. */
+  --vibe-bg: 255 255 255;
+  --vibe-surface: 246 248 250;
+  --vibe-card: 255 255 255;
+  --vibe-border: 208 215 222;
+  --vibe-accent: 9 105 218;
+  --vibe-success: 26 127 55;
+  --vibe-danger: 207 34 46;
+  --vibe-warning: 154 103 0;
+  --vibe-high: 188 76 0;
+  --vibe-text: 31 35 40;
+  --vibe-muted: 89 99 110;
+  --vibe-faint: 129 139 152;
+  /* The legacy `slate-*` utilities are kept as aliases of the v2 scale so any
+     surface that has not been re-tokened yet still renders on-palette. New
+     code should use the vibe-* tokens directly. */
+  --slate-100: 31 35 40;
+  --slate-200: 31 35 40;
+  --slate-300: 89 99 110;
+  --slate-400: 89 99 110;
+  --slate-500: 89 99 110;
+  --slate-600: 129 139 152;
+  --slate-700: 110 118 129;
+  --slate-800: 208 215 222;
+  --slate-900: 246 248 250;
+  --slate-950: 255 255 255;
 }
 
 .dark {
   color-scheme: dark;
-  --vibe-bg: 10 13 20;
-  --vibe-surface: 17 22 34;
-  --vibe-card: 22 28 42;
-  --vibe-border: 35 45 66;
-  --vibe-cyan: 16 185 129;
-  --vibe-neon: 6 182 212;
-  --vibe-purple: 168 85 247;
-  --vibe-emerald: 5 150 105;
-  --slate-100: 241 245 249;
-  --slate-200: 226 232 240;
-  --slate-300: 203 213 225;
-  --slate-400: 148 163 184;
-  --slate-500: 100 116 139;
-  --slate-600: 100 116 139;
-  --slate-700: 51 65 85;
-  --slate-800: 30 41 59;
-  --slate-900: 15 23 42;
-  --slate-950: 2 6 23;
+  --vibe-bg: 13 17 23;
+  --vibe-surface: 22 27 34;
+  --vibe-card: 33 38 45;
+  --vibe-border: 48 54 61;
+  --vibe-accent: 88 166 255;
+  --vibe-success: 63 185 80;
+  --vibe-danger: 248 81 73;
+  --vibe-warning: 210 153 34;
+  --vibe-high: 219 109 40;
+  --vibe-text: 230 237 243;
+  --vibe-muted: 139 148 158;
+  --vibe-faint: 110 118 129;
+  --slate-100: 230 237 243;
+  --slate-200: 230 237 243;
+  --slate-300: 230 237 243;
+  --slate-400: 139 148 158;
+  --slate-500: 139 148 158;
+  --slate-600: 139 148 158;
+  --slate-700: 110 118 129;
+  --slate-800: 48 54 61;
+  --slate-900: 22 27 34;
+  --slate-950: 13 17 23;
 }
 
  @tailwind base;
  @tailwind components;
  @tailwind utilities;
 
- /* Readability floor: keep terminal density but avoid 9-11px body text. */
- @layer utilities {
-   .text-\[9px\] {
-     font-size: 11px !important;
-   }
-   .text-\[10px\] {
-     font-size: 12px !important;
-   }
-   .text-\[11px\] {
-     font-size: 13px !important;
-   }
- }
- 
  @layer base {
    body {
-     @apply bg-vibe-bg text-slate-200 font-sans antialiased selection:bg-vibe-emerald/30 selection:text-vibe-emerald;
-     background-image: radial-gradient(rgba(16, 185, 129, 0.06) 1px, transparent 1px);
-     background-size: 24px 24px;
+     @apply bg-vibe-bg text-vibe-text font-sans antialiased selection:bg-vibe-accent/20 selection:text-vibe-text;
    }
 
    /* One keyboard-focus ring for the whole app. The dense terminal greys had
@@ -82,7 +76,7 @@
       visible caret anywhere; !important wins over the scattered
       focus:outline-none utilities without hunting each one down. */
    :focus-visible {
-     outline: 2px solid rgb(var(--vibe-cyan) / 0.8) !important;
+     outline: 2px solid rgb(var(--vibe-accent) / 0.8) !important;
      outline-offset: 2px;
    }
  }
@@ -94,11 +88,5 @@
  @media (hover: none) and (pointer: coarse) {
    a, button, [role="button"], input, select, textarea {
      touch-action: manipulation;
-   }
- }
- 
- @keyframes border-beam {
-   100% {
-     offset-distance: 100%;
    }
  }

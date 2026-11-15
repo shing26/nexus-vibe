@@ -1,9 +1,12 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Link } from 'react-router-dom';
 import { Clock, Inbox, KeyRound, PieChart } from 'lucide-react';
 import { apiClient } from '../api/client';
 import { serverErrorMessage } from '../api/serverErrorMessage';
+import { channelLabel } from '../lib/channels';
+import Skeleton from '../components/Skeleton';
 import type { ChannelStats, PostPageVo } from '../types/post';
 
 interface DashboardData {
@@ -28,22 +31,13 @@ interface ChannelStatsResponse {
 }
 
 const statCards = [
-  { key: 'totalPosts', label: 'Total Posts', color: 'bg-vibe-cyan' },
-  { key: 'pendingAudits', label: 'Pending Audits', color: 'bg-amber-500' },
-  { key: 'todayPosts', label: "Today's Posts", color: 'bg-vibe-emerald' },
+  { key: 'totalPosts', labelKey: 'totalPosts', color: 'bg-vibe-accent' },
+  { key: 'pendingAudits', labelKey: 'pendingAudits', color: 'bg-vibe-warning' },
+  { key: 'todayPosts', labelKey: 'todayPosts', color: 'bg-vibe-success' },
 ] as const;
 
-const channelName: Record<string, string> = {
-  announcements: '社区公告',
-  prompts: 'Prompt 工坊',
-  showcase: '作品展示',
-  agents: 'Agent 实战',
-  'vibe-coding': 'Vibe Coding',
-  debug: '代码急诊室',
-  resources: '资源聚合',
-};
-
 export default function DashboardPage() {
+  const { t } = useTranslation('admin');
   const { data, isLoading, isError, error } = useQuery<DashboardResponse>({
     queryKey: ['admin', 'dashboard'],
     queryFn: () =>
@@ -68,28 +62,26 @@ export default function DashboardPage() {
   const handleResetPassword = async () => {
     setResetError('');
     setResetResult(null);
-    if (!resetUsername.trim()) { setResetError('Enter a username'); return; }
+    if (!resetUsername.trim()) { setResetError(t('dashboard.enterUsername')); return; }
     setResetting(true);
     try {
       const res = await apiClient.post('/admin/users/reset-password', { username: resetUsername.trim() });
       setResetResult(res.data.data);
       setResetUsername('');
     } catch (err: any) {
-      setResetError(err?.response?.data?.message || 'Reset failed');
+      setResetError(err?.response?.data?.message || t('dashboard.resetFailed'));
     } finally { setResetting(false); }
   };
 
   if (isLoading) {
     return (
       <div>
-        <h1 className="text-xl font-bold font-mono text-slate-100 mb-8">
-          <span className="text-vibe-cyan">$</span> Dashboard
-        </h1>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <h1 className="mb-8 text-xl font-semibold text-vibe-text">{t('dashboard.title')}</h1>
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {[1, 2, 3].map((i) => (
-            <div key={i} className="bg-vibe-surface border border-vibe-border rounded-lg p-6 animate-pulse">
-              <div className="h-4 bg-vibe-card rounded w-24 mb-3" />
-              <div className="h-8 bg-vibe-card rounded w-16" />
+            <div key={i} className="rounded-lg border border-vibe-border bg-vibe-surface p-6">
+              <Skeleton className="mb-3 h-4 w-24" />
+              <Skeleton className="h-8 w-16" />
             </div>
           ))}
         </div>
@@ -100,13 +92,11 @@ export default function DashboardPage() {
   if (isError) {
     return (
       <div>
-        <h1 className="text-xl font-bold font-mono text-slate-100 mb-8">
-          <span className="text-vibe-cyan">$</span> Dashboard
-        </h1>
-        <div className="bg-red-900/30 border border-red-500/40 rounded-lg p-6 text-center">
-          <p className="text-red-400 font-mono text-sm">Failed to load dashboard data</p>
-          <p className="text-red-500 text-xs font-mono mt-1">
-            {serverErrorMessage(error, 'An unexpected error occurred')}
+        <h1 className="mb-8 text-xl font-semibold text-vibe-text">{t('dashboard.title')}</h1>
+        <div role="alert" className="rounded-lg border border-vibe-danger/40 bg-vibe-danger/5 p-6 text-center">
+          <p className="text-sm text-vibe-danger">{t('dashboard.failedToLoad')}</p>
+          <p className="mt-1 text-xs text-vibe-danger">
+            {serverErrorMessage(error, t('unexpectedError'))}
           </p>
         </div>
       </div>
@@ -120,18 +110,16 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <h1 className="text-xl font-bold font-mono text-slate-100 mb-8">
-        <span className="text-vibe-cyan">$</span> Dashboard
-      </h1>
+      <h1 className="mb-8 text-xl font-semibold text-vibe-text">{t('dashboard.title')}</h1>
 
       {stats && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
           {statCards.map((card) => (
-            <div key={card.key} className="bg-vibe-surface border border-vibe-border rounded-lg overflow-hidden">
+            <div key={card.key} className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
               <div className={`${card.color} h-1.5`} />
               <div className="p-6">
-                <p className="text-xs font-mono text-slate-500">{card.label}</p>
-                <p className="mt-2 text-3xl font-bold font-mono text-slate-100">
+                <p className="text-xs text-vibe-muted">{t('dashboard.' + card.labelKey)}</p>
+                <p className="mt-2 text-3xl font-semibold tabular-nums text-vibe-text">
                   {stats[card.key].toLocaleString()}
                 </p>
               </div>
@@ -140,30 +128,30 @@ export default function DashboardPage() {
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-8">
-        <section className="bg-vibe-surface border border-vibe-border rounded-lg overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 bg-vibe-card/50 border-b border-vibe-border">
-            <Inbox className="w-4 h-4 text-amber-400" />
-            <h2 className="text-xs font-mono font-semibold text-slate-300 uppercase tracking-wider">
-              Pending Audit Queue
+      <div className="mt-8 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <section className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+          <div className="flex items-center gap-2 border-b border-vibe-border bg-vibe-card/50 px-4 py-3">
+            <Inbox className="h-4 w-4 text-vibe-warning" />
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-vibe-text">
+              {t('dashboard.pendingQueue')}
             </h2>
-            <span className="ml-auto text-[11px] font-mono text-slate-500">{pendingPosts.length} waiting</span>
+            <span className="ml-auto text-xs tabular-nums text-vibe-muted">{t('dashboard.waiting', { n: pendingPosts.length })}</span>
           </div>
           <div className="p-3">
             {pendingPosts.length === 0 ? (
-              <p className="px-2 py-6 text-center text-xs font-mono text-slate-500">// Queue empty — all clear.</p>
+              <p className="px-2 py-6 text-center text-xs text-vibe-muted">{t('dashboard.queueEmpty')}</p>
             ) : (
               <ul className="space-y-2">
                 {pendingPosts.slice(0, 5).map((post) => (
                   <li key={post.id}>
                     <Link
                       to="/admin/audit"
-                      className="flex items-start gap-3 px-2 py-2 rounded-md hover:bg-vibe-card/60 transition-colors"
+                      className="flex items-start gap-3 rounded-md px-2 py-2 transition-colors hover:bg-vibe-card"
                     >
-                      <Clock className="w-3.5 h-3.5 text-slate-500 mt-0.5 shrink-0" />
+                      <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0 text-vibe-faint" />
                       <div className="min-w-0">
-                        <p className="text-xs font-mono text-slate-200 truncate">{post.title}</p>
-                        <p className="text-[10px] font-mono text-slate-500 mt-0.5">
+                        <p className="truncate text-xs text-vibe-text">{post.title}</p>
+                        <p className="mt-0.5 text-xs text-vibe-muted">
                           {post.authorName} · {post.categoryName}
                         </p>
                       </div>
@@ -175,26 +163,26 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="bg-vibe-surface border border-vibe-border rounded-lg overflow-hidden">
-          <div className="flex items-center gap-2 px-4 py-3 bg-vibe-card/50 border-b border-vibe-border">
-            <PieChart className="w-4 h-4 text-vibe-cyan" />
-            <h2 className="text-xs font-mono font-semibold text-slate-300 uppercase tracking-wider">
-              Posts by Channel
+        <section className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+          <div className="flex items-center gap-2 border-b border-vibe-border bg-vibe-card/50 px-4 py-3">
+            <PieChart className="h-4 w-4 text-vibe-accent" />
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-vibe-text">
+              {t('dashboard.postsByChannel')}
             </h2>
-            <span className="ml-auto text-[11px] font-mono text-slate-500">{channelStats.length} channels</span>
+            <span className="ml-auto text-xs tabular-nums text-vibe-muted">{t('dashboard.channelsCount', { n: channelStats.length })}</span>
           </div>
-          <div className="p-4 space-y-2.5">
+          <div className="space-y-2.5 p-4">
             {channelStats.map((channel) => {
               const count = Number(channel.postCount) || 0;
               return (
                 <div key={channel.id}>
-                  <div className="flex items-center justify-between text-[11px] font-mono mb-1">
-                    <span className="text-slate-300">{channelName[channel.slug] ?? channel.slug}</span>
-                    <span className="text-slate-500">{count}</span>
+                  <div className="mb-1 flex items-center justify-between text-xs">
+                    <span className="text-vibe-text">{channelLabel(channel.slug) || channel.slug}</span>
+                    <span className="tabular-nums text-vibe-muted">{count}</span>
                   </div>
-                  <div className="h-1.5 bg-vibe-card rounded-full overflow-hidden">
+                  <div className="h-1.5 overflow-hidden rounded-full bg-vibe-card">
                     <div
-                      className="h-full bg-vibe-cyan/60 rounded-full transition-all"
+                      className="h-full rounded-full bg-vibe-accent/60 transition-all motion-reduce:transition-none"
                       style={{ width: Math.max(4, (count / maxPosts) * 100) + '%' }}
                     />
                   </div>
@@ -205,17 +193,17 @@ export default function DashboardPage() {
         </section>
       </div>
 
-      <section className="bg-vibe-surface border border-vibe-border rounded-lg overflow-hidden mt-8">
-        <div className="flex items-center gap-2 px-4 py-3 bg-vibe-card/50 border-b border-vibe-border">
-          <KeyRound className="w-4 h-4 text-vibe-emerald" />
-          <h2 className="text-xs font-mono font-semibold text-slate-300 uppercase tracking-wider">
-            Account Recovery
+      <section className="mt-8 overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+        <div className="flex items-center gap-2 border-b border-vibe-border bg-vibe-card/50 px-4 py-3">
+          <KeyRound className="h-4 w-4 text-vibe-success" />
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-vibe-text">
+            {t('dashboard.accountRecovery')}
           </h2>
-          <span className="ml-auto text-[10px] font-mono text-slate-600">admin-only · temp password</span>
+          <span className="ml-auto text-xs text-vibe-faint">{t('dashboard.recoveryNote')}</span>
         </div>
-        <div className="p-4 space-y-3">
-          <p className="text-[11px] font-mono text-slate-500">
-            邮件通道尚未开通：为忘记密码的用户生成临时密码，线下转交，并提醒用户登录后立即修改。
+        <div className="space-y-3 p-4">
+          <p className="text-xs text-vibe-muted">
+            {t('dashboard.recoveryDescription')}
           </p>
           <div className="flex gap-2">
             <input
@@ -223,24 +211,25 @@ export default function DashboardPage() {
               value={resetUsername}
               onChange={(e) => setResetUsername(e.target.value)}
               onKeyDown={(e) => { if (e.key === 'Enter') handleResetPassword(); }}
-              placeholder="username"
-              className="flex-1 max-w-xs px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-emerald/50 focus:border-vibe-emerald/50"
+              placeholder={t('dashboard.usernamePlaceholder')}
+              className="max-w-xs flex-1 rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-success/50 focus:outline-none focus:ring-1 focus:ring-vibe-success/50"
             />
             <button
+              type="button"
               onClick={handleResetPassword}
               disabled={resetting}
-              className="px-4 py-2 rounded-lg bg-vibe-emerald/20 border border-vibe-emerald/30 text-vibe-emerald text-xs font-mono hover:bg-vibe-emerald/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              className="rounded-md bg-vibe-accent px-4 py-2 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {resetting ? 'Generating...' : 'Generate temp password'}
+              {resetting ? t('dashboard.generating') : t('dashboard.generate')}
             </button>
           </div>
           {resetError && (
-            <p className="text-[11px] font-mono text-red-400">! {resetError}</p>
+            <p role="alert" className="text-xs text-vibe-danger">! {resetError}</p>
           )}
           {resetResult && (
-            <div className="bg-vibe-bg border border-vibe-border rounded-lg px-3 py-2 font-mono text-xs">
-              <span className="text-slate-500">{resetResult.username} 的临时密码：</span>
-              <span className="text-vibe-emerald select-all">{resetResult.tempPassword}</span>
+            <div className="rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm">
+              <span className="text-vibe-muted">{t('dashboard.tempPassword', { username: resetResult.username })}</span>{' '}
+              <span className="select-all font-medium text-vibe-success">{resetResult.tempPassword}</span>
             </div>
           )}
         </div>

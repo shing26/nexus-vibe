@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { AlertTriangle } from 'lucide-react';
 import { reportCrash } from '../api/crashReporter';
+import i18next from 'i18next';
 
 interface Props {
   children: React.ReactNode;
@@ -42,15 +43,17 @@ export default class ErrorBoundary extends React.Component<Props, State> {
     if (this.state.hasError) {
       return (
         <div className={this.props.section ? 'py-16 text-center' : 'max-w-3xl mx-auto px-4 py-24 text-center'}>
-          <AlertTriangle className={this.props.section ? 'w-10 h-10 text-red-400/50 mx-auto mb-4' : 'w-16 h-16 text-red-400/50 mx-auto mb-4'} />
-          <h1 className="text-xl font-mono font-bold text-slate-100 mb-2">Something went wrong</h1>
-          <p className="text-xs font-mono text-slate-500 mb-2 max-w-md mx-auto">{this.state.error?.message}</p>
+          <AlertTriangle className={this.props.section ? 'h-10 w-10 text-vibe-danger/50 mx-auto mb-4' : 'h-16 w-16 text-vibe-danger/50 mx-auto mb-4'} />
+          <h1 className="mb-2 text-xl font-semibold text-vibe-text">{i18next.t('common:errorBoundary.title')}</h1>
+          <p className="mx-auto mb-2 max-w-md text-xs text-vibe-muted">{this.state.error?.message}</p>
           {this.props.section && (
-            <p className="text-xs font-mono text-slate-600 mb-2">a failure inside {this.props.section}, not of the whole site</p>
+            <p className="mb-2 text-xs text-vibe-muted">
+              {i18next.t('common:errorBoundary.sectionNote', { section: this.props.section })}
+            </p>
           )}
           <div className="flex items-center justify-center gap-3">
-            <Link to="/" className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors" onClick={() => this.setState({ hasError: false })}>
-              ← Back to Home
+            <Link to="/" className="inline-flex items-center gap-2 rounded-md bg-vibe-accent px-4 py-2 text-xs font-medium text-white transition-colors hover:opacity-90" onClick={() => this.setState({ hasError: false })}>
+              {i18next.t('common:backHome')}
             </Link>
             <button
               type="button"
@@ -58,9 +61,9 @@ export default class ErrorBoundary extends React.Component<Props, State> {
                 this.setState({ hasError: false });
                 window.location.reload();
               }}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg border border-vibe-border text-slate-300 text-xs font-mono hover:border-vibe-cyan/40 hover:text-vibe-cyan transition-colors"
+              className="inline-flex items-center gap-2 rounded-md border border-vibe-border px-4 py-2 text-xs font-medium text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-accent"
             >
-              ↻ Retry
+              {i18next.t('common:errorBoundary.retry')}
             </button>
           </div>
         </div>
