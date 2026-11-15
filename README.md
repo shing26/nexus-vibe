@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-539%20Java%20%2B%20115%20frontend-brightgreen?style=flat-square" alt="539 Java tests + 115 frontend tests">
+  <img src="https://img.shields.io/badge/tests-539%20Java%20%2B%20116%20frontend-brightgreen?style=flat-square" alt="539 Java tests + 116 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -427,10 +427,10 @@ the restore rehearsal is [docs/runbook/restore.md](docs/runbook/restore.md).
 
 ## 🧪 Testing gates
 
-Measured 2026-11-14 on this machine, on the core-loop-corrections tree (ADR-0021's raw-storage
-ingress and the terminal-review-notification fix): backend **539 tests / 91
+Measured 2026-11-15 on this machine, on the design-overhaul tree (the v2 visual system,
+the new app shell, and i18n from scratch): backend **539 tests / 91
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
-never `target/surefire-reports/`, which accumulates runs and lies. Frontend **115 tests /
+never `target/surefire-reports/`, which accumulates runs and lies. Frontend **116 tests /
 21 files**: the axios response interceptor (a 401 replayed once against the refreshed token,
 one refresh shared across concurrent 401s, a refused refresh that logs out without
 looping, a 5xx named with its trace id), the server-error sentence mapping, the login
@@ -438,9 +438,10 @@ page's server reason, the AI review panel (a stored 0-10 shown as the 0-100 it c
 stored zero as an empty meter rather than NaN, the replay that lights the steps in
 order), reduced motion, the mobile tab bar, the nav evidence links, the comment body,
 the showcase entry, the step strip, the post-status code mapping (the four AI review
-states distinct, an unknown code visible rather than blank), the card that must not
-change for readers who are not the author (its markup compared against the base commit
-across four fixtures), the card's three counts following a re-render, the empty-state
+states distinct, an unknown code visible rather than blank), the card as a compact topic row (the title
+link, the three counts read from the post object rather than constants, the copy/fork
+controls a text post still offers, the state badges' four AI review states and their
+reasons, and no rejection detail in the public feed), the empty-state
 presets (every preset iterated, no bare restatement of absence, no exclamation mark), the
 channel page's desktop gate and URL-backed sort, the degradation banner (rendered only
 while a capability is degraded, dismissed per capability, linked to ADR-0007), the
@@ -469,7 +470,7 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 mvn test                      # 539: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 115
+cd frontend && npm run test   # 116
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28
 ```
 

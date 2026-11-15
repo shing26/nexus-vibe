@@ -1,5 +1,7 @@
 # Nexus-Vibe UI Visual System: AI Review + Profile Workspace
 
+> **Superseded (2026-11-15).** This v1 spec is superseded by [ADR-0020](../adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md) and the [v2 visual system](ui-visual-system-v2.md): the cyan/neon/purple palette, the dot-grid background, and the effect components it kept (`BorderBeam`, `DecryptedText`, `SpotlightCard`) were retired by the design-overhaul round. The body below is preserved unedited for the record; do not implement from it.
+
 Scope: implementation-ready spec for `AiReviewTerminal` and `UserProfilePage`, including one Tailwind token change. No full-theme rewrite.
 
 ## Reuse Map
