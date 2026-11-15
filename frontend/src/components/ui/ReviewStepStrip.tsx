@@ -1,5 +1,6 @@
 import { Check, Loader2 } from 'lucide-react';
 import { useEffect, useState, type FC } from 'react';
+import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from 'motion/react';
 import { REVIEW_STEPS, type ReviewStepStatus } from './reviewSteps';
 
@@ -20,12 +21,13 @@ interface ReviewStepStripProps {
 const RUNNING_CYCLE_MS = 1400;
 
 const rowStyles: Record<ReviewStepStatus, string> = {
-  waiting: 'border-vibe-border/60 bg-vibe-surface/40 text-slate-500',
-  active: 'border-vibe-neon/40 bg-vibe-surface text-vibe-neon',
-  done: 'border-vibe-border bg-vibe-surface/80 text-slate-300',
+  waiting: 'border-vibe-border/60 bg-vibe-card/60 text-vibe-muted',
+  active: 'border-vibe-accent/40 bg-vibe-card text-vibe-accent',
+  done: 'border-vibe-border bg-vibe-card text-vibe-text',
 };
 
 export const ReviewStepStrip: FC<ReviewStepStripProps> = ({ mode, completed = 0, className = '' }) => {
+  const { t } = useTranslation('post');
   const reduceMotion = useReducedMotion();
   const [cycling, setCycling] = useState(0);
 
@@ -44,7 +46,7 @@ export const ReviewStepStrip: FC<ReviewStepStripProps> = ({ mode, completed = 0,
   };
 
   return (
-    <ol className={'space-y-1 ' + className} aria-label="Review steps">
+    <ol className={'space-y-1 ' + className} aria-label={t('review.steps.aria')}>
       {REVIEW_STEPS.map((step, index) => {
         const status = statusFor(index);
         const StepIcon = step.icon;
@@ -55,20 +57,20 @@ export const ReviewStepStrip: FC<ReviewStepStripProps> = ({ mode, completed = 0,
             data-state={status}
             className={'flex items-center gap-2 rounded-md border px-2 py-1.5 transition-colors ' + rowStyles[status]}
           >
-            <span className="w-4 shrink-0 text-[10px] font-mono tabular-nums text-slate-500">
+            <span className="w-4 shrink-0 text-xs tabular-nums text-vibe-faint">
               {String(index + 1).padStart(2, '0')}
             </span>
             {status === 'done' ? (
-              <Check className="h-3.5 w-3.5 shrink-0 text-vibe-emerald" />
+              <Check className="h-3.5 w-3.5 shrink-0 text-vibe-success" />
             ) : status === 'active' ? (
               <Loader2 className="h-3.5 w-3.5 shrink-0 animate-spin motion-reduce:animate-none" />
             ) : (
               <StepIcon className="h-3.5 w-3.5 shrink-0 opacity-50" />
             )}
-            <span className="min-w-0 flex-1 truncate text-[11px] font-mono">{step.label}</span>
-            {status === 'done' && <span className="shrink-0 text-[10px] font-mono text-vibe-emerald">ok</span>}
+            <span className="min-w-0 flex-1 truncate text-xs">{t('review.steps.' + step.key)}</span>
+            {status === 'done' && <span className="shrink-0 text-xs text-vibe-success">{t('review.steps.ok')}</span>}
             {status === 'active' && mode === 'running' && (
-              <span className="shrink-0 text-[10px] font-mono text-slate-500">in progress</span>
+              <span className="shrink-0 text-xs text-vibe-muted">{t('review.steps.inProgress')}</span>
             )}
           </li>
         );

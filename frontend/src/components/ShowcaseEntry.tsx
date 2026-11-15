@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router-dom';
 import { ArrowRight, ShieldCheck } from 'lucide-react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 
 interface ShowcasePost {
@@ -18,6 +19,7 @@ interface ShowcasePost {
  * without the seed looks exactly as it did before this existed.
  */
 export default function ShowcaseEntry() {
+  const { t } = useTranslation('home');
   const { data } = useQuery<ShowcasePost | null>({
     queryKey: ['showcase'],
     queryFn: async () => (await apiClient.get('/showcase')).data.data ?? null,
@@ -29,30 +31,28 @@ export default function ShowcaseEntry() {
   return (
     <Link
       to={'/post/' + data.postId}
-      className="group block border border-vibe-cyan/25 rounded-xl bg-vibe-cyan/5 hover:bg-vibe-cyan/10 hover:border-vibe-cyan/40 transition-colors"
+      className="group block rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-accent/10"
     >
       <div className="flex items-start gap-3 px-4 py-3">
-        <div className="w-8 h-8 shrink-0 rounded-lg border border-vibe-cyan/30 bg-vibe-cyan/10 flex items-center justify-center">
-          <ShieldCheck className="w-4 h-4 text-vibe-cyan" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-vibe-accent/40 bg-vibe-accent/10">
+          <ShieldCheck className="h-4 w-4 text-vibe-accent" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-vibe-cyan/80">
-            Read a real review — no account needed
+          <p className="text-xs font-medium uppercase tracking-wide text-vibe-accent">
+            {t('showcaseEntry.kicker')}
           </p>
-          <p className="mt-1 text-sm font-mono text-slate-200 truncate group-hover:text-white transition-colors">
+          <p className="mt-1 truncate text-sm font-medium text-vibe-text">
             {data.title}
           </p>
-          <p className="mt-0.5 text-[11px] font-mono text-slate-500">
-            A recorded run of the review pipeline: it scored this snippet{' '}
-            {data.aiReviewScore}/10 and wrote the findings on that page. Copied verbatim, not
-            written by hand.
+          <p className="mt-0.5 text-xs text-vibe-muted">
+            {t('showcaseEntry.desc', { score: data.aiReviewScore })}
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 self-center">
-          <span className="text-xs font-mono text-vibe-cyan font-semibold">
+          <span className="text-xs font-semibold tabular-nums text-vibe-accent">
             {data.aiReviewScore}/10
           </span>
-          <ArrowRight className="w-3.5 h-3.5 text-slate-500 group-hover:text-vibe-cyan transition-colors" />
+          <ArrowRight className="h-3.5 w-3.5 text-vibe-faint transition-colors group-hover:text-vibe-accent" />
         </div>
       </div>
     </Link>

@@ -10,9 +10,9 @@ interface SidebarProps {
 }
 
 /**
- * The single navigation surface for channels: the 社区 group (seven channels plus
- * the tag directory) and, for a signed-in reader, the 我的 group. Signed-out
- * visitors see only 社区. The active channel gets the accent color and a left rail.
+ * The single navigation surface for channels: the community group (seven channels plus
+ * the tag directory) and, for a signed-in reader, the personal group. Signed-out
+ * visitors see only the community group. The active channel gets the accent color and a left rail.
  */
 export default function Sidebar({ onNavigate }: SidebarProps) {
   const { t } = useTranslation(['common', 'channel']);

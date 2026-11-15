@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useTranslation } from 'react-i18next';
 import { AlertTriangle, X } from 'lucide-react';
 import { useDegradedCapabilities } from '../api/useCapabilities';
 import { ExternalLink } from './ui/ExternalLink';
@@ -43,6 +44,7 @@ function writeDismissed(keys: string[]): void {
 }
 
 export default function DegradationBanner() {
+  const { t } = useTranslation('common');
   const { data } = useDegradedCapabilities();
   const [dismissed, setDismissed] = useState<string[]>(readDismissed);
 
@@ -56,32 +58,32 @@ export default function DegradationBanner() {
   };
 
   return (
-    <div role="status" className="border-b border-amber-500/20 bg-amber-500/5">
+    <div role="status" className="border-b border-vibe-warning/20 bg-vibe-warning/5">
       <div className="mx-auto flex max-w-[1400px] items-start gap-3 px-4 py-2 sm:px-6 lg:px-8">
-        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-amber-400" aria-hidden="true" />
+        <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-vibe-warning" aria-hidden="true" />
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-mono uppercase tracking-widest text-amber-400/90">
-            Some features are limited
+          <p className="text-xs font-semibold uppercase tracking-wide text-vibe-warning">
+            {t('degradation.heading')}
           </p>
           <ul className="mt-0.5 space-y-0.5">
             {visible.map((capability) => (
-              <li key={capability.key} className="text-xs text-amber-100/80">
+              <li key={capability.key} className="text-xs text-vibe-muted">
                 {capability.impact}
               </li>
             ))}
           </ul>
           <ExternalLink
             href={ADR_0007_URL}
-            title="ADR-0007: a degraded dependency is not an unhealthy site"
+            title={t('degradation.adrTitle')}
           >
-            Why this happens
+            {t('degradation.why')}
           </ExternalLink>
         </div>
         <button
           type="button"
           onClick={dismiss}
-          aria-label="Dismiss status notice"
-          className="mt-0.5 shrink-0 rounded-md p-1 text-amber-400/70 transition-colors hover:bg-amber-400/10 hover:text-amber-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-neon"
+          aria-label={t('degradation.dismissAria')}
+          className="mt-0.5 shrink-0 rounded-md p-1 text-vibe-warning/70 transition-colors hover:bg-vibe-warning/10 hover:text-vibe-warning focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-accent"
         >
           <X className="h-3.5 w-3.5" aria-hidden="true" />
         </button>

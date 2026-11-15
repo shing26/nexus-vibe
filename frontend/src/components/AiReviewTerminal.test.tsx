@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { AiReviewTerminal } from './AiReviewTerminal';
 import type { AiReviewDetail } from '../types/post';
@@ -9,6 +9,10 @@ import type { AiReviewDetail } from '../types/post';
  * three that matter are the ones a user can misread: "reviewing" when nothing is
  * coming, a score that is not there, and a failure that retried itself out of
  * existence. Each test asserts on the sentence the user would act on.
+ *
+ * <p>Since the v2 collapse, the replay plays on the first expand of the panel
+ * rather than at mount, so the two pacing tests expand the panel before
+ * advancing the timers. Everything the header shows is visible collapsed.</p>
  */
 
 const detail: AiReviewDetail = {
@@ -56,7 +60,7 @@ describe('AiReviewTerminal', () => {
     expect(screen.getByText('high')).toBeInTheDocument();
     expect(screen.getByText('Approved')).toBeInTheDocument();
     expect(screen.getByText('Prefer early returns here.')).toBeInTheDocument();
-    expect(screen.getByText('// No findings.')).toBeInTheDocument();
+    expect(screen.getByText('No findings.')).toBeInTheDocument();
   });
 
   it('shows an explicit unavailable state rather than an empty scorecard', () => {
@@ -74,6 +78,9 @@ describe('AiReviewTerminal', () => {
     it('lights the steps in order and lands on the score', () => {
       vi.useFakeTimers();
       const { container } = render(<AiReviewTerminal state="data" detail={detail} />);
+
+      // The replay belongs to the expand, not the page load: open the panel first.
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle review details' }));
 
       expect(stateOf(container, 'codeQuality')).toBe('active');
       expect(stateOf(container, 'securityConcerns')).toBe('waiting');
@@ -103,6 +110,8 @@ describe('AiReviewTerminal', () => {
       vi.useFakeTimers();
       const { container } = render(<AiReviewTerminal state="data" detail={{ ...detail, score: 0 }} />);
 
+      // Same rule as above: the replay starts on the first expand.
+      fireEvent.click(screen.getByRole('button', { name: 'Toggle review details' }));
       act(() => { vi.advanceTimersByTime(3000); });
 
       // A stored 0 is a real score; the meter must stay at 0% instead of dividing 0 by 0.

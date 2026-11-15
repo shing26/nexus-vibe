@@ -1,12 +1,13 @@
 ﻿import { useEffect, useState } from 'react';
 import { Link, useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
 import PostCard from '../components/PostCard';
 import Pagination from '../components/Pagination';
-import Sidebar from '../components/Sidebar';
+import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
+import { channelLabel } from '../lib/channels';
 import type { Channel, PostPageVo } from '../types/post';
 
 const DESKTOP_QUERY = '(min-width: 768px)';
@@ -35,6 +36,7 @@ function useIsDesktop(): boolean {
 }
 
 export default function ChannelPage() {
+  const { t } = useTranslation('channel');
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
@@ -66,40 +68,40 @@ export default function ChannelPage() {
 
   const emptyGuides: Record<string, { title: string; desc: string; action: string; actionLabel: string }> = {
     prompts: {
-      title: '终端就绪，等待第一个 Prompt 入库',
-      desc: '发布一个 System Prompt 模板，AI Agent 会自动审查并回帖。',
+      title: t('emptyGuides.prompts.title'),
+      desc: t('emptyGuides.prompts.desc'),
       action: '/post/new?template=prompt',
-      actionLabel: '一键填充示例 Prompt',
+      actionLabel: t('emptyGuides.prompts.actionLabel'),
     },
     debug: {
-      title: '急诊室空转中',
-      desc: '贴上你的报错上下文，AI Agent 与社区会一起定位问题。',
+      title: t('emptyGuides.debug.title'),
+      desc: t('emptyGuides.debug.desc'),
       action: '/post/new?template=debug',
-      actionLabel: '提交第一个报错',
+      actionLabel: t('emptyGuides.debug.actionLabel'),
     },
     showcase: {
-      title: '还没有成品展示',
-      desc: '发布你 Vibe Coding 出来的网页、工具或自动化流程。',
+      title: t('emptyGuides.showcase.title'),
+      desc: t('emptyGuides.showcase.desc'),
       action: '/post/new?template=showcase',
-      actionLabel: '发布第一个作品',
+      actionLabel: t('emptyGuides.showcase.actionLabel'),
     },
     agents: {
-      title: 'Agent 实战区等待案例',
-      desc: '分享你基于 OpenClaw、Codex 或自研 Multi-Agent 的工作流。',
+      title: t('emptyGuides.agents.title'),
+      desc: t('emptyGuides.agents.desc'),
       action: '/post/new?template=agents',
-      actionLabel: '分享 Agent 实战',
+      actionLabel: t('emptyGuides.agents.actionLabel'),
     },
     'vibe-coding': {
-      title: '经验区等待第一篇',
-      desc: '聊聊上下文控制、幻觉治理与 AI 时代架构设计。',
+      title: t('emptyGuides.vibe-coding.title'),
+      desc: t('emptyGuides.vibe-coding.desc'),
       action: '/post/new',
-      actionLabel: '写第一篇经验',
+      actionLabel: t('emptyGuides.vibe-coding.actionLabel'),
     },
     resources: {
-      title: '资源聚合区还是空的',
-      desc: '推荐工具链、API 评测与高质量教程链接。',
+      title: t('emptyGuides.resources.title'),
+      desc: t('emptyGuides.resources.desc'),
       action: '/post/new',
-      actionLabel: '推荐一个资源',
+      actionLabel: t('emptyGuides.resources.actionLabel'),
     },
   };
   const emptyGuide = channel ? emptyGuides[channel.slug] : undefined;
@@ -133,38 +135,35 @@ export default function ChannelPage() {
 
   if (!slug) {
     return (
-      <div className="max-w-[1400px] mx-auto px-4 py-16 text-center">
-        <p className="text-slate-500 text-sm font-mono">No channel specified</p>
+      <div className="mx-auto max-w-[1400px] px-4 py-16 text-center">
+        <p className="text-sm text-vibe-muted">{t('noChannelSpecified')}</p>
       </div>
     );
   }
 
   if (channels && !channel) {
     return (
-      <div className="max-w-[1400px] mx-auto px-4 py-16 text-center">
-        <h2 className="text-lg font-bold font-mono text-slate-100 mb-2">Channel Not Found</h2>
-        <p className="text-sm font-mono text-slate-500">Channel &quot;{slug}&quot; doesn&apos;t exist</p>
+      <div className="mx-auto max-w-[1400px] px-4 py-16 text-center">
+        <h2 className="mb-2 text-lg font-semibold text-vibe-text">{t('notFoundTitle')}</h2>
+        <p className="text-sm text-vibe-muted">{t('notFoundDesc', { slug })}</p>
       </div>
     );
   }
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 py-8">
-      <div className="flex gap-4">
-        {/* Icon-rail sidebar */}
-        <div className="w-12 shrink-0 hidden lg:block">
-          <Sidebar />
-        </div>
-        <div className="flex-1 min-w-0">
+    <div className="mx-auto max-w-[1400px] px-4 py-8">
+      <div className="flex gap-6">
+        {/* The channel rail lives in the app shell; the page owns only its feed. */}
+        <div className="min-w-0 flex-1">
           {channel && (
-            <h1 className="text-xl font-bold font-mono text-slate-100 pb-3 border-b border-vibe-border mb-6">
-              # {channel.name}
+            <h1 className="mb-6 border-b border-vibe-border pb-3 text-xl font-semibold text-vibe-text">
+              # {channelLabel(channel.slug) || channel.name}
             </h1>
           )}
 
           {channel && (
-            <div className="mb-4 flex items-center gap-2 font-mono text-[11px]">
-              <span className="text-slate-400">Order:</span>
+            <div className="mb-4 flex items-center gap-2 text-xs">
+              <span className="text-vibe-muted">{t('orderLabel')}</span>
               {(['latest', 'liked'] as const).map((option) => (
                 <button
                   key={option}
@@ -172,41 +171,32 @@ export default function ChannelPage() {
                   onClick={() => changeSort(option)}
                   aria-pressed={sort === option}
                   className={
-                    'rounded-md border px-2.5 py-1 transition-colors active:scale-[0.97] ' +
+                    'rounded-full border px-2.5 py-1 transition-colors ' +
                     (sort === option
-                      ? 'border-vibe-cyan/40 bg-vibe-cyan/15 text-vibe-cyan'
-                      : 'border-vibe-border text-slate-400 hover:border-vibe-cyan/40 hover:text-slate-200')
+                      ? 'border-vibe-accent/60 bg-vibe-accent/10 text-vibe-accent'
+                      : 'border-vibe-border text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-text')
                   }
                 >
-                  {option === 'latest' ? 'Latest' : 'Most liked'}
+                  {option === 'latest' ? t('sortLatest') : t('sortLiked')}
                 </button>
               ))}
             </div>
           )}
 
           {isLoading ? (
-            <div className="space-y-3">
+            <div className="space-y-4 px-3 py-2">
               {[1, 2, 3].map((i) => (
-                <div key={i} className="bg-vibe-surface/50 border border-vibe-border rounded-xl p-4 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-vibe-cyan/5 to-transparent bg-[length:200%_100%] animate-shimmer" />
-                  <div className="h-3 bg-vibe-card rounded w-3/4 mb-3 relative" />
-                  <div className="h-2.5 bg-vibe-card/50 rounded w-1/2 mb-2 relative" />
-                  <div className="h-2 bg-vibe-card/30 rounded w-1/4 relative" />
+                <div key={i} className="space-y-2">
+                  <Skeleton className="h-4 w-3/4" />
+                  <Skeleton className="h-3 w-1/2" />
                 </div>
               ))}
             </div>
           ) : postsData && postsData.list.length > 0 ? (
             <>
-              <div className="space-y-3">
-                {postsData.list.map((post: any, i: number) => (
-                  <motion.div
-                    key={post.id}
-                    initial={{ opacity: 0, y: 12 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ duration: 0.2, delay: i * 0.03 }}
-                  >
-                    <PostCard post={post} />
-                  </motion.div>
+              <div>
+                {postsData.list.map((post: any) => (
+                  <PostCard key={post.id} post={post} />
                 ))}
               </div>
               <Pagination
@@ -221,27 +211,21 @@ export default function ChannelPage() {
         </div>
 
         {isDesktop && channel && (
-          <aside aria-label="Waiting for an answer" className="w-72 shrink-0">
-            <div className="rounded-lg border border-vibe-border bg-vibe-surface/80 p-4">
-              <h2 className="mb-1 font-mono text-xs font-semibold text-slate-300">
-                // Waiting for an answer
-              </h2>
-              <p className="mb-3 font-mono text-[10px] text-slate-400">
-                Active posts with no replies yet.
-              </p>
+          <aside aria-label={t('waiting.ariaLabel')} className="w-72 shrink-0">
+            <div className="rounded-lg border border-vibe-border bg-vibe-surface p-4">
+              <h2 className="mb-1 text-xs font-semibold text-vibe-text">{t('waiting.title')}</h2>
+              <p className="mb-3 text-xs text-vibe-muted">{t('waiting.desc')}</p>
               {unanswered === undefined ? null : unanswered.length > 0 ? (
                 <ul className="space-y-1">
                   {unanswered.map((post) => (
                     <li key={post.id}>
                       <Link
                         to={'/post/' + post.id}
-                        className="group block rounded-lg p-2 transition-colors hover:bg-vibe-card/70"
+                        className="group block rounded-md p-2 transition-colors hover:bg-vibe-card"
                       >
-                        <p className="line-clamp-2 font-mono text-[11px] leading-snug text-slate-300 group-hover:text-vibe-cyan">
-                          {post.title}
-                        </p>
-                        <p className="mt-1 font-mono text-[10px] text-slate-400">
-                          {post.authorName} · {post.likeCount} likes · no replies
+                        <p className="line-clamp-2 text-xs leading-snug text-vibe-text">{post.title}</p>
+                        <p className="mt-1 text-xs tabular-nums text-vibe-muted">
+                          {t('waiting.rowMeta', { author: post.authorName, likes: post.likeCount })}
                         </p>
                       </Link>
                     </li>
@@ -250,8 +234,8 @@ export default function ChannelPage() {
               ) : (
                 <EmptyState
                   preset="noPosts"
-                  title="Nothing is waiting"
-                  desc="Posts with no replies appear here; write the first reply on a post and it leaves this list."
+                  title={t('waiting.emptyTitle')}
+                  desc={t('waiting.emptyDesc')}
                   action={null}
                   actionLabel={null}
                   className="py-8"

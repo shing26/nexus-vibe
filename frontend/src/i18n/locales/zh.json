@@ -156,7 +156,11 @@
       "promptCopied": "Prompt 已复制",
       "templateForked": "模板已 Fork",
       "forkFailed": "Fork 失败",
-      "dismissAria": "关闭通知"
+      "dismissAria": "关闭通知",
+      "loginToLike": "登录后才能点赞",
+      "likeFailed": "点赞失败，请重试",
+      "postDeleted": "帖子已删除",
+      "deleteFailed": "删除失败"
     },
     "serviceUnavailable": "服务暂时不可用，请稍后重试",
     "serviceUnavailableWithTrace": "服务暂时不可用（追踪号 {{trace}}）",
@@ -169,7 +173,9 @@
       "reviewing": "评审中",
       "failed": "评审失败",
       "unknown": "未知",
-      "unknownWithCode": "未知 ({{code}})"
+      "unknownWithCode": "未知 ({{code}})",
+      "approved": "已通过",
+      "flagged": "已标记"
     },
     "empty": {
       "noPosts": {
@@ -206,7 +212,8 @@
     "degradation": {
       "heading": "部分功能受限",
       "why": "为什么会这样",
-      "dismissAria": "关闭状态提示"
+      "dismissAria": "关闭状态提示",
+      "adrTitle": "ADR-0007：降级的依赖不等于不健康的站点"
     },
     "pagination": {
       "prev": "上一页",
@@ -215,7 +222,8 @@
     },
     "notFoundPage": {
       "title": "404 — 页面不存在",
-      "desc": "这个路由不存在或已被移动。"
+      "desc": "这个路由不存在或已被移动。",
+      "backHome": "← 回到首页"
     },
     "stateBadgePrefix": "AI 审阅： "
   },
@@ -262,6 +270,33 @@
       "emptyTitle": "还没有任何标签",
       "emptyDesc": "标签由 AI 评审从帖子中自动提取，发布 Prompt 后这里就会长出来。",
       "emptyAction": "发布一个 Prompt"
+    },
+    "empty": {
+      "debug": {
+        "title": "急诊室空转中",
+        "desc": "贴上报错上下文，AI Agent 与社区会一起定位问题。",
+        "actionLabel": "提交第一个报错"
+      },
+      "prompts": {
+        "title": "终端就绪，等待第一个 Prompt 入库",
+        "desc": "发布一个 System Prompt 模板，AI Agent 会自动审查并回帖。",
+        "actionLabel": "一键填充示例 Prompt"
+      },
+      "ai-verified": {
+        "title": "还没有 AI 验证过的帖子",
+        "desc": "发布带代码块的帖子，AI Agent 会自动评分。",
+        "actionLabel": "发布第一个帖子"
+      },
+      "hot": {
+        "title": "还没有热帖",
+        "desc": "发布第一篇内容，成为社区热度的起点。",
+        "actionLabel": "发布第一个帖子"
+      },
+      "latest": {
+        "title": "还没有新帖",
+        "desc": "发布第一篇帖子后，社区的讨论会按时间出现在这里。",
+        "actionLabel": "发布第一个帖子"
+      }
     }
   },
   "channel": {
@@ -437,7 +472,8 @@
         "empty": "还没有完成的评审。",
         "approved": "通过",
         "needsReview": "需要关注"
-      }
+      },
+      "failedLoading": "加载 AI 评审失败。"
     },
     "comments": {
       "heading": "评论（{{n}}）",
@@ -466,6 +502,17 @@
     "tabBar": {
       "post": "发帖",
       "me": "我的"
+    },
+    "versions": {
+      "title": "Prompt 模板版本",
+      "branch": "main",
+      "empty": "还没有任何版本记录。",
+      "head": "HEAD",
+      "noChangeNote": "无变更说明",
+      "restoreNotePlaceholder": "恢复备注（可选）",
+      "restore": "恢复",
+      "restored": "版本 v{{version}} 已恢复",
+      "restoreFailed": "恢复失败"
     }
   },
   "editor": {
@@ -478,7 +525,8 @@
     "templates": {
       "debug": {
         "label": "Debug",
-        "desc": "贴报错上下文"
+        "desc": "贴报错上下文",
+        "scaffold": "## 现象\n<!-- 描述发生了什么，期望结果是什么 -->\n\n## 报错上下文\n```text\n粘贴报错信息\n```\n\n## 已尝试\n- \n\n## 补充信息\n- 语言/框架：\n- 运行环境："
       },
       "prompt": {
         "label": "Prompt",
@@ -486,11 +534,13 @@
       },
       "showcase": {
         "label": "Showcase",
-        "desc": "Vibe Coding 成品"
+        "desc": "Vibe Coding 成品",
+        "scaffold": "## 作品简介\n<!-- 一句话说明这是什么 -->\n\n## 技术亮点\n- \n\n## 演示 / 链接\n- [项目链接]()\n\n## 说明\n<!-- 运行方式、截图或补充背景 -->"
       },
       "agents": {
         "label": "Agent",
-        "desc": "Agent 实战案例"
+        "desc": "Agent 实战案例",
+        "scaffold": "## Agent 目标\n<!-- 这个 Agent 要完成什么任务 -->\n\n## 架构与工具\n- \n\n## 运行效果\n- \n\n## 踩坑与经验\n- "
       }
     },
     "postType": {
@@ -563,8 +613,10 @@
       "newPost": "发新帖",
       "deleteConfirm": "删除这份草稿？",
       "deleted": "草稿已删除",
-      "emptyContent": "// 空内容"
-    }
+      "emptyContent": "// 空内容",
+      "untitled": "无标题草稿"
+    },
+    "promptScaffold": "## System Prompt\nYou are an expert coding assistant. Follow these guidelines:\n- Write clean, well-documented code\n- Prioritize readability over brevity\n- Include error handling\n\n## User Request\n"
   },
   "auth": {
     "login": {
@@ -577,7 +629,11 @@
       "failed": "登录失败",
       "welcome": "欢迎回来！",
       "noAccount": "还没有账号？",
-      "registerLink": "注册"
+      "registerLink": "注册",
+      "errors": {
+        "usernameRequired": "请输入用户名",
+        "passwordRequired": "请输入密码"
+      }
     },
     "register": {
       "title": "注册",
@@ -742,7 +798,9 @@
       "resetFailed": "重置失败",
       "enterUsername": "请输入用户名",
       "tempPassword": "{{username}} 的临时密码："
-    }
+    },
+    "unexpectedError": "发生意外错误",
+    "cancel": "取消"
   },
   "agentLogs": {
     "title": "agent_logs — AI Agent 运维控制台",

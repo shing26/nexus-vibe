@@ -23,27 +23,27 @@
    };
  
  return (
-   <div className="flex items-center justify-center gap-1 mt-6 text-xs font-mono text-slate-500">
+   <div className="mt-6 flex items-center justify-center gap-1 text-xs tabular-nums text-vibe-muted">
       {page > 1 && (
-        <button onClick={() => onPageChange(page - 1)} className="hover:text-vibe-cyan transition-colors px-2 py-1 active:scale-[0.97]">
+        <button onClick={() => onPageChange(page - 1)} className="rounded px-2 py-1 transition-colors hover:text-vibe-accent">
          prev
         </button>
       )}
       {getPageNumbers().map((p, i) =>
         typeof p === 'string' ? (
-          <span key={`ellipsis-${i}`} className="px-1 text-slate-600">{p}</span>
+          <span key={`ellipsis-${i}`} className="px-1 text-vibe-faint">{p}</span>
         ) : (
           <button
             key={p}
             onClick={() => onPageChange(p)}
-            className={p === page ? 'font-bold text-slate-100 px-2 py-1 active:scale-[0.97]' : 'hover:text-vibe-cyan transition-colors px-2 py-1 active:scale-[0.97]'}
+            className={p === page ? 'rounded bg-vibe-accent/10 px-2 py-1 font-semibold text-vibe-accent' : 'rounded px-2 py-1 transition-colors hover:text-vibe-accent'}
           >
             {p}
           </button>
         )
       )}
       {page < pages && (
-        <button onClick={() => onPageChange(page + 1)} className="hover:text-vibe-cyan transition-colors px-2 py-1 active:scale-[0.97]">
+        <button onClick={() => onPageChange(page + 1)} className="rounded px-2 py-1 transition-colors hover:text-vibe-accent">
          next
         </button>
       )}

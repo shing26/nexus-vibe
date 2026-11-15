@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 import { Activity, FileQuestion, Sparkles, Search, MessageSquare } from 'lucide-react';
 
 /**
@@ -6,45 +7,37 @@ import { Activity, FileQuestion, Sparkles, Search, MessageSquare } from 'lucide-
  * surface rather than reporting absence: a reader who lands on a blank page
  * should learn what would make it non-blank and, where possible, do it now.
  *
- * <p>The keys are exposed on the component as a runtime-derived list so
- * `EmptyState.test.tsx` can iterate every preset: a preset added later without
- * copy fails the suite instead of rendering a blank line.</p>
+ * <p>The copy lives in the dictionary (`common:empty.<key>.*`) and the action
+ * rows in `common:empty.actions.*`; the keys are exposed on the component as a
+ * runtime-derived list so `EmptyState.test.tsx` can iterate every preset: a
+ * preset added later without copy fails the suite instead of rendering a blank
+ * line.</p>
  */
 const presets = {
   noPosts: {
     icon: Sparkles,
-    title: 'No posts yet',
-    desc: 'Posts appear here once someone publishes one; start the first thread yourself.',
     action: '/post/new',
-    actionLabel: 'Create First Post',
+    actionKey: 'actions.createFirstPost',
   },
   noResults: {
     icon: Search,
-    title: 'No results found',
-    desc: 'Nothing matched those filters; clear one or search a different keyword to widen the results.',
     action: '/',
-    actionLabel: 'Browse Channels',
+    actionKey: 'actions.browseChannels',
   },
   noComments: {
     icon: MessageSquare,
-    title: 'No comments',
-    desc: 'No one has replied yet; the first comment you write appears here and starts the thread.',
     action: null,
-    actionLabel: null,
+    actionKey: null,
   },
   noActivity: {
     icon: Activity,
-    title: 'No recent activity',
-    desc: 'Activity appears here after this profile publishes posts, comments, versions or forks; it is a record, not a place to act.',
     action: null,
-    actionLabel: null,
+    actionKey: null,
   },
   notFound: {
     icon: FileQuestion,
-    title: 'Nothing here',
-    desc: 'This page may have moved or never existed; follow a link from the feed to find it.',
     action: '/',
-    actionLabel: 'Back Home',
+    actionKey: 'actions.backHome',
   },
 };
 
@@ -67,22 +60,23 @@ function EmptyState({
   action,
   actionLabel,
 }: EmptyStateProps) {
+  const { t } = useTranslation('common');
   const p = presets[preset];
   const Icon = p.icon;
-  const finalTitle = title ?? p.title;
-  const finalDesc = desc ?? p.desc;
+  const finalTitle = title ?? t('empty.' + preset + '.title');
+  const finalDesc = desc ?? t('empty.' + preset + '.desc');
   const finalAction = action !== undefined ? action : p.action;
-  const finalActionLabel = actionLabel ?? p.actionLabel;
+  const finalActionLabel = actionLabel ?? (p.actionKey ? t('empty.' + p.actionKey) : null);
   return (
-    <div className={'flex flex-col items-center justify-center py-16 px-4 text-center ' + className}>
-      <div className="w-14 h-14 rounded-xl bg-vibe-surface border border-vibe-border flex items-center justify-center mb-4">
-        <Icon className="w-6 h-6 text-slate-500" />
+    <div className={'flex flex-col items-center justify-center px-4 py-16 text-center ' + className}>
+      <div className="mb-4 flex h-14 w-14 items-center justify-center rounded-lg border border-vibe-border bg-vibe-surface">
+        <Icon className="h-6 w-6 text-vibe-faint" />
       </div>
-      <h3 className="text-sm font-mono font-semibold text-slate-400 mb-1">{finalTitle}</h3>
-      <p className="text-xs font-mono text-slate-600 max-w-xs mb-5">{finalDesc}</p>
+      <h3 className="mb-1 text-sm font-semibold text-vibe-muted">{finalTitle}</h3>
+      <p className="mb-5 max-w-xs text-xs text-vibe-faint">{finalDesc}</p>
       {finalAction && (
-        <Link to={finalAction} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 active:scale-[0.97] transition-all">
-          <Sparkles className="w-3.5 h-3.5" />
+        <Link to={finalAction} className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-4 py-2 text-xs font-medium text-white transition-colors hover:opacity-90">
+          <Sparkles className="h-3.5 w-3.5" />
           {finalActionLabel}
         </Link>
       )}

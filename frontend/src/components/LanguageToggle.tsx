@@ -1,6 +1,7 @@
 import { Languages } from 'lucide-react';
+import i18next from 'i18next';
 import { useTranslation } from 'react-i18next';
-import i18next, { setAppLanguage } from '../i18n';
+import { setAppLanguage } from '../i18n';
 import type { AppLanguage } from '../i18n';
 
 /**
@@ -25,7 +26,7 @@ export default function LanguageToggle({ className = '' }: { className?: string 
       }
     >
       <Languages className="h-3.5 w-3.5" />
-      <span>{next === 'en' ? 'EN' : '中'}</span>
+      <span>{next === 'en' ? 'EN' : '\u4e2d'}</span>
     </button>
   );
 }

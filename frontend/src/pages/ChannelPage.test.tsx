@@ -25,7 +25,7 @@ describe('ChannelPage wiring (A4-4, source-level)', () => {
 
   it('A4-4: the unanswered panel is mounted only under the isDesktop gate', () => {
     const gate = source.indexOf('{isDesktop && channel && (');
-    const panel = source.indexOf('<aside aria-label="Waiting for an answer"');
+    const panel = source.indexOf('<aside aria-label={t(\'waiting.ariaLabel\')}');
 
     expect(gate, 'the isDesktop gate is present').toBeGreaterThan(-1);
     expect(panel, 'the panel is present').toBeGreaterThan(-1);
@@ -33,15 +33,15 @@ describe('ChannelPage wiring (A4-4, source-level)', () => {
   });
 
   it('A4-4: the empty branch renders the item-2 EmptyState with its copy', () => {
-    const asideStart = source.indexOf('<aside aria-label="Waiting for an answer"');
+    const asideStart = source.indexOf('<aside aria-label={t(\'waiting.ariaLabel\')}');
     const asideEnd = source.indexOf('</aside>', asideStart);
     expect(asideStart).toBeGreaterThan(-1);
     expect(asideEnd).toBeGreaterThan(asideStart);
 
     const aside = source.slice(asideStart, asideEnd);
     expect(aside).toContain('preset="noPosts"');
-    expect(aside).toContain('title="Nothing is waiting"');
-    expect(aside).toContain('Posts with no replies appear here');
+    expect(aside).toContain("title={t('waiting.emptyTitle')}");
+    expect(aside).toContain("t('waiting.emptyDesc')");
   });
 });
 
@@ -62,7 +62,7 @@ describe('ChannelPage ordering wiring (A6-4, source-level)', () => {
 
   it('A6-4: the toggle renders both ordering options', () => {
     expect(source).toContain("(['latest', 'liked'] as const).map((option) => (");
-    expect(source).toContain("option === 'latest' ? 'Latest' : 'Most liked'");
+    expect(source).toContain("option === 'latest' ? t('sortLatest') : t('sortLiked')");
     expect(source).toContain('aria-pressed={sort === option}');
   });
 });

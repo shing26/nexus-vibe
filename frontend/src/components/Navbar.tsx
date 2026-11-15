@@ -54,7 +54,7 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
     };
   }, [menuOpen]);
 
-  const submitSearch = (e: React.FormEvent) => {
+  const submitSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const input = e.currentTarget.elements.namedItem('q') as HTMLInputElement | null;
     const q = input?.value.trim();

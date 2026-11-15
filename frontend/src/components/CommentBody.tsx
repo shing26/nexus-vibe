@@ -16,7 +16,7 @@ import remarkGfm from 'remark-gfm';
  */
 export default function CommentBody({ content }: { content: string }) {
   return (
-    <div className="text-xs font-mono text-slate-400 prose prose-invert prose-sm max-w-none prose-headings:text-slate-200 prose-headings:font-mono prose-headings:text-xs prose-headings:mt-3 prose-headings:mb-1.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-strong:text-slate-200 prose-code:text-vibe-cyan prose-code:bg-vibe-card prose-code:px-1 prose-code:py-0.5 prose-code:text-[11px] prose-code:before:content-none prose-code:after:content-none prose-hr:my-3">
+    <div className="prose prose-sm max-w-none text-sm text-vibe-muted dark:prose-invert prose-headings:text-vibe-text prose-headings:text-sm prose-headings:mt-3 prose-headings:mb-1.5 prose-p:my-1.5 prose-ul:my-1.5 prose-li:my-0.5 prose-strong:text-vibe-text prose-code:text-vibe-accent prose-code:bg-vibe-card prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-code:before:content-none prose-code:after:content-none prose-hr:my-3">
       <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
     </div>
   );

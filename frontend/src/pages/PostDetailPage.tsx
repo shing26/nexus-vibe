@@ -1,7 +1,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { motion } from 'motion/react';
+import { useTranslation } from 'react-i18next';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Heart, Share2, MessageCircle, Eye, Copy, Check, ChevronDown, ChevronUp, GitFork, History, Pencil, Trash2, Loader2 } from 'lucide-react';
@@ -10,46 +10,24 @@ import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { AI_REVIEW } from '../lib/postStatus';
+import { timeAgo } from '../lib/time';
 import { readVariables } from '../components/promptMetadata';
 import Avatar from '../components/Avatar';
 import CommentBody from '../components/CommentBody';
 import CodeBlock from '../components/CodeBlock';
 import { AiReviewTerminal } from '../components/AiReviewTerminal';
 import { ReviewStepStrip } from '../components/ui/ReviewStepStrip';
- import { DecryptedText } from '../components/ui/DecryptedText';
- import EmptyState from '../components/EmptyState';
- import PromptVersionPanel from '../components/PromptVersionPanel';
- import PromptWorkedExample from '../components/PromptWorkedExample';
- import CommentSentimentFilter from '../components/CommentSentimentFilter';
- 
- import type { AiReviewDetail, PostPageVo } from '../types/post';
+import EmptyState from '../components/EmptyState';
+import PromptVersionPanel from '../components/PromptVersionPanel';
+import PromptWorkedExample from '../components/PromptWorkedExample';
+import CommentSentimentFilter from '../components/CommentSentimentFilter';
+
+import type { AiReviewDetail, PostPageVo } from '../types/post';
 
 const AI_USER_ID = 999;
 
-function MacDots() {
-  return (
-    <div className="flex items-center gap-1.5 px-3">
-      <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-      <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
-      <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-    </div>
-  );
-}
-
-function TerminalWindow({ title, children, className = '' }: { title: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={'bg-vibe-surface border border-vibe-border rounded-xl overflow-hidden ' + className}>
-      <div className="flex items-center h-9 bg-vibe-card border-b border-vibe-border select-none">
-        <MacDots />
-        <span className="flex-1 text-center text-[11px] font-mono text-slate-500 truncate px-2">{title}</span>
-        <div className="w-16" />
-      </div>
-      {children}
-    </div>
-  );
-}
-
 function CopyButton({ code }: { code: string }) {
+  const { t } = useTranslation('post');
   const [copied, setCopied] = useState(false);
   const handleCopy = async () => {
     await navigator.clipboard.writeText(code);
@@ -57,23 +35,15 @@ function CopyButton({ code }: { code: string }) {
     setTimeout(() => setCopied(false), 2000);
   };
   return (
-     <button onClick={handleCopy} className="absolute top-2 right-2 px-2 py-1 text-xs font-mono bg-vibe-card/80 text-slate-400 hover:text-white hover:bg-vibe-card transition-colors rounded-md border border-vibe-border active:scale-[0.97]">
-      {copied ? <><Check className="w-3 h-3 inline" /> Copied</> : <><Copy className="w-3 h-3 inline" /> Copy</>}
+    <button
+      type="button"
+      onClick={handleCopy}
+      className="absolute right-2 top-2 rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-xs text-vibe-muted transition-colors hover:bg-vibe-surface hover:text-vibe-text"
+    >
+      {copied ? <><Check className="inline h-3 w-3" /> {t('actions.copied')}</> : <><Copy className="inline h-3 w-3" /> {t('actions.copy')}</>}
     </button>
   );
 }
-
-const timeAgo = (dateStr: string) => {
-  const diff = Date.now() - new Date(dateStr).getTime();
-  const m = Math.floor(diff / 60000);
-  if (m < 1) return 'just now';
-  if (m < 60) return m + 'm ago';
-  const h = Math.floor(m / 60);
-  if (h < 24) return h + 'h ago';
-  const d = Math.floor(h / 24);
-  if (d < 30) return d + 'd ago';
-  return new Date(dateStr).toLocaleDateString();
-};
 
 function estimateTokens(text: string): number {
   if (!text.trim()) return 0;
@@ -83,13 +53,20 @@ function estimateTokens(text: string): number {
   return Math.round(chineseChars * 2 + asciiWords * 1.3);
 }
 
+/**
+ * The post detail page, v2 anatomy: one centered column at `max-w-3xl` — title
+ * row, metadata line with the AI score as a bordered pill, rendered body, the
+ * review boxes, then the comment stream. The macOS terminal chrome is gone;
+ * every box is a plain bordered card.
+ */
 export default function PostDetailPage() {
+  const { t } = useTranslation(['post', 'common']);
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const user = useAuthStore((s) => s.user);
   const addToast = useToastStore((s) => s.addToast);
-  
+
   const [commentText, setCommentText] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
   const [liked, setLiked] = useState(false);
@@ -170,7 +147,7 @@ export default function PostDetailPage() {
     onSuccess: () => {
       setCommentText('');
       queryClient.invalidateQueries({ queryKey: ['comments', id] });
-      addToast('Comment posted', 'success');
+      addToast(t('post:comments.form.posted'), 'success');
       if (post) {
         queryClient.setQueryData<PostPageVo>(['post', id], { ...post, commentCount: post.commentCount + 1 });
       }
@@ -181,7 +158,7 @@ export default function PostDetailPage() {
     // Without a token the backend answers 401 and the click would vanish
     // silently — route to login instead, like the comment/fork actions.
     if (!user) {
-      addToast('Log in to like posts', 'error');
+      addToast(t('common:toast.loginToLike'), 'error');
       navigate('/login');
       return;
     }
@@ -197,7 +174,7 @@ export default function PostDetailPage() {
       setLikeCount(res.data.data?.currentLikes ?? likeCount + (nextLiked ? 1 : -1));
     } catch {
       // A swallowed failure read as "the like went through"; say otherwise.
-      addToast('Like failed, please retry', 'error');
+      addToast(t('common:toast.likeFailed'), 'error');
     } finally {
       likeInFlight.current = false;
     }
@@ -206,7 +183,7 @@ export default function PostDetailPage() {
   const handleCopyLink = () => {
     navigator.clipboard.writeText(window.location.href);
     setCopiedLink(true);
-    addToast('Link copied', 'success');
+    addToast(t('common:toast.linkCopied'), 'success');
     setTimeout(() => setCopiedLink(false), 2000);
   };
 
@@ -220,14 +197,14 @@ export default function PostDetailPage() {
 
   const handleDelete = async () => {
     if (!post) return;
-    if (!window.confirm('Delete this post? This action cannot be undone.')) return;
+    if (!window.confirm(t('post:deleteConfirm'))) return;
     try {
       await apiClient.delete('/posts/' + post.id);
-      addToast('Post deleted', 'success');
+      addToast(t('common:toast.postDeleted'), 'success');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       navigate('/');
     } catch (err: any) {
-      addToast(err.response?.data?.message || 'Delete failed', 'error');
+      addToast(err.response?.data?.message || t('common:toast.deleteFailed'), 'error');
     }
   };
 
@@ -275,11 +252,11 @@ export default function PostDetailPage() {
     setForking(true);
     try {
       const res = await apiClient.post('/posts/' + id + '/fork');
-      addToast('Template forked', 'success');
+      addToast(t('common:toast.templateForked'), 'success');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       navigate('/post/' + res.data.data.postId);
     } catch {
-      addToast('Fork failed', 'error');
+      addToast(t('common:toast.forkFailed'), 'error');
     } finally {
       setForking(false);
     }
@@ -287,11 +264,11 @@ export default function PostDetailPage() {
 
   if (isLoading) {
    return (
-     <div className="max-w-[1400px] mx-auto px-4 py-16">
-       <div className="animate-pulse space-y-4">
-          <div className="h-6 bg-vibe-card rounded w-3/4" />
-          <div className="h-4 bg-vibe-card/50 rounded w-1/2" />
-          <div className="h-64 bg-vibe-card/30 rounded" />
+     <div className="mx-auto max-w-3xl px-4 py-16">
+       <div className="animate-pulse motion-reduce:animate-none space-y-4">
+          <div className="h-6 w-3/4 rounded bg-vibe-surface" />
+          <div className="h-4 w-1/2 rounded bg-vibe-surface" />
+          <div className="h-64 rounded bg-vibe-surface" />
         </div>
       </div>
     );
@@ -299,9 +276,9 @@ export default function PostDetailPage() {
 
    if (!post) {
      return (
-       <div className="max-w-[1400px] mx-auto px-4 py-16 text-center">
-        <h2 className="text-lg font-bold font-mono text-slate-100 mb-2">404 — Post Not Found</h2>
-        <p className="text-sm font-mono text-slate-500">This post may have been deleted or never existed.</p>
+       <div className="mx-auto max-w-3xl px-4 py-16 text-center">
+        <h2 className="mb-2 text-lg font-semibold text-vibe-text">{t('post:notFoundTitle')}</h2>
+        <p className="text-sm text-vibe-muted">{t('post:notFoundDesc')}</p>
       </div>
     );
   }
@@ -310,202 +287,212 @@ export default function PostDetailPage() {
   const totalComments = comments.length > 0 ? comments.length : post.commentCount;
   // 2 = REVIEWING; 3 = FAILED gets its own quiet terminal notice (backend retries)
   const aiPending = hasCodeBlock && post.aiReviewed === AI_REVIEW.REVIEWING;
+  const aiScorePill = post.aiReviewed === AI_REVIEW.REVIEWED && post.aiReviewScore > 0
+    ? Math.round(post.aiReviewScore * 10)
+    : null;
 
    return (
-     <div className="max-w-[1400px] mx-auto px-4 py-8">
+     <div className="mx-auto max-w-3xl px-4 py-8">
       {/* HEADER ROW — wraps so the action buttons drop below the title on
           narrow screens instead of squeezing it to one word per line */}
-      <div className="flex flex-wrap items-start gap-3 mb-6">
+      <div className="mb-6 flex flex-wrap items-start gap-3">
         <Avatar name={post.authorName} size="md" />
-        <div className="flex-1 min-w-0">
-          <h1 className="text-xl font-bold font-mono text-slate-100 leading-snug">{post.title}</h1>
-          <div className="flex items-center gap-2 text-[11px] font-mono text-slate-500 mt-0.5">
+        <div className="min-w-0 flex-1">
+          <h1 className="text-xl font-semibold leading-snug text-vibe-text">{post.title}</h1>
+          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-vibe-muted">
             <span>{post.authorName}</span>
-            <span className="text-slate-700">·</span>
-            <span className="bg-vibe-cyan/10 border border-vibe-cyan/30 text-vibe-cyan rounded-md px-1.5 py-0.5">{post.categoryName}</span>
+            <span aria-hidden="true">·</span>
+            <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5">{post.categoryName}</span>
             {post.postType === 'prompt' && (
-              <span className="bg-vibe-purple/10 border border-vibe-purple/30 text-vibe-purple rounded-md px-1.5 py-0.5">🤖 Template</span>
+              <span className="rounded-full border border-vibe-border px-1.5 py-0.5">{t('post:template')}</span>
             )}
             {post.postType === 'prompt' && post.versionCount > 0 && (
-              <span className="bg-vibe-cyan/10 border border-vibe-cyan/30 text-vibe-cyan rounded-md px-1.5 py-0.5">v{post.versionCount}</span>
+              <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5 tabular-nums">v{post.versionCount}</span>
             )}
-            <span className="text-slate-700">·</span>
-            <span>{timeAgo(post.createTime)}</span>
+            {/* The score is metadata, not a neon chip: a bordered pill in the
+                same line as author, channel and time. */}
+            {aiScorePill != null && (
+              <span
+                className="cursor-help rounded-full border border-vibe-border px-2 py-0.5 tabular-nums text-vibe-accent"
+                title={t('post:scoreRubric')}
+              >
+                {t('post:scoreDisplay', { score: aiScorePill })}
+              </span>
+            )}
+            <span aria-hidden="true">·</span>
+            <span className="tabular-nums">{timeAgo(post.createTime)}</span>
           </div>
           {/* Stats badges */}
-          <div className="flex items-center gap-3 mt-1.5 text-[11px] font-mono text-slate-500">
-            <span className="flex items-center gap-1"><Eye className="w-3 h-3" /> {post.viewCount}</span>
-            <span className="flex items-center gap-1"><Heart className="w-3 h-3" /> {likeCount}</span>
-            <span className="flex items-center gap-1"><MessageCircle className="w-3 h-3" /> {totalComments}</span>
+          <div aria-label={t('post:statsAria')} className="mt-1.5 flex items-center gap-3 text-xs tabular-nums text-vibe-muted">
+            <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {post.viewCount}</span>
+            <span className="flex items-center gap-1"><Heart className="h-3 w-3" /> {likeCount}</span>
+            <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {totalComments}</span>
           </div>
           {post.forkedFromId && (
             <Link
               to={'/post/' + post.forkedFromId}
-              className="inline-flex items-center gap-1 mt-1.5 text-[10px] font-mono text-vibe-purple hover:text-vibe-purple/80 transition-colors"
+              className="mt-1.5 inline-flex items-center gap-1 text-xs text-vibe-muted transition-colors hover:text-vibe-accent"
             >
-              <GitFork className="w-3 h-3" />
-              Forked from post #{post.forkedFromId}
+              <GitFork className="h-3 w-3" />
+              {t('post:forkedFrom', { id: post.forkedFromId })}
             </Link>
           )}
         </div>
         {post.postType === 'prompt' && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <button
+              type="button"
               onClick={handleFork}
               disabled={forking}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-purple/20 border border-vibe-purple/30 text-vibe-purple text-[11px] font-mono hover:bg-vibe-purple/30 transition-colors disabled:opacity-50"
-              title="Fork this template"
+              className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+              title={t('post:actions.forkTitle')}
             >
-              <GitFork className="w-3.5 h-3.5" />
-              {forking ? 'Forking...' : 'Fork'}
+              <GitFork className="h-3.5 w-3.5" />
+              {forking ? t('post:actions.forking') : t('post:actions.fork')}
             </button>
             <button
+              type="button"
               onClick={() => setShowVersions(true)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-card border border-vibe-border text-slate-300 text-[11px] font-mono hover:border-vibe-cyan/40 hover:text-vibe-cyan transition-colors"
-              title="View version history"
+              className="inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs text-vibe-text transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
+              title={t('post:actions.history')}
             >
-              <History className="w-3.5 h-3.5" />
-              History
+              <History className="h-3.5 w-3.5" />
+              {t('post:actions.history')}
             </button>
           </div>
         )}
         {canManage && (
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex shrink-0 items-center gap-2">
             <button
+              type="button"
               onClick={() => navigate('/post/' + post.id + '/edit')}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-card border border-vibe-border text-slate-300 text-[11px] font-mono hover:border-vibe-cyan/40 hover:text-vibe-cyan transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs text-vibe-text transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
             >
-              <Pencil className="w-3.5 h-3.5" />
-              Edit
+              <Pencil className="h-3.5 w-3.5" />
+              {t('post:actions.edit')}
             </button>
             <button
+              type="button"
               onClick={handleDelete}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-red-500/10 border border-red-500/30 text-red-400 text-[11px] font-mono hover:bg-red-500/20 transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-md border border-vibe-danger/40 bg-vibe-danger/10 px-3 py-1.5 text-xs text-vibe-danger transition-colors hover:bg-vibe-danger/20"
             >
-              <Trash2 className="w-3.5 h-3.5" />
-              Delete
+              <Trash2 className="h-3.5 w-3.5" />
+              {t('post:actions.delete')}
             </button>
           </div>
         )}
       </div>
 
-      {/* POST CONTENT — macOS Terminal Wrapper */}
-      <TerminalWindow title={post.title.slice(0, 30) + (post.title.length > 30 ? '...' : '') + '.md'} className="mb-6">
-        <div className="p-4 bg-vibe-bg prose prose-invert prose-sm max-w-none prose-headings:text-slate-100 prose-a:text-vibe-cyan prose-code:text-vibe-cyan prose-code:bg-vibe-card prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-pre:bg-transparent prose-pre:p-0">
-          <ReactMarkdown
-            remarkPlugins={[remarkGfm]}
-            components={{
-              code({ className, children, ...props }) {
-                const match = /language-(\w+)/.exec(className || '');
-                const codeStr = String(children).replace(/\n$/, '');
-                if (match) {
-                  return (
-                    <div className="relative group my-4 -mx-4 sm:-mx-6">
-                      <CopyButton code={codeStr} />
-                      <CodeBlock language={match[1]} code={codeStr} />
-                    </div>
-                  );
-                }
-                return <code className={className} {...props}>{children}</code>;
-              },
-            }}
-          >
-            {post.content}
-          </ReactMarkdown>
-        </div>
-      </TerminalWindow>
+      {/* POST CONTENT — plain bordered card, the v2 replacement for the
+          terminal window */}
+      <div className="mb-6 rounded-lg border border-vibe-border bg-vibe-surface p-4 prose prose-sm max-w-none dark:prose-invert prose-headings:text-vibe-text prose-a:text-vibe-accent prose-code:text-vibe-accent prose-code:bg-vibe-card prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-pre:bg-transparent prose-pre:p-0">
+        <ReactMarkdown
+          remarkPlugins={[remarkGfm]}
+          components={{
+            code({ className, children, ...props }) {
+              const match = /language-(\w+)/.exec(className || '');
+              const codeStr = String(children).replace(/\n$/, '');
+              if (match) {
+                return (
+                  <div className="relative group my-4 -mx-4 sm:-mx-6">
+                    <CopyButton code={codeStr} />
+                    <CodeBlock language={match[1]} code={codeStr} />
+                  </div>
+                );
+              }
+              return <code className={className} {...props}>{children}</code>;
+            },
+          }}
+        >
+          {post.content}
+        </ReactMarkdown>
+      </div>
 
       {/* INTERACTIVE DOCK */}
-      <div className="max-w-3xl mx-auto flex items-center justify-between mb-8 px-2">
+      <div className="mb-8 flex items-center justify-between px-2">
         <div className="flex items-center gap-4">
-         <motion.button
+         <button
+           type="button"
            onClick={handleLike}
-           whileTap={{ scale: 0.8 }}
-           className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-red-400 transition-colors active:scale-[0.97]"
+           aria-label={t('post:actions.like')}
+           className={'inline-flex items-center gap-1.5 text-xs transition-colors ' + (liked ? 'text-vibe-danger' : 'text-vibe-muted hover:text-vibe-danger')}
          >
-           <motion.span
-             key={liked ? 'liked' : 'not-liked'}
-             initial={{ scale: 0.5 }}
-             animate={{ scale: 1 }}
-             transition={{ type: 'spring', stiffness: 500, damping: 15 }}
-           >
-             <Heart className={'w-4 h-4 ' + (liked ? 'fill-red-500 text-red-500' : '')} />
-           </motion.span>
-           {likeCount}
-         </motion.button>
-         <button onClick={handleCopyLink} className="inline-flex items-center gap-1.5 text-xs font-mono text-slate-400 hover:text-vibe-cyan transition-colors active:scale-[0.97]">
-            {copiedLink ? <Check className="w-4 h-4 text-vibe-cyan" /> : <Share2 className="w-4 h-4" />}
-            {copiedLink ? 'Copied!' : 'Share'}
+           <Heart className={'h-4 w-4 ' + (liked ? 'fill-vibe-danger' : '')} />
+           <span className="tabular-nums">{likeCount}</span>
+         </button>
+         <button
+           type="button"
+           onClick={handleCopyLink}
+           className="inline-flex items-center gap-1.5 text-xs text-vibe-muted transition-colors hover:text-vibe-accent"
+         >
+            {copiedLink ? <Check className="h-4 w-4 text-vibe-success" /> : <Share2 className="h-4 w-4" />}
+            {copiedLink ? t('post:actions.copied') : t('post:actions.share')}
           </button>
         </div>
-        {post.aiReviewed === AI_REVIEW.REVIEWED && post.aiReviewScore > 0 && (
-          <span
-            className="text-[11px] font-mono text-vibe-emerald cursor-help"
-            title="Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically."
-          >AI Score: {Math.round(post.aiReviewScore * 10)}/100</span>
-        )}
         {aiPending && (
-          <span className="flex items-center gap-1.5 text-[11px] font-mono text-vibe-cyan animate-pulse motion-reduce:animate-none">
-            <Loader2 className="w-3 h-3 animate-spin motion-reduce:animate-none" />
-            AI Agent reviewing...
+          <span className="flex items-center gap-1.5 text-xs text-vibe-accent motion-reduce:animate-none animate-pulse">
+            <Loader2 className="h-3 w-3 animate-spin motion-reduce:animate-none" />
+            {t('post:aiPending')}
           </span>
         )}
       </div>
 
       {/* PROMPT PLAYGROUND */}
       {post.postType === 'prompt' && variables.length > 0 && (
-        <div className="max-w-3xl mx-auto mb-8">
-          <TerminalWindow title="prompt_playground — Template Variables">
+        <div className="mb-8">
+          <div className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
             <button
+              type="button"
               onClick={() => setPlaygroundOpen((v) => !v)}
-              className="w-full flex items-center gap-2 px-4 py-2.5 bg-vibe-card/50 border-b border-vibe-border text-left hover:bg-vibe-card transition-colors"
+              className="flex w-full items-center gap-2 border-b border-vibe-border bg-vibe-card/50 px-4 py-2.5 text-left transition-colors hover:bg-vibe-card"
               aria-expanded={playgroundOpen}
             >
-              <span className="text-[11px] font-mono font-semibold text-slate-300 uppercase tracking-wider">
-                Template Variables
+              <span className="text-xs font-semibold uppercase tracking-wide text-vibe-text">
+                {t('post:playground.sectionTitle')}
               </span>
-              <span className="text-[10px] font-mono text-slate-500">~{playgroundTokens} tokens</span>
-              <span className="ml-auto text-vibe-cyan">
-                {playgroundOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              <span className="text-xs tabular-nums text-vibe-muted">{t('post:playground.tokens', { n: playgroundTokens })}</span>
+              <span className="ml-auto text-vibe-accent">
+                {playgroundOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
               </span>
             </button>
             {playgroundOpen && (
-              <div className="p-4 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="space-y-4 p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                   {variables.map((v) => (
                     <div key={v} className="space-y-1.5">
-                      <label className="text-xs font-mono text-slate-400">{v}</label>
+                      <label className="text-xs text-vibe-muted">{v}</label>
                       <input
                         value={varValues[v] ?? ''}
                         onChange={(e) => setVarValues((prev) => ({ ...prev, [v]: e.target.value }))}
-                        placeholder={'Enter ' + v + '...'}
-                        className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+                        placeholder={t('post:playground.inputPlaceholder', { name: v })}
+                        className="w-full rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
                       />
                     </div>
                   ))}
                 </div>
 
                 <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-mono text-slate-500">// Live Preview</span>
-                    <span className="text-[10px] font-mono text-slate-600">~{playgroundTokens} tokens</span>
+                  <div className="mb-2 flex items-center justify-between">
+                    <span className="text-xs text-vibe-muted">{t('post:playground.livePreview')}</span>
+                    <span className="text-xs tabular-nums text-vibe-faint">{t('post:playground.tokens', { n: playgroundTokens })}</span>
                   </div>
-                  <pre className="w-full max-h-48 overflow-y-auto p-3 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 leading-relaxed whitespace-pre-wrap">
-                    {renderedPrompt || <span className="text-slate-600">// Fill in variables above to preview...</span>}
+                  <pre className="w-full max-h-48 overflow-y-auto rounded-md border border-vibe-border bg-vibe-bg p-3 font-mono text-xs leading-relaxed text-vibe-text whitespace-pre-wrap">
+                    {renderedPrompt || <span className="text-vibe-faint">{t('post:playground.previewPlaceholder')}</span>}
                   </pre>
                 </div>
 
                 <div className="flex justify-end">
                   <button
+                    type="button"
                     onClick={handleCopyRendered}
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors active:scale-[0.97]"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-4 py-2 text-xs font-medium text-white transition-colors hover:opacity-90"
                   >
-                    {playgroundCopied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy Prompt</>}
+                    {playgroundCopied ? <><Check className="h-3.5 w-3.5" /> {t('post:playground.copied')}</> : <><Copy className="h-3.5 w-3.5" /> {t('post:playground.copyPrompt')}</>}
                   </button>
                 </div>
               </div>
             )}
-          </TerminalWindow>
+          </div>
         </div>
       )}
 
@@ -520,11 +507,11 @@ export default function PostDetailPage() {
 
       {/* AI REVIEW STATUS + TERMINAL */}
       {aiPending && (
-        <div className="max-w-3xl mx-auto mb-8">
-          <div role="status" aria-live="polite" className="relative rounded-lg border border-vibe-cyan/30 bg-vibe-card/70 p-4 font-mono text-xs">
-            <div className="flex items-center gap-2 text-vibe-cyan">
-              <Loader2 className="w-3.5 h-3.5 animate-spin motion-reduce:animate-none" />
-              <DecryptedText text="AI Co-Pilot is reviewing this post..." speed={25} />
+        <div className="mb-8">
+          <div role="status" aria-live="polite" className="rounded-lg border border-vibe-border bg-vibe-surface p-4 text-sm">
+            <div className="flex items-center gap-2 text-vibe-accent">
+              <Loader2 className="h-3.5 w-3.5 animate-spin motion-reduce:animate-none" />
+              {t('post:aiPendingBox.title')}
             </div>
             {/* The strip cycles to show that something is happening, so it is hidden from
                 assistive technology on purpose: a live region that re-announces four step
@@ -533,14 +520,12 @@ export default function PostDetailPage() {
             <div aria-hidden="true" className="mt-2.5">
               <ReviewStepStrip mode="running" />
             </div>
-            <p className="mt-2 text-slate-500">
-              Review will auto-post a comment with a score when it finishes. Polling every 5s.
-            </p>
+            <p className="mt-2 text-vibe-muted">{t('post:aiPendingBox.pollNote')}</p>
           </div>
         </div>
       )}
       {hasCodeBlock && post.aiReviewed === AI_REVIEW.REVIEWED && (
-        <div className="max-w-3xl mx-auto mb-8">
+        <div className="mb-8">
           {aiReviewLoading ? (
             <AiReviewTerminal state="loading" />
           ) : aiReviewError ? (
@@ -551,29 +536,30 @@ export default function PostDetailPage() {
             <AiReviewTerminal state="unavailable" />
           )}
           <button
+            type="button"
             onClick={() => setShowHistory((v) => !v)}
-            className="mt-2 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-card border border-vibe-border text-[11px] font-mono text-slate-400 hover:text-vibe-cyan hover:border-vibe-cyan/40 transition-colors"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
             aria-expanded={showHistory}
           >
-            <History className="w-3.5 h-3.5" />
-            {showHistory ? 'Hide Review History' : 'Review History'}
+            <History className="h-3.5 w-3.5" />
+            {showHistory ? t('post:review.history.hide') : t('post:review.history.show')}
           </button>
           {showHistory && (
-            <div className="mt-2 rounded-xl border border-vibe-border bg-vibe-surface font-mono text-xs">
-              <div className="flex items-center h-8 bg-vibe-card border-b border-vibe-border px-3">
-                <span className="text-[10px] text-slate-600">// past review rounds (newest first)</span>
+            <div className="mt-2 rounded-lg border border-vibe-border bg-vibe-surface text-xs">
+              <div className="border-b border-vibe-border px-3 py-2 text-vibe-muted">
+                {t('post:review.history.title')}
               </div>
               {(reviewHistory ?? []).length === 0 ? (
-                <p className="p-3 text-slate-500">No completed reviews yet.</p>
+                <p className="p-3 text-vibe-muted">{t('post:review.history.empty')}</p>
               ) : (
                 <ul>
                   {(reviewHistory ?? []).map((entry, i) => (
                     <li key={i} className="flex flex-wrap items-center gap-2 border-b border-vibe-border px-3 py-2 last:border-0">
-                      <span className="text-slate-500">{entry.reviewedAt ? timeAgo(entry.reviewedAt) : '--'}</span>
-                      <span className="text-vibe-neon tabular-nums">Score {entry.score == null ? '--' : entry.score <= 10 ? Math.round(entry.score * 10) : Math.round(entry.score)}/100</span>
-                      <span className="text-slate-400 uppercase">{entry.severity || 'unknown'}</span>
-                      <span className={entry.isApproved ? 'text-vibe-emerald' : 'text-yellow-400'}>
-                        {entry.isApproved ? 'Approved' : 'Needs Review'}
+                      <span className="tabular-nums text-vibe-muted">{entry.reviewedAt ? timeAgo(entry.reviewedAt) : '--'}</span>
+                      <span className="tabular-nums text-vibe-accent">{entry.score == null ? '--' : entry.score <= 10 ? Math.round(entry.score * 10) : Math.round(entry.score)}/100</span>
+                      <span className="uppercase text-vibe-muted">{entry.severity || 'unknown'}</span>
+                      <span className={entry.isApproved ? 'text-vibe-success' : 'text-vibe-warning'}>
+                        {entry.isApproved ? t('post:review.history.approved') : t('post:review.history.needsReview')}
                       </span>
                     </li>
                   ))}
@@ -584,38 +570,40 @@ export default function PostDetailPage() {
         </div>
       )}
       {hasCodeBlock && post.aiReviewed === AI_REVIEW.FAILED && (
-        <div className="max-w-3xl mx-auto mb-8">
+        <div className="mb-8">
           <AiReviewTerminal state="failed" />
         </div>
       )}
 
       {/* COMMENTS SECTION */}
-      <section className="max-w-3xl mx-auto border-t border-vibe-border pt-6 pb-12">
-        <h2 className="text-xs font-mono font-semibold text-slate-400 mb-5">
-          // Comments ({totalComments})
+      <section className="border-t border-vibe-border pb-12 pt-6">
+        <h2 className="mb-5 text-sm font-semibold text-vibe-text">
+          {t('post:comments.heading', { n: totalComments })}
         </h2>
 
-        {/* Comment Form — Terminal style */}
-        <div className="bg-vibe-surface border border-vibe-border rounded-xl overflow-hidden mb-6">
-          <div className="flex items-center h-8 bg-vibe-card border-b border-vibe-border px-3">
-            <MacDots />
-            <span className="text-[10px] font-mono text-slate-600 ml-3">new_comment.md</span>
+        {/* Comment Form */}
+        <div className="mb-6 overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+          <div className="border-b border-vibe-border px-3 py-2 text-xs text-vibe-faint">
+            {t('post:comments.form.newCommentFile')}
           </div>
           <textarea
             value={commentText}
             onChange={(e) => setCommentText(e.target.value)}
-            placeholder="// Write your comment... mention @ai-agent to summon the AI assistant"
+            placeholder={t('post:comments.form.placeholder')}
             rows={3}
-            className="w-full px-4 py-3 text-sm font-mono bg-vibe-bg text-slate-200 resize-none focus:outline-none border-0 placeholder-slate-600 leading-relaxed"
+            className="w-full resize-none bg-vibe-bg px-4 py-3 text-sm leading-relaxed text-vibe-text placeholder-vibe-faint focus:outline-none"
           />
-          <div className="flex items-center justify-between px-3 py-2 bg-vibe-card/50 border-t border-vibe-border">
-            <span className="text-[10px] font-mono text-slate-600">{commentText.length > 0 ? 'Ready' : 'Type to comment'}</span>
+          <div className="flex items-center justify-between border-t border-vibe-border bg-vibe-card/50 px-3 py-2">
+            <span className="text-xs text-vibe-faint">
+              {commentText.length > 0 ? t('post:comments.form.ready') : t('post:comments.form.typeToComment')}
+            </span>
             <button
+              type="button"
               onClick={handleCommentSubmit}
               disabled={!commentText.trim() || commentMutation.isPending}
-             className="px-4 py-1.5 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 text-vibe-cyan text-xs font-mono hover:bg-vibe-cyan/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed active:scale-[0.97]"
+              className="rounded-md bg-vibe-accent px-4 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {commentMutation.isPending ? 'Posting...' : 'Post Comment'}
+              {commentMutation.isPending ? t('post:comments.form.posting') : t('post:comments.form.post')}
             </button>
           </div>
         </div>
@@ -626,28 +614,22 @@ export default function PostDetailPage() {
         {comments.length > 0 ? (
           <CommentSentimentFilter
             comments={comments}
-            renderComment={(comment: any, i: number) => {
+            renderComment={(comment: any) => {
               const isAi = Number(comment.userId) === AI_USER_ID;
               return (
-                <motion.div
-                  key={comment.id}
-                  initial={{ opacity: 0, y: 8 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.15, delay: i * 0.02 }}
-                  className="border-b border-vibe-border pb-3 last:border-0"
-                >
+                <div className="border-b border-vibe-border pb-3 last:border-0">
                   <div className="flex items-start gap-3">
                     <Avatar name={comment.authorName} size="sm" />
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 mb-0.5">
-                        <span className="text-xs font-mono font-medium text-slate-200">{comment.authorName}</span>
-                        {isAi && <span className="text-[10px] font-mono text-vibe-purple bg-vibe-purple/10 border border-vibe-purple/30 rounded px-1">AI</span>}
-                        <span className="text-[10px] font-mono text-slate-600">{timeAgo(comment.createTime)}</span>
+                    <div className="min-w-0 flex-1">
+                      <div className="mb-0.5 flex items-center gap-2">
+                        <span className="text-xs font-medium text-vibe-text">{comment.authorName}</span>
+                        {isAi && <span className="rounded border border-vibe-accent/40 bg-vibe-accent/10 px-1 text-xs text-vibe-accent">{t('post:comments.aiBadge')}</span>}
+                        <span className="text-xs tabular-nums text-vibe-faint">{timeAgo(comment.createTime)}</span>
                       </div>
                       <CommentBody content={comment.content} />
                     </div>
                   </div>
-                </motion.div>
+                </div>
               );
             }}
           />
@@ -655,8 +637,8 @@ export default function PostDetailPage() {
           <EmptyState
             preset="noComments"
             className="py-8"
-            title="No comments yet"
-            desc="Nothing is waiting for an answer right now. The form above is how the first one gets here."
+            title={t('common:empty.noComments.title')}
+            desc={t('common:empty.noComments.desc')}
           />
         )}
 
@@ -671,5 +653,3 @@ export default function PostDetailPage() {
     </div>
   );
 }
-
-

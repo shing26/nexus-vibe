@@ -1,5 +1,6 @@
 ﻿import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { apiClient } from "../api/client";
@@ -7,6 +8,7 @@ import { useAuthStore } from "../stores/authStore";
 import { useToastStore } from "../stores/toastStore";
 import { useChannels, type Channel } from "../api/useChannels";
 import { withWorkedExample } from "../components/promptMetadata";
+import { channelLabel } from "../lib/channels";
 import {
   Terminal, Sparkles, Tag, Code2, Save, Send, Bug, Palette, Cpu,
 } from "lucide-react";
@@ -19,120 +21,16 @@ function estimateTokens(text: string): number {
   return Math.round(chineseChars * 2 + asciiWords * 1.3);
 }
 
-/** macOS traffic-light dots */
-function MacDots() {
-  return (
-    <div className="flex items-center gap-1.5 px-3">
-      <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-      <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
-      <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-    </div>
-  );
-}
-
-/** Terminal-styled window wrapper */
-function TerminalWindow({ title, children, className = "" }: { title: string; children: React.ReactNode; className?: string }) {
-  return (
-    <div className={"bg-vibe-surface border border-vibe-border rounded-xl overflow-hidden " + className}>
-      {/* Title bar */}
-      <div className="flex items-center h-9 bg-vibe-card border-b border-vibe-border select-none">
-        <MacDots />
-        <span className="flex-1 text-center text-[11px] font-mono text-slate-500 truncate px-2">{title}</span>
-        <div className="w-16" /> {/* balance */}
-      </div>
-      {children}
-    </div>
-  );
-}
-
-const PROMPT_TEMPLATE = `## System Prompt
-You are an expert coding assistant. Follow these guidelines:
-- Write clean, well-documented code
-- Prioritize readability over brevity
-- Include error handling
-
-## User Request
-`;
-
-const TEMPLATES = [
-  {
-    id: "debug",
-    label: "Debug",
-    desc: "贴报错上下文",
-    icon: Bug,
-    channelSlug: "debug",
-    postType: "post" as const,
-    scaffold: `## 现象
-<!-- 描述发生了什么，期望结果是什么 -->
-
-## 报错上下文
-\`\`\`text
-粘贴报错信息
-\`\`\`
-
-## 已尝试
-- 
-
-## 补充信息
-- 语言/框架：
-- 运行环境：`,
-  },
-  {
-    id: "prompt",
-    label: "Prompt",
-    desc: "System Prompt 模板",
-    icon: Terminal,
-    channelSlug: "prompts",
-    postType: "prompt" as const,
-    promptRole: "Expert coding assistant",
-    recommendedModel: "",
-    temperature: 0.7,
-    variablesStr: "",
-    scaffold: PROMPT_TEMPLATE,
-  },
-  {
-    id: "showcase",
-    label: "Showcase",
-    desc: "Vibe Coding 成品",
-    icon: Palette,
-    channelSlug: "showcase",
-    postType: "post" as const,
-    scaffold: `## 作品简介
-<!-- 一句话说明这是什么 -->
-
-## 技术亮点
-- 
-
-## 演示 / 链接
-- [项目链接]()
-
-## 说明
-<!-- 运行方式、截图或补充背景 -->`,
-  },
-  {
-    id: "agents",
-    label: "Agent",
-    desc: "Agent 实战案例",
-    icon: Cpu,
-    channelSlug: "agents",
-    postType: "post" as const,
-    scaffold: `## Agent 目标
-<!-- 这个 Agent 要完成什么任务 -->
-
-## 架构与工具
-- 
-
-## 运行效果
-- 
-
-## 踩坑与经验
-- `,
-  },
-];
-
 const DRAFT_KEY = "nexus_vibe_drafts";
 
+const fieldClass =
+  "w-full rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50";
+const smallFieldClass =
+  "w-full rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-xs text-vibe-text placeholder-vibe-faint transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50";
+const labelClass = "block text-xs text-vibe-muted";
+
 export default function CreatePostPage() {
+  const { t } = useTranslation("editor");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const draftId = searchParams.get("draft");
@@ -179,22 +77,28 @@ export default function CreatePostPage() {
   // Apply template scaffold once channels are available
   useEffect(() => {
     if (draftId || !channels || !template) return;
-    const tpl = TEMPLATES.find((t) => t.id === template);
+    const templates = ["debug", "prompt", "showcase", "agents"].map((id) => ({
+      id,
+      channelSlug: { debug: "debug", prompt: "prompts", showcase: "showcase", agents: "agents" }[id]!,
+      postType: (id === "prompt" ? "prompt" : "post") as "post" | "prompt",
+    }));
+    const tpl = templates.find((t) => t.id === template);
     if (!tpl) return;
     const ch = channels.find((c: Channel) => c.slug === tpl.channelSlug);
     if (ch) setCategoryId(ch.id);
     setPostType(tpl.postType);
-    setContent(tpl.scaffold);
+    const scaffold = t("templates." + template + ".scaffold");
+    setContent(scaffold);
     setTitle("");
-    setPromptRole("promptRole" in tpl && tpl.promptRole ? tpl.promptRole : "");
-    setRecommendedModel("recommendedModel" in tpl && tpl.recommendedModel ? tpl.recommendedModel : "");
-    setTemperature("temperature" in tpl && tpl.temperature != null ? tpl.temperature : 0.7);
-    setVariablesStr("variablesStr" in tpl && tpl.variablesStr ? tpl.variablesStr : "");
+    setPromptRole(template === "prompt" ? "Expert coding assistant" : "");
+    setRecommendedModel("");
+    setTemperature(0.7);
+    setVariablesStr("");
     setExampleInput("");
     setExampleOutput("");
     setActiveTab("editor");
-    baseline.current = { title: "", content: tpl.scaffold };
-  }, [template, channels, draftId]);
+    baseline.current = { title: "", content: scaffold };
+  }, [template, channels, draftId, t]);
 
   const selectTemplate = (id: string) => {
     if (id === template) return;
@@ -261,7 +165,7 @@ export default function CreatePostPage() {
   }, [content]);
 
   const handleAiPolish = () => {
-    setContent((prev) => (prev.trim() ? prev + "\n\n" + PROMPT_TEMPLATE : PROMPT_TEMPLATE));
+    setContent((prev) => (prev.trim() ? prev + "\n\n" + t("promptScaffold") : t("promptScaffold")));
   };
 
   const handleSaveDraft = () => {
@@ -288,7 +192,7 @@ export default function CreatePostPage() {
       drafts.push(payload);
     }
     localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts));
-    addToast("Draft saved", "success");
+    addToast(t("draftSaved"), "success");
     navigate("/post/new?draft=" + payload.id, { replace: true });
   };
 
@@ -318,11 +222,11 @@ export default function CreatePostPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!title.trim() || !content.trim()) {
-      setError("// Error: Title and content are required");
+      setError(t("errors.titleAndContent"));
       return;
     }
     if (title.trim().length > 150) {
-      setError("// Error: Title must not exceed 150 characters");
+      setError(t("errors.titleTooLong"));
       return;
     }
     if (!isAuthenticated) { navigate("/login"); return; }
@@ -352,15 +256,15 @@ export default function CreatePostPage() {
       if (res.data.data.status === 2) {
         // The post was held for moderation, not published — success-colored
         // relief for a warning event read as "it went through fine".
-        addToast("内容含敏感词，已提交审核", "info");
+        addToast(t("heldForReview"), "info");
         navigate(isAdmin ? "/admin/audit" : "/", { replace: true });
       } else {
-        addToast("Post published!", "success");
+        addToast(t("published"), "success");
         navigate("/post/" + res.data.data.postId);
       }
     } catch (err: any) {
-      setError("// Error: " + (err.response?.data?.message || "Failed to create post"));
-      addToast('Failed to publish', 'error');
+      setError(t("errorPrefix") + " " + (err.response?.data?.message || t("errors.failedToPublish")));
+      addToast(t("errors.failedToPublish"), "error");
     } finally {
       setSubmitting(false);
     }
@@ -369,38 +273,45 @@ export default function CreatePostPage() {
   // Errors persist until the next submit clears them — an auto-dismissing
   // validation message disappears before the user can read and act on it.
 
+  const TEMPLATES = [
+    { id: "debug", icon: Bug },
+    { id: "prompt", icon: Terminal },
+    { id: "showcase", icon: Palette },
+    { id: "agents", icon: Cpu },
+  ];
+
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
+    <div className="mx-auto max-w-5xl px-4 py-8">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+      <div className="mb-6 flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 flex items-center justify-center">
-            <Terminal className="w-4 h-4 text-vibe-cyan" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-md border border-vibe-border bg-vibe-surface text-vibe-accent">
+            <Terminal className="h-4 w-4" />
           </div>
           <div>
-            <h1 className="text-base font-semibold font-mono text-slate-100">Vibe Prompt Studio</h1>
-            <p className="text-[11px] font-mono text-slate-500">Compose & publish your AI prompt / code snippet</p>
+            <h1 className="text-lg font-semibold text-vibe-text">{t("studioTitle")}</h1>
+            <p className="text-xs text-vibe-muted">{t("studioSubtitle")}</p>
           </div>
         </div>
         <button
           type="button"
           onClick={handleAiPolish}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-vibe-purple/20 border border-vibe-purple/30 text-vibe-purple text-xs font-mono hover:bg-vibe-purple/30 transition-colors"
-          title="Insert AI prompt template"
+          className="inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs text-vibe-text transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
+          title={t("insertScaffoldTitle")}
         >
-          <Sparkles className="w-3.5 h-3.5" />
-          Insert prompt scaffold
+          <Sparkles className="h-3.5 w-3.5" />
+          {t("insertScaffold")}
         </button>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
         {/* TEMPLATE WIZARD */}
-        <div className="rounded-xl border border-vibe-border overflow-hidden bg-vibe-surface/40">
-          <div className="flex items-center justify-between px-3 py-2 bg-vibe-card/60 border-b border-vibe-border">
-            <span className="text-[10px] font-mono uppercase tracking-widest text-slate-500">Template Wizard</span>
-            <span className="text-[10px] font-mono text-slate-600">Select a mission to prefill the studio</span>
+        <div className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+          <div className="flex items-center justify-between border-b border-vibe-border bg-vibe-card/60 px-3 py-2">
+            <span className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">{t("templateWizard")}</span>
+            <span className="text-xs text-vibe-faint">{t("templateWizardHint")}</span>
           </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-2.5">
+          <div className="grid grid-cols-2 gap-2 p-2.5 sm:grid-cols-4">
             {TEMPLATES.map((tpl) => {
               const Icon = tpl.icon;
               const active = template === tpl.id;
@@ -410,27 +321,27 @@ export default function CreatePostPage() {
                   type="button"
                   onClick={() => selectTemplate(tpl.id)}
                   className={
-                    "flex items-center gap-2.5 rounded-lg border px-3 py-2.5 text-left transition-all active:scale-[0.97] " +
+                    "flex items-center gap-2.5 rounded-md border px-3 py-2.5 text-left transition-colors " +
                     (active
-                      ? "bg-vibe-cyan/15 border-vibe-cyan/40"
-                      : "bg-vibe-card/40 border-vibe-border hover:border-vibe-cyan/30")
+                      ? "border-vibe-accent/50 bg-vibe-accent/10"
+                      : "border-vibe-border bg-vibe-card hover:border-vibe-accent/30")
                   }
                 >
                   <span
                     className={
-                      "w-7 h-7 rounded-md border flex items-center justify-center shrink-0 " +
+                      "flex h-7 w-7 shrink-0 items-center justify-center rounded-md border " +
                       (active
-                        ? "bg-vibe-cyan/20 border-vibe-cyan/40 text-vibe-cyan"
-                        : "bg-vibe-surface border-vibe-border text-slate-500")
+                        ? "border-vibe-accent/40 bg-vibe-accent/15 text-vibe-accent"
+                        : "border-vibe-border bg-vibe-bg text-vibe-muted")
                     }
                   >
-                    <Icon className="w-3.5 h-3.5" />
+                    <Icon className="h-3.5 w-3.5" />
                   </span>
                   <span className="min-w-0">
-                    <span className={"block text-[11px] font-mono font-semibold " + (active ? "text-vibe-cyan" : "text-slate-300")}>
-                      {tpl.label}
+                    <span className={"block text-xs font-medium " + (active ? "text-vibe-accent" : "text-vibe-text")}>
+                      {t("templates." + tpl.id + ".label")}
                     </span>
-                    <span className="block text-[10px] font-mono text-slate-600 truncate">{tpl.desc}</span>
+                    <span className="block truncate text-xs text-vibe-faint">{t("templates." + tpl.id + ".desc")}</span>
                   </span>
                 </button>
               );
@@ -443,188 +354,194 @@ export default function CreatePostPage() {
           <button
             type="button"
             onClick={() => handlePostTypeChange("post")}
-            className={"px-3 py-1.5 rounded-lg text-xs font-mono transition-colors " + (postType === "post" ? "bg-vibe-cyan/20 text-vibe-cyan border border-vibe-cyan/40" : "bg-vibe-card text-slate-400 border border-vibe-border")}
+            aria-pressed={postType === "post"}
+            className={"rounded-full border px-3 py-1.5 text-xs transition-colors " + (postType === "post" ? "border-vibe-accent/50 bg-vibe-accent/10 text-vibe-accent" : "border-vibe-border bg-vibe-card text-vibe-muted")}
           >
-            📝 Post
+            {t("postType.post")}
           </button>
           <button
             type="button"
             onClick={() => handlePostTypeChange("prompt")}
-            className={"px-3 py-1.5 rounded-lg text-xs font-mono transition-colors " + (postType === "prompt" ? "bg-vibe-purple/20 text-vibe-purple border border-vibe-purple/40" : "bg-vibe-card text-slate-400 border border-vibe-border")}
+            aria-pressed={postType === "prompt"}
+            className={"rounded-full border px-3 py-1.5 text-xs transition-colors " + (postType === "prompt" ? "border-vibe-accent/50 bg-vibe-accent/10 text-vibe-accent" : "border-vibe-border bg-vibe-card text-vibe-muted")}
           >
-            🤖 Prompt Template
+            {t("postType.prompt")}
           </button>
         </div>
 
-        {/* METADATA WINDOW */}
-        <TerminalWindow title="config.json — Metadata">
-          <div className="p-4 space-y-3">
-            <div className="flex gap-3">
-              <div className="flex-1">
-                <input
-                  type="text"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  maxLength={150}
-                  placeholder="# Post title..."
-                  className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-sm font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
-                />
-              </div>
-              <select
-                value={categoryId ?? ""}
-                onChange={(e) => setCategoryId(Number(e.target.value))}
-                className="w-1/4 px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
-                disabled={channelsLoading}
-              >
-                {channelsLoading ? (
-                  <option value="" className="bg-vibe-bg">Loading...</option>
-                ) : (
-                  displayChannels.map((ch: Channel) => (
-                    <option key={ch.id} value={ch.id} className="bg-vibe-bg">
-                      {ch.slug === "announcements" ? ch.name + " (Admin)" : ch.name}
-                    </option>
-                  ))
-                )}
-              </select>
-            </div>
-            {/* Tags */}
-            <div className="relative">
-              <Tag className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-500" />
+        {/* METADATA */}
+        <div className="space-y-3 rounded-lg border border-vibe-border bg-vibe-surface p-4">
+          <span className="block text-xs text-vibe-faint">{t("metadataTitle")}</span>
+          <div className="flex gap-3">
+            <div className="flex-1">
               <input
                 type="text"
-                value={tags}
-                onChange={(e) => setTags(e.target.value)}
-                placeholder="Tags (comma separated) — e.g. react, tailwind, animation"
-                className="w-full pl-9 pr-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-300 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+                maxLength={150}
+                placeholder={t("titlePlaceholder")}
+                aria-label={t("titleAria")}
+                className={fieldClass}
               />
             </div>
+            <select
+              value={categoryId ?? ""}
+              onChange={(e) => setCategoryId(Number(e.target.value))}
+              aria-label={t("channelAria")}
+              className="w-1/4 rounded-md border border-vibe-border bg-vibe-bg px-3 py-2 text-sm text-vibe-text transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
+              disabled={channelsLoading}
+            >
+              {channelsLoading ? (
+                <option value="" className="bg-vibe-bg">{t("loadingChannels")}</option>
+              ) : (
+                displayChannels.map((ch: Channel) => (
+                  <option key={ch.id} value={ch.id} className="bg-vibe-bg">
+                    {channelLabel(ch.slug) || ch.name}
+                    {ch.slug === "announcements" ? " (" + t("adminChannelSuffix") + ")" : ""}
+                  </option>
+                ))
+              )}
+            </select>
+          </div>
+          {/* Tags */}
+          <div className="relative">
+            <Tag className="absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-vibe-muted" />
+            <input
+              type="text"
+              value={tags}
+              onChange={(e) => setTags(e.target.value)}
+              placeholder={t("tagsPlaceholder")}
+              className={fieldClass + " pl-9 text-xs"}
+            />
+          </div>
 
-            {/* Prompt-specific fields */}
-            {postType === "prompt" && (
-              <div className="border-t border-vibe-border pt-3 space-y-3">
-                <h4 className="text-[10px] font-mono font-semibold text-slate-500 uppercase tracking-widest">Prompt Config</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono text-slate-500">Role</label>
-                    <textarea
-                      value={promptRole}
-                      onChange={(e) => setPromptRole(e.target.value)}
-                      placeholder="System prompt role description..."
-                      rows={2}
-                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono text-slate-500">Model</label>
-                    <select
-                      value={recommendedModel}
-                      onChange={(e) => setRecommendedModel(e.target.value)}
-                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
-                    >
-                      <option value="" className="bg-vibe-bg">Select model...</option>
-                      <option value="gpt-4o" className="bg-vibe-bg">gpt-4o</option>
-                      <option value="gpt-4o-mini" className="bg-vibe-bg">gpt-4o-mini</option>
-                      <option value="claude-3.5-sonnet" className="bg-vibe-bg">claude-3.5-sonnet</option>
-                      <option value="claude-3.5-haiku" className="bg-vibe-bg">claude-3.5-haiku</option>
-                      <option value="claude-4-opus" className="bg-vibe-bg">claude-4-opus</option>
-                      <option value="gemini-2.0-flash" className="bg-vibe-bg">gemini-2.0-flash</option>
-                      <option value="deepseek-v3" className="bg-vibe-bg">deepseek-v3</option>
-                    </select>
-                  </div>
+          {/* Prompt-specific fields */}
+          {postType === "prompt" && (
+            <div className="space-y-3 border-t border-vibe-border pt-3">
+              <h4 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">{t("promptConfig.heading")}</h4>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t("promptConfig.role")}</label>
+                  <textarea
+                    value={promptRole}
+                    onChange={(e) => setPromptRole(e.target.value)}
+                    placeholder={t("promptConfig.rolePlaceholder")}
+                    rows={2}
+                    className={smallFieldClass + " resize-none"}
+                  />
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono text-slate-500">Temperature (0-1)</label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="1"
-                      step="0.1"
-                      value={temperature}
-                      onChange={(e) => setTemperature(Number(e.target.value))}
-                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono text-slate-500">Variables (comma-separated)</label>
-                    <input
-                      type="text"
-                      value={variablesStr}
-                      onChange={(e) => setVariablesStr(e.target.value)}
-                      placeholder="e.g. language, framework, style"
-                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
-                    />
-                  </div>
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono text-slate-500">Example input (optional)</label>
-                    <textarea
-                      value={exampleInput}
-                      onChange={(e) => setExampleInput(e.target.value)}
-                      placeholder="What a reader would paste into this prompt..."
-                      rows={3}
-                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <label className="text-[10px] font-mono text-slate-500">Example output (optional)</label>
-                    <textarea
-                      value={exampleOutput}
-                      onChange={(e) => setExampleOutput(e.target.value)}
-                      placeholder="What this prompt produced for that input..."
-                      rows={3}
-                      className="w-full px-3 py-2 bg-vibe-bg border border-vibe-border rounded-lg text-xs font-mono text-slate-200 placeholder-slate-600 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors resize-none"
-                    />
-                  </div>
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t("promptConfig.model")}</label>
+                  <select
+                    value={recommendedModel}
+                    onChange={(e) => setRecommendedModel(e.target.value)}
+                    className={smallFieldClass}
+                  >
+                    <option value="" className="bg-vibe-bg">{t("promptConfig.modelPlaceholder")}</option>
+                    <option value="gpt-4o" className="bg-vibe-bg">gpt-4o</option>
+                    <option value="gpt-4o-mini" className="bg-vibe-bg">gpt-4o-mini</option>
+                    <option value="claude-3.5-sonnet" className="bg-vibe-bg">claude-3.5-sonnet</option>
+                    <option value="claude-3.5-haiku" className="bg-vibe-bg">claude-3.5-haiku</option>
+                    <option value="claude-4-opus" className="bg-vibe-bg">claude-4-opus</option>
+                    <option value="gemini-2.0-flash" className="bg-vibe-bg">gemini-2.0-flash</option>
+                    <option value="deepseek-v3" className="bg-vibe-bg">deepseek-v3</option>
+                  </select>
                 </div>
               </div>
-            )}
-          </div>
-        </TerminalWindow>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t("promptConfig.temperature")}</label>
+                  <input
+                    type="number"
+                    min="0"
+                    max="1"
+                    step="0.1"
+                    value={temperature}
+                    onChange={(e) => setTemperature(Number(e.target.value))}
+                    className={smallFieldClass}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t("promptConfig.variables")}</label>
+                  <input
+                    type="text"
+                    value={variablesStr}
+                    onChange={(e) => setVariablesStr(e.target.value)}
+                    placeholder={t("promptConfig.variablesPlaceholder")}
+                    className={smallFieldClass}
+                  />
+                </div>
+              </div>
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t("promptConfig.exampleInput")}</label>
+                  <textarea
+                    value={exampleInput}
+                    onChange={(e) => setExampleInput(e.target.value)}
+                    placeholder={t("promptConfig.exampleInputPlaceholder")}
+                    rows={3}
+                    className={smallFieldClass + " resize-none"}
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <label className={labelClass}>{t("promptConfig.exampleOutput")}</label>
+                  <textarea
+                    value={exampleOutput}
+                    onChange={(e) => setExampleOutput(e.target.value)}
+                    placeholder={t("promptConfig.exampleOutputPlaceholder")}
+                    rows={3}
+                    className={smallFieldClass + " resize-none"}
+                  />
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
 
         {/* ADMIN NOTICE */}
         {isAdmin && (
-          <div className="text-[10px] font-mono text-vibe-cyan bg-vibe-cyan/10 border border-vibe-cyan/30 rounded-lg px-3 py-1.5">
-            # Announcements channel — admin only
+          <div className="rounded-md border border-vibe-accent/30 bg-vibe-accent/10 px-3 py-1.5 text-xs text-vibe-accent">
+            {t("adminNotice")}
           </div>
         )}
 
-        {/* EDITOR WINDOW */}
-        <TerminalWindow title="prompt_editor.md — Markdown Editor">
+        {/* EDITOR */}
+        <div className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
           {/* Toolbar */}
-          <div className="flex items-center gap-1 px-3 py-2 border-b border-vibe-border bg-vibe-card/50">
+          <div className="flex items-center gap-1 border-b border-vibe-border bg-vibe-card/50 px-3 py-2">
             {/* Left tabs */}
             <div className="flex items-center gap-1">
               <button
                 type="button"
                 onClick={() => setActiveTab("editor")}
+                aria-pressed={activeTab === "editor"}
                 className={
-                  "px-3 py-1 rounded-md text-[11px] font-mono transition-colors " +
+                  "rounded-md px-3 py-1 text-xs transition-colors " +
                   (activeTab === "editor"
-                    ? "bg-vibe-cyan/20 text-vibe-cyan"
-                    : "text-slate-500 hover:text-slate-300")
+                    ? "bg-vibe-accent/15 text-vibe-accent"
+                    : "text-vibe-muted hover:text-vibe-text")
                 }
               >
-                📝 Editor
+                {t("editorTabs.editor")}
               </button>
               <button
                 type="button"
                 onClick={() => setActiveTab("preview")}
+                aria-pressed={activeTab === "preview"}
                 className={
-                  "px-3 py-1 rounded-md text-[11px] font-mono transition-colors " +
+                  "rounded-md px-3 py-1 text-xs transition-colors " +
                   (activeTab === "preview"
-                    ? "bg-vibe-cyan/20 text-vibe-cyan"
-                    : "text-slate-500 hover:text-slate-300")
+                    ? "bg-vibe-accent/15 text-vibe-accent"
+                    : "text-vibe-muted hover:text-vibe-text")
                 }
               >
-                👁️ Preview
+                {t("editorTabs.preview")}
               </button>
             </div>
             {/* Right status */}
-            <div className="ml-auto flex items-center gap-3 text-[10px] font-mono text-slate-600">
-              <span>~{tokens} Tokens</span>
-              <span className="hidden sm:inline">Markdown / Code Supported</span>
+            <div className="ml-auto flex items-center gap-3 text-xs tabular-nums text-vibe-faint">
+              <span>{t("tokensLabel", { n: tokens })}</span>
+              <span className="hidden sm:inline">{t("markdownNote")}</span>
             </div>
           </div>
 
@@ -635,63 +552,59 @@ export default function CreatePostPage() {
                 ref={textareaRef}
                 value={content}
                 onChange={(e) => setContent(e.target.value)}
-                placeholder="// Write your prompt or code in Markdown..."
-                className="w-full h-80 p-4 bg-vibe-bg text-slate-200 font-mono text-sm leading-relaxed resize-none focus:outline-none border-0 placeholder-slate-700"
+                placeholder={t("contentPlaceholder")}
+                className="h-80 w-full resize-none border-0 bg-vibe-bg p-4 font-mono text-sm leading-relaxed text-vibe-text placeholder-vibe-faint focus:outline-none"
               />
               {/* Code block FAB */}
               <button
                 type="button"
                 onClick={insertCodeBlock}
-                className="absolute bottom-3 right-3 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-md bg-vibe-card border border-vibe-border text-[10px] font-mono text-slate-400 hover:text-vibe-cyan hover:border-vibe-cyan/40 transition-colors"
-                title="Insert code block"
+                className="absolute bottom-3 right-3 inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2.5 py-1.5 text-xs text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
+                title={t("insertCodeTitle")}
               >
-                <Code2 className="w-3 h-3" />
-                Code
+                <Code2 className="h-3 w-3" />
+                {t("codeButton")}
               </button>
             </div>
           ) : (
-            <div className="h-80 overflow-y-auto p-4 bg-vibe-bg prose prose-invert prose-sm max-w-none">
+            <div className="h-80 overflow-y-auto bg-vibe-bg p-4 prose prose-sm max-w-none dark:prose-invert">
               {content ? (
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>{content}</ReactMarkdown>
               ) : (
-                <p className="text-slate-700 italic font-mono text-xs">// Preview will appear here...</p>
+                <p className="text-xs italic text-vibe-faint">{t("previewPlaceholder")}</p>
               )}
             </div>
           )}
 
           {/* Footer Dock */}
-          <div className="flex items-center justify-between px-3 py-2.5 border-t border-vibe-border bg-vibe-card/50">
+          <div className="flex items-center justify-between border-t border-vibe-border bg-vibe-card/50 px-3 py-2.5">
             {/* Error toast (inline) */}
             {error && (
-              <span className="text-[11px] font-mono text-red-400 animate-pulse">{error}</span>
+              <span role="alert" className="text-xs text-vibe-danger">{error}</span>
             )}
             {!error && <span />}
             {/* Actions */}
-            <div className="flex items-center gap-2 ml-auto">
+            <div className="ml-auto flex items-center gap-2">
               <button
                 type="button"
                 onClick={handleSaveDraft}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-vibe-border text-[11px] font-mono text-slate-400 hover:text-slate-200 hover:border-slate-500 transition-colors"
+                className="inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
               >
-                <Save className="w-3.5 h-3.5" />
-                Save Draft
+                <Save className="h-3.5 w-3.5" />
+                {t("saveDraft")}
               </button>
               <button
                 type="submit"
                 disabled={submitting}
-                className="relative overflow-hidden rounded-lg bg-gradient-to-r from-vibe-cyan to-vibe-purple p-[1px] font-mono text-xs font-medium text-white transition-transform active:scale-95 hover:scale-[1.02] disabled:opacity-50 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-4 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <span className="absolute inset-0 bg-[linear-gradient(110deg,transparent,25%,rgba(255,255,255,0.3),45%,transparent)] bg-[length:200%_100%] animate-shimmer" />
-                <span className="relative flex items-center gap-1.5 rounded-[7px] bg-vibe-bg/90 px-4 py-1.5 backdrop-blur-sm hover:bg-transparent transition-colors">
-                  <Send className="w-3.5 h-3.5" />
-                  {submitting ? "Publishing..." : "Publish Vibe Post"}
-                </span>
+                <Send className="h-3.5 w-3.5" />
+                {submitting ? t("publishing") : t("publish")}
               </button>
             </div>
           </div>
-        </TerminalWindow>
+        </div>
       </form>
     </div>
   );
 }
-

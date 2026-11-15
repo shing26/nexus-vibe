@@ -7,10 +7,10 @@ import type { PostPageVo } from '../types/post';
 /**
  * Behavioral coverage for the v2 topic-row.
  *
- * <p>The v2 redesign turned `PostCard` from a SpotlightCard into a compact
+ * <p>The v2 redesign turned `PostCard` from a spotlight-card box into a compact
  * topic-row, which retired the effect components the old assertions pinned
  * byte-for-byte (`container.innerHTML` from base commit `1ce682a`). Those
- * fixtures asserted retired markup (BorderBeam gradient wrapper, spotlight
+ * fixtures asserted retired markup (the gradient beam wrapper, spotlight
  * overlay, the terminal preview block), so they are replaced by assertions on
  * what the row must still do: link to the post, print the real counts, expose
  * the copy/fork actions, and keep a rejected post's reason out of the public

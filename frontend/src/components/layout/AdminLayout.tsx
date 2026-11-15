@@ -4,7 +4,7 @@ import Sidebar from '../Sidebar';
 import BackButton from '../BackButton';
 
 /**
- * The admin panel shares the v2 sidebar: the 管理 group renders there for an
+ * The admin panel shares the v2 sidebar: the admin group renders there for an
  * ADMIN, so this layout simply provides a wider content column beside it.
  */
 export default function AdminLayout() {

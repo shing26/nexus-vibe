@@ -1,8 +1,10 @@
 import { Link } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import { Tag } from 'lucide-react';
 import { apiClient } from '../api/client';
 import EmptyState from '../components/EmptyState';
+import Skeleton from '../components/Skeleton';
 
 interface TagUsage {
   tagId: number;
@@ -17,27 +19,28 @@ interface TagUsage {
  * so a just-created post appears here no sooner than its tag does.
  */
 export default function TagsPage() {
+  const { t } = useTranslation('home');
   const { data: tags, isLoading } = useQuery<TagUsage[]>({
     queryKey: ['tags', 'usage'],
     queryFn: () => apiClient.get('/tags/usage').then((r) => r.data.data),
   });
 
   return (
-    <div className="max-w-4xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-lg bg-vibe-purple/20 border border-vibe-purple/30 flex items-center justify-center">
-          <Tag className="w-4 h-4 text-vibe-purple" />
+    <div className="mx-auto max-w-4xl px-4 py-8">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-md border border-vibe-border bg-vibe-surface text-vibe-accent">
+          <Tag className="h-4 w-4" />
         </div>
         <div>
-          <h1 className="text-base font-semibold font-mono text-slate-100">Hot Tags</h1>
-          <p className="text-[11px] font-mono text-slate-500">Browse the community by topic</p>
+          <h1 className="text-lg font-semibold text-vibe-text">{t('tags.title')}</h1>
+          <p className="text-xs text-vibe-muted">{t('tags.subtitle')}</p>
         </div>
       </div>
 
       {isLoading ? (
         <div className="flex flex-wrap gap-2">
           {Array.from({ length: 8 }).map((_, i) => (
-            <div key={i} className="w-24 h-8 bg-vibe-card rounded-lg animate-pulse" />
+            <Skeleton key={i} className="h-8 w-24 rounded-lg" />
           ))}
         </div>
       ) : tags && tags.length > 0 ? (
@@ -46,11 +49,11 @@ export default function TagsPage() {
             <Link
               key={tag.tagId}
               to={'/search?q=' + encodeURIComponent(tag.name)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-vibe-surface border border-vibe-border text-xs font-mono text-slate-300 hover:border-vibe-cyan/40 hover:text-vibe-cyan transition-colors"
+              className="inline-flex items-center gap-1.5 rounded-full border border-vibe-border bg-vibe-surface px-4 py-2 text-xs text-vibe-text transition-colors hover:border-vibe-accent/40 hover:text-vibe-accent"
             >
-              <Tag className="w-3.5 h-3.5" />
+              <Tag className="h-3.5 w-3.5" />
               {tag.name}
-              <span className="px-1.5 rounded bg-vibe-card border border-vibe-border text-[10px] text-slate-500">
+              <span className="rounded-full border border-vibe-border bg-vibe-card px-1.5 text-xs tabular-nums text-vibe-muted">
                 {tag.postCount}
               </span>
             </Link>
@@ -59,10 +62,10 @@ export default function TagsPage() {
       ) : (
         <EmptyState
           preset="noResults"
-          title="还没有任何标签"
-          desc="标签由 AI 评审从帖子中自动提取，发布 Prompt 后这里就会长出来。"
+          title={t('tags.emptyTitle')}
+          desc={t('tags.emptyDesc')}
           action="/post/new?template=prompt"
-          actionLabel="发布一个 Prompt"
+          actionLabel={t('tags.emptyAction')}
         />
       )}
     </div>

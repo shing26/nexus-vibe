@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 import {
   Terminal,
   CheckCircle2,
@@ -12,6 +13,7 @@ import { apiClient } from '../api/client';
 import { serverErrorMessage } from '../api/serverErrorMessage';
 import Pagination from '../components/Pagination';
 import EmptyState from '../components/EmptyState';
+import Skeleton from '../components/Skeleton';
 import type { AiLog, AiLogStats, PageResponse } from '../types/post';
 
 interface AgentLogsResponse {
@@ -29,85 +31,82 @@ type ReviewerFilter = 'all' | 'code-review' | 'safety-check';
 const statCards = [
   {
     key: 'totalReviews',
-    label: 'Total Reviews',
-    valueClass: 'text-slate-100',
-    accentClass: 'bg-slate-400',
+    labelKey: 'stats.totalReviews',
+    valueClass: 'text-vibe-text',
+    accentClass: 'bg-vibe-muted',
     icon: Layers,
   },
   {
     key: 'approved',
-    label: 'Approved',
-    valueClass: 'text-vibe-emerald',
-    accentClass: 'bg-vibe-emerald',
+    labelKey: 'stats.approved',
+    valueClass: 'text-vibe-success',
+    accentClass: 'bg-vibe-success',
     icon: CheckCircle2,
   },
   {
     key: 'flagged',
-    label: 'Flagged',
-    valueClass: 'text-amber-400',
-    accentClass: 'bg-amber-500',
+    labelKey: 'stats.flagged',
+    valueClass: 'text-vibe-warning',
+    accentClass: 'bg-vibe-warning',
     icon: Flag,
   },
   {
     key: 'critical',
-    label: 'Critical',
-    valueClass: 'text-red-400',
-    accentClass: 'bg-red-500',
+    labelKey: 'stats.critical',
+    valueClass: 'text-vibe-danger',
+    accentClass: 'bg-vibe-danger',
     icon: AlertOctagon,
   },
   {
     key: 'high',
-    label: 'High Severity',
-    valueClass: 'text-orange-400',
-    accentClass: 'bg-orange-500',
+    labelKey: 'stats.high',
+    valueClass: 'text-vibe-high',
+    accentClass: 'bg-vibe-high',
     icon: AlertTriangle,
   },
 ] as const;
 
+/** The v2 severity map: low → success, medium → warning, high → vibe-high, critical → danger. */
 const severityStyles: Record<string, string> = {
-  critical: 'bg-red-900/30 text-red-400 ring-red-500/40',
-  high: 'bg-orange-900/30 text-orange-400 ring-orange-500/40',
-  medium: 'bg-yellow-900/30 text-yellow-400 ring-yellow-500/40',
-  low: 'bg-vibe-emerald/10 text-vibe-emerald ring-vibe-emerald/30',
-  unknown: 'bg-slate-800/60 text-slate-400 ring-slate-600/50',
-  unavailable: 'bg-slate-900/40 text-slate-500 ring-slate-700/40',
+  critical: 'bg-vibe-danger/10 text-vibe-danger ring-vibe-danger/40',
+  high: 'bg-vibe-high/10 text-vibe-high ring-vibe-high/40',
+  medium: 'bg-vibe-warning/10 text-vibe-warning ring-vibe-warning/40',
+  low: 'bg-vibe-success/10 text-vibe-success ring-vibe-success/30',
+  unknown: 'bg-vibe-muted/10 text-vibe-muted ring-vibe-border',
+  unavailable: 'bg-vibe-muted/5 text-vibe-faint ring-vibe-border',
 };
 
-function MacDots() {
-  return (
-    <div className="flex items-center gap-1.5 px-3">
-      <span className="w-2.5 h-2.5 rounded-full bg-red-500/80" />
-      <span className="w-2.5 h-2.5 rounded-full bg-yellow-500/80" />
-      <span className="w-2.5 h-2.5 rounded-full bg-green-500/80" />
-    </div>
-  );
-}
-
 function SeverityBadge({ severity }: { severity: string | null | undefined }) {
+  const { t } = useTranslation('agentLogs');
   const normalized = (severity || 'unavailable').toLowerCase();
   const className = severityStyles[normalized] || severityStyles.unknown;
 
   return (
-    <span className={'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono uppercase ring-1 ring-inset ' + className}>
-      {normalized}
+    <span className={'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ' + className}>
+      {t('severityNames.' + normalized, { defaultValue: normalized })}
     </span>
   );
 }
 
 function StatusBadge({ log }: { log: AiLog }) {
+  const { t } = useTranslation(['agentLogs', 'common']);
   const approved = log.isApproved === 1;
   const unavailable = log.status === 'unavailable';
-  const label = unavailable ? 'UNAVAILABLE' : approved ? 'APPROVED' : 'FLAGGED';
+  const label = unavailable
+    ? t('severityNames.unavailable')
+    : approved
+      ? t('common:status.approved')
+      : t('common:status.flagged');
 
   return (
     <span
       className={
-        'inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-mono font-semibold ring-1 ring-inset ' +
+        'inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ring-1 ring-inset ' +
         (unavailable
-          ? 'bg-slate-900/40 text-slate-500 ring-slate-700/40'
+          ? 'bg-vibe-muted/5 text-vibe-faint ring-vibe-border'
           : approved
-          ? 'bg-vibe-emerald/10 text-vibe-emerald ring-vibe-emerald/30'
-          : 'bg-amber-900/30 text-amber-400 ring-amber-500/40')
+          ? 'bg-vibe-success/10 text-vibe-success ring-vibe-success/30'
+          : 'bg-vibe-warning/10 text-vibe-warning ring-vibe-warning/40')
       }
     >
       {label}
@@ -119,33 +118,30 @@ function formatTimestamp(value: string) {
   return value ? value.replace('T', ' ').slice(0, 19) : '--';
 }
 
-function TerminalLogRow({ log }: { log: AiLog }) {
+function LogRow({ log }: { log: AiLog }) {
+  const { t } = useTranslation('agentLogs');
   return (
-    <div className="bg-vibe-surface border border-vibe-border rounded-xl overflow-hidden">
-      <div className="flex items-center h-9 bg-vibe-card border-b border-vibe-border select-none">
-        <MacDots />
-        <span className="flex-1 text-center text-[11px] font-mono text-slate-500 truncate px-2">
-          ai_review_log — Log Entry #{log.id}
-        </span>
-        <div className="w-16 shrink-0" />
+    <div className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+      <div className="border-b border-vibe-border px-4 py-2 text-xs font-medium text-vibe-text">
+        {t('row.fileTitle', { id: log.id })}
       </div>
-      <div className="p-4 font-mono text-xs space-y-2">
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-300">
-          <span className="text-vibe-cyan">$</span>
+      <div className="space-y-2 p-4 text-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-vibe-text">
+          <span className="text-vibe-accent">$</span>
           <span>{log.reviewer}</span>
-          <span className="text-slate-600">→</span>
-          <span className="text-vibe-cyan">Post #{log.postId}</span>
+          <span className="text-vibe-faint">→</span>
+          <span className="text-vibe-accent">{t('row.postRef', { id: log.postId })}</span>
         </div>
-        <p className="text-slate-400 truncate">"{log.postTitle}"</p>
-        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-slate-500">
-          <span>Severity:</span>
+        <p className="truncate text-vibe-muted">"{log.postTitle}"</p>
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-vibe-muted">
+          <span>{t('row.severity')}</span>
           <SeverityBadge severity={log.severity} />
-          <span className="text-slate-700">|</span>
-          <span>Status:</span>
+          <span className="text-vibe-border">|</span>
+          <span>{t('row.status')}</span>
           <StatusBadge log={log} />
         </div>
-        <div className="text-slate-500">
-          <span className="text-slate-600">Timestamp:</span> {formatTimestamp(log.createdAt)}
+        <div className="text-xs tabular-nums text-vibe-muted">
+          <span className="text-vibe-faint">{t('row.timestamp')}</span> {formatTimestamp(log.createdAt)}
         </div>
       </div>
     </div>
@@ -154,11 +150,11 @@ function TerminalLogRow({ log }: { log: AiLog }) {
 
 function StatsSkeleton() {
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+    <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
       {[1, 2, 3, 4, 5].map((i) => (
-        <div key={i} className="bg-vibe-surface border border-vibe-border rounded-xl p-4 animate-pulse">
-          <div className="h-3 bg-vibe-card rounded w-20 mb-3" />
-          <div className="h-7 bg-vibe-card/60 rounded w-10" />
+        <div key={i} className="rounded-lg border border-vibe-border bg-vibe-surface p-4">
+          <Skeleton className="mb-3 h-3 w-20" />
+          <Skeleton className="h-7 w-10" />
         </div>
       ))}
     </div>
@@ -169,20 +165,14 @@ function LogsSkeleton() {
   return (
     <div className="space-y-4">
       {[1, 2, 3].map((i) => (
-        <div key={i} className="bg-vibe-surface border border-vibe-border rounded-xl overflow-hidden relative">
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-vibe-cyan/5 to-transparent bg-[length:200%_100%] animate-shimmer" />
-          <div className="flex items-center h-9 bg-vibe-card border-b border-vibe-border px-3 relative">
-            <div className="flex gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-              <span className="w-2.5 h-2.5 rounded-full bg-slate-700" />
-            </div>
-            <div className="h-2.5 bg-vibe-card rounded w-44 mx-auto" />
+        <div key={i} className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+          <div className="border-b border-vibe-border px-4 py-2">
+            <Skeleton className="mx-auto h-3 w-44" />
           </div>
-          <div className="p-4 space-y-2.5 relative">
-            <div className="h-2.5 bg-vibe-card rounded w-3/5" />
-            <div className="h-2.5 bg-vibe-card/70 rounded w-2/3" />
-            <div className="h-2 bg-vibe-card/50 rounded w-1/3" />
+          <div className="space-y-2.5 p-4">
+            <Skeleton className="h-3 w-3/5" />
+            <Skeleton className="h-3 w-2/3" />
+            <Skeleton className="h-2.5 w-1/3" />
           </div>
         </div>
       ))}
@@ -191,6 +181,7 @@ function LogsSkeleton() {
 }
 
 export default function AgentLogsPage() {
+  const { t } = useTranslation('agentLogs');
   const [page, setPage] = useState(1);
   const [reviewer, setReviewer] = useState<ReviewerFilter>('all');
 
@@ -226,33 +217,29 @@ export default function AgentLogsPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-8">
-      <div className="flex items-center gap-3 mb-6">
-        <div className="w-9 h-9 rounded-lg bg-vibe-cyan/20 border border-vibe-cyan/30 flex items-center justify-center shrink-0">
-          <Terminal className="w-4 h-4 text-vibe-cyan" />
+    <div className="mx-auto max-w-5xl px-4 py-8">
+      <div className="mb-6 flex items-center gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-vibe-border bg-vibe-surface text-vibe-accent">
+          <Terminal className="h-4 w-4" />
         </div>
         <div className="min-w-0">
-          <h1 className="text-xl font-bold font-mono text-slate-100">
-            <span className="text-vibe-cyan">$</span> agent_logs — AI Agent Operations Console
-          </h1>
-          <p className="text-[11px] font-mono text-slate-500 mt-0.5">
-            Review trail from autonomous safety &amp; code agents
-          </p>
+          <h1 className="truncate text-lg font-semibold text-vibe-text">{t('title')}</h1>
+          <p className="mt-0.5 text-xs text-vibe-muted">{t('subtitle')}</p>
         </div>
       </div>
 
       {stats ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {statCards.map((card) => {
             const Icon = card.icon;
             return (
-              <div key={card.key} className="bg-vibe-surface border border-vibe-border rounded-xl p-4 relative overflow-hidden">
+              <div key={card.key} className="relative overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface p-4">
                 <div className={'absolute inset-x-0 top-0 h-0.5 ' + card.accentClass} />
                 <div className="flex items-center justify-between">
-                  <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{card.label}</p>
-                  <Icon className="w-3.5 h-3.5 text-slate-600" />
+                  <p className="text-xs uppercase tracking-wide text-vibe-muted">{t(card.labelKey)}</p>
+                  <Icon className="h-3.5 w-3.5 text-vibe-faint" />
                 </div>
-                <p className={'mt-2 text-2xl font-bold font-mono ' + card.valueClass}>
+                <p className={'mt-2 text-2xl font-semibold tabular-nums ' + card.valueClass}>
                   {stats[card.key].toLocaleString()}
                 </p>
               </div>
@@ -262,56 +249,57 @@ export default function AgentLogsPage() {
       ) : statsLoading ? (
         <StatsSkeleton />
       ) : (
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 mb-8">
+        <div className="mb-8 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
           {statCards.map((card) => (
-            <div key={card.key} className="bg-vibe-surface border border-vibe-border rounded-xl p-4">
-              <p className="text-[10px] font-mono text-slate-500 uppercase tracking-wider">{card.label}</p>
-              <p className="mt-2 text-2xl font-bold font-mono text-slate-500">--</p>
+            <div key={card.key} className="rounded-lg border border-vibe-border bg-vibe-surface p-4">
+              <p className="text-xs uppercase tracking-wide text-vibe-muted">{t(card.labelKey)}</p>
+              <p className="mt-2 text-2xl font-semibold tabular-nums text-vibe-faint">--</p>
             </div>
           ))}
         </div>
       )}
 
-      <div className="flex items-center justify-between gap-3 mb-4">
+      <div className="mb-4 flex items-center justify-between gap-3">
         <div className="min-w-0">
-          <h2 className="text-[11px] font-mono font-semibold text-slate-500 uppercase tracking-widest">Recent Reviews</h2>
+          <h2 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">{t('recentReviews')}</h2>
           {logsData?.data && (
-            <p className="text-[10px] font-mono text-slate-600 mt-0.5">{logsData.data.total} entries</p>
+            <p className="mt-0.5 text-xs tabular-nums text-vibe-faint">{t('entries', { n: logsData.data.total })}</p>
           )}
         </div>
         <select
           value={reviewer}
           onChange={(e) => handleReviewerChange(e.target.value as ReviewerFilter)}
-          className="px-3 py-1.5 bg-vibe-surface border border-vibe-border rounded-lg text-[11px] font-mono text-slate-300 focus:outline-none focus:ring-1 focus:ring-vibe-cyan/50 focus:border-vibe-cyan/50 transition-colors"
+          aria-label={t('recentReviews')}
+          className="rounded-md border border-vibe-border bg-vibe-surface px-3 py-1.5 text-xs text-vibe-text transition-colors focus:border-vibe-accent/50 focus:outline-none focus:ring-1 focus:ring-vibe-accent/50"
         >
-          <option value="all" className="bg-vibe-bg">All</option>
-          <option value="code-review" className="bg-vibe-bg">Code Review</option>
-          <option value="safety-check" className="bg-vibe-bg">Safety Check</option>
+          <option value="all" className="bg-vibe-bg">{t('filters.all')}</option>
+          <option value="code-review" className="bg-vibe-bg">{t('filters.codeReview')}</option>
+          <option value="safety-check" className="bg-vibe-bg">{t('filters.safetyCheck')}</option>
         </select>
       </div>
 
       {logsLoading ? (
         <LogsSkeleton />
       ) : isError ? (
-        <div className="bg-red-900/30 border border-red-500/40 rounded-xl p-6 text-center">
-          <p className="text-red-400 font-mono text-sm">Failed to load agent logs</p>
-          <p className="text-red-500 text-xs font-mono mt-1">
-            {serverErrorMessage(error, 'An unexpected error occurred')}
+        <div role="alert" className="rounded-lg border border-vibe-danger/40 bg-vibe-danger/5 p-6 text-center">
+          <p className="text-sm text-vibe-danger">{t('failedToLoad')}</p>
+          <p className="mt-1 text-xs text-vibe-danger">
+            {serverErrorMessage(error, t('unexpectedError'))}
           </p>
         </div>
       ) : visibleLogs.length === 0 ? (
-        <div className="bg-vibe-surface border border-vibe-border rounded-xl">
+        <div className="rounded-lg border border-vibe-border bg-vibe-surface">
           <EmptyState
             preset="noPosts"
-            title="No agent reviews yet"
-            desc="Reviews appear here after a post is published and an agent finishes checking it; posts with code blocks are scored first."
+            title={t('empty.title')}
+            desc={t('empty.desc')}
           />
         </div>
       ) : (
         <>
           <div className="space-y-4">
             {visibleLogs.map((log) => (
-              <TerminalLogRow key={log.id} log={log} />
+              <LogRow key={log.id} log={log} />
             ))}
           </div>
           {logsData?.data && (

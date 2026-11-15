@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { ReactNode } from 'react';
+import { useTranslation } from 'react-i18next';
 import type { Comment } from '../types/post';
 
 /**
@@ -19,18 +20,19 @@ export type SentimentFilter = 'all' | 'question' | 'complaint' | 'praise' | 'oth
 
 interface FilterOption {
   value: SentimentFilter;
-  label: string;
+  /** Dictionary key under `post:sentiment.*`; the label resolves per language. */
+  labelKey: string;
   /** The stored code this option selects; `all` has none. */
   code?: number;
 }
 
 const FILTERS: readonly FilterOption[] = [
-  { value: 'all', label: 'All' },
-  { value: 'question', label: 'Questions', code: 1 },
-  { value: 'complaint', label: 'Complaints', code: 2 },
-  { value: 'praise', label: 'Praise', code: 3 },
+  { value: 'all', labelKey: 'all' },
+  { value: 'question', labelKey: 'question', code: 1 },
+  { value: 'complaint', labelKey: 'complaint', code: 2 },
+  { value: 'praise', labelKey: 'praise', code: 3 },
   // Every row that is 0, and any row whose payload predates the column.
-  { value: 'other', label: 'Unclassified', code: 0 },
+  { value: 'other', labelKey: 'other', code: 0 },
 ];
 
 /**
@@ -69,6 +71,7 @@ export default function CommentSentimentFilter({
   comments,
   renderComment,
 }: CommentSentimentFilterProps) {
+  const { t } = useTranslation('post');
   const [filter, setFilter] = useState<SentimentFilter>('all');
   const visible = filterComments(comments, filter);
 
@@ -76,7 +79,7 @@ export default function CommentSentimentFilter({
     <div>
       <div
         role="group"
-        aria-label="Group comments by sentiment"
+        aria-label={t('sentiment.groupAria')}
         className="flex flex-wrap items-center gap-2"
       >
         {FILTERS.map((option) => {
@@ -88,32 +91,32 @@ export default function CommentSentimentFilter({
               aria-pressed={active}
               onClick={() => setFilter(option.value)}
               className={
-                'px-2.5 py-1 rounded-md border text-[11px] font-mono transition-colors active:scale-[0.97] '
+                'rounded-full border px-2.5 py-1 text-xs transition-colors '
                 + (active
-                  ? 'bg-vibe-cyan/20 border-vibe-cyan/40 text-vibe-cyan'
-                  : 'bg-vibe-surface border-vibe-border text-slate-400 hover:text-slate-200 hover:border-slate-500')
+                  ? 'border-vibe-accent/50 bg-vibe-accent/10 text-vibe-accent'
+                  : 'border-vibe-border bg-vibe-surface text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-text')
               }
             >
-              {option.label} ({countComments(comments, option.value)})
+              {t('sentiment.' + option.labelKey)} ({countComments(comments, option.value)})
             </button>
           );
         })}
       </div>
-      <p className="mt-1.5 mb-4 text-[10px] font-mono text-slate-400">
-        Grouped by keyword — a rule heuristic, not a model&apos;s judgement.
+      <p className="mt-1.5 mb-4 text-xs text-vibe-faint">
+        {t('sentiment.explanation')}
       </p>
 
       {visible.length > 0 ? (
         <div className="space-y-4">{visible.map(renderComment)}</div>
       ) : (
-        <div className="rounded-lg border border-vibe-border bg-vibe-surface px-4 py-3 font-mono text-xs text-slate-500">
-          No comments in this group. Nothing was removed — the other {comments.length} are still here.{' '}
+        <div className="rounded-lg border border-vibe-border bg-vibe-surface px-4 py-3 text-xs text-vibe-muted">
+          {t('sentiment.emptyGroup', { n: comments.length })}{' '}
           <button
             type="button"
             onClick={() => setFilter('all')}
-            className="text-vibe-cyan hover:underline"
+            className="text-vibe-accent hover:underline"
           >
-            Show all {comments.length}
+            {t('sentiment.showAll', { n: comments.length })}
           </button>
         </div>
       )}
