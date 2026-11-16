@@ -2,6 +2,9 @@
   "common": {
     "appName": "Nexus-Vibe",
     "brand": "Nexus.Vibe",
+    "site": {
+      "title": "Nexus-Vibe | AI Developer Community"
+    },
     "loading": "Loading...",
     "retry": "Retry",
     "cancel": "Cancel",
@@ -13,6 +16,7 @@
       "placeholder": "Search prompts, code, errors...",
       "topBarPlaceholder": "Search Nexus-Vibe",
       "openPaletteHint": "Ctrl K",
+      "openPaletteHintMac": "⌘ K",
       "go": "Search",
       "page": {
         "title": "Search",
@@ -408,7 +412,7 @@
     "deleteConfirm": "Delete this post? This action cannot be undone.",
     "notFoundTitle": "404 — Post Not Found",
     "notFoundDesc": "This post may have been deleted or never existed.",
-    "aiPending": "AI Agent reviewing...",
+    "aiPending": "AI review in progress...",
     "aiPendingBox": {
       "title": "AI Co-Pilot is reviewing this post...",
       "pollNote": "Review will auto-post a comment with a score when it finishes. Polling every 5s."

@@ -256,9 +256,22 @@ public class VibePostServiceImpl implements VibePostService {
     }
 
     @Override
-    public List<PostPageVo> getUnansweredPosts(int size) {
+    public List<PostPageVo> getUnansweredPosts(int size, Long channelId) {
         int capped = Math.min(Math.max(size, 1), MAX_UNANSWERED_SIZE);
-        return convertToPageVos(posts.findUnanswered(capped));
+        if (channelId == null) {
+            return convertToPageVos(posts.findUnanswered(capped));
+        }
+        // Channel-scoped read. The unanswered query lives below the repository
+        // interface, so the filter runs here: pull the full cap, keep this
+        // channel's rows, then hand back only the requested size. A channel
+        // holding more than MAX_UNANSWERED_SIZE unanswered posts shows a subset
+        // — the panel is a waiting-room glance, not a complete ledger.
+        List<VibePost> scoped = posts.findUnanswered(MAX_UNANSWERED_SIZE).stream()
+                .filter(post -> post.getCategoryId() != null
+                        && post.getCategoryId().longValue() == channelId)
+                .limit(capped)
+                .toList();
+        return convertToPageVos(scoped);
     }
 
     @Override

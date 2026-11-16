@@ -53,8 +53,10 @@ public interface VibePostService {
     /**
      * Recent active posts with no visible comments, newest first. {@code size} is
      * clamped to {@code 1..MAX_UNANSWERED_SIZE}; an empty result is a normal answer.
+     * A non-null {@code channelId} scopes the list to that channel; {@code null}
+     * keeps the site-wide list, exactly as before the parameter existed.
      */
-    List<PostPageVo> getUnansweredPosts(int size);
+    List<PostPageVo> getUnansweredPosts(int size, Long channelId);
 
     PostPageVo getPostDetail(Long id);
 

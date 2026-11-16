@@ -40,15 +40,28 @@ if (!i18next.isInitialized) {
     interpolation: { escapeValue: false },
     returnNull: false,
   });
+  // The browser tab carries the site's language from the first painted frame:
+  // index.html ships the zh default, and bootstrap overwrites it from the
+  // dictionary for every other stored/detected language.
+  applyDocumentTitle();
+}
+
+/** The document title follows the dictionary so the tab names the site in the active language. */
+function applyDocumentTitle(): void {
+  if (typeof document === 'undefined') return;
+  document.title = i18next.t('common:site.title');
 }
 
 /** Change the live language and persist to localStorage for the next visit. */
-export function setAppLanguage(lang: AppLanguage): void {
-  void i18next.changeLanguage(lang);
+export function setAppLanguage(lang: AppLanguage): Promise<void> {
+  // The title is applied in the callback, once the new language is resolved —
+  // a synchronous t() here would read the previous language's dictionary.
+  const applied = i18next.changeLanguage(lang).then(applyDocumentTitle);
   try {
     localStorage.setItem(LANG_STORAGE_KEY, lang);
   } catch {
     // A failed write only costs persistence; the session keeps the new language.
   }
   document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+  return applied;
 }

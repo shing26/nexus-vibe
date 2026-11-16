@@ -45,6 +45,15 @@ describe('ChannelPage wiring (A4-4, source-level)', () => {
   });
 });
 
+describe('ChannelPage unanswered scoping (source-level)', () => {
+  it('the waiting-panel query is channel-scoped in both key and params', () => {
+    // The cache key carries the channel id so one channel's rows never satisfy
+    // another channel's panel; the request carries it so the server filters.
+    expect(source).toContain("queryKey: ['posts', 'unanswered', channel?.id]");
+    expect(source).toContain('channelId: channel.id');
+  });
+});
+
 describe('ChannelPage ordering wiring (A6-4, source-level)', () => {
   it('A6-4: sort is read from useSearchParams and written through its setter', () => {
     expect(source).toContain('const [searchParams, setSearchParams] = useSearchParams();');

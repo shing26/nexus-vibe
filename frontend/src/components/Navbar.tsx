@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FileText, LogIn, LogOut, Mail, Menu, Moon, PenSquare, Search, Settings, Sun, User } from 'lucide-react';
+import { FileText, LogIn, LogOut, Mail, Menu, Moon, PenSquare, Search, Settings, Sun, User, UserPlus } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
 import CommandPalette from './CommandPalette';
@@ -9,6 +9,14 @@ import LanguageToggle from './LanguageToggle';
 
 interface NavbarProps {
   onOpenDrawer: () => void;
+}
+
+// The palette hint names the modifier the reader actually holds: ⌘ on a Mac,
+// Ctrl everywhere else. Both wordings travel in the dictionary so they stay
+// translatable; the component only picks between them by platform.
+function isApplePlatform(): boolean {
+  if (typeof navigator === 'undefined') return false;
+  return /Mac|iPhone|iPad/i.test(navigator.platform || navigator.userAgent);
 }
 
 /**
@@ -102,7 +110,7 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
               className="h-8 w-full rounded-md border border-vibe-border bg-vibe-bg pl-8 pr-14 text-sm text-vibe-text placeholder-vibe-faint focus:border-vibe-accent"
             />
             <kbd className="pointer-events-none absolute right-2 top-1/2 hidden -translate-y-1/2 rounded border border-vibe-border bg-vibe-surface px-1 py-0.5 text-[11px] leading-none text-vibe-faint md:inline">
-              {t('common:search.openPaletteHint')}
+              {isApplePlatform() ? t('common:search.openPaletteHintMac') : t('common:search.openPaletteHint')}
             </kbd>
           </div>
         </form>
@@ -128,8 +136,9 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
               </Link>
               <Link
                 to="/register"
-                className="hidden rounded-md border border-vibe-border bg-vibe-card px-3 py-1.5 text-xs font-medium text-vibe-text hover:border-vibe-accent sm:inline-flex"
+                className="inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1.5 text-xs font-medium text-vibe-text hover:border-vibe-accent sm:px-3"
               >
+                <UserPlus className="h-3.5 w-3.5" />
                 {t('common:user.register')}
               </Link>
             </div>
