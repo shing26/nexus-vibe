@@ -5,6 +5,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nexus.campus.agent.AiReviewLog;
 import com.nexus.campus.dto.AiReviewDetail;
+import com.nexus.campus.dto.UserReviewEntry;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -32,6 +33,30 @@ public class AiReviewDetailService {
         detail.setReviewedAt(log.getCreatedAt());
         detail.setDurationMs(durationMs(result));
         return detail;
+    }
+
+    /**
+     * Project one stored review row onto the user-scoped evidence index. The
+     * score/severity/approval/time/duration fields are read exactly as
+     * {@link #toDetail} reads them, so a profile average computed from these
+     * entries matches {@code UserProfileSummaryService}'s average over the
+     * same rows.
+     */
+    public UserReviewEntry toUserReviewEntry(AiReviewLog log, String postTitle) {
+        if (log == null) {
+            return null;
+        }
+        JsonNode result = parseResult(log.getResultJson());
+        UserReviewEntry entry = new UserReviewEntry();
+        entry.setLogId(log.getId());
+        entry.setPostId(log.getPostId());
+        entry.setPostTitle(postTitle);
+        entry.setScore(score(result));
+        entry.setSeverity(severity(result, log.getSeverity()));
+        entry.setIsApproved(isApproved(result, log.getIsApproved()));
+        entry.setReviewedAt(log.getCreatedAt());
+        entry.setDurationMs(durationMs(result));
+        return entry;
     }
 
     public Integer score(AiReviewLog log) {
