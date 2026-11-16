@@ -14,8 +14,10 @@ content first, zero decorative animation.
 2. **Border first.** Separation is a 1px border, not a shadow or a glow. Shadows exist only
    on overlays (dropdown, drawer, modal, toast).
 3. **No decorative motion.** Nothing animates unless it communicates state (spinner, the
-   replay reveal inside the expanded terminal). Every animation keeps
-   `motion-reduce:animate-none`.
+   replay reveal inside the expanded terminal, a pressed control). A restrained press
+   feedback (`active:scale-[0.98]`, via the shared `.press-feedback` class) is state
+   communication, not decoration; it must carry `motion-reduce:transform-none`. Every
+   animation keeps `motion-reduce:animate-none`.
 4. **Mono is for code.** `font-mono` appears only inside code blocks, code spans, and the
    trace id. Headings, buttons, labels, timestamps are `font-sans`.
 5. **One accent.** Blue for interactive. Green/red for success/danger semantics only.
@@ -23,6 +25,11 @@ content first, zero decorative animation.
    profile) renders real pipeline state — failure, retry, and degradation get the same
    design care as success, and nothing ever reads as live unless it is (ADR-0010's rule,
    project-wide). Decoration never claims capability.
+7. **Two dialects, two surfaces.** The public surface speaks forge: plain gray chrome, no
+   terminal voice. The operational surface (`/agent-logs`) keeps the terminal dialect —
+   `$`, mono, the log-console heading — because there the reader is inspecting machine
+   output, not reading a community post. A playful string in a login, publish or like
+   response is a dialect leak, not voice: backend envelope messages stay neutral Chinese.
 
 ## Tokens
 
@@ -97,7 +104,10 @@ counts (likes, comments, AI score where present — `tabular-nums`). Unread/read
 titles of posts the user has not opened render `font-medium` (a lighten, not a color).
 
 Home keeps its tab row (hot / unanswered / latest) above the list, restyled as underlined
-tabs (GitHub underline style, `vibe-accent` active rail). Pagination stays.
+tabs (GitHub underline style, `vibe-accent` active rail). Pagination stays. Signed-in
+readers meet one featured strip (the recorded showcase review) above the tabs and then the
+list; signed-out visitors additionally keep the Mission Control band. There is no channel
+grid on Home — the sidebar is the single channel navigation surface.
 
 Skeletons: one shared `Skeleton` component (plain `animate-pulse` `bg-vibe-surface`
 blocks); the five copied shimmer blocks die with it. `ShimmerButton`, `BorderBeam`,
@@ -114,15 +124,20 @@ in-flight review box and replay box live in the same column, above comments.
 ## AiReviewTerminal v2
 
 A quiet check-run card, not a terminal: `rounded-lg border border-vibe-border
-bg-vibe-surface`. Header row always visible: `Bot` icon + "AI 评审" (i18n), score
-`tabular-nums`, severity pill, verdict badge (approved `vibe-success` / needs review
-`vibe-warning`), chevron. Findings sections (Code Quality / Security / Suggestions) and
-the four-step `ReviewStepStrip` render inside the collapsed region and are **collapsed by
-default**; the replay animation plays on first expand, once per mount, never on the page
-load path. Data contract, four states (pending/loading/error/unavailable/data), the
-"replay of completed run" caption rule from ADR-0010, and the existing test assertions on
-step order and score all carry over unchanged; `prefers-reduced-motion` still renders the
-finished state at once.
+bg-vibe-surface`. The header is a **review voucher, visible by default**: `Bot` icon +
+"AI 评审" (i18n), score `tabular-nums`, severity pill, verdict badge (approved
+`vibe-success` / needs review `vibe-warning`), and — on a second always-visible row — the
+reviewer/model (`detail.reviewer`), the call count derived from the post's review-log rows,
+the optional runtime (`result_json.durationMs`, omitted when absent), and a link to the raw
+`ai_review_log` row on the admin agent-logs surface. Findings sections (Code Quality /
+Security / Suggestions) and the four-step `ReviewStepStrip` live in the collapsible region
+and are **collapsed by default**; the replay animation plays on first expand, once per
+mount, never on the page load path. This reverses the earlier "whole card collapsed by
+default" ruling: the recorded run is the product's claim, so the voucher is the headline
+and the findings are the detail. Data contract, four states
+(pending/loading/error/unavailable/data), the "replay of completed run" caption rule from
+ADR-0010, and the existing test assertions on step order and score all carry over unchanged;
+`prefers-reduced-motion` still renders the finished state at once.
 
 ## Forms, buttons, feedback
 
