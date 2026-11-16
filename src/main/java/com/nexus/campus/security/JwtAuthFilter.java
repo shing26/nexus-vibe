@@ -101,7 +101,11 @@ public class JwtAuthFilter implements Filter {
                     && !uri.startsWith("/api/v1/users/password"))) {
             return true;
         }
+        // The profile evidence index is a public read for the same reason as the
+        // showcase pointer: a visitor evaluating a claim must not need an account
+        // to see where the number came from.
         return uri.startsWith("/api/v1/agent-logs/post/")
+                || uri.startsWith("/api/v1/agent-logs/user/")
                 || uri.equals("/api/v1/agent-logs/ticker");
     }
 

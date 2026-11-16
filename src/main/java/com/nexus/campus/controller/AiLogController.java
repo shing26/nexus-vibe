@@ -8,6 +8,7 @@ import com.nexus.campus.dto.AiReviewDetail;
 import com.nexus.campus.dto.AiLogVo;
 import com.nexus.campus.dto.ApiResponse;
 import com.nexus.campus.dto.PageResult;
+import com.nexus.campus.dto.UserReviewEntry;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.mapper.VibePostMapper;
 import com.nexus.campus.security.AdminGuard;
@@ -24,9 +25,11 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/v1/agent-logs")
@@ -37,6 +40,9 @@ public class AiLogController {
     private static final String SEVERITY_MEDIUM = "medium";
     private static final String SEVERITY_LOW = "low";
     private static final String SEVERITY_UNKNOWN = "unknown";
+
+    /** The evidence index is a curve, not a list page: truncate rather than paginate. */
+    private static final int USER_REVIEW_LIMIT = 50;
 
     @Autowired
     private AiReviewLogMapper aiReviewLogMapper;
@@ -104,6 +110,61 @@ public class AiLogController {
             details.add(aiReviewDetailService.toDetail(log));
         }
         return ApiResponse.success(details);
+    }
+
+    /**
+     * Public evidence index for a profile: the latest completed code review of
+     * every active post the user wrote, newest first, capped at 50. Uses the
+     * same "latest row per post" population as
+     * {@code UserProfileSummaryService.calculateAverageAiScore}, so the
+     * profile's reviewed-post count and average score can be recomputed from
+     * these entries. An unknown user is an empty index, not a 404.
+     */
+    @GetMapping("/user/{userId}")
+    public ApiResponse<List<UserReviewEntry>> getUserReviewIndex(@PathVariable Long userId) {
+        List<AiReviewLog> logs = aiReviewLogMapper.selectLatestCodeReviewLogsByUserId(userId);
+
+        // The mapper returns newest first. Keep the first row per post even when
+        // it has no payload: falling back to an older row would publish a score
+        // the profile average does not use.
+        List<AiReviewLog> latestPerPost = new ArrayList<>();
+        Set<Long> seenPostIds = new HashSet<>();
+        for (AiReviewLog log : logs) {
+            if (log.getPostId() == null || !seenPostIds.add(log.getPostId())) {
+                continue;
+            }
+            if (StringUtils.hasText(log.getResultJson())) {
+                latestPerPost.add(log);
+            }
+        }
+        if (latestPerPost.isEmpty()) {
+            return ApiResponse.success(new ArrayList<>());
+        }
+
+        List<Long> postIds = new ArrayList<>(latestPerPost.size());
+        for (AiReviewLog log : latestPerPost) {
+            postIds.add(log.getPostId());
+        }
+        Map<Long, VibePost> visiblePosts = new HashMap<>();
+        for (VibePost post : vibePostMapper.selectByIdsOrdered(postIds)) {
+            if (post.getStatus() != null && post.getStatus() == 1) {
+                visiblePosts.put(post.getId(), post);
+            }
+        }
+
+        List<UserReviewEntry> entries = new ArrayList<>(Math.min(latestPerPost.size(), USER_REVIEW_LIMIT));
+        for (AiReviewLog log : latestPerPost) {
+            if (entries.size() >= USER_REVIEW_LIMIT) {
+                break;
+            }
+            VibePost post = visiblePosts.get(log.getPostId());
+            if (post == null) {
+                // Deleted or no longer visible: no orphan entry with an empty title.
+                continue;
+            }
+            entries.add(aiReviewDetailService.toUserReviewEntry(log, post.getTitle()));
+        }
+        return ApiResponse.success(entries);
     }
 
     @GetMapping("/stats")
