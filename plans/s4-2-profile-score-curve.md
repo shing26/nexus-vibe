@@ -45,9 +45,10 @@ frontend/src/components/ReviewScoreCurve.test.tsx # 组件测试
 frontend/src/pages/UserProfilePage.tsx            # 插入 section + 查询
 frontend/src/pages/UserProfilePage.test.tsx       # 若存在则补测试
 frontend/src/components/AiReviewTerminal.tsx      # 仅当抽出共享的分数归一函数（展示值不得变）
+frontend/src/components/AiReviewTerminal.test.tsx # 凭证展示值零变化的回归测试（2026-11-17 契约修订）
 frontend/src/lib/**                               # 共享归一函数（若抽出）
 frontend/src/i18n/locales/{zh,en}.json            # curve.* 词条
-README.md                                         # 仅测试计数（若变化）
+README.md                                         # 测试计数与同段覆盖点描述（2026-11-17 契约修订）
 docs/tickets/s4-2-profile-score-curve.md
 docs/assets/design-overhaul/**                    # profile 截图重摄（曲线新增）
 ```
@@ -78,3 +79,17 @@ grep -n 'score <= 10' frontend/src/components/AiReviewTerminal.tsx frontend/src/
 - 假数据、零基线、装饰性动画/渐变。
 - 不删/弱化既有断言；`AiReviewTerminal` 既有展示值不得改变。
 - 不重写已发布历史；实现走 `codex/s4-2-profile-score-curve` 分支 + PR。
+
+## 契约修订记录
+
+- **2026-11-17 · 追认两处越界（用户书面）**：
+  1. `frontend/src/components/AiReviewTerminal.test.tsx` 补入 Allowed paths。理由：验收 2 要求
+     "抽共享函数时凭证卡展示值零变化（测试钉住）"，该测试只能写在凭证卡自己的测试文件里；
+     Verifier 判定 ACCEPTABLE-DEVIATION：+11 行纯增量（两条黑盒断言，raw 8 → 80/100、
+     raw 85 → 85/100），无删除、已披露，不影响运行时行为。
+  2. `README.md` 由"仅测试计数"放宽为"测试计数与同段覆盖点描述"。理由：计数与覆盖点说明本在
+     同一段落，拆开会让"130 tests"失去说明；Verifier 判定 ACCEPTABLE-DEVIATION：纯文档，
+     无功能影响，已披露。
+  非阻断观察留档（不影响裁决）：Y 轴坐标映射只有代码审查证据、`role="img"` 子节点在部分辅助
+  技术下可能不可达（sr-only 表格兜底）、`profile-curve-*-375` 与 `profile-*-375` 在 375 宽度下
+  字节相同（冗余资产）。

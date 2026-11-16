@@ -130,4 +130,17 @@ grep -n 'score <= 10' frontend/src/components/AiReviewTerminal.tsx frontend/src/
 
 ## 验收与签收记录
 
-（待独立 Verifier 复核后填写）
+- **Verifier 独立复核**（2026-11-17，全新会话 verifier subagent）：绑定 HEAD `bdf5266`，
+  `git status --short` 验证前后均为空，**7/7 条 PASS**。亲自重跑：`VITEST_MAX_WORKERS=2 npm run test`
+  → 24 files / 130 tests（47.29s）、`npm run lint` 退出码 0 无输出、`npm run build` ✓ 5.49s；
+  归一规则 `score <= 10` 仅 `lib/score.ts:12`；图表库 0；zh/en 键集合差集为空；后端 /
+  `package.json` / lock 零改动；`git diff 81b3ef7..HEAD -- frontend/src` 删除行仅 3 处
+  （旧三目被函数调用替换 ×1、zh/en 补逗号 ×2），无断言删除；14 张 PNG IHDR 尺寸全对，
+  抽看曲线 / 空态 / tooltip 三张，四角无外挂控件。
+- **越界裁决**：`AiReviewTerminal.test.tsx`（+11 行）与 README 计数段措辞 = ACCEPTABLE-DEVIATION
+  （前者为验收 2 所必需，纯增量；后者纯文档同段）；无 CONTRACT-VIOLATION。
+- **数据集 caveat 判定**：披露属实——`data.sql` 每用户恰好 1 个可绘点，MySQL demo 最多 2 点，
+  AC1 的多点/升序由测试证明，截图只承担版面证据，不构成缺陷。
+- **契约修订（用户书面追认）**：两处路径/措辞补入 Allowed paths，非阻断观察留档于契约。
+- **用户书面签收**（2026-11-17）："书面签收 S4-2（7/7 PASS，绑定 bdf5266），追认
+  AiReviewTerminal.test.tsx 与 README 说明段两处偏差，写进契约修订记录并开 PR"。
