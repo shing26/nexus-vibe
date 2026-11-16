@@ -30,6 +30,7 @@ public class AiReviewDetailService {
         detail.setSecurityConcerns(textValue(result, "securityConcerns"));
         detail.setOptimizationSuggestions(textValue(result, "optimizationSuggestions"));
         detail.setReviewedAt(log.getCreatedAt());
+        detail.setDurationMs(durationMs(result));
         return detail;
     }
 
@@ -60,6 +61,21 @@ public class AiReviewDetailService {
             return null;
         }
         return Math.max(0, Math.min(10, scoreNode.asInt()));
+    }
+
+    /**
+     * Optional timing instrument written by AiReviewService. Absent means "this
+     * row predates the instrument" (or the attempt had no payload), not zero.
+     */
+    private Integer durationMs(JsonNode result) {
+        if (result == null) {
+            return null;
+        }
+        JsonNode node = result.get("durationMs");
+        if (node == null || node.isNull() || !node.isNumber()) {
+            return null;
+        }
+        return Math.max(0, node.asInt());
     }
 
     private String severity(JsonNode result, String fallback) {

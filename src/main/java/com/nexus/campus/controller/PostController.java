@@ -65,7 +65,7 @@ public class PostController {
         if (post.getStatus() == 2) {
             data.put("auditNotice", "Sensitive pattern detected. Shifting to Firewall Queue.");
         }
-        return ApiResponse.success("Data injection protocol acknowledged.", data);
+        return ApiResponse.success("帖子发布成功。", data);
     }
 
     @PutMapping("/{id}")
@@ -228,7 +228,7 @@ public class PostController {
         Map<String, Object> data = new HashMap<>();
         data.put("postId", id.toString());
         data.put("currentLikes", currentLikes);
-        return ApiResponse.success("Energy increment synchronized.", data);
+        return ApiResponse.success("点赞成功。", data);
     }
 
     @DeleteMapping("/{id}")

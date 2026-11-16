@@ -2,13 +2,13 @@ import { describe, expect, it } from 'vitest';
 import channelPageSource from './ChannelPage.tsx?raw';
 
 /**
- * A4-4 and A6-4, in their amended checkable form.
+ * A6-4 and B7, in their amended checkable form.
  *
- * <p>Mounting `ChannelPage` would need the router and query providers this
- * round assigns to no group, so these are source-level pins on the wiring:
- * they fail if the responsive gate, the empty branch, the URL-backed sort or
- * the toggle is removed. They are not a runtime proof of responsive behaviour;
- * that remains inspected, not asserted.</p>
+ * <p>Mounting `ChannelPage` would need the router and query providers, so these
+ * are source-level pins on the wiring: they fail if the URL-backed sort or the
+ * toggle is removed. The A4-4 unanswered-panel pins are replaced by the reverse
+ * assertion — B7 deleted the panel and its query, and the page must not grow
+ * them back silently.</p>
  *
  * <p>Each assertion looks for the smallest string that would have to change
  * for the behaviour to disappear, rather than matching whole blocks of JSX,
@@ -17,40 +17,15 @@ import channelPageSource from './ChannelPage.tsx?raw';
 
 const source = channelPageSource;
 
-describe('ChannelPage wiring (A4-4, source-level)', () => {
-  it('A4-4: the desktop gate uses the md breakpoint, (min-width: 768px)', () => {
-    expect(source).toContain("const DESKTOP_QUERY = '(min-width: 768px)';");
-    expect(source).toContain('function useIsDesktop(): boolean');
+describe('ChannelPage wiring (B7, source-level)', () => {
+  it('B7: the 等待回答 panel and its unanswered query are gone', () => {
+    expect(source).not.toContain('waiting.ariaLabel');
+    expect(source).not.toContain('/posts/unanswered');
+    expect(source).not.toContain('useIsDesktop');
   });
 
-  it('A4-4: the unanswered panel is mounted only under the isDesktop gate', () => {
-    const gate = source.indexOf('{isDesktop && channel && (');
-    const panel = source.indexOf('<aside aria-label={t(\'waiting.ariaLabel\')}');
-
-    expect(gate, 'the isDesktop gate is present').toBeGreaterThan(-1);
-    expect(panel, 'the panel is present').toBeGreaterThan(-1);
-    expect(panel, 'the panel is inside the isDesktop gate').toBeGreaterThan(gate);
-  });
-
-  it('A4-4: the empty branch renders the item-2 EmptyState with its copy', () => {
-    const asideStart = source.indexOf('<aside aria-label={t(\'waiting.ariaLabel\')}');
-    const asideEnd = source.indexOf('</aside>', asideStart);
-    expect(asideStart).toBeGreaterThan(-1);
-    expect(asideEnd).toBeGreaterThan(asideStart);
-
-    const aside = source.slice(asideStart, asideEnd);
-    expect(aside).toContain('preset="noPosts"');
-    expect(aside).toContain("title={t('waiting.emptyTitle')}");
-    expect(aside).toContain("t('waiting.emptyDesc')");
-  });
-});
-
-describe('ChannelPage unanswered scoping (source-level)', () => {
-  it('the waiting-panel query is channel-scoped in both key and params', () => {
-    // The cache key carries the channel id so one channel's rows never satisfy
-    // another channel's panel; the request carries it so the server filters.
-    expect(source).toContain("queryKey: ['posts', 'unanswered', channel?.id]");
-    expect(source).toContain('channelId: channel.id');
+  it('B7: the feed keeps its empty state as the only aside-shaped branch', () => {
+    expect(source).toContain('<EmptyState preset="noPosts" {...emptyGuide} />');
   });
 });
 

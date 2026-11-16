@@ -9,16 +9,15 @@ import EmptyState from '../components/EmptyState';
 import ShowcaseEntry from '../components/ShowcaseEntry';
 import Pagination from '../components/Pagination';
 import Skeleton from '../components/Skeleton';
-import { CHANNELS, channelLabel } from '../lib/channels';
 import { ArrowRight, GitFork, Terminal, Bug, Palette } from 'lucide-react';
-import type { ChannelStats } from '../types/post';
 
 type Tab = 'hot' | 'latest' | 'ai-verified' | 'debug' | 'prompts';
 
 /**
- * The home feed. GitHub-style underline tabs over a topic-row list; the channel
- * grid and the signed-out mission band read their labels through the same
- * dictionary as the sidebar, so a channel never carries two display names.
+ * The home feed. Signed-in readers get one featured strip (a real, recorded
+ * review), the tab row and the topic-row list — no channel grid, because the
+ * sidebar is the single navigation surface for channels. Signed-out visitors
+ * additionally see the Mission Control band.
  */
 export default function HomePage() {
   const { t } = useTranslation(['home', 'common']);
@@ -56,14 +55,6 @@ export default function HomePage() {
 
   const postList = posts?.list ?? posts ?? [];
   const isEmpty = !isLoading && postList.length === 0;
-
-  const { data: channelStats } = useQuery<ChannelStats[]>({
-    queryKey: ['channels', 'stats'],
-    queryFn: async () => (await apiClient.get('/channels/stats')).data.data,
-    staleTime: 1000 * 60 * 5,
-  });
-
-  const statBySlug = new Map((channelStats ?? []).map((s) => [s.slug, s.postCount]));
 
   const emptyCopy: Record<Tab, { title: string; desc: string; action: string; actionLabel: string }> = {
     debug: {
@@ -166,35 +157,11 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Curated entry for a signed-out visitor: the product's claim, one click away */}
+      {/* The featured strip: one real, recorded review — the product's claim,
+          one click away. It sits above the tabs so both signed-in and signed-out
+          readers meet it first; the channel grid that used to live here is gone
+          because the sidebar owns channel navigation. */}
       <ShowcaseEntry />
-
-      {/* Channel Grid — full-width, no sidebar */}
-      <div aria-label={t('home:channelGridAria')} className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-7">
-        {CHANNELS.map((ch) => {
-          const Icon = ch.icon;
-          return (
-            <Link
-              key={ch.slug}
-              to={'/channel/' + ch.slug}
-              className="group rounded-lg border border-vibe-border bg-vibe-surface p-3.5 transition-colors hover:border-vibe-accent/40 hover:bg-vibe-card"
-            >
-              <div className="mb-1.5 flex items-center gap-2.5">
-                <div className="flex h-8 w-8 items-center justify-center rounded-md border border-vibe-border bg-vibe-bg text-vibe-accent transition-colors group-hover:bg-vibe-accent/10">
-                  <Icon className="h-4 w-4" />
-                </div>
-                <span className="truncate text-xs font-medium text-vibe-text">{channelLabel(ch.slug)}</span>
-              </div>
-              <div className="flex items-center justify-between pl-[42px]">
-                <span className="truncate text-xs text-vibe-muted">{t(ch.descKey)}</span>
-                <span className="shrink-0 text-xs font-medium tabular-nums text-vibe-accent">
-                  {statBySlug.get(ch.slug) ?? 0}
-                </span>
-              </div>
-            </Link>
-          );
-        })}
-      </div>
 
       {/* Underline tabs — GitHub style: a bottom border per tab, the active one
           carries the accent rail and the text darkens, nothing else moves. */}

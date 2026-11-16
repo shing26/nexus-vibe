@@ -25,7 +25,7 @@
  return (
    <div className="mt-6 flex items-center justify-center gap-1 text-xs tabular-nums text-vibe-muted">
       {page > 1 && (
-        <button onClick={() => onPageChange(page - 1)} className="rounded px-2 py-1 transition-colors hover:text-vibe-accent">
+        <button onClick={() => onPageChange(page - 1)} className="press-feedback rounded px-2 py-1 transition-colors hover:text-vibe-accent">
          prev
         </button>
       )}
@@ -36,14 +36,14 @@
           <button
             key={p}
             onClick={() => onPageChange(p)}
-            className={p === page ? 'rounded bg-vibe-accent/10 px-2 py-1 font-semibold text-vibe-accent' : 'rounded px-2 py-1 transition-colors hover:text-vibe-accent'}
+            className={p === page ? 'rounded bg-vibe-accent/10 px-2 py-1 font-semibold text-vibe-accent' : 'press-feedback rounded px-2 py-1 transition-colors hover:text-vibe-accent'}
           >
             {p}
           </button>
         )
       )}
       {page < pages && (
-        <button onClick={() => onPageChange(page + 1)} className="rounded px-2 py-1 transition-colors hover:text-vibe-accent">
+        <button onClick={() => onPageChange(page + 1)} className="press-feedback rounded px-2 py-1 transition-colors hover:text-vibe-accent">
          next
         </button>
       )}

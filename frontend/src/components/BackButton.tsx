@@ -1,13 +1,16 @@
 import { ArrowLeft } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 interface BackButtonProps {
   label?: string;
   className?: string;
 }
 
-export default function BackButton({ label = 'Back', className = '' }: BackButtonProps) {
+export default function BackButton({ label, className = '' }: BackButtonProps) {
+  const { t } = useTranslation('common');
   const navigate = useNavigate();
+  const text = label ?? t('back');
 
   const goBack = () => {
     const idx = (window.history.state as { idx?: number } | null)?.idx;
@@ -22,14 +25,14 @@ export default function BackButton({ label = 'Back', className = '' }: BackButto
     <button
       type="button"
       onClick={goBack}
-      aria-label="Go back"
+      aria-label={text}
       className={
-        'inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-2.5 py-1.5 text-xs text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-text ' +
+        'press-feedback inline-flex items-center gap-1.5 rounded-md border border-vibe-border bg-vibe-card px-2.5 py-1.5 text-xs text-vibe-muted transition-colors hover:border-vibe-accent/40 hover:text-vibe-text ' +
         className
       }
     >
       <ArrowLeft className="h-3.5 w-3.5" />
-      <span>{label}</span>
+      <span>{text}</span>
     </button>
   );
 }

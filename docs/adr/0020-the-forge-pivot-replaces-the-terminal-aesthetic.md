@@ -70,3 +70,14 @@ details were settled in a grilling session on 2026-11-15; the implementation-rea
   the round ticket's Rejected).
 - **A homegrown i18n dictionary** over two dependencies: 17 pages × full copy with
   plural/interpolation/fallback needs re-implements i18next badly.
+
+## Amendment (2026-11-16): the review voucher is visible by default
+
+Decision 3's "collapsed-by-default check-run card" is superseded for the card itself.
+The signature surface now opens with a visible voucher — verdict, score, severity, model,
+call count, optional duration, and a link to the raw log — while findings and the replay
+strip stay collapsed. The data contract, four states, replay semantics, and ADR-0010's
+"never reads as a live claim" rule are unchanged. The reversal and its reasoning are
+recorded in `docs/tickets/design-overhaul-fixes-b.md`; the visual spec's AiReviewTerminal
+section carries the current wording.
+

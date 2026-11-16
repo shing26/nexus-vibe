@@ -116,6 +116,8 @@ export interface AiLogStats {
    securityConcerns: string | string[];
    optimizationSuggestions: string | string[];
    reviewedAt: string;
+   /** Wall-clock duration recorded into result_json by AiReviewService; absent on older rows. */
+   durationMs?: number | null;
  }
 
  export interface ProfileStats {

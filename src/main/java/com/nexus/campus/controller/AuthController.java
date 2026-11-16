@@ -32,7 +32,7 @@ public class AuthController {
         // message back at an anonymous caller, so a database problem read as
         // "wrong password" to the user, to the logs, and to the 5xx alert.
         JwtResponse jwtResponse = sysUserService.login(request);
-        return ApiResponse.success("Neural link established. Welcome back, " + jwtResponse.getNickname() + ".", jwtResponse);
+        return ApiResponse.success("登录成功，欢迎回来，" + jwtResponse.getNickname() + "。", jwtResponse);
     }
 
     @PostMapping("/register")

@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { act, render, screen } from '@testing-library/react';
+import { MemoryRouter } from 'react-router-dom';
 import { AiReviewTerminal } from './AiReviewTerminal';
 import { ReviewStepStrip } from './ui/ReviewStepStrip';
 import type { AiReviewDetail } from '../types/post';
@@ -39,7 +40,12 @@ const detail: AiReviewDetail = {
 
 describe('reduced motion', () => {
   it('renders the finished replay without walking through the steps', () => {
-    const { container } = render(<AiReviewTerminal state="data" detail={detail} />);
+    // The voucher's raw-log link needs a router; the replay behaviour is unchanged.
+    const { container } = render(
+      <MemoryRouter>
+        <AiReviewTerminal state="data" detail={detail} />
+      </MemoryRouter>,
+    );
 
     expect(container.querySelector('[data-step="score"]')).toHaveAttribute('data-state', 'done');
     expect(container.querySelector('[data-step="codeQuality"]')).toHaveAttribute('data-state', 'done');

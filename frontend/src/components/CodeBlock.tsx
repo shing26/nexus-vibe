@@ -1,5 +1,7 @@
+import type { CSSProperties } from 'react';
 import PrismLight from 'react-syntax-highlighter/dist/esm/prism-light';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import { useThemeStore } from '../stores/themeStore';
 import bash from 'react-syntax-highlighter/dist/esm/languages/prism/bash';
 import c from 'react-syntax-highlighter/dist/esm/languages/prism/c';
 import cpp from 'react-syntax-highlighter/dist/esm/languages/prism/cpp';
@@ -91,15 +93,68 @@ const SUPPORTED_LANGUAGES = new Set([
   'swift', 'toml', 'tsx', 'typescript', 'yaml',
 ]);
 
+/**
+ * GitHub-light syntax tokens on a light background. `ghcolors`/`oneLight` ship
+ * with the package, but several of their tokens (comments, strings) fall below
+ * WCAG AA on white. These values are GitHub's own light-theme palette, chosen so
+ * every token keeps >= 4.5:1 on #FFFFFF: text 15.0:1, comment 6.3:1,
+ * keyword 5.9:1, string 11.2:1, number/constant 7.4:1, function 4.9:1,
+ * variable 7.3:1, tag 6.7:1.
+ */
+const githubLight: Record<string, CSSProperties> = {
+  'code[class*="language-"]': {
+    color: '#1F2328',
+    background: 'none',
+    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+  },
+  'pre[class*="language-"]': {
+    color: '#1F2328',
+    background: '#FFFFFF',
+    fontFamily: '"JetBrains Mono", ui-monospace, monospace',
+  },
+  comment: { color: '#59636E', fontStyle: 'italic' },
+  prolog: { color: '#59636E', fontStyle: 'italic' },
+  doctype: { color: '#59636E', fontStyle: 'italic' },
+  cdata: { color: '#59636E', fontStyle: 'italic' },
+  punctuation: { color: '#1F2328' },
+  operator: { color: '#0550AE' },
+  keyword: { color: '#CF222E' },
+  'attr-name': { color: '#953800' },
+  'attr-value': { color: '#0A3069' },
+  string: { color: '#0A3069' },
+  char: { color: '#0A3069' },
+  regex: { color: '#0A3069' },
+  number: { color: '#0550AE' },
+  boolean: { color: '#0550AE' },
+  constant: { color: '#0550AE' },
+  symbol: { color: '#0550AE' },
+  builtin: { color: '#0550AE' },
+  function: { color: '#8250DF' },
+  'class-name': { color: '#8250DF' },
+  selector: { color: '#8250DF' },
+  variable: { color: '#953800' },
+  property: { color: '#0550AE' },
+  tag: { color: '#116329' },
+  entity: { color: '#116329' },
+  url: { color: '#0A3069' },
+  inserted: { color: '#116329' },
+  deleted: { color: '#CF222E' },
+  important: { color: '#CF222E', fontWeight: 'bold' },
+  bold: { fontWeight: 'bold' },
+  italic: { fontStyle: 'italic' },
+  namespace: { opacity: 0.8 },
+};
+
 export default function CodeBlock({ language, code }: { language: string; code: string }) {
+  const dark = useThemeStore((s) => s.dark);
   const normalized = LANGUAGE_ALIASES[language.toLowerCase()] ?? language.toLowerCase();
   if (!SUPPORTED_LANGUAGES.has(normalized)) {
-    return <pre className="overflow-x-auto p-4 text-xs text-slate-300">{code}</pre>;
+    return <pre className="overflow-x-auto bg-vibe-bg p-4 text-xs text-vibe-text">{code}</pre>;
   }
 
   return (
     <PrismLight
-      style={oneDark}
+      style={dark ? oneDark : githubLight}
       language={normalized}
       PreTag="div"
       // R6: the block lives inside a TerminalWindow whose rounded corners come from

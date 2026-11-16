@@ -1,6 +1,6 @@
 import { Link, useNavigate } from 'react-router-dom';
 import type { PostPageVo } from '../types/post';
-import { Heart, MessageCircle, Eye, Copy, Check, GitFork, Link2 } from 'lucide-react';
+import { Heart, MessageCircle, Eye, Copy, Check, GitFork, Link2, ChevronDown } from 'lucide-react';
 import { useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
@@ -8,7 +8,6 @@ import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { AI_REVIEW, POST_STATUS, aiReviewLabel, postStatusLabel } from '../lib/postStatus';
 import { timeAgo } from '../lib/time';
-import { readRole } from './promptMetadata';
 
 interface PostCardProps {
   post: PostPageVo;
@@ -82,8 +81,9 @@ interface PreviewInfo {
 }
 
 /**
- * The first fenced block (or first plain lines) of the body — used only to feed
- * the copy-prompt action now that rows are compact and carry no code preview.
+ * The first fenced block (or first plain lines) of the body. It feeds the copy
+ * action and the row's collapsible preview; the row itself stays one line until
+ * the reader asks for the code, so the list keeps its Discourse density.
  */
 function getPreview(post: PostPageVo): PreviewInfo | null {
   const content = post.content || '';
@@ -99,7 +99,9 @@ function getPreview(post: PostPageVo): PreviewInfo | null {
 /**
  * One topic-row of the v2 list: full-width, separated by the row's own bottom
  * border, no card box. Title on the first line; channel, author, relative time
- * and the AI score on the metadata line; counts right-aligned as tabular numerals.
+ * and the right-aligned counts on one metadata line. The role and template type
+ * live on the detail page now — the row carries only what a reader scans for.
+ * The first code block is one chevron away and collapsed by default.
  */
 export default function PostCard({ post }: PostCardProps) {
   const { t } = useTranslation(['post', 'common']);
@@ -108,10 +110,10 @@ export default function PostCard({ post }: PostCardProps) {
   const user = useAuthStore((s) => s.user);
   const [copied, setCopied] = useState(false);
   const [forking, setForking] = useState(false);
+  const [previewOpen, setPreviewOpen] = useState(false);
   const preview = getPreview(post);
 
   const aiScore = Math.round((post.aiReviewScore ?? 0) * 10);
-  const role = readRole(post.promptMetadata);
 
   const handleCopyLink = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -164,34 +166,43 @@ export default function PostCard({ post }: PostCardProps) {
     <article className="group relative border-b border-vibe-border px-3 py-2.5 transition-colors hover:bg-vibe-surface">
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
-          <Link
-            to={'/post/' + post.id}
-            className="block truncate text-sm text-vibe-text hover:text-vibe-accent"
-          >
-            {post.title}
-          </Link>
-          <div className="mt-1 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-xs text-vibe-muted">
-            <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5 text-xs text-vibe-muted">
+          <div className="flex items-center gap-1.5">
+            <Link
+              to={'/post/' + post.id}
+              className="press-feedback block min-w-0 flex-1 truncate text-sm text-vibe-text hover:text-vibe-accent"
+            >
+              {post.title}
+            </Link>
+            {preview && (
+              <button
+                type="button"
+                onClick={() => setPreviewOpen((v) => !v)}
+                aria-expanded={previewOpen}
+                aria-label={t('post:actions.togglePreview', { label: preview.label })}
+                title={t('post:actions.togglePreview', { label: preview.label })}
+                className="press-feedback shrink-0 rounded p-0.5 text-vibe-faint transition-colors hover:text-vibe-accent"
+              >
+                <ChevronDown
+                  className={
+                    'h-3.5 w-3.5 transition-transform motion-reduce:transition-none ' +
+                    (previewOpen ? 'rotate-180' : '')
+                  }
+                />
+              </button>
+            )}
+          </div>
+          {/* One line at every width: the author truncates, nothing wraps, and the
+              counts stay right-aligned. Role/template moved to the detail page. */}
+          <div className="mt-1 flex items-center gap-2 overflow-hidden whitespace-nowrap text-xs text-vibe-muted">
+            <span className="max-w-[40%] shrink-0 truncate rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5 text-xs text-vibe-muted">
               {post.categoryName}
             </span>
-            {post.postType === 'prompt' && (
-              <span className="rounded-full border border-vibe-border px-1.5 py-0.5 text-xs text-vibe-accent">
-                {t('post:template')}
-              </span>
-            )}
-            {post.aiReviewed === AI_REVIEW.REVIEWED && aiScore > 0 && (
-              <span className="rounded-full border border-vibe-border px-1.5 py-0.5 tabular-nums text-vibe-accent">
-                {t('post:aiScore', { score: aiScore })}
-              </span>
-            )}
-            <span>{post.authorName}</span>
-            {role && (
-              <span className="max-w-[120px] truncate" title={role}>
-                {role}
-              </span>
-            )}
-            <span className="tabular-nums">{timeAgo(post.createTime)}</span>
-            <span className="ml-auto flex shrink-0 items-center gap-3 tabular-nums">
+            <span className="min-w-0 truncate">{post.authorName}</span>
+            <span className="shrink-0 tabular-nums">{timeAgo(post.createTime)}</span>
+            <span className="ml-auto flex shrink-0 items-center gap-2.5 tabular-nums">
+              {post.aiReviewed === AI_REVIEW.REVIEWED && aiScore > 0 && (
+                <span className="text-vibe-accent">{t('post:aiScore', { score: aiScore })}</span>
+              )}
               <span className="flex items-center gap-1">
                 <Heart className="h-3 w-3" />
                 {post.likeCount}
@@ -206,16 +217,32 @@ export default function PostCard({ post }: PostCardProps) {
               </span>
             </span>
           </div>
+          {preview && previewOpen && (
+            <div className="mt-2 overflow-hidden rounded-md border border-vibe-border bg-vibe-bg">
+              <div className="flex items-center justify-between border-b border-vibe-border px-2 py-1 text-[11px] text-vibe-faint">
+                <span className="font-mono">{preview.label}</span>
+                <span>{t('post:actions.preview')}</span>
+              </div>
+              {/* A plain pre, not CodeBlock: the list must stay light, and the
+                  syntax-highlighted rendering belongs to the detail page. */}
+              <pre className="max-h-48 overflow-auto p-2 font-mono text-xs leading-relaxed text-vibe-text">
+                {preview.code}
+              </pre>
+            </div>
+          )}
         </div>
-        {/* Quick actions — hover reveal, on the right of the row */}
+        {/* Quick actions — hover reveal, on the right of the row. They return at
+            `sm`: on a touch-width row they are unreachable anyway, and reserving
+            their width would squeeze the single metadata line until the counts
+            left the viewport. */}
         {hasActions && (
-          <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none">
+          <div className="hidden shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover:opacity-100 motion-reduce:transition-none sm:flex">
             {preview && (
               <button
                 type="button"
                 onClick={handleCopyPrompt}
                 title={t('post:actions.copyPromptTitle')}
-                className="inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-xs text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-accent"
+                className="press-feedback inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-xs text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-accent"
               >
                 {copied ? <Check className="h-3 w-3 text-vibe-success" /> : <Copy className="h-3 w-3" />}
                 {copied ? t('post:actions.copied') : t('post:actions.copy')}
@@ -227,7 +254,7 @@ export default function PostCard({ post }: PostCardProps) {
                 onClick={handleFork}
                 disabled={forking}
                 title={t('post:actions.forkTitle')}
-                className="inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-xs text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-accent disabled:opacity-50"
+                className="press-feedback inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-xs text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-accent disabled:opacity-50"
               >
                 <GitFork className="h-3 w-3" />
                 {forking ? t('post:actions.forking') : t('post:actions.fork')}
@@ -239,7 +266,7 @@ export default function PostCard({ post }: PostCardProps) {
           type="button"
           onClick={handleCopyLink}
           title={t('post:actions.copyLinkTitle')}
-          className="shrink-0 text-vibe-faint opacity-0 transition-opacity hover:text-vibe-text focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none"
+          className="press-feedback hidden shrink-0 text-vibe-faint opacity-0 transition-opacity hover:text-vibe-text focus-visible:opacity-100 group-hover:opacity-100 motion-reduce:transition-none sm:block"
         >
           <Link2 className="h-3.5 w-3.5" />
           <span className="sr-only">{t('post:actions.copyLinkTitle')}</span>

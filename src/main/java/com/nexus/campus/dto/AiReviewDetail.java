@@ -27,4 +27,11 @@ public class AiReviewDetail implements Serializable {
     private String optimizationSuggestions;
 
     private LocalDateTime reviewedAt;
+
+    /**
+     * Wall-clock duration of the review attempt, read from
+     * {@code result_json.durationMs}. Null on rows recorded before B8 added the
+     * instrumentation, which is why the UI treats it as optional.
+     */
+    private Integer durationMs;
 }

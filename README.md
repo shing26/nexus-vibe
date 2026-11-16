@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-540%20Java%20%2B%20120%20frontend-brightgreen?style=flat-square" alt="540 Java tests + 120 frontend tests">
+  <img src="https://img.shields.io/badge/tests-541%20Java%20%2B%20120%20frontend-brightgreen?style=flat-square" alt="541 Java tests + 120 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -427,7 +427,7 @@ the restore rehearsal is [docs/runbook/restore.md](docs/runbook/restore.md).
 ## 🧪 Testing gates
 
 Measured 2026-11-16 on this machine, on the design-overhaul-fixes tree (the A-tier defect
-round on top of the v2 visual system): backend **540 tests / 91
+round on top of the v2 visual system): backend **541 tests / 91
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
 never `target/surefire-reports/`, which accumulates runs and lies. Frontend **120 tests /
 22 files**: the axios response interceptor (a 401 replayed once against the refreshed token,
@@ -466,7 +466,7 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 `apiClient.` call to sit inside a `try`/`catch` or react-query.
 
 ```bash
-mvn test                      # 540: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
+mvn test                      # 541: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd frontend && npm run test   # 120

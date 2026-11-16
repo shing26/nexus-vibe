@@ -1,7 +1,9 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { act, fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import i18next from 'i18next';
+import { MemoryRouter } from 'react-router-dom';
+import type { ComponentProps } from 'react';
 import { AiReviewTerminal } from './AiReviewTerminal';
 import type { AiReviewDetail } from '../types/post';
 
@@ -26,7 +28,17 @@ const detail: AiReviewDetail = {
   securityConcerns: [],
   optimizationSuggestions: ['Cache the tokenizer.'],
   reviewedAt: '2026-09-15T10:00:00',
+  durationMs: 1234,
 };
+
+/** The voucher links to the admin log surface, so the component needs a router. */
+function renderTerminal(props: ComponentProps<typeof AiReviewTerminal>) {
+  return render(
+    <MemoryRouter>
+      <AiReviewTerminal {...props} />
+    </MemoryRouter>,
+  );
+}
 
 describe('AiReviewTerminal', () => {
   afterEach(async () => {
@@ -36,7 +48,7 @@ describe('AiReviewTerminal', () => {
   });
 
   it('says a review is in flight, without inventing a score', () => {
-    render(<AiReviewTerminal state="pending" />);
+    renderTerminal({ state: 'pending' });
 
     expect(screen.getByRole('status')).toHaveTextContent('AI review in progress...');
     expect(screen.queryByText(/Score:/)).not.toBeInTheDocument();
@@ -46,7 +58,7 @@ describe('AiReviewTerminal', () => {
     const user = userEvent.setup();
     const onRetry = vi.fn();
 
-    render(<AiReviewTerminal state="error" errorMessage="Failed to load AI review." onRetry={onRetry} />);
+    renderTerminal({ state: 'error', errorMessage: 'Failed to load AI review.', onRetry });
 
     expect(screen.getByRole('alert')).toHaveTextContent('Failed to load AI review.');
     await user.click(screen.getByRole('button', { name: 'Retry AI review' }));
@@ -55,7 +67,7 @@ describe('AiReviewTerminal', () => {
 
   it('renders the severity through the dictionary (zh shows the translated name)', async () => {
     await i18next.changeLanguage('zh');
-    render(<AiReviewTerminal state="data" detail={detail} />);
+    renderTerminal({ state: 'data', detail });
 
     // The badge no longer echoes the normalized key: zh readers read the
     // agentLogs severityNames block (高 for high), en readers the English one.
@@ -64,7 +76,7 @@ describe('AiReviewTerminal', () => {
   });
 
   it('renders a 0-10 score as the 0-100 the panel claims', () => {
-    render(<AiReviewTerminal state="data" detail={detail} />);
+    renderTerminal({ state: 'data', detail });
 
     // The API stores 8.5; the panel is labelled /100. The scaling lives here, in
     // the component, and this is the only place that keeps it honest.
@@ -75,8 +87,23 @@ describe('AiReviewTerminal', () => {
     expect(screen.getByText('No findings.')).toBeInTheDocument();
   });
 
+  it('renders the voucher without expanding: model, calls, duration and raw-log link', () => {
+    renderTerminal({ state: 'data', detail, reviewCount: 3 });
+
+    const voucher = screen.getByTestId('review-voucher');
+    // The findings are still collapsed; the voucher is not.
+    expect(screen.getByRole('button', { name: 'Toggle review details' })).toHaveAttribute('aria-expanded', 'false');
+    expect(voucher).toHaveTextContent('Model: agent');
+    expect(within(voucher).getByText('3 call(s)')).toBeInTheDocument();
+    expect(within(voucher).getByText('1.2 s')).toBeInTheDocument();
+    expect(within(voucher).getByRole('link', { name: /Raw review log/ })).toHaveAttribute(
+      'href',
+      '/agent-logs?postId=1',
+    );
+  });
+
   it('shows an explicit unavailable state rather than an empty scorecard', () => {
-    render(<AiReviewTerminal state="data" detail={null} />);
+    renderTerminal({ state: 'data', detail: null });
 
     const region = screen.getByRole('status');
     expect(region).toHaveTextContent('AI review data unavailable.');
@@ -89,7 +116,7 @@ describe('AiReviewTerminal', () => {
 
     it('lights the steps in order and lands on the score', () => {
       vi.useFakeTimers();
-      const { container } = render(<AiReviewTerminal state="data" detail={detail} />);
+      const { container } = renderTerminal({ state: 'data', detail });
 
       // The replay belongs to the expand, not the page load: open the panel first.
       fireEvent.click(screen.getByRole('button', { name: 'Toggle review details' }));
@@ -120,7 +147,7 @@ describe('AiReviewTerminal', () => {
 
     it('renders a stored zero as an empty meter rather than NaN', () => {
       vi.useFakeTimers();
-      const { container } = render(<AiReviewTerminal state="data" detail={{ ...detail, score: 0 }} />);
+      const { container } = renderTerminal({ state: 'data', detail: { ...detail, score: 0 } });
 
       // Same rule as above: the replay starts on the first expand.
       fireEvent.click(screen.getByRole('button', { name: 'Toggle review details' }));
@@ -133,7 +160,7 @@ describe('AiReviewTerminal', () => {
     });
 
     it('names the panel a replay of a completed run and never claims it is live', () => {
-      render(<AiReviewTerminal state="data" detail={detail} />);
+      renderTerminal({ state: 'data', detail });
 
       // The panel renders a stored review, so the caption may say what it is - a replay of
       // the run that finished at the recorded time - and may not say the pipeline is

@@ -77,7 +77,9 @@
     },
     "language": {
       "label": "语言",
-      "toggle": "切换到 English",
+      "toggle": "切换到英语",
+      "switchToEnglish": "切换到英语",
+      "switchToChinese": "切换到中文",
       "current": "中文"
     },
     "theme": {
@@ -119,6 +121,9 @@
         "console": "控制台",
         "post": "帖子"
       }
+    },
+    "evidence": {
+      "title": "证据"
     },
     "footer": {
       "rights": "© {{year}} Nexus-Vibe. 保留所有权利。",
@@ -268,7 +273,6 @@
       "kicker": "读一个真实的评审 — 无需账号",
       "desc": "评审管线的一次记录运行：它给这段代码打了 {{score}}/10，并把发现写在那个页面上。逐字拷贝，非手写。"
     },
-    "channelGridAria": "频道目录",
     "tags": {
       "title": "热门标签",
       "subtitle": "按话题浏览社区",
@@ -407,7 +411,9 @@
       "copiedLabel": "已复制",
       "forkTitle": "Fork 此模板",
       "copyPromptTitle": "复制 Prompt",
-      "copyLinkTitle": "复制链接"
+      "copyLinkTitle": "复制链接",
+      "preview": "代码预览",
+      "togglePreview": "展开或收起 {{label}} 预览"
     },
     "deleteConfirm": "删除这篇帖子？此操作不可撤销。",
     "notFoundTitle": "404 — 帖子不存在",
@@ -439,6 +445,10 @@
     },
     "review": {
       "title": "AI 评审",
+      "model": "模型",
+      "calls": "调用 {{n}} 次",
+      "duration": "耗时 {{value}}",
+      "rawLog": "原始评审日志",
       "toggleDetails": "展开或收起评审详情",
       "scoreLabel": "评分：{{score}}/100",
       "scoreSuffix": "/100",
@@ -672,17 +682,20 @@
     "activityAria": "最近动态",
     "postsAria": "已发布帖子",
     "stats": {
-      "posts": "帖子",
+      "posts": "帖子数",
       "comments": "评论",
       "likesReceived": "收到的赞",
+      "reviewedPosts": "被评审过",
       "avgAi": "平均 AI 评分",
       "forks": "Fork",
-      "versions": "版本"
+      "versions": "版本",
+      "secondaryLine": "评论 {{comments}} · 平均 AI 评分 {{avgAi}} · Fork {{forks}} · 版本 {{versions}}"
     },
     "statTitles": {
       "posts": "已发布帖子数",
       "comments": "评论数",
       "likesReceived": "公开帖子收到的赞数",
+      "reviewedPosts": "有 AI 评审记录的帖子数（由已加载的帖子列表推导）",
       "avgAi": "平均 AI 评分不含未评审帖子",
       "forks": "Prompt Fork 数",
       "versions": "Prompt 版本数"
@@ -819,6 +832,7 @@
     },
     "recentReviews": "最近评审",
     "entries": "{{n}} 条",
+    "filteredByPost": "仅看帖子 #{{id}}",
     "filters": {
       "all": "全部",
       "codeReview": "代码评审",

@@ -54,7 +54,7 @@ export default function MobileTabBar() {
   };
 
   const linkClass = (active: boolean) =>
-    'flex flex-1 flex-col items-center justify-center gap-0.5 py-2 min-h-[48px] text-[11px] transition-colors ' +
+    'press-feedback flex flex-1 flex-col items-center justify-center gap-0.5 py-2 min-h-[48px] text-[11px] transition-colors ' +
     (active ? 'text-vibe-accent font-medium' : 'text-vibe-muted hover:text-vibe-text');
 
   return (
