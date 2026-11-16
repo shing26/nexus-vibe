@@ -62,10 +62,10 @@ INSERT INTO `vibe_post_tag` (`id`, `post_id`, `tag_id`) VALUES
 INSERT INTO `vibe_prompt_version` (`id`, `post_id`, `version`, `branch`, `title`, `content`, `prompt_metadata`, `change_note`, `created_by`, `create_time`) VALUES
 (8001, 2, 1, 'main', '把 JSON 输出从「祈祷」变成「契约」的 System Prompt',
  '与其在 prompt 末尾写「请务必返回合法 JSON」，不如把 schema、失败示例和修复指令一起交给模型。',
- '{"role":"You are a strict structured-output assistant.","recommendedModel":"claude-sonnet","temperature":0.2,"variables":["schema","failureExample"]}', '第一版：只写了输出契约', 2, DATE_SUB(NOW(), INTERVAL 6 DAY)),
+ '{"role":"You are a strict structured-output assistant.","recommendedModel":"claude-sonnet","temperature":0.2,"variables":["schema","failureExample"]}', '第一版：只写了输出契约', 2, DATE_ADD(DATE_SUB(NOW(), INTERVAL 5 DAY), INTERVAL 30 MINUTE)),
 (8002, 2, 2, 'main', '把 JSON 输出从「祈祷」变成「契约」的 System Prompt',
  '关键不是措辞更凶，而是让模型知道：字段名不能改、缺失字段要补全、解析失败时只修语法不改语义。',
- '{"role":"You are a strict structured-output assistant. You return one JSON object that matches the provided schema and nothing else.","recommendedModel":"claude-sonnet","temperature":0.2,"variables":["schema","failureExample"]}', '补上修复指令和失败示例', 2, DATE_SUB(NOW(), INTERVAL 5 DAY));
+ '{"role":"You are a strict structured-output assistant. You return one JSON object that matches the provided schema and nothing else.","recommendedModel":"claude-sonnet","temperature":0.2,"variables":["schema","failureExample"]}', '补上修复指令和失败示例', 2, DATE_ADD(DATE_SUB(NOW(), INTERVAL 5 DAY), INTERVAL 45 MINUTE));
 
 INSERT INTO `vibe_comment` (`id`, `post_id`, `user_id`, `parent_id`, `target_id`, `content`, `status`, `create_time`) VALUES
 (1, 3, 3, 0, 0, 'clear 再重建这个窗口太真实了。我们后来用 build 新 map 再原子替换，读路径就再也没见过空缓存。', 1, DATE_SUB(NOW(), INTERVAL 1 DAY)),
@@ -91,7 +91,7 @@ INSERT INTO `ai_review_log` (`id`, `post_id`, `reviewer`, `result_json`, `severi
  'low', 1, DATE_ADD(DATE_SUB(NOW(), INTERVAL 5 DAY), INTERVAL 20 MINUTE)),
 (9001, 3, 'code-review-agent',
  '{"score":5,"severity":"medium","codeQuality":"get 与 put 之间没有同步，且 HashMap 不是线程安全的；refreshAll 先 clear 再重建，所有并发请求会在同一个窗口里穿透到 load，形成缓存击穿。","securityConcerns":"缓存没有容量上限也没有过期策略，任何能控制 key 的调用方都可以把堆内存推高，构成拒绝服务风险。","optimizationSuggestions":"改用有容量上限和写入过期的缓存，并用 get(key, loader) 做单飞加载；refreshAll 改为在旁路构建新映射后原子替换，避免读者看到空缓存。","isApproved":false,"durationMs":2210}',
- 'medium', 0, DATE_SUB(NOW(), INTERVAL 3 DAY)),
+ 'medium', 0, DATE_ADD(DATE_SUB(NOW(), INTERVAL 2 DAY), INTERVAL 10 MINUTE)),
 (9002, 3, 'code-review-agent',
  '{"score":7,"severity":"low","codeQuality":"新的实现用 Caffeine 替换了裸 HashMap，容量上限、过期与并发语义都由缓存库负责；get 通过 loader 合并了并发未命中，refreshAll 不再清空读路径。","securityConcerns":"堆内存风险已由 maximumSize 约束；load 抛异常时不会写入缓存，避免把失败结果缓存成永久值。","optimizationSuggestions":"建议补一个 hit rate 指标，并在 load 失败时记录原因；如果上游允许，可以对热点 key 做 refreshAfterWrite，而不是整表刷新。","isApproved":true,"durationMs":1840}',
- 'low', 1, DATE_SUB(NOW(), INTERVAL 2 DAY));
+ 'low', 1, DATE_ADD(DATE_SUB(NOW(), INTERVAL 2 DAY), INTERVAL 25 MINUTE));

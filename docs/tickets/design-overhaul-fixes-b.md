@@ -113,6 +113,14 @@ ADR 修订：[docs/adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md](
   文件仍为 insert-only、无 DELETE，保留 `DemoContentSeederTest` 所需的 INSERT 语句。仅对
   `DEMO_SEED_ENABLED=true` 且 `vibe_post` 为空的 MySQL 实例生效；线上库未动，H2
   `data.sql` 未改（不在 Allowed paths）。文件头注明可把 `SHOWCASE_POST_ID` 指向 3。
+- **B10 时间线审计（第二轮修复）** — 所有引用帖子的行都排在帖子之后、NOW 之前：
+  post 2（−5d）→ review 9000（−119h40m）→ version 8001（−119h30m）→ version 8002
+  （−119h15m）→ comment 3（−4d）；post 3（−2d）→ review 9001（−47h50m）→ review 9002
+  （−47h35m）→ comments 1/2（−1d/−20h）→ messages 1/2（−1d/−20h）；post 4（−1d）→
+  comment 4/message 3（−18h）；post 6（−20h）→ comment 5（−16h）；post 10（−2h）→
+  comment 6（−1h）。无依赖行的 post 1/5/7/8/9 均保持在过去的单一时间点。审计脚本按每张
+  表的 timestamp 表达式换算相对 NOW 的分钟数，同时复核“已评审必有日志且最新分数等于
+  `ai_review_score`”的旧审计，全部通过。
 
 ## 断言改动逐条记录
 
