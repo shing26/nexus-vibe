@@ -18,6 +18,8 @@ import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import EmptyState from '../components/EmptyState';
 import Skeleton from '../components/Skeleton';
+import ReviewScoreCurve from '../components/ReviewScoreCurve';
+import type { UserReviewEntry } from '../components/ReviewScoreCurve';
 import { PostStateBadges } from '../components/PostCard';
 import { AI_REVIEW } from '../lib/postStatus';
 import { timeAgo } from '../lib/time';
@@ -126,6 +128,19 @@ export default function UserProfilePage() {
         params: { userId: id },
       });
       return res.data.data?.list ?? [];
+    },
+    enabled: !!id,
+    staleTime: 1000 * 60,
+  });
+
+  // S4-1's evidence index: the latest completed review of each visible post.
+  // It feeds the curve only; the stat cards keep their own derivation so the
+  // reviewed-post count stays unchanged on pages where this request fails.
+  const reviewsQuery = useQuery<UserReviewEntry[]>({
+    queryKey: ['agent-logs', 'user', id],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<UserReviewEntry[]>>(`/agent-logs/user/${id}`);
+      return res.data.data ?? [];
     },
     enabled: !!id,
     staleTime: 1000 * 60,
@@ -243,6 +258,20 @@ export default function UserProfilePage() {
                 versions: formatCount(summary.stats?.versions),
               })}
             </p>
+          </section>
+
+          <section aria-label={t('curve.ariaSection')} className="mb-8">
+            <h2 className="mb-3 text-sm font-semibold text-vibe-text">{t('curve.title')}</h2>
+            {reviewsQuery.isLoading ? (
+              <Skeleton className="h-48 rounded-lg" />
+            ) : reviewsQuery.isError ? (
+              <ErrorPanel
+                label={t('failedLabels.reviews')}
+                onRetry={() => reviewsQuery.refetch()}
+              />
+            ) : (
+              <ReviewScoreCurve entries={reviewsQuery.data ?? []} />
+            )}
           </section>
 
           <section aria-label={t('activityAria')} className="mb-8">

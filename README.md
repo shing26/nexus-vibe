@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-546%20Java%20%2B%20120%20frontend-brightgreen?style=flat-square" alt="546 Java tests + 120 frontend tests">
+  <img src="https://img.shields.io/badge/tests-546%20Java%20%2B%20130%20frontend-brightgreen?style=flat-square" alt="546 Java tests + 130 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -426,11 +426,13 @@ the restore rehearsal is [docs/runbook/restore.md](docs/runbook/restore.md).
 
 ## 🧪 Testing gates
 
-Measured 2026-11-16 on this machine, on the s4-1 user-review-index tree (the public
-evidence index on top of the design-overhaul round): backend **546 tests / 91
+Measured 2026-11-17 on this machine, on the s4-2 profile-score-curve tree (the curve on
+top of the s4-1 evidence index and the design-overhaul round): backend **546 tests / 91
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
-never `target/surefire-reports/`, which accumulates runs and lies. Frontend **120 tests /
-22 files**: the axios response interceptor (a 401 replayed once against the refreshed token,
+never `target/surefire-reports/`, which accumulates runs and lies. Frontend **130 tests /
+24 files**: the profile score curve (one mark per returned record, oldest on the left, no
+SVG at all when the index is empty, a screen-reader table carrying date/score/title, the
+same 0-10-to-0-100 rule as the voucher card), the axios response interceptor (a 401 replayed once against the refreshed token,
 one refresh shared across concurrent 401s, a refused refresh that logs out without
 looping, a 5xx named with its trace id), the server-error sentence mapping, the login
 page's server reason, the AI review panel (a stored 0-10 shown as the 0-100 it claims, a

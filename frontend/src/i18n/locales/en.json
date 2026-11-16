@@ -681,6 +681,21 @@
     "statsAria": "Profile stats",
     "activityAria": "Recent activity",
     "postsAria": "Published posts",
+    "curve": {
+      "title": "AI Score Curve",
+      "ariaSection": "AI score curve",
+      "aria": "AI score curve with {{n}} data points, scores from {{min}} to {{max}} out of 100",
+      "caption": "From {{n}} review records",
+      "empty": "No review records to show yet",
+      "pointAria": "{{title}}, {{date}}, AI score {{score}} out of 100",
+      "tooltipScore": "{{score}}/100",
+      "tableCaption": "AI score curve data",
+      "columns": {
+        "date": "Date",
+        "score": "Score",
+        "title": "Post title"
+      }
+    },
     "stats": {
       "posts": "Posts",
       "comments": "Comments",
@@ -708,7 +723,8 @@
     "retryAria": "Retry {{label}}",
     "failedLabels": {
       "summary": "profile summary",
-      "posts": "published posts"
+      "posts": "published posts",
+      "reviews": "review history"
     },
     "activity": {
       "post": "post",
