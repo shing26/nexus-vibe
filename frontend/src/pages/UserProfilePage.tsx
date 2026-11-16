@@ -4,8 +4,8 @@ import { useTranslation } from 'react-i18next';
 import {
   Activity,
   AlertCircle,
+  Bot,
   FileText,
-  Gauge,
   GitBranch,
   GitFork,
   Heart,
@@ -19,6 +19,7 @@ import { useAuthStore } from '../stores/authStore';
 import EmptyState from '../components/EmptyState';
 import Skeleton from '../components/Skeleton';
 import { PostStateBadges } from '../components/PostCard';
+import { AI_REVIEW } from '../lib/postStatus';
 import { timeAgo } from '../lib/time';
 import type { PageResponse, PostPageVo, UserProfileSummary } from '../types/post';
 
@@ -61,11 +62,12 @@ function ProfileSkeleton() {
           </div>
         </div>
       </div>
-      <div className="mb-8 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {[0, 1, 2, 3, 4, 5].map((item) => (
+      <div className="mb-8 grid grid-cols-3 gap-2">
+        {[0, 1, 2].map((item) => (
           <Skeleton key={item} className="h-16 rounded-lg" />
         ))}
       </div>
+      <Skeleton className="mb-8 h-3 w-2/3" />
       <Skeleton className="h-40 rounded-lg" />
     </div>
   );
@@ -83,11 +85,12 @@ function SummarySkeleton() {
           </div>
         </div>
       </div>
-      <div className="mb-8 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {[0, 1, 2, 3, 4, 5].map((item) => (
+      <div className="mb-8 grid grid-cols-3 gap-2">
+        {[0, 1, 2].map((item) => (
           <Skeleton key={item} className="h-16 rounded-lg" />
         ))}
       </div>
+      <Skeleton className="mb-8 h-3 w-2/3" />
     </>
   );
 }
@@ -135,6 +138,12 @@ export default function UserProfilePage() {
   const summary = summaryQuery.data;
   const posts = postsQuery.data ?? [];
   const avgScore = summary?.stats?.avgAiScore ?? null;
+  const avgAiText =
+    avgScore == null || avgScore === 0
+      ? '--'
+      : avgScore <= 10
+        ? Number((avgScore * 10).toFixed(1)).toLocaleString()
+        : Number(avgScore).toFixed(1);
   const summaryUnavailable = !summaryQuery.isLoading && !summaryQuery.isError && !summary;
 
   return (
@@ -179,7 +188,7 @@ export default function UserProfilePage() {
           </div>
 
           <section aria-label={t('statsAria')} className="mb-8">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+            <div className="grid grid-cols-3 gap-2">
               {[
                 {
                   key: 'posts',
@@ -189,13 +198,6 @@ export default function UserProfilePage() {
                   title: t('statTitles.posts'),
                 },
                 {
-                  key: 'comments',
-                  icon: MessageSquare,
-                  label: t('stats.comments'),
-                  value: formatCount(summary.stats?.comments),
-                  title: t('statTitles.comments'),
-                },
-                {
                   key: 'likes',
                   icon: Heart,
                   label: t('stats.likesReceived'),
@@ -203,30 +205,14 @@ export default function UserProfilePage() {
                   title: t('statTitles.likesReceived'),
                 },
                 {
-                  key: 'avgAi',
-                  icon: Gauge,
-                  label: t('stats.avgAi'),
+                  key: 'reviewed',
+                  icon: Bot,
+                  label: t('stats.reviewedPosts'),
                   value:
-                    avgScore == null || avgScore === 0
+                    postsQuery.isLoading
                       ? '--'
-                      : avgScore <= 10
-                        ? Number((avgScore * 10).toFixed(1)).toLocaleString()
-                        : Number(avgScore).toFixed(1),
-                  title: t('statTitles.avgAi'),
-                },
-                {
-                  key: 'forks',
-                  icon: GitFork,
-                  label: t('stats.forks'),
-                  value: formatCount(summary.stats?.forks),
-                  title: t('statTitles.forks'),
-                },
-                {
-                  key: 'versions',
-                  icon: GitBranch,
-                  label: t('stats.versions'),
-                  value: formatCount(summary.stats?.versions),
-                  title: t('statTitles.versions'),
+                      : formatCount(posts.filter((post) => post.aiReviewed === AI_REVIEW.REVIEWED).length),
+                  title: t('statTitles.reviewedPosts'),
                 },
               ].map((stat) => {
                 const Icon = stat.icon;
@@ -247,6 +233,16 @@ export default function UserProfilePage() {
                 );
               })}
             </div>
+            {/* The rest of the numbers survive as one quiet line: they matter to
+                an owner checking their own record, not to a first read. */}
+            <p className="mt-2 text-xs text-vibe-muted">
+              {t('stats.secondaryLine', {
+                comments: formatCount(summary.stats?.comments),
+                avgAi: avgAiText,
+                forks: formatCount(summary.stats?.forks),
+                versions: formatCount(summary.stats?.versions),
+              })}
+            </p>
           </section>
 
           <section aria-label={t('activityAria')} className="mb-8">

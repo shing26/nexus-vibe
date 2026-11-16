@@ -1,11 +1,13 @@
 import { useEffect, useRef, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
-import { FileText, LogIn, LogOut, Mail, Menu, Moon, PenSquare, Search, Settings, Sun, User, UserPlus } from 'lucide-react';
+import { BookOpen, FileText, LogIn, LogOut, Mail, Menu, Moon, PenSquare, Search, Settings, Sun, User, UserPlus } from 'lucide-react';
 import { useAuthStore } from '../stores/authStore';
 import { useThemeStore } from '../stores/themeStore';
+import { ADR_INDEX_URL, DRILL_URL, LOADTEST_URL } from '../links';
 import CommandPalette from './CommandPalette';
 import LanguageToggle from './LanguageToggle';
+import { ExternalLink } from './ui/ExternalLink';
 
 interface NavbarProps {
   onOpenDrawer: () => void;
@@ -32,7 +34,9 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
   const { dark, toggle } = useThemeStore();
   const [paletteOpen, setPaletteOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const evidenceRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -61,6 +65,24 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
       document.removeEventListener('mousedown', onMouseDown);
     };
   }, [menuOpen]);
+
+  // The evidence menu mirrors the footer's three outbound links; the footer keeps
+  // them too, so a reader who scrolls to the end never loses the path.
+  useEffect(() => {
+    if (!evidenceOpen) return;
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEvidenceOpen(false);
+    };
+    const onMouseDown = (e: MouseEvent) => {
+      if (evidenceRef.current && !evidenceRef.current.contains(e.target as Node)) setEvidenceOpen(false);
+    };
+    document.addEventListener('keydown', onKeyDown);
+    document.addEventListener('mousedown', onMouseDown);
+    return () => {
+      document.removeEventListener('keydown', onKeyDown);
+      document.removeEventListener('mousedown', onMouseDown);
+    };
+  }, [evidenceOpen]);
 
   const submitSearch = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -115,14 +137,57 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
           </div>
         </form>
 
-        {/* Right cluster: language, new post, user menu */}
+        {/* Right cluster: evidence, theme, language, new post, user menu */}
         <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:ml-0">
+          <div className="relative" ref={evidenceRef}>
+            <button
+              type="button"
+              onClick={() => setEvidenceOpen((v) => !v)}
+              aria-label={t('common:evidence.title')}
+              aria-haspopup="menu"
+              aria-expanded={evidenceOpen}
+              className="press-feedback inline-flex items-center gap-1 rounded-md p-2 text-xs text-vibe-muted transition-colors hover:bg-vibe-card hover:text-vibe-text"
+            >
+              <BookOpen className="h-4 w-4" />
+              <span className="hidden xl:inline">{t('common:evidence.title')}</span>
+            </button>
+            {evidenceOpen && (
+              <div
+                role="menu"
+                aria-label={t('common:evidence.title')}
+                className="absolute right-0 top-9 z-50 flex w-56 flex-col gap-1 rounded-lg border border-vibe-border bg-vibe-card p-2 shadow-lg"
+              >
+                <ExternalLink href={ADR_INDEX_URL} title={t('common:footer.adrTitle')}>
+                  {t('common:footer.adrs')}
+                </ExternalLink>
+                <ExternalLink href={LOADTEST_URL} title={t('common:footer.loadtestTitle')}>
+                  {t('common:footer.loadtest')}
+                </ExternalLink>
+                <ExternalLink href={DRILL_URL} title={t('common:footer.drillTitle')}>
+                  {t('common:footer.drill')}
+                </ExternalLink>
+              </div>
+            )}
+          </div>
+
+          {/* Theme is a top-bar control for everyone, signed in or not. The user
+              menu no longer repeats it; one control, one place. */}
+          <button
+            type="button"
+            onClick={toggle}
+            aria-label={dark ? t('common:theme.toLight') : t('common:theme.toDark')}
+            title={dark ? t('common:theme.toLight') : t('common:theme.toDark')}
+            className="press-feedback rounded-md p-2 text-vibe-muted transition-colors hover:bg-vibe-card hover:text-vibe-text"
+          >
+            {dark ? <Sun className="h-4 w-4" /> : <Moon className="h-4 w-4" />}
+          </button>
+
           <LanguageToggle />
 
           {isAuthenticated && (
             <Link
               to="/post/new"
-              className="hidden items-center gap-1.5 rounded-md bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 sm:inline-flex"
+              className="press-feedback hidden items-center gap-1.5 rounded-md bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 sm:inline-flex"
             >
               <PenSquare className="h-3.5 w-3.5" />
               {t('common:user.newPost')}
@@ -131,12 +196,12 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
 
           {!isAuthenticated ? (
             <div className="flex items-center gap-1.5">
-              <Link to="/login" className="rounded-md p-2 text-sm text-vibe-muted hover:text-vibe-text" aria-label={t('common:user.login')}>
+              <Link to="/login" className="press-feedback rounded-md p-2 text-sm text-vibe-muted hover:text-vibe-text" aria-label={t('common:user.login')}>
                 <LogIn className="h-4 w-4" />
               </Link>
               <Link
                 to="/register"
-                className="inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1.5 text-xs font-medium text-vibe-text hover:border-vibe-accent sm:px-3"
+                className="press-feedback inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1.5 text-xs font-medium text-vibe-text hover:border-vibe-accent sm:px-3"
               >
                 <UserPlus className="h-3.5 w-3.5" />
                 {t('common:user.register')}
@@ -150,7 +215,7 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
                 aria-label={t('common:user.menu')}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
-                className="flex h-8 w-8 items-center justify-center rounded-full bg-vibe-accent text-xs font-semibold text-white"
+                className="press-feedback flex h-8 w-8 items-center justify-center rounded-full bg-vibe-accent text-xs font-semibold text-white"
               >
                 {(user?.nickname || user?.username || '?').charAt(0).toUpperCase()}
               </button>
@@ -176,18 +241,6 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
                   <Link role="menuitem" to="/user/settings" onClick={() => setMenuOpen(false)} className={menuItemClass}>
                     <Settings className="h-4 w-4 text-vibe-muted" /> {t('common:nav.settings')}
                   </Link>
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      toggle();
-                      setMenuOpen(false);
-                    }}
-                    className={menuItemClass}
-                  >
-                    {dark ? <Sun className="h-4 w-4 text-vibe-muted" /> : <Moon className="h-4 w-4 text-vibe-muted" />}
-                    {dark ? t('common:theme.toLight') : t('common:theme.toDark')}
-                  </button>
                   <button
                     type="button"
                     role="menuitem"

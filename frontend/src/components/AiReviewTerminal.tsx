@@ -1,6 +1,7 @@
-import { AlertCircle, Bot, Code2, ChevronDown, Gauge, Loader2, RotateCw, ShieldAlert, ShieldCheck, Wand2 } from 'lucide-react';
+import { AlertCircle, Bot, Code2, ChevronDown, ExternalLink, Gauge, Loader2, RotateCw, ShieldAlert, ShieldCheck, Wand2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import type { FC } from 'react';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from 'motion/react';
 import { ReviewStepStrip } from './ui/ReviewStepStrip';
@@ -14,6 +15,8 @@ interface AiReviewTerminalProps {
   detail?: AiReviewDetail | null;
   errorMessage?: string;
   onRetry?: () => void;
+  /** Review-log rows recorded for this post, when the caller has them. */
+  reviewCount?: number;
 }
 
 /**
@@ -116,6 +119,17 @@ function formatRunTime(value?: string): string {
   return value.replace('T', ' ').slice(0, 16);
 }
 
+/**
+ * The review's own wall-clock time, written into `result_json.durationMs` by
+ * `AiReviewService`. Rows recorded before that instrument existed have no
+ * value, and the voucher simply omits the field rather than guessing.
+ */
+function formatDuration(value?: number | null): string {
+  if (value == null || !Number.isFinite(value) || value < 0) return '';
+  if (value < 1000) return `${Math.round(value)} ms`;
+  return `${(value / 1000).toFixed(1)} s`;
+}
+
 function LoadingTerminal() {
   const { t } = useTranslation('post');
   return (
@@ -143,7 +157,13 @@ function LoadingTerminal() {
   );
 }
 
-export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, errorMessage, onRetry }) => {
+export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({
+  state,
+  detail,
+  errorMessage,
+  onRetry,
+  reviewCount,
+}) => {
   const { t } = useTranslation('post');
   const reduceMotion = useReducedMotion();
   const [expanded, setExpanded] = useState(false);
@@ -286,32 +306,59 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({ state, detail, err
     },
   ];
 
+  const duration = formatDuration(detail?.durationMs);
+
   return (
     <ReviewCard>
-      {/* Header — always visible, collapsed or not: who reviewed, when, and what
-          the verdict was. The details are one click away, never the headline. */}
-      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-vibe-border px-4 py-3">
-        <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-vibe-text">
-          <Bot className="h-4 w-4 shrink-0 text-vibe-accent" />
-          <span>{t('review.title')}</span>
-        </div>
-        <span className="flex flex-wrap items-center gap-2">
-          <span className="flex items-center gap-1 text-xs font-medium tabular-nums text-vibe-accent">
-            <Gauge className="h-3.5 w-3.5" />
-            {t('review.scoreLabel', { score: finalScore ?? '--' })}
+      {/* The voucher — always visible, collapsed or not. It names the verdict and
+          the machinery that produced it (model, calls, duration) and links to the
+          raw log row; the findings below stay one click away. Reversed from the
+          v2 spec's "collapsed by default" because the recording is the product's
+          claim, not a detail behind a chevron. */}
+      <div data-testid="review-voucher">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-vibe-border px-4 py-3">
+          <div className="flex min-w-0 items-center gap-1.5 text-sm font-medium text-vibe-text">
+            <Bot className="h-4 w-4 shrink-0 text-vibe-accent" />
+            <span>{t('review.title')}</span>
+          </div>
+          <span className="flex flex-wrap items-center gap-2">
+            <span className="flex items-center gap-1 text-xs font-medium tabular-nums text-vibe-accent">
+              <Gauge className="h-3.5 w-3.5" />
+              {t('review.scoreLabel', { score: finalScore ?? '--' })}
+            </span>
+            <SeverityBadge severity={detail?.severity || 'unknown'} />
+            <VerdictPill isApproved={detail?.isApproved ?? 0} />
+            <button
+              type="button"
+              onClick={toggleExpanded}
+              aria-expanded={expanded}
+              aria-label={t('review.toggleDetails')}
+              className="rounded p-1 text-vibe-muted hover:text-vibe-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-accent"
+            >
+              <ChevronDown className={'h-4 w-4 transition-transform motion-reduce:transition-none ' + (expanded ? 'rotate-180' : '')} />
+            </button>
           </span>
-          <SeverityBadge severity={detail?.severity || 'unknown'} />
-          <VerdictPill isApproved={detail?.isApproved ?? 0} />
-          <button
-            type="button"
-            onClick={toggleExpanded}
-            aria-expanded={expanded}
-            aria-label={t('review.toggleDetails')}
-            className="rounded p-1 text-vibe-muted hover:text-vibe-text focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-vibe-accent"
-          >
-            <ChevronDown className={'h-4 w-4 transition-transform motion-reduce:transition-none ' + (expanded ? 'rotate-180' : '')} />
-          </button>
-        </span>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2 text-xs text-vibe-muted">
+          {detail?.reviewer && (
+            <span className="min-w-0 truncate" title={detail.reviewer}>
+              {t('review.model')}: <span className="font-mono text-vibe-text">{detail.reviewer}</span>
+            </span>
+          )}
+          {reviewCount != null && reviewCount > 0 && (
+            <span className="tabular-nums">{t('review.calls', { n: reviewCount })}</span>
+          )}
+          {duration && <span className="tabular-nums">{t('review.duration', { value: duration })}</span>}
+          {detail?.postId && (
+            <Link
+              to={'/agent-logs?postId=' + detail.postId}
+              className="inline-flex items-center gap-1 text-vibe-accent hover:underline"
+            >
+              {t('review.rawLog')}
+              <ExternalLink className="h-3 w-3" />
+            </Link>
+          )}
+        </div>
       </div>
 
       {/* Collapsible region — mounted but hidden when collapsed, so the data a

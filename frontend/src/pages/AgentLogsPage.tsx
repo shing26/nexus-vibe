@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import {
@@ -184,6 +185,10 @@ export default function AgentLogsPage() {
   const { t } = useTranslation('agentLogs');
   const [page, setPage] = useState(1);
   const [reviewer, setReviewer] = useState<ReviewerFilter>('all');
+  // The review voucher links here with ?postId=; the endpoint already filters on
+  // it, so the link lands on that post's rows instead of the whole log.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const postId = searchParams.get('postId') ?? undefined;
 
   const { data: statsData, isLoading: statsLoading } = useQuery<AgentLogStatsResponse>({
     queryKey: ['agent-logs', 'stats'],
@@ -192,9 +197,11 @@ export default function AgentLogsPage() {
   });
 
   const { data: logsData, isLoading: logsLoading, isError, error } = useQuery<AgentLogsResponse>({
-    queryKey: ['agent-logs', 'list', page],
+    queryKey: ['agent-logs', 'list', page, postId],
     queryFn: async () =>
-      (await apiClient.get<AgentLogsResponse>('/agent-logs', { params: { page, size: 20 } })).data,
+      (await apiClient.get<AgentLogsResponse>('/agent-logs', {
+        params: { page, size: 20, ...(postId ? { postId } : {}) },
+      })).data,
     staleTime: 1000 * 30,
   });
 
@@ -264,6 +271,21 @@ export default function AgentLogsPage() {
           <h2 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">{t('recentReviews')}</h2>
           {logsData?.data && (
             <p className="mt-0.5 text-xs tabular-nums text-vibe-faint">{t('entries', { n: logsData.data.total })}</p>
+          )}
+          {postId && (
+            <button
+              type="button"
+              onClick={() => {
+                const next = new URLSearchParams(searchParams);
+                next.delete('postId');
+                setSearchParams(next, { replace: true });
+                setPage(1);
+              }}
+              className="mt-1 inline-flex items-center gap-1 rounded-full border border-vibe-accent/40 bg-vibe-accent/10 px-2 py-0.5 text-[11px] text-vibe-accent hover:bg-vibe-accent/20"
+            >
+              {t('filteredByPost', { id: postId })}
+              <span aria-hidden="true">×</span>
+            </button>
           )}
         </div>
         <select

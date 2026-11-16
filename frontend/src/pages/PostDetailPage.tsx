@@ -11,7 +11,7 @@ import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
 import { AI_REVIEW } from '../lib/postStatus';
 import { timeAgo } from '../lib/time';
-import { readVariables } from '../components/promptMetadata';
+import { readRole, readVariables } from '../components/promptMetadata';
 import Avatar from '../components/Avatar';
 import CommentBody from '../components/CommentBody';
 import CodeBlock from '../components/CodeBlock';
@@ -131,13 +131,16 @@ export default function PostDetailPage() {
     setLikeCount(serverLikeCount ?? 0);
   }, [serverPostId, serverLikedByMe, serverLikeCount]);
 
+  // Always fetched for a reviewed post: the voucher's call count is the number
+  // of review-log rows this endpoint already serves, so the count and the history
+  // panel cannot disagree. The panel below just reveals the same data.
   const { data: reviewHistory } = useQuery<AiReviewDetail[]>({
     queryKey: ['agent-logs', 'post', id, 'history'],
     queryFn: async () => {
       const res = await apiClient.get<ApiResponse<AiReviewDetail[]>>(`/agent-logs/post/${id}`);
       return res.data.data ?? [];
     },
-    enabled: !!id && showHistory,
+    enabled: !!id && post?.aiReviewed === AI_REVIEW.REVIEWED,
   });
 
   const commentMutation = useMutation({
@@ -210,6 +213,7 @@ export default function PostDetailPage() {
 
   // Prompt Playground state
   const variables = useMemo(() => readVariables(post?.promptMetadata), [post]);
+  const promptRole = readRole(post?.promptMetadata);
 
   const [varValues, setVarValues] = useState<Record<string, string>>({});
 
@@ -305,6 +309,13 @@ export default function PostDetailPage() {
             <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5">{post.categoryName}</span>
             {post.postType === 'prompt' && (
               <span className="rounded-full border border-vibe-border px-1.5 py-0.5">{t('post:template')}</span>
+            )}
+            {/* The row used to carry the prompt's role; it lives here now, where
+                there is room to read it. */}
+            {promptRole && (
+              <span className="max-w-[220px] truncate rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5" title={promptRole}>
+                {promptRole}
+              </span>
             )}
             {post.postType === 'prompt' && post.versionCount > 0 && (
               <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5 tabular-nums">v{post.versionCount}</span>
@@ -531,7 +542,11 @@ export default function PostDetailPage() {
           ) : aiReviewError ? (
             <AiReviewTerminal state="error" onRetry={() => refetchAiReview()} />
           ) : aiReviewDetail ? (
-            <AiReviewTerminal state="data" detail={aiReviewDetail} />
+            <AiReviewTerminal
+              state="data"
+              detail={aiReviewDetail}
+              reviewCount={reviewHistory?.length}
+            />
           ) : (
             <AiReviewTerminal state="unavailable" />
           )}

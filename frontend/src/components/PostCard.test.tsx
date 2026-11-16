@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { render, screen, within } from '@testing-library/react';
+import { fireEvent, render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import PostCard, { PostStateBadges } from './PostCard';
 import type { PostPageVo } from '../types/post';
@@ -122,7 +122,7 @@ describe('PostCard rendered without the status prop (A7)', () => {
     expect(screen.queryByTitle('Fork template')).not.toBeInTheDocument();
   });
 
-  it('renders the held prompt with copy and fork actions and its role', () => {
+  it('renders the held prompt with copy and fork actions, without the retired row metadata', () => {
     vi.spyOn(Date, 'now').mockReturnValue(NOW);
 
     renderCard(fixtures.pendingPrompt);
@@ -131,9 +131,28 @@ describe('PostCard rendered without the status prop (A7)', () => {
     expect(screen.getByTitle('Copy prompt')).toBeInTheDocument();
     expect(screen.getByTitle('Fork template')).toBeInTheDocument();
     expect(screen.getByTitle('Fork template')).not.toBeDisabled();
-    // The prompt's role survives as metadata; the status code never shows here.
-    expect(screen.getByText('reviewer')).toBeInTheDocument();
+    // B3: role and template badges left the row; the detail page carries them now.
+    expect(screen.queryByText('reviewer')).not.toBeInTheDocument();
+    expect(screen.queryByText('Template')).not.toBeInTheDocument();
     expect(screen.queryByTestId('post-status-badge')).not.toBeInTheDocument();
+  });
+
+  it('reveals the first code block on demand, collapsed by default (D1)', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+
+    renderCard(fixtures.pendingPrompt);
+
+    const toggle = screen.getByRole('button', { name: 'Toggle ts preview' });
+    expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    expect(screen.queryByText(/const x = 1;/)).not.toBeInTheDocument();
+
+    fireEvent.click(toggle);
+
+    expect(toggle).toHaveAttribute('aria-expanded', 'true');
+    expect(screen.getByText(/const x = 1;/)).toBeInTheDocument();
+    // The metadata line is still a single non-wrapping row in the DOM.
+    const meta = screen.getByRole('link', { name: 'A held prompt' }).closest('article')!.querySelector('.whitespace-nowrap');
+    expect(meta).not.toBeNull();
   });
 
   it('keeps a rejected post off the state badges: no reason in the public feed', () => {

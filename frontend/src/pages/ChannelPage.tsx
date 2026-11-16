@@ -1,5 +1,5 @@
-﻿import { useEffect, useState } from 'react';
-import { Link, useParams, useSearchParams } from 'react-router-dom';
+﻿import { useState } from 'react';
+import { useParams, useSearchParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { useTranslation } from 'react-i18next';
 import { apiClient } from '../api/client';
@@ -8,39 +8,13 @@ import Pagination from '../components/Pagination';
 import Skeleton from '../components/Skeleton';
 import EmptyState from '../components/EmptyState';
 import { channelLabel } from '../lib/channels';
-import type { Channel, PostPageVo } from '../types/post';
-
-const DESKTOP_QUERY = '(min-width: 768px)';
-
-/**
- * A4-4: the unanswered panel is not mounted below `md`, rather than mounted and
- * hidden with CSS. At phone widths it would push the feed below the fold, and
- * "not rendered" is a stronger promise than `display: none`.
- */
-function useIsDesktop(): boolean {
-  const [matches, setMatches] = useState(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return false;
-    return window.matchMedia(DESKTOP_QUERY).matches;
-  });
-
-  useEffect(() => {
-    if (typeof window === 'undefined' || typeof window.matchMedia !== 'function') return;
-    const mql = window.matchMedia(DESKTOP_QUERY);
-    const onChange = () => setMatches(mql.matches);
-    onChange();
-    mql.addEventListener('change', onChange);
-    return () => mql.removeEventListener('change', onChange);
-  }, []);
-
-  return matches;
-}
+import type { Channel } from '../types/post';
 
 export default function ChannelPage() {
   const { t } = useTranslation('channel');
   const { slug } = useParams<{ slug: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const [page, setPage] = useState(1);
-  const isDesktop = useIsDesktop();
   // A6-4: the ordering lives in the URL so a refresh keeps it and a link shares it.
   const sort = searchParams.get('sort') === 'liked' ? 'liked' : 'latest';
 
@@ -124,20 +98,6 @@ export default function ChannelPage() {
     staleTime: 1000 * 60 * 2,
   });
 
-  const { data: unanswered } = useQuery<PostPageVo[]>({
-    // Channel-aware key and query: the waiting panel belongs to the channel you
-    // are in, so the cache must not hand one channel's rows to another.
-    queryKey: ['posts', 'unanswered', channel?.id],
-    queryFn: async () => {
-      const res = await apiClient.get('/posts/unanswered', {
-        params: { size: 5, ...(channel ? { channelId: channel.id } : {}) },
-      });
-      return (res.data.data ?? []) as PostPageVo[];
-    },
-    enabled: !!channel,
-    staleTime: 1000 * 60 * 2,
-  });
-
   if (!slug) {
     return (
       <div className="mx-auto max-w-[1400px] px-4 py-16 text-center">
@@ -157,97 +117,62 @@ export default function ChannelPage() {
 
   return (
     <div className="mx-auto max-w-[1400px] px-4 py-8">
-      <div className="flex gap-6">
-        {/* The channel rail lives in the app shell; the page owns only its feed. */}
-        <div className="min-w-0 flex-1">
-          {channel && (
-            <h1 className="mb-6 border-b border-vibe-border pb-3 text-xl font-semibold text-vibe-text">
-              # {channelLabel(channel.slug) || channel.name}
-            </h1>
-          )}
+      {/* The channel rail lives in the app shell; the page owns only its feed.
+          The "等待回答" column is gone: it repeated rows the feed already shows
+          and cost the list a third of its width on desktop. */}
+      <div className="min-w-0">
+        {channel && (
+          <h1 className="mb-6 border-b border-vibe-border pb-3 text-xl font-semibold text-vibe-text">
+            # {channelLabel(channel.slug) || channel.name}
+          </h1>
+        )}
 
-          {channel && (
-            <div className="mb-4 flex items-center gap-2 text-xs">
-              <span className="text-vibe-muted">{t('orderLabel')}</span>
-              {(['latest', 'liked'] as const).map((option) => (
-                <button
-                  key={option}
-                  type="button"
-                  onClick={() => changeSort(option)}
-                  aria-pressed={sort === option}
-                  className={
-                    'rounded-full border px-2.5 py-1 transition-colors ' +
-                    (sort === option
-                      ? 'border-vibe-accent/60 bg-vibe-accent/10 text-vibe-accent'
-                      : 'border-vibe-border text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-text')
-                  }
-                >
-                  {option === 'latest' ? t('sortLatest') : t('sortLiked')}
-                </button>
-              ))}
-            </div>
-          )}
+        {channel && (
+          <div className="mb-4 flex items-center gap-2 text-xs">
+            <span className="text-vibe-muted">{t('orderLabel')}</span>
+            {(['latest', 'liked'] as const).map((option) => (
+              <button
+                key={option}
+                type="button"
+                onClick={() => changeSort(option)}
+                aria-pressed={sort === option}
+                className={
+                  'press-feedback rounded-full border px-2.5 py-1 transition-colors ' +
+                  (sort === option
+                    ? 'border-vibe-accent/60 bg-vibe-accent/10 text-vibe-accent'
+                    : 'border-vibe-border text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-text')
+                }
+              >
+                {option === 'latest' ? t('sortLatest') : t('sortLiked')}
+              </button>
+            ))}
+          </div>
+        )}
 
-          {isLoading ? (
-            <div className="space-y-4 px-3 py-2">
-              {[1, 2, 3].map((i) => (
-                <div key={i} className="space-y-2">
-                  <Skeleton className="h-4 w-3/4" />
-                  <Skeleton className="h-3 w-1/2" />
-                </div>
-              ))}
-            </div>
-          ) : postsData && postsData.list.length > 0 ? (
-            <>
-              <div>
-                {postsData.list.map((post: any) => (
-                  <PostCard key={post.id} post={post} />
-                ))}
+        {isLoading ? (
+          <div className="space-y-4 px-3 py-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="space-y-2">
+                <Skeleton className="h-4 w-3/4" />
+                <Skeleton className="h-3 w-1/2" />
               </div>
-              <Pagination
-                page={postsData.page}
-                pages={postsData.pages}
-                onPageChange={setPage}
-              />
-            </>
-          ) : (
-            <EmptyState preset="noPosts" {...emptyGuide} />
-          )}
-        </div>
-
-        {isDesktop && channel && (
-          <aside aria-label={t('waiting.ariaLabel')} className="w-72 shrink-0">
-            <div className="rounded-lg border border-vibe-border bg-vibe-surface p-4">
-              <h2 className="mb-1 text-xs font-semibold text-vibe-text">{t('waiting.title')}</h2>
-              <p className="mb-3 text-xs text-vibe-muted">{t('waiting.desc')}</p>
-              {unanswered === undefined ? null : unanswered.length > 0 ? (
-                <ul className="space-y-1">
-                  {unanswered.map((post) => (
-                    <li key={post.id}>
-                      <Link
-                        to={'/post/' + post.id}
-                        className="group block rounded-md p-2 transition-colors hover:bg-vibe-card"
-                      >
-                        <p className="line-clamp-2 text-xs leading-snug text-vibe-text">{post.title}</p>
-                        <p className="mt-1 text-xs tabular-nums text-vibe-muted">
-                          {t('waiting.rowMeta', { author: post.authorName, likes: post.likeCount })}
-                        </p>
-                      </Link>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <EmptyState
-                  preset="noPosts"
-                  title={t('waiting.emptyTitle')}
-                  desc={t('waiting.emptyDesc')}
-                  action={null}
-                  actionLabel={null}
-                  className="py-8"
-                />
-              )}
+            ))}
+          </div>
+        ) : postsData && postsData.list.length > 0 ? (
+          <>
+            <div>
+              {postsData.list.map((post: any) => (
+                <PostCard key={post.id} post={post} />
+              ))}
             </div>
-          </aside>
+            <Pagination
+              page={postsData.page}
+              pages={postsData.pages}
+              onPageChange={setPage}
+            />
+          </>
+        ) : (
+          <EmptyState preset="noPosts" {...emptyGuide} />
         )}
       </div>
     </div>

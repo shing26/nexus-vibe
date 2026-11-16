@@ -66,6 +66,15 @@
  @tailwind components;
  @tailwind utilities;
 
+ @layer components {
+   /* The restrained press feedback of v1, back by rule 3 of the v2 spec ("motion
+      only when it communicates state"): a tap on a control is state. Reduced-motion
+      readers get no transform at all. */
+   .press-feedback {
+     @apply origin-center active:scale-[0.98] motion-reduce:transform-none;
+   }
+ }
+
  @layer base {
    body {
      @apply bg-vibe-bg text-vibe-text font-sans antialiased selection:bg-vibe-accent/20 selection:text-vibe-text;

@@ -77,7 +77,9 @@
     },
     "language": {
       "label": "Language",
-      "toggle": "切换到中文",
+      "toggle": "Switch to Chinese",
+      "switchToEnglish": "Switch to English",
+      "switchToChinese": "Switch to Chinese",
       "current": "English"
     },
     "theme": {
@@ -119,6 +121,9 @@
         "console": "console",
         "post": "post"
       }
+    },
+    "evidence": {
+      "title": "Evidence"
     },
     "footer": {
       "rights": "© {{year}} Nexus-Vibe. All rights reserved.",
@@ -268,7 +273,6 @@
       "kicker": "Read a real review — no account needed",
       "desc": "A recorded run of the review pipeline: it scored this snippet {{score}}/10 and wrote the findings on that page. Copied verbatim, not written by hand."
     },
-    "channelGridAria": "Channel directory",
     "tags": {
       "title": "Hot Tags",
       "subtitle": "Browse the community by topic",
@@ -407,7 +411,9 @@
       "copiedLabel": "Copied",
       "forkTitle": "Fork template",
       "copyPromptTitle": "Copy prompt",
-      "copyLinkTitle": "Copy link"
+      "copyLinkTitle": "Copy link",
+      "preview": "Code preview",
+      "togglePreview": "Toggle {{label}} preview"
     },
     "deleteConfirm": "Delete this post? This action cannot be undone.",
     "notFoundTitle": "404 — Post Not Found",
@@ -439,6 +445,10 @@
     },
     "review": {
       "title": "AI Review",
+      "model": "Model",
+      "calls": "{{n}} call(s)",
+      "duration": "{{value}}",
+      "rawLog": "Raw review log",
       "toggleDetails": "Toggle review details",
       "scoreLabel": "Score: {{score}}/100",
       "scoreSuffix": "/100",
@@ -675,14 +685,17 @@
       "posts": "Posts",
       "comments": "Comments",
       "likesReceived": "Likes Received",
+      "reviewedPosts": "Reviewed",
       "avgAi": "Avg AI Score",
       "forks": "Forks",
-      "versions": "Versions"
+      "versions": "Versions",
+      "secondaryLine": "Comments {{comments}} · Avg AI score {{avgAi}} · Forks {{forks}} · Versions {{versions}}"
     },
     "statTitles": {
       "posts": "Published post count",
       "comments": "Comment count",
       "likesReceived": "Likes received on public posts",
+      "reviewedPosts": "Posts with an AI review (derived from the loaded post list)",
       "avgAi": "Avg AI score excludes unreviewed posts",
       "forks": "Prompt fork count",
       "versions": "Prompt version count"
@@ -819,6 +832,7 @@
     },
     "recentReviews": "Recent Reviews",
     "entries": "{{n}} entries",
+    "filteredByPost": "Post #{{id}} only",
     "filters": {
       "all": "All",
       "codeReview": "Code Review",

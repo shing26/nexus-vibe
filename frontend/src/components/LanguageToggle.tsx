@@ -5,23 +5,26 @@ import { setAppLanguage } from '../i18n';
 import type { AppLanguage } from '../i18n';
 
 /**
- * The language toggle. The button's label names the language it would switch to,
- * in that language — the standard picker convention, so the target is readable
- * no matter which language the reader is currently in.
+ * The language toggle. The visible glyph stays the language code itself (EN /
+ * 中), but `aria-label` and `title` are a full sentence in the CURRENT language
+ * naming the target: a zh reader hears "切换到英语", an en reader "Switch to
+ * Chinese". Naming the target in the target language only helps a reader who
+ * already reads it; the current-language sentence is the accessible convention.
  */
 export default function LanguageToggle({ className = '' }: { className?: string }) {
   const { t } = useTranslation('common');
   const current = i18next.resolvedLanguage === 'en' ? 'en' : 'zh';
   const next: AppLanguage = current === 'en' ? 'zh' : 'en';
+  const label = next === 'en' ? t('language.switchToEnglish') : t('language.switchToChinese');
 
   return (
     <button
       type="button"
       onClick={() => setAppLanguage(next)}
-      aria-label={t('language.toggle')}
-      title={t('language.toggle')}
+      aria-label={label}
+      title={label}
       className={
-        'inline-flex items-center gap-1.5 rounded-md border border-vibe-border px-2 py-1.5 text-xs text-vibe-muted hover:bg-vibe-card hover:text-vibe-text transition-colors ' +
+        'press-feedback inline-flex items-center gap-1.5 rounded-md border border-vibe-border px-2 py-1.5 text-xs text-vibe-muted hover:bg-vibe-card hover:text-vibe-text transition-colors ' +
         className
       }
     >

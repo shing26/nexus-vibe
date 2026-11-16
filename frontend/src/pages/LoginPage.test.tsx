@@ -6,6 +6,7 @@ import { AxiosError, AxiosHeaders, type InternalAxiosRequestConfig } from 'axios
 import LoginPage from './LoginPage';
 import { apiClient } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
+import { useToastStore } from '../stores/toastStore';
 
 vi.mock('../api/client', () => ({
   apiClient: { get: vi.fn(), post: vi.fn(), put: vi.fn(), delete: vi.fn() },
@@ -84,6 +85,8 @@ describe('LoginPage', () => {
     await waitFor(() => expect(useAuthStore.getState().token).toBe('jwt-token'));
     expect(useAuthStore.getState().isAuthenticated).toBe(true);
     expect(useAuthStore.getState().refreshToken).toBe('jwt-refresh');
+    // The success copy is the client dictionary's, not the server envelope's.
+    expect(useToastStore.getState().toasts.map((toast) => toast.message)).toContain('Welcome back!');
     expect(screen.queryByText(/^!/)).not.toBeInTheDocument();
   });
 });

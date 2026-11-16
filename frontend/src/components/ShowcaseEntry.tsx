@@ -31,7 +31,7 @@ export default function ShowcaseEntry() {
   return (
     <Link
       to={'/post/' + data.postId}
-      className="group block rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-accent/10"
+      className="press-feedback group block rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-accent/10"
     >
       <div className="flex items-start gap-3 px-4 py-3">
         <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-vibe-accent/40 bg-vibe-accent/10">
