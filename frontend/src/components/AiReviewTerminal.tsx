@@ -6,6 +6,7 @@ import { useTranslation } from 'react-i18next';
 import { useReducedMotion } from 'motion/react';
 import { ReviewStepStrip } from './ui/ReviewStepStrip';
 import { REVIEW_STEPS } from './ui/reviewSteps';
+import { normalizeReviewScore } from '../lib/score';
 import type { AiReviewDetail } from '../types/post';
 
 export type AiReviewTerminalState = 'pending' | 'loading' | 'error' | 'unavailable' | 'data' | 'failed';
@@ -176,7 +177,7 @@ export const AiReviewTerminal: FC<AiReviewTerminalProps> = ({
   const countTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const score = detail?.score ?? null;
-  const finalScore = score == null ? null : score <= 10 ? Math.round(score * 10) : Math.round(score);
+  const finalScore = score == null ? null : normalizeReviewScore(score);
   const replaying = state === 'data' && !!detail && detail.severity !== 'unavailable';
 
   // The data state is a finished review being replayed, not a review being performed: this

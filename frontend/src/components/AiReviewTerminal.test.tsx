@@ -87,6 +87,17 @@ describe('AiReviewTerminal', () => {
     expect(screen.getByText('No findings.')).toBeInTheDocument();
   });
 
+  it('keeps the voucher display unchanged after the normalization moved to lib/score', () => {
+    // Raw 8 was 80 before the shared helper existed; the extraction must not move it.
+    renderTerminal({ state: 'data', detail: { ...detail, score: 8 } });
+    expect(screen.getByText('Score: 80/100')).toBeInTheDocument();
+  });
+
+  it('leaves a score already on the 0-100 scale alone', () => {
+    renderTerminal({ state: 'data', detail: { ...detail, score: 85 } });
+    expect(screen.getByText('Score: 85/100')).toBeInTheDocument();
+  });
+
   it('renders the voucher without expanding: model, calls, duration and raw-log link', () => {
     renderTerminal({ state: 'data', detail, reviewCount: 3 });
 
