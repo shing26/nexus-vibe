@@ -87,6 +87,22 @@ class AiLogControllerIntegrationTest {
     }
 
     @Test
+    @DisplayName("GET latest code review exposes the optional durationMs instrument")
+    void getLatestCodeReview_shouldExposeDurationWhenPresent() throws Exception {
+        AiReviewLog log = new AiReviewLog();
+        log.setPostId(3L);
+        log.setReviewer("code-review-agent");
+        log.setResultJson("{\"score\":8,\"severity\":\"low\",\"durationMs\":1234}");
+        log.setSeverity("low");
+        log.setIsApproved(1);
+        aiReviewLogMapper.insert(log);
+
+        mockMvc.perform(get("/api/v1/agent-logs/post/3/latest"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.durationMs", is(1234)));
+    }
+
+    @Test
     @DisplayName("GET agent log list without token should return 401")
     void listLogsWithoutToken_shouldReturn401() throws Exception {
         mockMvc.perform(get("/api/v1/agent-logs"))

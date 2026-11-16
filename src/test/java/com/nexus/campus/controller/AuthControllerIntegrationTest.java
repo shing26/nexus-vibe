@@ -79,6 +79,7 @@ class AuthControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.message", is("登录成功，欢迎回来，shing。")))
                 .andExpect(jsonPath("$.data.token", notNullValue()))
                 .andExpect(jsonPath("$.data.username", is("shing")))
                 .andExpect(jsonPath("$.data.role", is("USER")));

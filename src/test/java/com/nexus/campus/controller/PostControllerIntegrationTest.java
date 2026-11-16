@@ -120,6 +120,7 @@ class PostControllerIntegrationTest {
                         .content(objectMapper.writeValueAsString(request)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.message", is("帖子发布成功。")))
                 .andExpect(jsonPath("$.data.postId", notNullValue()))
                 .andExpect(jsonPath("$.data.status", is(1)));
     }
@@ -150,6 +151,7 @@ class PostControllerIntegrationTest {
                         .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code", is(200)))
+                .andExpect(jsonPath("$.message", is("点赞成功。")))
                 .andExpect(jsonPath("$.data.postId", is(Long.toString(existingPostId))))
                 .andExpect(jsonPath("$.data.currentLikes", notNullValue()));
     }

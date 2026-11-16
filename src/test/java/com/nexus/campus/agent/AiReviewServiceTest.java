@@ -118,6 +118,8 @@ class AiReviewServiceTest {
         assertEquals("stub-review-agent", logCaptor.getValue().getReviewer());
         assertEquals("low", logCaptor.getValue().getSeverity());
         assertEquals(1, logCaptor.getValue().getIsApproved());
+        // B8: the attempt is timed into the existing payload, no schema change.
+        assertTrue(logCaptor.getValue().getResultJson().contains("\"durationMs\""));
 
         // AI comment posted on the post, headed by the shared marker
         ArgumentCaptor<VibeComment> commentCaptor = ArgumentCaptor.forClass(VibeComment.class);

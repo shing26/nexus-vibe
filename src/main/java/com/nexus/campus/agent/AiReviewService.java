@@ -1,5 +1,9 @@
 package com.nexus.campus.agent;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nexus.campus.entity.VibeComment;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.SysMessage;
@@ -49,6 +53,9 @@ public class AiReviewService {
     @Autowired
     private CampusAiProperties aiProperties;
 
+    /** Used only to append the timing field to an already-produced result payload. */
+    private final ObjectMapper objectMapper = new ObjectMapper();
+
     /**
      * Full recording pipeline for one claimed post. A null verdict means the
      * LLM was unavailable; an invalid verdict degrades after the reviewer's
@@ -67,7 +74,13 @@ public class AiReviewService {
         Long postId = post.getId();
         String title = post.getTitle();
 
+        // B8: time the review attempt without adding a schema column. The number is
+        // merged into the result payload the reviewer already produced; a null
+        // payload (LLM unavailable) stays null, because AiLogController reads a
+        // non-empty result_json as "completed".
+        long startedNanos = System.nanoTime();
         Reviewer.Verdict verdict = reviewer.review(post);
+        long durationMs = Math.max(0L, (System.nanoTime() - startedNanos) / 1_000_000L);
 
         if (verdict == null) {
             log.warn("LLM unavailable for post {}; review marked FAILED for reconciliation", postId);
@@ -79,14 +92,15 @@ public class AiReviewService {
 
         if (!ReviewValidity.isValid(verdict)) {
             log.warn("Review result for post {} failed validation; degrading silently", postId);
-            saveReviewLog(postId, reviewer.identity(), verdict.getResultJson(), "unknown", 0);
+            saveReviewLog(postId, reviewer.identity(), withDuration(verdict.getResultJson(), durationMs),
+                    "unknown", 0);
             markPost(postId, AiReviewStatus.FAILED);
             notifyReviewFailed(postId, authorId, title, "评审结果未通过质量校验", retried, isFinalAttempt(attempts));
             return;
         }
 
         // Save review log
-        saveReviewLog(postId, reviewer.identity(), verdict.getResultJson(),
+        saveReviewLog(postId, reviewer.identity(), withDuration(verdict.getResultJson(), durationMs),
                 verdict.getSeverity(), verdict.isApproved() ? 1 : 0);
 
         // A new review supersedes the previous one: hide stale AI comments so
@@ -218,6 +232,27 @@ public class AiReviewService {
     }
 
     // ---- private helpers ----
+
+    /**
+     * Appends {@code durationMs} to the reviewer's JSON result. Legacy or
+     * malformed payloads are recorded unchanged rather than replaced: the raw
+     * output is evidence, and a timing field is not worth losing it over.
+     */
+    private String withDuration(String resultJson, long durationMs) {
+        if (resultJson == null || resultJson.isBlank()) {
+            return resultJson;
+        }
+        try {
+            JsonNode node = objectMapper.readTree(resultJson);
+            if (node != null && node.isObject()) {
+                ((ObjectNode) node).put("durationMs", durationMs);
+                return node.toString();
+            }
+        } catch (JsonProcessingException e) {
+            log.debug("Review result is not JSON; durationMs not appended: {}", e.getMessage());
+        }
+        return resultJson;
+    }
 
     private void saveReviewLog(Long postId, String reviewer, String resultJson,
                                String severity, int isApproved) {
