@@ -106,8 +106,11 @@ ADR 修订：[docs/adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md](
 
 - **B10 demo 数据** — `db/mysql/demo-content.sql` 重写为 10 条中文帖（频道 1–7；2 条 prompt、
   1 条 pending 状态帖），含标签、2 个 prompt 版本、6 条评论、3 条消息。showcase 候选为 post 3，
-  配两条 `ai_review_log`（id 9001/9002，`durationMs` 2210/1840）与真实评语；文件仍为
-  insert-only、无 DELETE，保留 `DemoContentSeederTest` 所需的 INSERT 语句。仅对
+  配两条 `ai_review_log`（id 9001/9002，`durationMs` 2210/1840）与真实评语；post 2 另配一条
+  匹配的评审行（id 9000：score 8、low、approved、`durationMs` 1670），使其已评审徽章与详情页
+  一致（Verifier observation 2 的修复）。全部 10 条帖已审计：`ai_reviewed=1` 的帖子必有日志且
+  最新日志分数等于 `ai_review_score`；未评审帖子分数为 0 且无日志；REVIEWING 帖子无既有日志。
+  文件仍为 insert-only、无 DELETE，保留 `DemoContentSeederTest` 所需的 INSERT 语句。仅对
   `DEMO_SEED_ENABLED=true` 且 `vibe_post` 为空的 MySQL 实例生效；线上库未动，H2
   `data.sql` 未改（不在 Allowed paths）。文件头注明可把 `SHOWCASE_POST_ID` 指向 3。
 

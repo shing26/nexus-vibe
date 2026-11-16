@@ -9,10 +9,11 @@
 -- below are the demo accounts it creates when seeding is enabled.
 --
 -- B10 curation rule: these read like posts people actually wrote. Every post is
--- in one of the seven real channels, post 3 is the showcase candidate and carries
--- two recorded ai_review_log rows (so its review voucher shows a real call count
--- and runtime), and nothing here announces itself as sample data. Point
--- SHOWCASE_POST_ID at 3 when this seed is the demo corpus.
+-- in one of the seven real channels, and nothing here announces itself as sample
+-- data. Reviewed rows and their logs agree: post 2 has one recorded review (the
+-- score-8 prompt post), post 3 is the showcase candidate and has two (the first
+-- submission and the fixed version), so each voucher shows a real call count and
+-- runtime. Point SHOWCASE_POST_ID at 3 when this seed is the demo corpus.
 -- =============================================================================
 INSERT INTO `vibe_post` (`id`, `title`, `content`, `user_id`, `category_id`, `status`, `like_count`, `comment_count`, `view_count`, `is_pinned`, `post_type`, `prompt_metadata`, `forked_from_id`, `ai_reviewed`, `ai_review_score`, `create_time`) VALUES
 (1, '先读这里：本站的 AI 评审会失败，而且会明确告诉你',
@@ -79,11 +80,15 @@ INSERT INTO `sys_message` (`id`, `from_user_id`, `to_user_id`, `content`, `type`
 (2, 4, 2, 'Bob 评论了你的帖子：把缓存从 HashMap 换成 Caffeine 之前，我先让它崩了一次', 2, 0, DATE_SUB(NOW(), INTERVAL 20 HOUR)),
 (3, 2, 4, 'shing 评论了你的帖子：多 Agent 协作里最贵的不是 token，是没人负责的重试', 2, 0, DATE_SUB(NOW(), INTERVAL 18 HOUR));
 
--- Two recorded code reviews for the showcase post (B10): the older one is the
--- first submission, the newer one is the fixed version. The review voucher
--- derives its call count from these rows, so a fresh deployment shows a real
--- "2 calls" and a real runtime instead of a hand-waved blank.
+-- Recorded reviews for every post whose ai_reviewed flag is 1. Post 2 has one
+-- (score 8, approved) so its reviewed badge resolves to a real detail instead of
+-- the "unavailable" state; post 3 has two (the first submission and the fixed
+-- version). The voucher derives its call count from these rows, so a fresh
+-- deployment shows a real count and runtime instead of a hand-waved blank.
 INSERT INTO `ai_review_log` (`id`, `post_id`, `reviewer`, `result_json`, `severity`, `is_approved`, `created_at`) VALUES
+(9000, 2, 'code-review-agent',
+ '{"score":8,"severity":"low","codeQuality":"输出契约、失败示例和修复指令都写进了 prompt，变量边界清楚；文本块里的键名与后端解析字段一致，没有依赖模型自由发挥。","securityConcerns":"示例没有包含真实密钥或用户数据；修复指令只要求补全语法，不会诱导模型改写语义。","optimizationSuggestions":"可以把 schema 单独抽成一段可复用文本，并补一个截断输出的修复示例；当前版本已经覆盖空结果与非法 JSON 两类失败。","isApproved":true,"durationMs":1670}',
+ 'low', 1, DATE_ADD(DATE_SUB(NOW(), INTERVAL 5 DAY), INTERVAL 20 MINUTE)),
 (9001, 3, 'code-review-agent',
  '{"score":5,"severity":"medium","codeQuality":"get 与 put 之间没有同步，且 HashMap 不是线程安全的；refreshAll 先 clear 再重建，所有并发请求会在同一个窗口里穿透到 load，形成缓存击穿。","securityConcerns":"缓存没有容量上限也没有过期策略，任何能控制 key 的调用方都可以把堆内存推高，构成拒绝服务风险。","optimizationSuggestions":"改用有容量上限和写入过期的缓存，并用 get(key, loader) 做单飞加载；refreshAll 改为在旁路构建新映射后原子替换，避免读者看到空缓存。","isApproved":false,"durationMs":2210}',
  'medium', 0, DATE_SUB(NOW(), INTERVAL 3 DAY)),
