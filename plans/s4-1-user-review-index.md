@@ -33,7 +33,9 @@
 src/main/java/com/nexus/campus/controller/AiLogController.java   # 新端点
 src/main/java/com/nexus/campus/dto/UserReviewEntry.java          # 新 DTO
 src/main/java/com/nexus/campus/service/AiReviewDetailService.java # 组装逻辑（如需）
+src/main/java/com/nexus/campus/security/JwtAuthFilter.java       # 公开前缀（2026-11-16 契约修订，见下）
 src/test/java/**                                                  # 控制器/集成测试
+README.md                                                         # 仅测试计数（验收 5 本身要求）
 docs/tickets/s4-1-user-review-index.md
 ```
 
@@ -44,6 +46,10 @@ docs/tickets/s4-1-user-review-index.md
    `logId` 即该行 `id`（可被 S4-3 用作溯源锚点）。
 3. 与 `UserProfileSummaryService` 的平均分口径一致：同一用户的"被评审帖子数"与"平均分"
    可由本端点数据独立复算得到相同结果（用一个测试钉住这一点）。
+   **上限 caveat（2026-11-16 Verifier 查出，契约自证）**：本端点上限 50，而 profile 平均分用全量；
+   评审帖子数 >50 的用户上两条要求字面不可同时满足。本契约接受此张力：caveat 记录在此，
+   复算一致性只保证在 ≤50 的范围内成立；若日后需要全量一致性，把 profile 的统计人群也截到 50，
+   或给端点加分页（新契约，不在本票）。
 4. 用户不存在 → 空数组；帖子已不可见 → 该条跳过；不乱序、不重复 postId。
 5. 不新增 schema、不改既有端点行为、不新增运行时依赖；`mvn -B test` 全绿，
    后端测试计数变化同步 README 徽章与 Testing 段（同一提交）。
@@ -64,3 +70,13 @@ grep -rn 'selectLatestCodeReviewLogsByUserId' src/main/java                     
 - 不改既有端点响应形状；不删/弱化测试断言。
 - 不返回 resultJson 原文或 findings 文本（只给可溯源元数据）。
 - 不重写已发布历史；实现走 `codex/s4-1-user-review-index` 分支 + PR。
+
+## 契约修订记录
+
+- **2026-11-16 · 追认越界（用户书面）**：
+  1. `security/JwtAuthFilter.java` 补入 Allowed paths。理由：本项目的公开性只由该 servlet filter
+     强制（`SecurityConfig` 仅注册它），不加前缀则公开端点一律 401，验收 1 在契约内无解。
+     Verifier 判定 ACCEPTABLE-DEVIATION：单条增量前缀，未重排/放宽既有判断，其他路径行为不变。
+     安全面留档：新前缀下所有 GET 自动公开（当前仅此一个路由）；若该子树日后新增端点，必须显式评审。
+  2. `README.md` 补入 Allowed paths——验收 5 自身要求同步计数，属契约漏列而非越权。
+  3. C3 上限 caveat 写入验收标准 3（Verifier 查出的契约自证张力）。
