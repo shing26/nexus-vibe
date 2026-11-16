@@ -1,8 +1,7 @@
 # S4-1 按用户聚合的评审记录读取面
 
-Status: **已实现，待独立 Verifier 复核**（实现分支 `codex/s4-1-user-review-index`，worktree
-`.claude/worktrees/s4-1`；契约冻结提交 `e73c9cf`，基线 master `517f852`）。本文件由实现方撰写；
-验收结论以独立 Verifier 的重跑证据为准。
+Status: **已验收（2026-11-16，签收；含契约追认）**（实现分支 `codex/s4-1-user-review-index`，
+worktree `.claude/worktrees/s4-1`；契约冻结提交 `e73c9cf`，基线 master `517f852`）。
 
 ## Scope
 
@@ -129,3 +128,19 @@ ls target/surefire-reports/*.txt | wc -l → 91（类数未变，新增测试并
   无需改 profile DTO/响应形状（也超出 Allowed paths）。
 - **回填/修改共享 fixture（`data.sql`）** — 种子数据在测试内按需插入，避免影响其他测试的
   既有计数断言。
+
+## 验收与签收记录
+
+- **Verifier 独立复核**（2026-11-16，全新会话 verifier subagent）：绑定 HEAD `a29a57a`，6/6 条标准 PASS。
+  `mvn -B test` **546/91 全绿** + 覆盖率 floor 达标（亲自重跑，2:28）；surefire 报告 91 个均为本次新写。
+  证据要点：端点公开且无 `AdminGuard`；每帖最新 + `reviewedAt` 降序 + 上限 50（断言恰好 50 且第 51 条不存在）；
+  DTO 恰为 8 个字段、与凭证卡共用解析路径、`logId` 即日志行 id、无 resultJson/findings；
+  未知用户返回空数组；不可见帖跳过；测试 diff 190 行纯新增、零断言删除。
+  C3 口径钉测试被判定非循环论证（取错最新→3.0、含隐藏帖→5.0、计数错 都会失败）。
+- **越界裁决**：`security/JwtAuthFilter.java` = ACCEPTABLE-DEVIATION（必要性成立：公开性只由该 filter 强制，
+  契约内无替代；改动为单条增量前缀，其他路径行为不变）；`README.md` = 契约漏列（验收 5 自身要求同步计数）。
+  安全面留档：新前缀下所有 GET 自动公开，当前仅此一路由；子树日后扩增需显式评审。
+- **契约修订（用户书面追认）**：两处路径补入 Allowed paths；C3 上限 caveat 写入验收标准 3
+  （>50 条评审的用户无法用端点复算全量平均分——契约自证张力，本票接受并留档）。
+- **用户书面签收**（2026-11-16）："书面追认 JwtAuthFilter.java 与 README.md 两处路径（并把 C3 上限 caveat
+  写进契约），签收 S4-1 并开 PR"。
