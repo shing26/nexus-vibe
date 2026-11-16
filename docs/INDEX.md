@@ -32,6 +32,9 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0017](adr/0017-comments-are-checked-after-they-are-visible.md) | Comments are safety-checked after they are visible, not before - a deliberate divergence from fail-closed |
 | [0018](adr/0018-a-comment-mentioning-the-agent-summons-it.md) | A comment mentioning the agent summons it, and silence is not an option - placeholder reply, cooldown, no recursion |
 | [0019](adr/0019-degraded-capabilities-are-a-closed-server-owned-vocabulary.md) | A degraded capability is published as a closed, server-owned vocabulary - the banner reads consequence, not health |
+| [0020](adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md) | The forge pivot replaces the terminal aesthetic |
+| [0021](adr/0021-content-is-stored-raw-and-escaped-at-egress.md) | Content is stored raw and escaped at egress |
+| [0022](adr/0022-reopening-scope-for-the-self-demonstrating-community.md) | The scope reopens for a self-demonstrating community - ADR-0009's freeze is superseded |
 
 ## Measurements — `docs/research/`
 
