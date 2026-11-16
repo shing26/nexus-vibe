@@ -1,6 +1,6 @@
 # 设计改造修复轮 B（design-overhaul-fixes-b）
 
-Status: **已实现，待独立验证（2026-11-16）**。契约：[plans/design-overhaul-fixes-b.md](../plans/design-overhaul-fixes-b.md)
+Status: **已验收（2026-11-16，签收；含契约追认）**。契约：[plans/design-overhaul-fixes-b.md](../plans/design-overhaul-fixes-b.md)
 （冻结提交 b66bdad，基线 master 3f6e8ce）；规范：[docs/design/ui-visual-system-v2.md](../design/ui-visual-system-v2.md)；
 ADR 修订：[docs/adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md](../adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md)
 末节 Amendment。实现分支 `codex/design-overhaul-fixes-b`，worktree
@@ -252,3 +252,9 @@ grep -rn 'active:scale' frontend/src | wc -l → 1（index.css 的 .press-feedba
                                 @media (prefers-reduced-motion:reduce){.press-feedback{transform:none}}
 git diff -- frontend/vite.config.ts → 空（代理已还原 8081）
 ```
+
+## 验收与签收记录
+
+- **Verifier 独立复核**（2026-11-16，全新会话 verifier subagent）：三轮。首轮绑定 HEAD `a9dabe8`——17/17 项 PASS，前端 120/22（首次跑复现内存压力下的 worker OOM，4-worker 重跑全绿，未改配置）、后端 541/91 全绿 + JaCoCo 实测 78.11%、11 张截图亲验（尺寸精确、四角干净）、断言 14 行删除全部留痕；同时判定两个读侧 Java 文件的越界为 **ACCEPTABLE-DEVIATION**（必要、纯增量、已留痕），但要求维护者书面追认。第二轮（demo 第 2 条一致性修复，HEAD `35b2e38`）PASS，并顺带发现两处前置时间线矛盾。第三轮（时间线修复，HEAD `324f3fb`）PASS——Verifier 自行重算全部时间线，与实现方表格逐项吻合，10 条帖子的依赖行全部晚于其帖子且早于 NOW()，评审 9001→9002 顺序与分数解析一致。
+- **契约修订**（用户追认）：`dto/AiReviewDetail.java` 与 `service/AiReviewDetailService.java` 补入 Allowed paths，理由与教训记入契约"契约修订记录"段。
+- **用户书面签收**（2026-11-16）："把两处时间线矛盾一并修掉（demo-content.sql 里调整时间），复验后追认契约修订并签收"——用户已授权在复验通过后追认并签收。

@@ -53,6 +53,8 @@ frontend/src/**
 src/main/java/com/nexus/campus/controller/AuthController.java   # B9 登录文案
 src/main/java/com/nexus/campus/controller/PostController.java   # B9 发帖/点赞文案
 src/main/java/com/nexus/campus/agent/**                         # B8 resultJson 时长打点
+src/main/java/com/nexus/campus/dto/AiReviewDetail.java           # B8 读侧：durationMs 字段（2026-11-16 契约修订，用户书面追认）
+src/main/java/com/nexus/campus/service/AiReviewDetailService.java # B8 读侧：resultJson 数值读取（同上）
 src/test/java/**                                                # 后端测试
 src/main/resources/db/mysql/demo-content.sql                    # B10
 docs/design/ui-visual-system-v2.md                              # B1 首页结构同步、D5 动效澄清、D7 双方言原则、B8 默认态修订
@@ -87,3 +89,11 @@ grep -rn 'active:scale' frontend/src | wc -l    # 期望 > 0
 数据库 schema 不新增列（B8 用 resultJson 打点规避迁移）；线上数据不动（B10 只改 demo-content.sql）；
 docker/.env 不碰；不新增运行时依赖；路由不变；断言不弱化；v2 规范与 ADR-0020 正文改动仅限
 B1/B8/D5/D7 四条同步。
+
+## 契约修订记录
+
+- **2026-11-16 · 追认越界**：实现期发现 B8 读侧缺口——`durationMs` 只存在于 `ai_review_log.result_json`，
+  浏览器可达的全部端点返回的 DTO 均不含 `resultJson`，而冻结的 Allowed paths 只授权了写侧（`agent/**`）。
+  Verifier 判定 ACCEPTABLE-DEVIATION（必要、纯增量可空字段 + 数值读取器、已留痕），用户书面追认后
+  将 `dto/AiReviewDetail.java` 与 `service/AiReviewDetailService.java` 补入 Allowed paths。
+  教训入下一轮契约模板：涉及"写入新字段"的验收项必须同时授权其读侧路径。
