@@ -1,6 +1,6 @@
 # Chaos Theatre A — a public exhibit of the unreliable-LLM pipeline
 
-Status: **implemented, awaiting independent verification** (2026-11-18).
+Status: **implemented, independently verified PASS** (2026-11-18); awaiting written sign-off.
 Branch `codex/chaos-theater-a`, worktree `.worktrees/chaos-theater-a`, contract frozen
 at `plans/chaos-theater-a.md` (base master `a38fe0a`).
 
@@ -78,6 +78,26 @@ curl -sS http://localhost:8081/api/v1/demo/chaos-scenarios   # dev profile, opti
 
 The independent Verifier must re-run these and bind evidence to HEAD SHA +
 `git status --short`; implementer logs are not evidence.
+
+## Verifier verdict (2026-11-18, independent)
+
+**PASS**, bound to HEAD `16a78a487bb3d1f7327b1248f00b15a1a1157962`, `git status --short`
+clean. The Verifier personally re-ran every command:
+
+- First round at `3086a60`: `mvn -B test` → 553/0/0/0 + coverage met + BUILD SUCCESS;
+  `npm run test -- --pool=threads` → **FAIL**, one deterministic test bug found —
+  `TheatreEntry` asserted the router prop `to` instead of the rendered `href`, so the
+  assertion could never pass. Everything else (path compliance, Forbidden checks,
+  no-weakened-tests) verified clean.
+- Fix: `16a78a4` changes exactly one line, `toHaveAttribute('to', …)` →
+  `toHaveAttribute('href', '/theatre')` — the assertion now matches the DOM `Link`
+  renders; no assertion weakened, no backend change between the two HEADs.
+- Re-verification at `16a78a4`: full vitest suite passed once (25 files / 136 tests);
+  a first full run had one LoginPage timing flake that passed in isolation twice
+  (recorded, not a blocker, not touched by this branch); lint and build exit 0.
+
+The flake is the same Windows fork/parallel-load class recorded under Deviations as an
+environment note; it is a pre-existing file untouched by this branch.
 
 ## Rejected
 
