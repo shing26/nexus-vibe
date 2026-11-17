@@ -160,7 +160,7 @@ describe('TheatreEntry', () => {
       </MemoryRouter>,
     );
 
-    expect(screen.getByTestId('theatre-entry')).toHaveAttribute('to', '/theatre');
+    expect(screen.getByTestId('theatre-entry')).toHaveAttribute('href', '/theatre');
     expect(screen.getByText('Enter the Chaos Theatre')).toBeInTheDocument();
   });
 });
