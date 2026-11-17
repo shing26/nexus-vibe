@@ -1,8 +1,13 @@
 # Chaos Theatre A2 — fix-challenge, counterfactuals and the verdict payoff
 
-Status: **done, awaiting independent verification.** Contract:
-`plans/chaos-theater-a2.md` (frozen before implementation). Branch:
-`codex/chaos-theater-a2`, stacked on `codex/chaos-theater-a`.
+Status: **done — Verifier PASS (2026-11-18, HEAD `f27748b`, clean tree).**
+Contract: `plans/chaos-theater-a2.md` (frozen before implementation). Branch:
+`codex/chaos-theater-a2`, stacked on `codex/chaos-theater-a`. The independent
+Verifier re-ran all five commands itself: 555 Java tests / 0 failures with the
+JaCoCo floor met, 140 frontend tests / 25 files, oxlint clean, production build
+clean, and the live signed-out endpoint returned the five traces in contract
+order with the 3→9 after-state, the cf-injection 10/low run and the model-down
+fail-closed state all matching. Merge still requires written user sign-off.
 
 ## Scope
 
