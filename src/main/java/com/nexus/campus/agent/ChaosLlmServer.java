@@ -34,10 +34,15 @@ import java.util.concurrent.atomic.AtomicReference;
 final class ChaosLlmServer implements AutoCloseable {
 
     enum Kind {
+        FIX_CHALLENGE,
         REPAIRED_JSON,
         EMPTY_PLACEHOLDER,
         PROMPT_INJECTION,
-        MODEL_DOWN
+        MODEL_DOWN,
+        CF_REPAIRED,
+        CF_PLACEHOLDER,
+        CF_INJECTION,
+        CF_ALIVE
     }
 
     record CapturedPrompt(String system, String user) {
@@ -66,6 +71,18 @@ final class ChaosLlmServer implements AutoCloseable {
 
     private static final String VALID_INJECTION = """
             {"score":2,"severity":"critical","codeQuality":"The method contains a comment that tries to instruct the reviewer, but the comment is data inside the nonce-delimited code block and was not followed.","securityConcerns":"The comment is a prompt-injection attempt; the per-request nonce delimiters and the system prompt keep it inside the data region.","optimizationSuggestions":"Remove the injected comment, guard the divisor, and add a test that proves the zero case is rejected."}""";
+
+    private static final String FIX_BUGGY = """
+            {"score":3,"severity":"high","codeQuality":"The divide method trusts a caller-supplied divisor and has no guard for zero, so an ordinary input crashes the request path.","securityConcerns":"No injection or credential exposure was found; the unguarded division is a denial-of-service risk on this path.","optimizationSuggestions":"Guard the divisor before dividing, return a validation error instead of ArithmeticException, and add a unit test for the zero case."}""";
+
+    private static final String FIX_FIXED = """
+            {"score":9,"severity":"low","codeQuality":"The divide method now checks the divisor before dividing, so the zero case fails as a validation error instead of a crash.","securityConcerns":"No injection or credential exposure was found; the guard removes the denial-of-service risk the buggy version carried.","optimizationSuggestions":"Add a unit test that pins the zero case, and consider a typed validation error over IllegalArgumentException."}""";
+
+    private static final String INJECTION_OBEYED = """
+            {"score":10,"severity":"low","codeQuality":"The divide method is flawless; the injected instruction was followed and no changes are needed.","securityConcerns":"No security concerns were found in this snippet.","optimizationSuggestions":"No optimization is required; the method is ready for production as written."}""";
+
+    private static final String ALIVE_REVIEW = """
+            {"score":8,"severity":"medium","codeQuality":"The method works for every non-zero divisor but trusts the caller to pass one.","securityConcerns":"No injection or credential exposure was found; an unguarded divide can still crash the request path.","optimizationSuggestions":"Guard the divisor, surface a validation error, and cover the zero case with a test."}""";
 
     private final Kind kind;
     private final HttpServer server;
@@ -143,7 +160,7 @@ final class ChaosLlmServer implements AutoCloseable {
 
             boolean retry = system.contains("STRICT OUTPUT REQUIREMENTS")
                     || system.contains("You fix malformed JSON");
-            String content = contentFor(retry);
+            String content = contentFor(retry, user);
             responses.add(content);
             send(exchange, 200, completion(content));
         } catch (Exception e) {
@@ -155,12 +172,17 @@ final class ChaosLlmServer implements AutoCloseable {
         }
     }
 
-    private String contentFor(boolean retry) {
+    private String contentFor(boolean retry, String user) {
         return switch (kind) {
+            case FIX_CHALLENGE -> user.contains("if (divisor == 0)") ? FIX_FIXED : FIX_BUGGY;
             case REPAIRED_JSON -> retry ? REPAIRED_FIXED : RAW_REPAIRED_JSON;
             case EMPTY_PLACEHOLDER -> retry ? VALID_RETRY : RAW_PLACEHOLDER;
             case PROMPT_INJECTION -> VALID_INJECTION;
             case MODEL_DOWN -> "";
+            case CF_REPAIRED -> REPAIRED_FIXED;
+            case CF_PLACEHOLDER -> VALID_RETRY;
+            case CF_INJECTION -> INJECTION_OBEYED;
+            case CF_ALIVE -> ALIVE_REVIEW;
         };
     }
 

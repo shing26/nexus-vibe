@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -31,6 +31,31 @@ const steps = (extra: Array<{ id: string; title?: string; mode: string; outcome:
   ...extra,
 ];
 
+const afterSteps = [
+  { id: 'input', title: 'Fixed input accepted', detail: 'after-input', mode: 'REAL', outcome: 'OK', payload: 'after-payload', offsetMs: '0' },
+  { id: 'model', title: 'Model re-scores', detail: 'after-model', mode: 'INJECTED', outcome: 'OK', payload: null, offsetMs: '400' },
+  { id: 'validate', title: 'Semantic gate', detail: 'after-validate', mode: 'REAL', outcome: 'OK', payload: null, offsetMs: '800' },
+  { id: 'verdict', title: 'Verdict recorded', detail: 'after-verdict', mode: 'REAL', outcome: 'OK', payload: null, offsetMs: '1200' },
+];
+
+const counterfactual = (overrides: Partial<Record<string, unknown>> = {}) => ({
+  id: 'cf-repaired',
+  label: 'If the model returned valid JSON',
+  summary: 'One clean call.',
+  modelAttempts: 1,
+  durationMs: '12',
+  score: 4,
+  severity: 'high',
+  failClosed: false,
+  steps: [
+    { id: 'input', title: 'Input accepted', detail: 'cf-input', mode: 'REAL', outcome: 'OK', payload: null, offsetMs: '0' },
+    { id: 'model', title: 'Model answered', detail: 'cf-model', mode: 'INJECTED', outcome: 'OK', payload: null, offsetMs: '400' },
+    { id: 'validate', title: 'Semantic gate', detail: 'cf-validate', mode: 'REAL', outcome: 'OK', payload: null, offsetMs: '800' },
+    { id: 'verdict', title: 'Verdict recorded', detail: 'cf-verdict', mode: 'REAL', outcome: 'OK', payload: null, offsetMs: '1200' },
+  ],
+  ...overrides,
+});
+
 const scenario = (overrides: Partial<Record<string, unknown>> = {}) => ({
   id: 'repaired-json',
   title: 'Repair the broken JSON',
@@ -38,8 +63,8 @@ const scenario = (overrides: Partial<Record<string, unknown>> = {}) => ({
   lesson: 'Repair-and-retry is a real ladder.',
   sampleCode: 'int x = 1;',
   promptPreview: '---BEGIN CODE---\nint x = 1;',
-  rawOutput: 'raw',
-  repairedJson: '{}',
+  rawOutput: '```json\n{"evidence": ["missing zero guard",]}\n```',
+  repairedJson: '{"score": 4}',
   score: 4,
   severity: 'high',
   approved: false,
@@ -48,8 +73,52 @@ const scenario = (overrides: Partial<Record<string, unknown>> = {}) => ({
   failClosed: false,
   steps: steps(),
   adr: 'docs/adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md',
+  fixedCode: null,
+  afterScore: null,
+  afterSeverity: null,
+  afterApproved: null,
+  afterSteps: null,
+  counterfactual: counterfactual(),
   ...overrides,
 });
+
+const fiveScenarios = () => [
+  scenario({
+    id: 'fix-challenge',
+    title: 'Apply the fix yourself',
+    lesson: 'The verdict moves because the code moved.',
+    score: 3,
+    severity: 'high',
+    approved: false,
+    counterfactual: null,
+    fixedCode: 'if (divisor == 0) { throw new IllegalArgumentException("no"); }',
+    afterScore: 9,
+    afterSeverity: 'low',
+    afterApproved: true,
+    afterSteps,
+  }),
+  scenario(),
+  scenario({
+    id: 'empty-placeholder',
+    title: 'Reject the empty answer',
+    counterfactual: counterfactual({ id: 'cf-placeholder' }),
+  }),
+  scenario({
+    id: 'prompt-injection',
+    title: 'Contain the instruction',
+    counterfactual: counterfactual({ id: 'cf-injection', score: 10, severity: 'low' }),
+  }),
+  scenario({
+    id: 'model-down',
+    title: 'Survive the dead model',
+    failClosed: true,
+    score: null,
+    severity: null,
+    approved: null,
+    counterfactual: counterfactual({ id: 'cf-alive', score: 8, severity: 'medium' }),
+    steps: steps([{ id: 'fail-closed', title: 'No verdict, no publication', mode: 'POLICY', outcome: 'FAIL' }]),
+  }),
+];
 
 function renderPage() {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
@@ -71,22 +140,13 @@ describe('TheatrePage', () => {
     get.mockReset();
   });
 
-  it('renders the disclosure and all four scenarios on success', async () => {
-    get.mockResolvedValue({
-      data: {
-        code: 200,
-        data: [
-          scenario(),
-          scenario({ id: 'empty-placeholder', title: 'Reject the empty answer' }),
-          scenario({ id: 'prompt-injection', title: 'Contain the instruction' }),
-          scenario({ id: 'model-down', title: 'Survive the dead model', failClosed: true, score: null, severity: null, approved: null }),
-        ],
-      },
-    });
+  it('renders the disclosure and all five scenarios on success', async () => {
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
 
     renderPage();
 
     expect(await screen.findByTestId('theatre-disclosure')).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /Apply the fix yourself/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Repair the broken JSON/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Reject the empty answer/ })).toBeInTheDocument();
     expect(screen.getByRole('button', { name: /Contain the instruction/ })).toBeInTheDocument();
@@ -94,40 +154,81 @@ describe('TheatrePage', () => {
   });
 
   it('labels every revealed step with its honesty mode', async () => {
-    get.mockResolvedValue({ data: { code: 200, data: [scenario()] } });
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
 
     renderPage();
 
-    await screen.findByText('Repaired JSON accepted');
+    await screen.findByTestId('verdict-payoff');
     expect(stepBadges()).toContain('REAL');
     expect(stepBadges()).toContain('INJECTED');
   });
 
-  it('switches scenarios and shows the fail-closed state', async () => {
+  it('renders a score dial with a severity stamp payoff', async () => {
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
+
+    renderPage();
+
+    const dial = await screen.findByTestId('score-dial');
+    expect(dial).toHaveAttribute('data-score', '3');
+    expect(screen.getByTestId('verdict-stamp')).toHaveAttribute('data-stamp', 'attention');
+  });
+
+  it('applies the fix and stamps the after-verdict as approved', async () => {
     const user = userEvent.setup();
-    get.mockResolvedValue({
-      data: {
-        code: 200,
-        data: [
-          scenario(),
-          scenario({
-            id: 'model-down',
-            title: 'Survive the dead model',
-            failClosed: true,
-            score: null,
-            severity: null,
-            approved: null,
-            steps: steps([{ id: 'fail-closed', title: 'No verdict, no publication', mode: 'POLICY', outcome: 'FAIL' }]),
-          }),
-        ],
-      },
-    });
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
+
+    renderPage();
+
+    await screen.findByTestId('verdict-payoff');
+    expect(screen.queryByText('after-payload')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('apply-fix'));
+
+    expect(await screen.findByText('after-payload')).toBeInTheDocument();
+    expect(screen.getByTestId('verdict-stamp')).toHaveAttribute('data-stamp', 'approved');
+    expect(screen.getByTestId('fix-state')).toHaveTextContent('9/10');
+  });
+
+  it('reveals the counterfactual run for a failure scenario', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
+
+    renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /Contain the instruction/ }));
+    expect(screen.queryByTestId('cf-panel')).not.toBeInTheDocument();
+
+    await user.click(screen.getByTestId('cf-toggle'));
+
+    const panel = await screen.findByTestId('cf-panel');
+    const modes = within(panel)
+      .getAllByTestId('mode-badge')
+      .map((badge) => badge.getAttribute('data-mode'));
+    expect(modes).toContain('INJECTED');
+  });
+
+  it('switches scenarios and shows the fail-closed stamp and policy steps', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
 
     renderPage();
 
     await user.click(await screen.findByRole('button', { name: /Survive the dead model/ }));
     expect(await screen.findByTestId('fail-closed-chip')).toBeInTheDocument();
+    expect(screen.getByTestId('verdict-stamp')).toHaveAttribute('data-stamp', 'unpublished');
     expect(stepBadges()).toContain('POLICY');
+  });
+
+  it('marks json defects and highlights valid json payloads', async () => {
+    const user = userEvent.setup();
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
+
+    const { container } = renderPage();
+
+    await user.click(await screen.findByRole('button', { name: /Repair the broken JSON/ }));
+    await screen.findByTestId('json-compare');
+    expect(container.querySelectorAll('[data-testid="json-defect"]').length).toBeGreaterThanOrEqual(1);
+    expect(container.querySelectorAll('[data-testid="json-highlight"]').length).toBeGreaterThanOrEqual(1);
   });
 
   it('shows an error panel with a retry control on failure', async () => {
@@ -140,10 +241,10 @@ describe('TheatrePage', () => {
   });
 
   it('renders step payloads in expandable details', async () => {
-    get.mockResolvedValue({ data: { code: 200, data: [scenario()] } });
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
 
     const { container } = renderPage();
-    await screen.findByText('Repaired JSON accepted');
+    await screen.findByTestId('verdict-payoff');
     expect(container.querySelectorAll('details summary').length).toBeGreaterThanOrEqual(2);
   });
 });

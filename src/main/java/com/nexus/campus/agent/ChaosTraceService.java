@@ -1,6 +1,7 @@
 package com.nexus.campus.agent;
 
 import com.nexus.campus.config.CampusAiProperties;
+import com.nexus.campus.dto.ChaosCounterfactualVo;
 import com.nexus.campus.dto.ChaosScenarioVo;
 import com.nexus.campus.dto.ChaosStepVo;
 import com.nexus.campus.entity.VibePost;
@@ -13,7 +14,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
- * Builds the Chaos Theatre's four traces once, at first request, from the real
+ * Builds the Chaos Theatre's five traces once, at first request, from the real
  * review pipeline.
  *
  * <p>The important boundary: this class does not write a trace by hand. It
@@ -36,7 +37,16 @@ public class ChaosTraceService {
                 return value / divisor;
             }""";
 
+    private static final String FIXED_CODE = """
+            public int divide(int value, int divisor) {
+                if (divisor == 0) {
+                    throw new IllegalArgumentException("divisor must not be zero");
+                }
+                return value / divisor;
+            }""";
+
     private static final List<String> ORDER = List.of(
+            "fix-challenge",
             "repaired-json",
             "empty-placeholder",
             "prompt-injection",
@@ -66,6 +76,7 @@ public class ChaosTraceService {
 
     private List<ChaosScenarioVo> generate() {
         List<ChaosScenarioVo> scenarios = new ArrayList<>(ORDER.size());
+        scenarios.add(buildFixChallenge());
         scenarios.add(buildRepairedJson());
         scenarios.add(buildEmptyPlaceholder());
         scenarios.add(buildPromptInjection());
@@ -73,7 +84,53 @@ public class ChaosTraceService {
         return List.copyOf(scenarios);
     }
 
+    private ChaosScenarioVo buildFixChallenge() {
+        try (ChaosLlmServer server = ChaosLlmServer.start(ChaosLlmServer.Kind.FIX_CHALLENGE)) {
+            CodeReviewReviewer reviewer = reviewer(server.baseUrl());
+            long startedAt = System.nanoTime();
+            Reviewer.Verdict verdict = reviewer.review(samplePost(SAMPLE_CODE));
+            Reviewer.Verdict after = reviewer.review(samplePost(FIXED_CODE));
+            long durationMs = Math.max(0, (System.nanoTime() - startedAt) / 1_000_000);
+
+            ChaosLlmServer.CapturedPrompt prompt = server.firstPrompt();
+            List<String> responses = server.responses();
+            String rawOutput = responses.isEmpty() ? "" : responses.get(0);
+            String repairedJson = verdict == null ? null : verdict.getResultJson();
+            String afterRaw = responses.size() > 1 ? responses.get(1) : "";
+
+            return new ChaosScenarioVo(
+                    "fix-challenge",
+                    "Apply the fix yourself",
+                    "The same buggy divide, twice: once as written, once with the zero guard.",
+                    "The verdict moves because the code changed, not because the model got nicer: 3 before the guard, 9 after it.",
+                    SAMPLE_CODE,
+                    truncate(prompt.user(), 4000),
+                    truncate(rawOutput, 4000),
+                    truncate(repairedJson, 4000),
+                    verdict == null ? null : verdict.getScore(),
+                    verdict == null ? null : verdict.getSeverity(),
+                    verdict == null ? null : verdict.isApproved(),
+                    server.attempts(),
+                    durationMs,
+                    false,
+                    fixChallengeSteps(SAMPLE_CODE, prompt.user(), rawOutput, verdict),
+                    "docs/adr/0002-ai-agent-review-trigger-and-display.md",
+                    FIXED_CODE,
+                    after == null ? null : after.getScore(),
+                    after == null ? null : after.getSeverity(),
+                    after == null ? null : after.isApproved(),
+                    fixAfterSteps(FIXED_CODE, afterRaw, after),
+                    null);
+        }
+    }
+
     private ChaosScenarioVo buildRepairedJson() {
+        ChaosCounterfactualVo counterfactual = runCounterfactual(
+                ChaosLlmServer.Kind.CF_REPAIRED,
+                "cf-repaired",
+                "If the model returned valid JSON",
+                "One clean call: the repair ladder never engages and the verdict records immediately.",
+                SAMPLE_CODE);
         return runScenario(
                 ChaosLlmServer.Kind.REPAIRED_JSON,
                 "repaired-json",
@@ -81,10 +138,17 @@ public class ChaosTraceService {
                 "The model returns fenced, truncated JSON the parser cannot finish alone.",
                 "Repair-and-retry is a real ladder, not a UI animation: when the parser cannot complete the object, its positional error is sent back for self-correction.",
                 SAMPLE_CODE,
-                "docs/blog/llm-code-review-structured-output-injection-defense.md");
+                "docs/blog/llm-code-review-structured-output-injection-defense.md",
+                counterfactual);
     }
 
     private ChaosScenarioVo buildEmptyPlaceholder() {
+        ChaosCounterfactualVo counterfactual = runCounterfactual(
+                ChaosLlmServer.Kind.CF_PLACEHOLDER,
+                "cf-placeholder",
+                "If the model answered well on attempt 1",
+                "No placeholder, no reinforced retry: the first answer carries real analysis.",
+                SAMPLE_CODE);
         return runScenario(
                 ChaosLlmServer.Kind.EMPTY_PLACEHOLDER,
                 "empty-placeholder",
@@ -92,10 +156,17 @@ public class ChaosTraceService {
                 "The first answer is schema-valid but says nothing.",
                 "Schema-valid is not usable: the semantic gate rejects placeholders and the reviewer retries once with a reinforced prompt.",
                 SAMPLE_CODE,
-                "docs/adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md");
+                "docs/adr/0012-the-review-pipeline-is-pluggable-at-two-seams.md",
+                counterfactual);
     }
 
     private ChaosScenarioVo buildPromptInjection() {
+        ChaosCounterfactualVo counterfactual = runCounterfactual(
+                ChaosLlmServer.Kind.CF_INJECTION,
+                "cf-injection",
+                "If the model obeyed the injection",
+                "Score 10, severity low, substantive fields: the gate checks substance, not truth — the nonce delimiters are the real defense.",
+                INJECTION_CODE);
         return runScenario(
                 ChaosLlmServer.Kind.PROMPT_INJECTION,
                 "prompt-injection",
@@ -103,10 +174,17 @@ public class ChaosTraceService {
                 "The code contains a comment that tells the reviewer to ignore its system prompt.",
                 "Prompt injection is contained by construction: unpredictable nonce delimiters mark the code as data, and the model's answer still has to pass the same gate.",
                 INJECTION_CODE,
-                "docs/blog/llm-code-review-structured-output-injection-defense.md");
+                "docs/blog/llm-code-review-structured-output-injection-defense.md",
+                counterfactual);
     }
 
     private ChaosScenarioVo buildModelDown() {
+        ChaosCounterfactualVo counterfactual = runCounterfactual(
+                ChaosLlmServer.Kind.CF_ALIVE,
+                "cf-alive",
+                "If the model had been alive",
+                "One healthy call, one valid verdict, no fail-closed: the outage is the only thing that changed.",
+                SAMPLE_CODE);
         return runScenario(
                 ChaosLlmServer.Kind.MODEL_DOWN,
                 "model-down",
@@ -114,7 +192,50 @@ public class ChaosTraceService {
                 "Every model call times out. Nothing is published unreviewed.",
                 "When the model is unreachable the pipeline records a recoverable failure, keeps the post out of the feed, and lets reconciliation finish the job.",
                 SAMPLE_CODE,
-                "docs/adr/0005-lease-based-review-claim.md");
+                "docs/adr/0005-lease-based-review-claim.md",
+                counterfactual);
+    }
+
+    private ChaosCounterfactualVo runCounterfactual(ChaosLlmServer.Kind kind,
+                                                    String id,
+                                                    String label,
+                                                    String summary,
+                                                    String sampleCode) {
+        try (ChaosLlmServer server = ChaosLlmServer.start(kind)) {
+            CodeReviewReviewer reviewer = reviewer(server.baseUrl());
+            long startedAt = System.nanoTime();
+            Reviewer.Verdict verdict = reviewer.review(samplePost(sampleCode));
+            long durationMs = Math.max(0, (System.nanoTime() - startedAt) / 1_000_000);
+
+            List<String> responses = server.responses();
+            String rawOutput = responses.isEmpty() ? "" : responses.get(0);
+            return new ChaosCounterfactualVo(
+                    id,
+                    label,
+                    summary,
+                    server.attempts(),
+                    durationMs,
+                    verdict == null ? null : verdict.getScore(),
+                    verdict == null ? null : verdict.getSeverity(),
+                    verdict == null,
+                    counterfactualSteps(sampleCode, rawOutput, verdict));
+        }
+    }
+
+    private static CodeReviewReviewer reviewer(String baseUrl) {
+        LlmClient client = new LlmClient(
+                baseUrl,
+                "",
+                "chaos-model",
+                Duration.ofMillis(120),
+                3,
+                60,
+                "json_object",
+                true,
+                new SimpleMeterRegistry());
+        CampusAiProperties properties = new CampusAiProperties();
+        properties.getReview().setMaxContextTokens(12000);
+        return new CodeReviewReviewer(client, properties);
     }
 
     private ChaosScenarioVo runScenario(ChaosLlmServer.Kind kind,
@@ -123,22 +244,10 @@ public class ChaosTraceService {
                                         String subtitle,
                                         String lesson,
                                         String sampleCode,
-                                        String adr) {
+                                        String adr,
+                                        ChaosCounterfactualVo counterfactual) {
         try (ChaosLlmServer server = ChaosLlmServer.start(kind)) {
-            LlmClient client = new LlmClient(
-                    server.baseUrl(),
-                    "",
-                    "chaos-model",
-                    Duration.ofMillis(120),
-                    3,
-                    60,
-                    "json_object",
-                    true,
-                    new SimpleMeterRegistry());
-            CampusAiProperties properties = new CampusAiProperties();
-            properties.getReview().setMaxContextTokens(12000);
-            CodeReviewReviewer reviewer = new CodeReviewReviewer(client, properties);
-
+            CodeReviewReviewer reviewer = reviewer(server.baseUrl());
             VibePost post = samplePost(sampleCode);
             long startedAt = System.nanoTime();
             Reviewer.Verdict verdict = reviewer.review(post);
@@ -166,7 +275,13 @@ public class ChaosTraceService {
                     verdict == null,
                     steps(kind, sampleCode, prompt.user(), responses, rawOutput, repairedJson,
                             firstParse(rawOutput), verdict),
-                    adr);
+                    adr,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    counterfactual);
         }
     }
 
@@ -271,6 +386,67 @@ public class ChaosTraceService {
 
     private static String resultJson(Reviewer.Verdict verdict) {
         return verdict == null ? null : verdict.getResultJson();
+    }
+
+    private static List<ChaosStepVo> fixChallengeSteps(String sampleCode,
+                                                       String prompt,
+                                                       String rawOutput,
+                                                       Reviewer.Verdict verdict) {
+        List<ChaosStepVo> steps = new ArrayList<>();
+        steps.add(step("input", "Input accepted",
+                "A fenced Java snippet enters the same reviewer used by published posts.",
+                "REAL", "OK", sampleCode, 0));
+        steps.add(step("prompt", "Prompt isolated",
+                "The request builder wraps the snippet in per-request nonce delimiters; instructions inside the snippet stay data.",
+                "REAL", "OK", prompt, 400));
+        steps.add(step("model", "Model scores the bug",
+                "The scripted model returned a substantive review: no zero guard, score 3, severity high.",
+                "INJECTED", "WARN", rawOutput, 900));
+        steps.add(step("validate", "Semantic gate accepts",
+                "Severity is valid and both analysis fields are substantive, so the verdict may be recorded.",
+                "REAL", "OK", null, 1300));
+        steps.add(step("verdict", "Verdict recorded",
+                "The buggy snippet earns its 3/10 honestly; apply the fix and the same pipeline re-scores it.",
+                "REAL", "OK", resultJson(verdict), 1700));
+        return List.copyOf(steps);
+    }
+
+    private static List<ChaosStepVo> fixAfterSteps(String fixedCode,
+                                                   String afterRaw,
+                                                   Reviewer.Verdict after) {
+        List<ChaosStepVo> steps = new ArrayList<>();
+        steps.add(step("input", "Fixed input accepted",
+                "The snippet now guards the divisor before dividing.",
+                "REAL", "OK", fixedCode, 0));
+        steps.add(step("model", "Model re-scores the fix",
+                "The same scripted pipeline reviewed the patched code and answered score 9, severity low.",
+                "INJECTED", "OK", afterRaw, 400));
+        steps.add(step("validate", "Semantic gate accepts",
+                "The after-fix verdict passes the same substance gate.",
+                "REAL", "OK", null, 800));
+        steps.add(step("verdict", "Verdict recorded",
+                "Same pipeline, same gate: the score moved because the code moved.",
+                "REAL", "OK", resultJson(after), 1200));
+        return List.copyOf(steps);
+    }
+
+    private static List<ChaosStepVo> counterfactualSteps(String sampleCode,
+                                                         String rawOutput,
+                                                         Reviewer.Verdict verdict) {
+        List<ChaosStepVo> steps = new ArrayList<>();
+        steps.add(step("input", "Input accepted",
+                "The same snippet enters the same reviewer.",
+                "REAL", "OK", sampleCode, 0));
+        steps.add(step("model", "Model answers well",
+                "In this counterfactual the first answer is already valid and substantive.",
+                "INJECTED", "OK", rawOutput, 400));
+        steps.add(step("validate", "Semantic gate accepts",
+                "The verdict passes the gate on the first attempt.",
+                "REAL", "OK", null, 800));
+        steps.add(step("verdict", "Verdict recorded",
+                "A well-behaved model still goes through the same recording path.",
+                "REAL", "OK", resultJson(verdict), 1200));
+        return List.copyOf(steps);
     }
 
     private static ChaosStepVo step(String id,

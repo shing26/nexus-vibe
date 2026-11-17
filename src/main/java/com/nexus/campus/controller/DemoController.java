@@ -10,7 +10,7 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.List;
 
 /**
- * Public read surface for the Chaos Theatre. It exposes four precomputed traces
+ * Public read surface for the Chaos Theatre. It exposes five precomputed traces
  * and nothing else: no visitor input, no post creation, no model call.
  */
 @RestController

@@ -22,5 +22,11 @@ public record ChaosScenarioVo(
         long durationMs,
         boolean failClosed,
         List<ChaosStepVo> steps,
-        String adr) {
+        String adr,
+        String fixedCode,
+        Integer afterScore,
+        String afterSeverity,
+        Boolean afterApproved,
+        List<ChaosStepVo> afterSteps,
+        ChaosCounterfactualVo counterfactual) {
 }

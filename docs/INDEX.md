@@ -84,6 +84,7 @@ alternatives that were rejected.
 | [saturation-test-deflake](tickets/saturation-test-deflake.md) | One test class, three CI failures in a day: a poll deadline racing the retry ladder, a precondition that read one refusal as proof of a full pool, and a latch read from a field |
 | [frontend-polish-round-3](tickets/frontend-polish-round-3.md) | Nine patterns from a comparable product, arbitrated against the tree: one is a defect (the author cannot see their own held post), five are cheap, and three are declined with the reason written down |
 | [chaos-theater-a](tickets/chaos-theater-a.md) | `/theatre`: four scripted-failure exhibits replayed through the real review pipeline, public and offline — the thesis playable without an account |
+| [chaos-theater-a2](tickets/chaos-theater-a2.md) | A2: the fix-challenge scenario (3→9 on apply-the-fix), four counterfactual runs, the score-dial/stamp payoff, JSON evidence highlighting, and Chinese-first step narration |
 
 ## Plans — `docs/plans/`
 
@@ -99,6 +100,7 @@ alternatives that were rejected.
 | [fe-3-group-c-detail-comments](plans/fe-3-group-c-detail-comments.md) | Frozen contract for round-3 items 5 and 7: a worked example on prompt posts, and a rule-based comment sentiment that cannot fail the write or go dark with the LLM |
 | [fe-3-group-d-palette](plans/fe-3-group-d-palette.md) | Frozen contract for round-3 item 9: the palette's second destination is the row's link, not a product the tree does not have |
 | [chaos-theater-a](plans/chaos-theater-a.md) | Frozen contract for the Chaos Theatre's first slice: allowed paths, the four scenario semantics, the honesty-badge rule, and what the demo may not do |
+| [chaos-theater-a2](plans/chaos-theater-a2.md) | Frozen contract for A2: the fifth scenario's double-run semantics, the counterfactual runs (including the injection-obeyed 10/low), the new DTO fields, and the same forbidden list |
 | [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
 
 ## Design and product

@@ -26,10 +26,55 @@ class ChaosTraceServiceTest {
     }
 
     @Test
-    @DisplayName("The endpoint order is stable and all four exhibits are present")
+    @DisplayName("The endpoint order is stable and all five exhibits are present")
     void scenariosHaveStableOrder() {
         assertThat(scenarios).extracting(ChaosScenarioVo::id)
-                .containsExactly("repaired-json", "empty-placeholder", "prompt-injection", "model-down");
+                .containsExactly("fix-challenge", "repaired-json", "empty-placeholder",
+                        "prompt-injection", "model-down");
+    }
+
+    @Test
+    @DisplayName("Fix challenge: applying the guard moves the same pipeline from 3 to 9")
+    void fixChallengeMovesScore() {
+        ChaosScenarioVo scenario = byId("fix-challenge");
+
+        assertThat(scenario.failClosed()).isFalse();
+        assertThat(scenario.modelAttempts()).isEqualTo(2);
+        assertThat(scenario.score()).isEqualTo(3);
+        assertThat(scenario.severity()).isEqualTo("high");
+        assertThat(scenario.approved()).isFalse();
+        assertThat(scenario.counterfactual()).isNull();
+        assertThat(scenario.fixedCode()).contains("if (divisor == 0)");
+        assertThat(scenario.afterScore()).isEqualTo(9);
+        assertThat(scenario.afterSeverity()).isEqualTo("low");
+        assertThat(scenario.afterApproved()).isTrue();
+        assertThat(scenario.afterSteps()).isNotNull().hasSizeGreaterThanOrEqualTo(3);
+        assertThat(scenario.steps()).extracting(ChaosStepVo::id)
+                .contains("input", "prompt", "model", "validate", "verdict");
+    }
+
+    @Test
+    @DisplayName("Counterfactuals are real runs, and the obeyed injection legally passes the gate")
+    void counterfactualsAreRealRuns() {
+        ChaosScenarioVo cfInjection = byId("prompt-injection");
+        assertThat(cfInjection.counterfactual()).isNotNull();
+        assertThat(cfInjection.counterfactual().id()).isEqualTo("cf-injection");
+        assertThat(cfInjection.counterfactual().failClosed()).isFalse();
+        assertThat(cfInjection.counterfactual().score()).isEqualTo(10);
+        assertThat(cfInjection.counterfactual().severity()).isEqualTo("low");
+        assertThat(cfInjection.counterfactual().steps())
+                .extracting(ChaosStepVo::mode)
+                .contains("REAL", "INJECTED");
+
+        for (String id : List.of("repaired-json", "empty-placeholder", "model-down")) {
+            ChaosScenarioVo scenario = byId(id);
+            assertThat(scenario.counterfactual()).as(id).isNotNull();
+            assertThat(scenario.counterfactual().modelAttempts()).as(id).isEqualTo(1);
+            assertThat(scenario.counterfactual().failClosed()).as(id).isFalse();
+            assertThat(scenario.counterfactual().score()).as(id).isNotNull();
+            assertThat(scenario.counterfactual().severity()).as(id).isIn("low", "medium", "high", "critical");
+            assertThat(scenario.counterfactual().steps()).as(id).hasSize(4);
+        }
     }
 
     @Test
