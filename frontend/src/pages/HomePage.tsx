@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/authStore';
 import PostCard from '../components/PostCard';
 import EmptyState from '../components/EmptyState';
 import ShowcaseEntry from '../components/ShowcaseEntry';
+import { TheatreEntry } from './TheatrePage';
 import Pagination from '../components/Pagination';
 import Skeleton from '../components/Skeleton';
 import { ArrowRight, GitFork, Terminal, Bug, Palette } from 'lucide-react';
@@ -20,7 +21,7 @@ type Tab = 'hot' | 'latest' | 'ai-verified' | 'debug' | 'prompts';
  * additionally see the Mission Control band.
  */
 export default function HomePage() {
-  const { t } = useTranslation(['home', 'common']);
+  const { t } = useTranslation(['home', 'common', 'theatre']);
   const [activeTab, setActiveTab] = useState<Tab>('hot');
   const [page, setPage] = useState(1);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -162,6 +163,11 @@ export default function HomePage() {
           readers meet it first; the channel grid that used to live here is gone
           because the sidebar owns channel navigation. */}
       <ShowcaseEntry />
+
+      {/* The Chaos Theatre: the signed-out visitor can watch the review pipeline
+          fail and recover without an account, so the thesis is playable in one
+          click. Signed-in readers keep the navbar; the link stays here too. */}
+      <TheatreEntry label={t('theatre:entry.label')} desc={t('theatre:entry.desc')} />
 
       {/* Underline tabs — GitHub style: a bottom border per tab, the active one
           carries the accent rail and the text darkens, nothing else moves. */}

@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-546%20Java%20%2B%20130%20frontend-brightgreen?style=flat-square" alt="546 Java tests + 130 frontend tests">
+  <img src="https://img.shields.io/badge/tests-553%20Java%20%2B%20136%20frontend-brightgreen?style=flat-square" alt="553 Java tests + 136 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -67,6 +67,13 @@ Two things to know before you click:
 - It is a single home machine. If it is asleep the address stops answering, and every
   piece of evidence below was measured on the same class of machine rather than in a cloud
   region.
+
+**No account? Watch the pipeline fail and recover.** [`/theatre`](https://qualifier-discuss-marry.ngrok-free.dev/theatre)
+replays four failure exhibits — malformed JSON, an empty placeholder, a prompt
+injection, a dead model — against the production reviewer. The model output is a
+pre-generated script (labelled `INJECTED`); the JSON repair, the semantic gate, the
+retry ladder and fail-closed are the real code paths (`REAL`/`POLICY`), precomputed at
+startup so the exhibit is deterministic, offline and free.
 
 <a name="run-it-in-three-minutes"></a>
 
@@ -426,11 +433,13 @@ the restore rehearsal is [docs/runbook/restore.md](docs/runbook/restore.md).
 
 ## 🧪 Testing gates
 
-Measured 2026-11-17 on this machine, on the s4-2 profile-score-curve tree (the curve on
-top of the s4-1 evidence index and the design-overhaul round): backend **546 tests / 91
+Measured 2026-11-18 on this machine, on the chaos-theater tree (the theatre exhibit on
+top of the s4-2 profile-score-curve round): backend **553 tests / 93
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
-never `target/surefire-reports/`, which accumulates runs and lies. Frontend **130 tests /
-24 files**: the profile score curve (one mark per returned record, oldest on the left, no
+never `target/surefire-reports/`, which accumulates runs and lies. Frontend **136 tests /
+25 files**: the Chaos Theatre page (the scripted-output disclosure, the four scenario
+buttons, per-step REAL/INJECTED/POLICY honesty badges, the fail-closed chip, and the
+error/retry panel), the profile score curve (one mark per returned record, oldest on the left, no
 SVG at all when the index is empty, a screen-reader table carrying date/score/title, the
 same 0-10-to-0-100 rule as the voucher card), the axios response interceptor (a 401 replayed once against the refreshed token,
 one refresh shared across concurrent 401s, a refused refresh that logs out without
@@ -468,10 +477,10 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 `apiClient.` call to sit inside a `try`/`catch` or react-query.
 
 ```bash
-mvn test                      # 546: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
+mvn test                      # 553: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 120
+cd frontend && npm run test   # 136
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28
 ```
 

@@ -73,7 +73,7 @@ order:
 | `sampleCode` | string | The code block fed to the reviewer |
 | `promptPreview` | string | The user message captured from the real HTTP request, truncated to 4000 chars |
 | `rawOutput` | string | The scripted model's first raw response, truncated to 4000 chars |
-| `repairedJson` | string or null | `JsonRepairUtil` output for the first raw response, truncated to 4000 chars |
+| `repairedJson` | string or null | The JSON object the pipeline accepted for recording (the repaired/self-corrected result), truncated to 4000 chars; null when fail-closed |
 | `score` | integer or null | Final verdict score, null when the scenario fails closed |
 | `severity` | string or null | Final verdict severity, null when the scenario fails closed |
 | `approved` | boolean or null | Final verdict approval, null when the scenario fails closed |
@@ -104,11 +104,15 @@ constructed by writing a trace DTO by hand.
 ### `repaired-json`
 
 - Scripted first response is markdown-fenced JSON with a trailing comma and a truncated
-  closing brace.
-- `JsonRepairUtil.parse(rawOutput)` must succeed after repair.
+  closing brace. **Deviation 1:** the real repair ladder repairs each defect alone but
+  cannot combine truncation with a trailing comma, so the pipeline's actual answer is a
+  self-correction retry. The scenario therefore shows the full ladder and
+  `modelAttempts` is `2`, not `1`.
+- The parser must reject the first response; the scripted second response (the
+  self-correction pass) must parse and become the recorded result.
 - The final verdict must be valid, with a non-null score and severity.
-- `modelAttempts` must be `1`.
-- Steps must include `repair` with `repairedJson`, and `verdict`.
+- Steps must include `repair-fail` (parser error), `retry`, `repair` with
+  `repairedJson`, and `verdict`.
 
 ### `empty-placeholder`
 

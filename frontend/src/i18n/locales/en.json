@@ -875,5 +875,39 @@
       "unknown": "unknown",
       "unavailable": "unavailable"
     }
+  },
+  "theatre": {
+    "title": "Chaos Theatre",
+    "subtitle": "Break the AI yourself, then watch it survive.",
+    "entry": {
+      "label": "Enter the Chaos Theatre",
+      "desc": "Watch the real review pipeline fail and recover. No account needed."
+    },
+    "disclosure": "How this works: the model output is a pre-generated script, but the JSON repair, the semantic gate, the retry ladder and fail-closed are this repository's production code paths. This page is read-only, creates no post, and never calls an external model.",
+    "scenarioListAria": "Choose a failure scenario",
+    "traceAria": "Review trace replay",
+    "replay": "Replay",
+    "replaying": "Replaying…",
+    "showPayload": "Show raw content",
+    "error": "Failed to load the traces. Please retry.",
+    "retry": "Retry",
+    "mode": {
+      "real": "Real path",
+      "injected": "Scripted",
+      "policy": "Policy demo"
+    },
+    "outcome": {
+      "ok": "OK",
+      "warn": "Warn",
+      "fail": "Failed",
+      "info": "Info"
+    },
+    "meta": {
+      "attempts": "Model calls",
+      "duration": "Duration",
+      "score": "Final score",
+      "failClosed": "fail-closed: not published",
+      "adr": "Related decision"
+    }
   }
 }

@@ -20,6 +20,7 @@ const PostDetailPage = lazy(() => import('./pages/PostDetailPage'));
 const CreatePostPage = lazy(() => import('./pages/CreatePostPage'));
 const EditPostPage = lazy(() => import('./pages/EditPostPage'));
 const SearchPage = lazy(() => import('./pages/SearchPage'));
+const TheatrePage = lazy(() => import('./pages/TheatrePage'));
 const LoginPage = lazy(() => import('./pages/LoginPage'));
 const RegisterPage = lazy(() => import('./pages/RegisterPage'));
 const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
@@ -84,6 +85,7 @@ export default function App() {
                 <Route path="channel/:slug" element={<ErrorBoundary section="the channel page"><ChannelPage /></ErrorBoundary>} />
                 <Route path="post/:id" element={<ErrorBoundary section="the post"><PostDetailPage /></ErrorBoundary>} />
                 <Route path="search" element={<ErrorBoundary section="search"><SearchPage /></ErrorBoundary>} />
+                <Route path="theatre" element={<ErrorBoundary section="the theatre"><TheatrePage /></ErrorBoundary>} />
                 <Route path="login" element={<ErrorBoundary section="the login page"><LoginPage /></ErrorBoundary>} />
                 <Route path="register" element={<ErrorBoundary section="registration"><RegisterPage /></ErrorBoundary>} />
                 <Route path="user/:id" element={<ErrorBoundary section="the profile"><UserProfilePage /></ErrorBoundary>} />

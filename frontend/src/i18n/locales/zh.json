@@ -875,5 +875,39 @@
       "unknown": "未知",
       "unavailable": "不可用"
     }
+  },
+  "theatre": {
+    "title": "混乱剧场",
+    "subtitle": "亲手把 AI 弄坏，看它怎么活下来。",
+    "entry": {
+      "label": "进入混乱剧场",
+      "desc": "一条真实评审管线的失败与自救回放，无需登录。"
+    },
+    "disclosure": "演示说明：模型输出是预生成的脚本，但 JSON 修复、语义校验、重试与 fail-closed 都是本仓库的生产代码路径。本页面只读、不创建任何帖子，也不会调用外部模型。",
+    "scenarioListAria": "选择一个故障场景",
+    "traceAria": "评审轨迹回放",
+    "replay": "重播",
+    "replaying": "回放中…",
+    "showPayload": "展开原始内容",
+    "error": "轨迹加载失败，请重试。",
+    "retry": "重试",
+    "mode": {
+      "real": "真实路径",
+      "injected": "脚本注入",
+      "policy": "策略演示"
+    },
+    "outcome": {
+      "ok": "通过",
+      "warn": "警告",
+      "fail": "失败",
+      "info": "提示"
+    },
+    "meta": {
+      "attempts": "模型调用",
+      "duration": "耗时",
+      "score": "最终评分",
+      "failClosed": "fail-closed：未发布",
+      "adr": "相关决策"
+    }
   }
 }
