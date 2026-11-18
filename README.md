@@ -18,6 +18,7 @@
   <a href="#run-it-in-three-minutes"><b>Run locally</b></a> ·
   <a href="#fork-map"><b>Fork map</b></a> ·
   <a href="#evidence-wall"><b>Evidence wall</b></a> ·
+  <a href="docs/reading-path.md"><b>Reading path</b></a> ·
   <a href="docs/INDEX.md"><b>Docs index</b></a>
 </p>
 
@@ -349,6 +350,11 @@ Where to look, in the time you have:
   [lease-based claims](docs/adr/0005-lease-based-review-claim.md),
   [degraded is not unhealthy](docs/adr/0007-degraded-status-is-not-unhealthy.md).
 - **90 minutes** - the table above, in the order it was produced.
+
+These three doors, with the artifact each one opens, are written out in the
+[reading path](docs/reading-path.md). Every thesis claim with its ADR, its test class and
+its re-run command is mapped in the [evidence index](docs/evidence-index.md) - if you want
+to check a claim instead of trusting it, start there.
 
 ## 🛠️ Tech stack
 

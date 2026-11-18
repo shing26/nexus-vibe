@@ -7,6 +7,13 @@ is a document nobody will find.
 For the short version of how to work here, read [AGENTS.md](../AGENTS.md) first. For the
 project's vocabulary, read [CONTEXT.md](../CONTEXT.md).
 
+## Entry points — for a reader who just arrived
+
+| File | Purpose |
+|---|---|
+| [reading-path](reading-path.md) | What to read in 30 seconds, 10 minutes or 90 minutes, with the artifact each tier points at |
+| [evidence-index](evidence-index.md) | Every outward thesis claim mapped to the ADR, the test class and the command that proves it |
+
 ## Decisions — `docs/adr/`
 
 Numbered, append-only. A reversed decision gets a new ADR, not an edit.
