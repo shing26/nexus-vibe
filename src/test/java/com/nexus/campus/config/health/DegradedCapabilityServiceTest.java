@@ -7,11 +7,16 @@ import org.springframework.boot.actuate.health.CompositeHealth;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthComponent;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneId;
 import java.util.List;
 import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -135,6 +140,82 @@ class DegradedCapabilityServiceTest {
         org.springframework.boot.actuate.health.HealthEndpoint endpoint =
                 mock(org.springframework.boot.actuate.health.HealthEndpoint.class);
         when(endpoint.healthForPath("deps")).thenReturn(group);
-        return new DegradedCapabilityService(endpoint);
+        return new DegradedCapabilityService(endpoint, 15, Clock.fixed(Instant.EPOCH, ZoneId.of("UTC")));
+    }
+
+    /**
+     * R3-1: the anonymous capabilities endpoint evaluates the whole deps group on every
+     * read unless the read model caches it. A mutable clock and a counting mock make the
+     * probe count deterministic without a Spring context.
+     */
+    static final class MutableClock extends Clock {
+        private Instant now = Instant.EPOCH;
+
+        void advanceSeconds(long seconds) {
+            now = now.plusSeconds(seconds);
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneId.of("UTC");
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return now;
+        }
+    }
+
+    @Test
+    @DisplayName("Two reads inside the TTL window probe the deps group exactly once")
+    void readsInsideWindowProbeOnce() {
+        MutableClock clock = new MutableClock();
+        org.springframework.boot.actuate.health.HealthEndpoint endpoint =
+                mock(org.springframework.boot.actuate.health.HealthEndpoint.class);
+        when(endpoint.healthForPath("deps")).thenReturn(Health.up().build());
+        DegradedCapabilityService service = new DegradedCapabilityService(endpoint, 15, clock);
+
+        List<CapabilityStatusVo> first = service.current();
+        clock.advanceSeconds(14);
+        List<CapabilityStatusVo> second = service.current();
+
+        verify(endpoint, times(1)).healthForPath("deps");
+        assertThat(second).isSameAs(first);
+    }
+
+    @Test
+    @DisplayName("The first read after the TTL expires probes again")
+    void readAfterExpiryProbesAgain() {
+        MutableClock clock = new MutableClock();
+        org.springframework.boot.actuate.health.HealthEndpoint endpoint =
+                mock(org.springframework.boot.actuate.health.HealthEndpoint.class);
+        when(endpoint.healthForPath("deps")).thenReturn(Health.up().build());
+        DegradedCapabilityService service = new DegradedCapabilityService(endpoint, 15, clock);
+
+        service.current();
+        clock.advanceSeconds(15);
+        service.current();
+
+        verify(endpoint, times(2)).healthForPath("deps");
+    }
+
+    @Test
+    @DisplayName("A TTL of zero disables the cache: every read probes, the pre-round behavior")
+    void zeroTtlDisablesCache() {
+        MutableClock clock = new MutableClock();
+        org.springframework.boot.actuate.health.HealthEndpoint endpoint =
+                mock(org.springframework.boot.actuate.health.HealthEndpoint.class);
+        when(endpoint.healthForPath("deps")).thenReturn(Health.up().build());
+        DegradedCapabilityService service = new DegradedCapabilityService(endpoint, 0, clock);
+
+        service.current();
+        service.current();
+
+        verify(endpoint, times(2)).healthForPath("deps");
     }
 }

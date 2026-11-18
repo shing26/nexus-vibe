@@ -1,0 +1,81 @@
+# R3-1 — the public capabilities endpoint stops re-probing on every read
+
+Status: **done — independent Verifier PASS, 2026-11-19.** Contract:
+`plans/r3-1-capability-throttle.md` (frozen before implementation). Branch:
+`codex/r3-1-capability-throttle`, based on merged master `5b99407` (PR #52).
+Verified HEAD: `f423ccb`; the commit recording this verdict touches this
+ticket only.
+
+## Scope
+
+The backlog's R3-1, raised by round 3's degradation banner: the anonymous
+`GET /api/v1/status/capabilities` evaluated the whole `deps` health group on
+every call — an Elasticsearch HTTP probe with a 2 s timeout, the LLM check, a
+Redis ping and a database validation query — and GETs are unthrottled.
+
+Changes:
+
+- `DegradedCapabilityService` caches its shaped result behind a TTL
+  (`campus.status.capabilities-ttl-seconds`, default 15; `<= 0` disables the
+  cache). A read inside the window performs no probe at all; the first read
+  after expiry re-probes once. Double-checked locking, injected clock.
+- Nothing else moves: `RateLimitInterceptor`, `WebMvcConfig`, every health
+  indicator and every actuator endpoint are untouched, so the pinned
+  `/actuator/health` and `/actuator/health/servable` bytes cannot change.
+- Honest freshness cost: a capability change can take up to the TTL to reach
+  the banner — stated in the contract, not hidden.
+
+## Acceptance
+
+- Backend **561 tests**, 0 failures, JaCoCo floor met (was 557); frontend
+  **152 tests / 29 files**, 0 failures; oxlint clean; build clean.
+- New unit tests with a mutable clock and a counting mock: two reads inside
+  the window probe once and share the cached list; the first read after
+  expiry probes again; TTL 0 disables the cache.
+- New integration test: two consecutive anonymous GETs answer byte-identically
+  through the real filter chain.
+- The existing `healthAnswersStayByteForByte` pinned-actuator test passes
+  unmodified.
+
+## Verification (independent)
+
+An independent Verifier re-ran every command against HEAD
+`f423ccb5df8d9a07c63cf4febd941416e3c0df96`; `git status --short` was empty
+before and after. Verdict: **PASS**, no P0/P1 findings — including a
+concurrency read of the double-checked locking (a torn read between `cached`
+and `cachedAtMillis` can only cause one extra probe, never a wrong answer)
+and confirmation that the cached object is the shaped, immutable,
+closed-vocabulary list rather than the raw deps document. Implementer logs
+were not accepted as evidence.
+
+| Command (Verifier-run) | Result |
+|---|---|
+| `mvn -B test` | 561 tests, 0 failures, JaCoCo floor met |
+| `npm run test -- --pool=threads --maxWorkers=4` | 152 tests / 29 files, 0 failures |
+| `npm run lint` / `npm run build` | clean |
+| `git diff 5b99407..HEAD --name-only` | 7 paths, all inside Allowed paths |
+
+All ten contract checks passed, including the untouched actuator surface and
+the absent limiter/config changes. The `--maxWorkers=4` flag is the one
+recorded deviation, for the environment OOM described in the contract. The
+verdict binds to `f423ccb`; the bookkeeping commit after it changes this
+ticket only.
+
+## Files
+
+`plans/r3-1-capability-throttle.md`, `docs/tickets/r3-1-capability-throttle.md`,
+`docs/INDEX.md`, `README.md` (counts only),
+`src/main/java/com/nexus/campus/config/health/DegradedCapabilityService.java`,
+`src/test/java/com/nexus/campus/config/health/DegradedCapabilityServiceTest.java`,
+`src/test/java/com/nexus/campus/controller/CapabilityStatusIntegrationTest.java`.
+
+## Rejected
+
+- **Registering `RateLimitInterceptor` on this path for GETs**: it bypasses
+  itself when Redis is unavailable — the one scenario where a probe storm is
+  dangerous — and would refuse legitimate visitors while still letting the
+  first hit probe.
+- **Caching inside the health indicators**: it would change the pinned
+  actuator bytes and blur ADR-0007's audience split.
+- **A per-capability cache**: more moving parts for the same effect; the
+  probe cost is the group evaluation as a whole.

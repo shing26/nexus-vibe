@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-557%20Java%20%2B%20152%20frontend-brightgreen?style=flat-square" alt="557 Java tests + 152 frontend tests">
+  <img src="https://img.shields.io/badge/tests-561%20Java%20%2B%20152%20frontend-brightgreen?style=flat-square" alt="561 Java tests + 152 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -439,8 +439,8 @@ the restore rehearsal is [docs/runbook/restore.md](docs/runbook/restore.md).
 
 ## 🧪 Testing gates
 
-Measured 2026-11-19 on this machine, on the review-severity-chip tree (the feed's
-severity chip on top of the my-creations round): backend **557 tests / 93
+Measured 2026-11-19 on this machine, on the capability-throttle tree (the capabilities
+TTL cache on top of the A1-A3 docs round): backend **561 tests / 93
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
 never `target/surefire-reports/`, which accumulates runs and lies. Frontend **152 tests /
 29 files**: the severity chip on topic rows (a reviewed row shows the reviewer's severity
@@ -486,7 +486,7 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 `apiClient.` call to sit inside a `try`/`catch` or react-query.
 
 ```bash
-mvn test                      # 557: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
+mvn test                      # 561: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd frontend && npm run test   # 152
