@@ -114,6 +114,35 @@ export default function PostCard({ post }: PostCardProps) {
   const preview = getPreview(post);
 
   const aiScore = Math.round((post.aiReviewScore ?? 0) * 10);
+  /**
+   * The row's AI credential. Spike rule: only what the list payload really
+   * carries — the reviewed state code and the score. Severity and retry counts
+   * have no list field yet, so no invented color encodes them; the check mark
+   * means exactly "this row's review completed and was recorded" (aiReviewed
+   * REVIEWED), nothing more.
+   */
+  const credential =
+    post.aiReviewed === AI_REVIEW.REVIEWED && aiScore > 0 ? (
+      <span
+        data-testid="ai-credential"
+        title={t('post:credential.scoreTitle', { score: aiScore })}
+        className="inline-flex items-center gap-1 rounded border border-vibe-border bg-vibe-bg px-1.5 py-0.5 text-[11px]"
+      >
+        <Check className="h-3 w-3 text-vibe-success" aria-hidden="true" />
+        <span className="tabular-nums text-vibe-text">{aiScore}</span>
+        <span className="text-vibe-faint">{t('post:credential.verified')}</span>
+      </span>
+    ) : post.aiReviewed === AI_REVIEW.REVIEWING ? (
+      <span data-testid="ai-credential" className="inline-flex items-center gap-1 text-xs text-vibe-warning">
+        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-vibe-warning" />
+        {t('post:credential.reviewing')}
+      </span>
+    ) : post.aiReviewed === AI_REVIEW.FAILED ? (
+      <span data-testid="ai-credential" className="inline-flex items-center gap-1 text-xs text-vibe-danger">
+        <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-vibe-danger" />
+        {t('post:credential.failed')}
+      </span>
+    ) : null;
 
   const handleCopyLink = (e: React.MouseEvent) => {
     e.preventDefault();
@@ -200,9 +229,7 @@ export default function PostCard({ post }: PostCardProps) {
             <span className="min-w-0 truncate">{post.authorName}</span>
             <span className="shrink-0 tabular-nums">{timeAgo(post.createTime)}</span>
             <span className="ml-auto flex shrink-0 items-center gap-2.5 tabular-nums">
-              {post.aiReviewed === AI_REVIEW.REVIEWED && aiScore > 0 && (
-                <span className="text-vibe-accent">{t('post:aiScore', { score: aiScore })}</span>
-              )}
+              {credential}
               <span className="flex items-center gap-1">
                 <Heart className="h-3 w-3" />
                 {post.likeCount}

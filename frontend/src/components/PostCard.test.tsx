@@ -108,15 +108,18 @@ describe('PostCard rendered without the status prop (A7)', () => {
     expect(title).toHaveAttribute('href', '/post/1001');
 
     // Counts come from the fields, in tabular numerals, in the right-aligned block.
-    const meta = [...title.closest('article')!.querySelectorAll('.tabular-nums')].pop()!;
+    const meta = title.closest('article')!.querySelector('.ml-auto')!;
     expect(within(meta as HTMLElement).getByText('3')).toBeInTheDocument();
     expect(within(meta as HTMLElement).getByText('1')).toBeInTheDocument();
     expect(within(meta as HTMLElement).getByText('12')).toBeInTheDocument();
     expect(screen.getByText('1d ago')).toBeInTheDocument();
     expect(screen.getByText('alice')).toBeInTheDocument();
 
-    // A reviewed post prints its 0-100 score.
-    expect(screen.getByText('AI 85')).toBeInTheDocument();
+    // A reviewed post renders its 0-100 score as a verified credential chip.
+    const credential = screen.getByTestId('ai-credential');
+    expect(credential).toHaveAttribute('title', 'AI review score 85 / 10, verified');
+    expect(within(credential).getByText('85')).toBeInTheDocument();
+    expect(within(credential).getByText('verified')).toBeInTheDocument();
     // A text post offers copy (of its first lines) but no fork.
     expect(screen.getByTitle('Copy prompt')).toBeInTheDocument();
     expect(screen.queryByTitle('Fork template')).not.toBeInTheDocument();

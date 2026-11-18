@@ -75,6 +75,13 @@
       "register": "Register",
       "newPost": "New Post"
     },
+    "pulse": {
+      "title": "System pulse",
+      "apiServing": "API serving",
+      "probing": "probing…",
+      "allNormal": "All capabilities normal",
+      "apiDown": "Cannot reach the server"
+    },
     "language": {
       "label": "Language",
       "toggle": "Switch to Chinese",
@@ -247,6 +254,13 @@
       "debug": "Debug",
       "prompts": "Prompts"
     },
+    "tabNotes": {
+      "hot": "Ranked by heat: more likes and replies rise, older posts sink.",
+      "latest": "Newest first, straight by publish time.",
+      "ai-verified": "Only posts with a completed AI review, highest score first.",
+      "debug": "Only the Debug channel — questions and troubleshooting live here.",
+      "prompts": "Only prompt posts — fork one and use it yourself."
+    },
     "missionControl": {
       "title": "Mission Control",
       "hint": "Pick a mission to start",
@@ -390,6 +404,12 @@
   "post": {
     "channelBadgeAria": "Channel",
     "aiScore": "AI {{score}}",
+    "credential": {
+      "scoreTitle": "AI review score {{score}} / 10, verified",
+      "verified": "verified",
+      "reviewing": "reviewing",
+      "failed": "review failed"
+    },
     "aiScoreBadge": "AI score {{score}}/100",
     "scoreRubric": "Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically.",
     "stateBadgePrefix": "AI review: ",
@@ -704,7 +724,8 @@
       "avgAi": "Avg AI Score",
       "forks": "Forks",
       "versions": "Versions",
-      "secondaryLine": "Comments {{comments}} · Avg AI score {{avgAi}} · Forks {{forks}} · Versions {{versions}}"
+      "secondaryLine": "Comments {{comments}} · Avg AI score {{avgAi}} · Forks {{forks}} · Versions {{versions}}",
+      "narrative": "You've put out <strong>{{posts}}</strong> posts and <strong>{{comments}}</strong> comments, earning <strong>{{likes}}</strong> likes. <strong>{{reviewed}}</strong> posts were AI-reviewed, averaging <strong>{{avgAi}}</strong>. Your prompts were forked <strong>{{forks}}</strong> times across <strong>{{versions}}</strong> versions."
     },
     "statTitles": {
       "posts": "Published post count",
@@ -874,6 +895,175 @@
       "critical": "critical",
       "unknown": "unknown",
       "unavailable": "unavailable"
+    }
+  },
+  "theatre": {
+    "title": "Chaos Theatre",
+    "subtitle": "Break the AI yourself, then watch it survive.",
+    "entry": {
+      "label": "Enter the Chaos Theatre",
+      "desc": "Watch the real review pipeline fail and recover. No account needed."
+    },
+    "disclosure": "How this works: the model output is a pre-generated script, but the JSON repair, the semantic gate, the retry ladder and fail-closed are this repository's production code paths. This page is read-only, creates no post, and never calls an external model.",
+    "scenarioListAria": "Choose a failure scenario",
+    "traceAria": "Review trace replay",
+    "replay": "Replay",
+    "replaying": "Replaying…",
+    "showPayload": "Show raw content",
+    "cards": {
+      "fix-challenge": {
+        "title": "Apply the fix yourself",
+        "subtitle": "The same buggy divide, twice: once as written, once with the zero guard."
+      },
+      "repaired-json": {
+        "title": "Repair the broken JSON",
+        "subtitle": "The model returns fenced, truncated JSON the parser cannot finish alone."
+      },
+      "empty-placeholder": {
+        "title": "Reject the empty answer",
+        "subtitle": "The first answer is schema-valid but says nothing."
+      },
+      "prompt-injection": {
+        "title": "Contain the instruction",
+        "subtitle": "The code contains a comment that tells the reviewer to ignore its system prompt."
+      },
+      "model-down": {
+        "title": "Survive the dead model",
+        "subtitle": "Every model call times out. Nothing is published unreviewed."
+      }
+    },
+    "error": "Failed to load the traces. Please retry.",
+    "retry": "Retry",
+    "mode": {
+      "real": "Real path",
+      "injected": "Scripted",
+      "policy": "Policy demo"
+    },
+    "outcome": {
+      "ok": "OK",
+      "warn": "Warn",
+      "fail": "Failed",
+      "info": "Info"
+    },
+    "meta": {
+      "attempts": "Model calls",
+      "duration": "Duration",
+      "score": "Final score",
+      "failClosed": "fail-closed: not published",
+      "adr": "Related decision"
+    },
+    "steps": {
+      "input": { "title": "Input accepted" },
+      "prompt": { "title": "Prompt isolated" },
+      "model": { "title": "Model answered" },
+      "repair-fail": { "title": "Parser failed" },
+      "repair": { "title": "Repaired and accepted" },
+      "retry": { "title": "Retry" },
+      "validate": { "title": "Semantic gate" },
+      "verdict": { "title": "Verdict recorded" },
+      "fail-closed": { "title": "fail-closed: not published" },
+      "reconcile": { "title": "Reconciled" }
+    },
+    "details": {
+      "fix-challenge": {
+        "input": "The same buggy divide snippet enters the same reviewer used by published posts.",
+        "prompt": "The request builder wraps the snippet in per-request nonce delimiters; instructions inside the snippet stay data.",
+        "model": "The scripted model returned a substantive review: no zero guard, score 3, severity high.",
+        "validate": "Severity is valid and both analysis fields are substantive, so the verdict may be recorded.",
+        "verdict": "The buggy snippet earns its 3/10 honestly; apply the fix and the same pipeline re-scores it."
+      },
+      "repaired-json": {
+        "input": "The same buggy divide snippet enters the same reviewer used by published posts.",
+        "prompt": "The request builder wraps the snippet in per-request nonce delimiters.",
+        "model": "The scripted model returned fenced JSON with a trailing comma and no closing brace.",
+        "repair-fail": "The repair ladder handles each defect alone; truncation plus a trailing comma exceeds it, so the parser returns a positional error.",
+        "retry": "The reviewer retries once, sending the broken output and the parser error back to the model.",
+        "repair": "The corrected object parses cleanly and becomes the recorded result.",
+        "validate": "Severity is valid and both analysis fields are substantive.",
+        "verdict": "The repaired output became a real verdict instead of being dropped."
+      },
+      "empty-placeholder": {
+        "input": "The same snippet enters the same review pipeline.",
+        "prompt": "The nonce delimiters keep the snippet inside the data region.",
+        "model": "Every schema field is present, but EVALUATE / NONE / FIX carry no analysis.",
+        "validate": "The validity gate refuses placeholders even when the JSON parses.",
+        "retry": "The reviewer retries once with an explicit instruction to produce substantive analysis.",
+        "verdict": "The retry, not the placeholder, is what reaches the post."
+      },
+      "prompt-injection": {
+        "input": "The snippet hides a comment that instructs the model to ignore its system prompt and return a perfect score.",
+        "prompt": "The nonce delimiters keep the comment inside the data region: it cannot touch the system prompt.",
+        "model": "The scripted model returned a low score and stated that the injected comment was treated as data.",
+        "validate": "The verdict is substantive and legal; the injection changed neither the schema nor the gate.",
+        "verdict": "The review names the injection attempt instead of obeying it."
+      },
+      "model-down": {
+        "input": "The same snippet enters the same review pipeline.",
+        "prompt": "The nonce delimiters keep the snippet inside the data region.",
+        "model": "Each attempt fails against the scripted dead endpoint; the client retries until its budget is spent.",
+        "retry": "The reviewer's retry finds the breaker open instead of waiting through another timeout.",
+        "fail-closed": "The production listener marks the post FAILED and keeps it out of the published feed.",
+        "reconcile": "A scheduled sweep re-dispatches FAILED/REVIEWING posts; the user does not have to do anything."
+      }
+    },
+    "cf": {
+      "cf-repaired": {
+        "label": "If the model returned valid JSON",
+        "summary": "One clean call: the repair ladder never engages and the verdict records immediately.",
+        "input": "The same snippet, the same reviewer.",
+        "model": "In this counterfactual the first answer is already valid and substantive.",
+        "validate": "The verdict passes the gate on the first attempt.",
+        "verdict": "A well-behaved model still goes through the same recording path."
+      },
+      "cf-placeholder": {
+        "label": "If the model answered well on attempt 1",
+        "summary": "No placeholder, no reinforced retry: the first answer carries real analysis.",
+        "input": "The same snippet, the same reviewer.",
+        "model": "In this counterfactual there is no placeholder: the first answer carries real analysis.",
+        "validate": "The gate accepts on the first pass.",
+        "verdict": "The reinforced retry is never triggered."
+      },
+      "cf-injection": {
+        "label": "If the model obeyed the injection",
+        "summary": "Score 10, severity low, substantive fields: the gate checks substance, not truth — the nonce delimiters are the real defense.",
+        "input": "The snippet with the injected comment enters the reviewer unchanged.",
+        "model": "In this counterfactual the model obeys the injection: score 10, severity low, substantive fields.",
+        "validate": "Note: the gate checks substance, not truth — a perfect verdict like this passes legally.",
+        "verdict": "The real defense is the nonce delimiters and the system prompt; the gate is only the last net."
+      },
+      "cf-alive": {
+        "label": "If the model had been alive",
+        "summary": "One healthy call, one valid verdict, no fail-closed: the outage is the only thing that changed.",
+        "input": "The same snippet, the same reviewer.",
+        "model": "In this counterfactual the model is alive and one call returns a healthy review.",
+        "validate": "The gate accepts; no breaker opens.",
+        "verdict": "The only difference is whether the model was reachable."
+      }
+    },
+    "cfPanel": {
+      "show": "Counterfactual: what if the model behaved",
+      "hide": "Hide the counterfactual",
+      "attempts": "attempts",
+      "score": "score"
+    },
+    "fix": {
+      "apply": "Apply the fix",
+      "revert": "Revert to the buggy version",
+      "applyHint": "Apply the zero guard and the same pipeline re-scores the patched code.",
+      "before": "Before the fix",
+      "after": "After the fix"
+    },
+    "payoff": {
+      "dialAria": "Review score {{score}} / 10",
+      "stamp": {
+        "approved": "Approved",
+        "attention": "Needs attention",
+        "unpublished": "UNPUBLISHED · queued for reconciliation"
+      },
+      "compare": {
+        "broken": "Raw model output",
+        "repaired": "What the pipeline accepted"
+      }
     }
   }
 }

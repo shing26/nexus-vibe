@@ -1,0 +1,685 @@
+import { useEffect, useState, type ReactNode } from 'react';
+import { Link } from 'react-router-dom';
+import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
+import { useReducedMotion } from 'motion/react';
+import {
+  AlertCircle,
+  ArrowRight,
+  Braces,
+  ExternalLink,
+  FileQuestion,
+  RotateCw,
+  ShieldAlert,
+  Theater,
+  Unplug,
+  Wrench,
+  type LucideIcon,
+} from 'lucide-react';
+import { apiClient } from '../api/client';
+import type { ApiResponse } from '../api/client';
+import Skeleton from '../components/Skeleton';
+
+const REPO = 'https://github.com/shing26/nexus-vibe';
+const REPLAY_STEP_MS = 600;
+const EMPTY_STEPS: TheatreStep[] = [];
+
+interface TheatreStep {
+  id: string;
+  title: string;
+  detail: string;
+  mode: string;
+  outcome: string;
+  payload: string | null;
+  offsetMs: string | number;
+}
+
+export interface TheatreCounterfactual {
+  id: string;
+  label: string;
+  summary: string;
+  modelAttempts: number;
+  durationMs: string | number;
+  score: number | null;
+  severity: string | null;
+  failClosed: boolean;
+  steps: TheatreStep[];
+}
+
+export interface TheatreScenario {
+  id: string;
+  title: string;
+  subtitle: string;
+  lesson: string;
+  sampleCode: string;
+  promptPreview: string;
+  rawOutput: string;
+  repairedJson: string | null;
+  score: number | null;
+  severity: string | null;
+  approved: boolean | null;
+  modelAttempts: number;
+  durationMs: string | number;
+  failClosed: boolean;
+  steps: TheatreStep[];
+  adr: string;
+  fixedCode?: string | null;
+  afterScore?: number | null;
+  afterSeverity?: string | null;
+  afterApproved?: boolean | null;
+  afterSteps?: TheatreStep[] | null;
+  counterfactual?: TheatreCounterfactual | null;
+}
+
+const SCENARIO_ICONS: Record<string, LucideIcon> = {
+  'fix-challenge': Wrench,
+  'repaired-json': Braces,
+  'empty-placeholder': FileQuestion,
+  'prompt-injection': ShieldAlert,
+  'model-down': Unplug,
+};
+
+const MODE_STYLES: Record<string, string> = {
+  REAL: 'border-vibe-success/40 bg-vibe-success/10 text-vibe-success',
+  INJECTED: 'border-vibe-warning/40 bg-vibe-warning/10 text-vibe-warning',
+  POLICY: 'border-vibe-accent/40 bg-vibe-accent/10 text-vibe-accent',
+};
+
+const OUTCOME_STYLES: Record<string, string> = {
+  OK: 'text-vibe-success',
+  WARN: 'text-vibe-warning',
+  FAIL: 'text-vibe-danger',
+  INFO: 'text-vibe-muted',
+};
+
+const STAMP_STYLES: Record<string, string> = {
+  approved: 'border-vibe-success/50 bg-vibe-success/10 text-vibe-success',
+  attention: 'border-vibe-warning/50 bg-vibe-warning/10 text-vibe-warning',
+  unpublished: 'border-vibe-danger/50 bg-vibe-danger/10 text-vibe-danger',
+};
+
+const JSON_TOKEN_RE = /("(?:\\.|[^"\\])*")(\s*:)?|\b(?:true|false|null)\b|-?\d+(?:\.\d+)?/g;
+
+function asNumber(value: string | number | undefined | null): number {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : 0;
+}
+
+function formatDuration(value: string | number | undefined | null): string {
+  const ms = asNumber(value);
+  if (ms < 1000) return `${Math.round(ms)} ms`;
+  return `${(ms / 1000).toFixed(1)} s`;
+}
+
+function adrUrl(adr: string): string {
+  return REPO + '/blob/master/' + adr;
+}
+
+function highlightJson(value: string): ReactNode[] {
+  const nodes: ReactNode[] = [];
+  const re = new RegExp(JSON_TOKEN_RE.source, 'g');
+  let last = 0;
+  let index = 0;
+  let match: RegExpExecArray | null;
+  while ((match = re.exec(value)) !== null) {
+    if (match.index > last) nodes.push(value.slice(last, match.index));
+    const [token, str, colon] = match;
+    if (str && colon) {
+      nodes.push(
+        <span key={`k${index}`} data-testid="json-highlight" className="text-vibe-accent">
+          {str}
+        </span>,
+        colon,
+      );
+    } else if (str) {
+      nodes.push(
+        <span key={`v${index}`} data-testid="json-highlight" className="text-vibe-success">
+          {str}
+        </span>,
+      );
+    } else {
+      nodes.push(
+        <span key={`p${index}`} data-testid="json-highlight" className="text-vibe-warning">
+          {token}
+        </span>,
+      );
+    }
+    index += 1;
+    last = re.lastIndex;
+  }
+  if (last < value.length) nodes.push(value.slice(last));
+  return nodes;
+}
+
+function stripJsonFence(payload: string): string {
+  return payload
+    .replace(/^```(?:json)?\s*/m, '')
+    .replace(/```\s*$/m, '')
+    .trim();
+}
+
+function PayloadPanel({ payload }: { payload: string }) {
+  const stripped = stripJsonFence(payload);
+  let isJson = false;
+  try {
+    const parsed: unknown = JSON.parse(stripped);
+    isJson = parsed !== null && typeof parsed === 'object';
+  } catch {
+    isJson = false;
+  }
+  return (
+    <pre
+      data-testid="payload-pre"
+      className="mt-1 max-h-48 overflow-auto rounded-md border border-vibe-border bg-vibe-bg p-2 text-[11px] leading-snug text-vibe-text"
+    >
+      {isJson ? highlightJson(stripped) : payload}
+    </pre>
+  );
+}
+
+function BrokenJsonPayload({ raw }: { raw: string }) {
+  const match = /,(\s*\])/.exec(raw);
+  return (
+    <pre
+      data-testid="payload-pre"
+      className="mt-1 max-h-48 overflow-auto rounded-md border border-vibe-danger/40 bg-vibe-bg p-2 text-[11px] leading-snug text-vibe-text"
+    >
+      {match ? (
+        <>
+          {raw.slice(0, match.index)}
+          <span
+            data-testid="json-defect"
+            title="trailing comma"
+            className="rounded bg-vibe-danger/25 px-0.5 font-bold text-vibe-danger"
+          >
+            ,
+          </span>
+          {raw.slice(match.index + 1)}
+          <span
+            data-testid="json-defect"
+            title="missing closing brace"
+            className="ml-0.5 inline-block rounded border border-dashed border-vibe-danger px-0.5 text-vibe-danger"
+          >
+            {'}'}
+          </span>
+        </>
+      ) : (
+        raw
+      )}
+    </pre>
+  );
+}
+
+function ScoreDial({ score, reduced }: { score: number; reduced: boolean }) {
+  const { t } = useTranslation('theatre');
+  const [display, setDisplay] = useState(reduced ? score : 0);
+
+  useEffect(() => {
+    if (reduced) {
+      setDisplay(score);
+      return;
+    }
+    setDisplay(0);
+    let current = 0;
+    const timer = setInterval(() => {
+      current += 1;
+      setDisplay(Math.min(current, score));
+      if (current >= score) clearInterval(timer);
+    }, Math.max(30, Math.floor(900 / Math.max(score, 1))));
+    return () => clearInterval(timer);
+  }, [score, reduced]);
+
+  const radius = 52;
+  const circumference = 2 * Math.PI * radius;
+  const pct = Math.max(0, Math.min(1, display / 10));
+  const strokeClass = score >= 5 ? 'text-vibe-success' : score >= 3 ? 'text-vibe-warning' : 'text-vibe-danger';
+
+  return (
+    <svg
+      data-testid="score-dial"
+      data-score={display}
+      viewBox="0 0 120 120"
+      role="img"
+      aria-label={t('payoff.dialAria', { score: display })}
+      className="h-24 w-24 shrink-0"
+    >
+      <circle cx="60" cy="60" r={radius} fill="none" stroke="currentColor" strokeWidth="8" className="text-vibe-border" />
+      <circle
+        cx="60"
+        cy="60"
+        r={radius}
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="8"
+        strokeLinecap="round"
+        strokeDasharray={`${circumference * pct} ${circumference}`}
+        transform="rotate(-90 60 60)"
+        className={strokeClass}
+      />
+      <text x="60" y="58" textAnchor="middle" className="fill-current text-2xl font-semibold text-vibe-text">
+        {display}
+      </text>
+      <text x="60" y="76" textAnchor="middle" className="fill-current text-xs text-vibe-faint">
+        /10
+      </text>
+    </svg>
+  );
+}
+
+function VerdictPayoff({
+  score,
+  severity,
+  stamp,
+  reduced,
+}: {
+  score: number | null;
+  severity: string | null;
+  stamp: string;
+  reduced: boolean;
+}) {
+  const { t } = useTranslation('theatre');
+  return (
+    <div
+      data-testid="verdict-payoff"
+      className="mt-3 flex flex-wrap items-center gap-4 rounded-lg border border-vibe-border bg-vibe-card p-3"
+    >
+      {score != null && <ScoreDial score={score} reduced={reduced} />}
+      <div className="space-y-2">
+        {severity && (
+          <span className="inline-block rounded-md border border-vibe-border bg-vibe-surface px-2 py-0.5 text-xs text-vibe-muted">
+            severity: {severity}
+          </span>
+        )}
+        <div>
+          <span
+            data-testid="verdict-stamp"
+            data-stamp={stamp}
+            className={
+              'inline-block rounded-md border px-2 py-1 text-xs font-semibold tracking-wide ' +
+              (STAMP_STYLES[stamp] ?? 'border-vibe-border text-vibe-muted')
+            }
+          >
+            {t('payoff.stamp.' + stamp)}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function stampKey(scenario: TheatreScenario, showAfter: boolean): string {
+  const approved = showAfter ? scenario.afterApproved : scenario.approved;
+  if (scenario.failClosed && !showAfter) return 'unpublished';
+  return approved === true ? 'approved' : 'attention';
+}
+
+function ModeBadge({ mode }: { mode: string }) {
+  const { t } = useTranslation('theatre');
+  return (
+    <span
+      data-testid="mode-badge"
+      data-mode={mode}
+      className={
+        'rounded-full border px-2 py-0.5 text-[11px] font-medium ' +
+        (MODE_STYLES[mode] ?? 'border-vibe-border bg-vibe-card text-vibe-muted')
+      }
+    >
+      {t('mode.' + mode.toLowerCase())}
+    </span>
+  );
+}
+
+function StepList({
+  steps,
+  scenarioId,
+  cfId,
+  revealed,
+  pulseIndex,
+}: {
+  steps: TheatreStep[];
+  scenarioId: string;
+  cfId?: string;
+  revealed: number;
+  pulseIndex: number | null;
+}) {
+  const { t } = useTranslation('theatre');
+  const reduceMotion = useReducedMotion();
+  return (
+    <ol className="space-y-2">
+      {steps.map((step, index) => {
+        const isRevealed = index < revealed;
+        const title = t('steps.' + step.id + '.title', { defaultValue: step.title });
+        const detail = t((cfId ? 'cf.' + cfId : 'details.' + scenarioId) + '.' + step.id, {
+          defaultValue: step.detail,
+        });
+        const outcomeClass = OUTCOME_STYLES[step.outcome] ?? 'text-vibe-muted';
+        return (
+          <li
+            key={step.id + '-' + index}
+            data-revealed={isRevealed}
+            className={
+              'rounded-lg border border-vibe-border bg-vibe-surface p-3 transition-opacity ' +
+              (isRevealed ? 'opacity-100' : 'opacity-40') +
+              (index === pulseIndex && !reduceMotion ? ' animate-pulse' : '')
+            }
+          >
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="text-xs tabular-nums text-vibe-faint">{String(index + 1).padStart(2, '0')}</span>
+              <ModeBadge mode={step.mode} />
+              <span className="text-sm font-medium text-vibe-text">{title}</span>
+              <span data-testid="step-offset" className="text-[10px] tabular-nums text-vibe-faint">
+                +{asNumber(step.offsetMs)} ms
+              </span>
+              <span className={'ml-auto text-xs ' + outcomeClass}>
+                {t('outcome.' + step.outcome.toLowerCase())}
+              </span>
+            </div>
+            <p className="mt-1.5 text-xs leading-relaxed text-vibe-muted">{detail}</p>
+            {step.payload && (
+              <details className="mt-2">
+                <summary className="cursor-pointer text-xs text-vibe-accent hover:underline">
+                  {t('showPayload')}
+                </summary>
+                <PayloadPanel payload={step.payload} />
+              </details>
+            )}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function CounterfactualPanel({ scenario }: { scenario: TheatreScenario }) {
+  const { t } = useTranslation('theatre');
+  const [open, setOpen] = useState(false);
+  const cf = scenario.counterfactual;
+  if (!cf) return null;
+  return (
+    <section aria-label={t('cfPanel.show')} className="rounded-lg border border-vibe-border bg-vibe-surface p-3">
+      <button
+        type="button"
+        data-testid="cf-toggle"
+        aria-expanded={open}
+        onClick={() => setOpen((value) => !value)}
+        className="inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1.5 text-xs text-vibe-muted hover:border-vibe-accent/50 hover:text-vibe-text"
+      >
+        {open ? t('cfPanel.hide') : t('cfPanel.show')}
+      </button>
+      {open && (
+        <div data-testid="cf-panel" className="mt-3 space-y-3">
+          <div className="flex flex-wrap items-center gap-4">
+            {cf.score != null && <ScoreDial score={cf.score} reduced />}
+            <div className="min-w-0 space-y-1">
+              <p className="text-sm font-medium text-vibe-text">{t('cf.' + cf.id + '.label', { defaultValue: cf.label })}</p>
+              <p className="text-xs text-vibe-muted">{t('cf.' + cf.id + '.summary', { defaultValue: cf.summary })}</p>
+              <p className="text-xs text-vibe-faint">
+                {t('cfPanel.attempts')}: {cf.modelAttempts} · {t('cfPanel.score')}: {cf.score ?? '—'}
+                {cf.severity ? ` · ${cf.severity}` : ''}
+              </p>
+            </div>
+          </div>
+          <StepList steps={cf.steps} scenarioId={scenario.id} cfId={cf.id} revealed={cf.steps.length} pulseIndex={null} />
+        </div>
+      )}
+    </section>
+  );
+}
+
+export default function TheatrePage() {
+  const { t } = useTranslation('theatre');
+  const reduceMotion = useReducedMotion();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [revealed, setRevealed] = useState(0);
+  const [fixedApplied, setFixedApplied] = useState(false);
+
+  const { data, isLoading, isError, refetch } = useQuery<TheatreScenario[]>({
+    queryKey: ['demo', 'chaos-scenarios'],
+    queryFn: async () => {
+      const res = await apiClient.get<ApiResponse<TheatreScenario[]>>('/demo/chaos-scenarios');
+      return res.data.data ?? [];
+    },
+    staleTime: 1000 * 60 * 10,
+  });
+
+  const scenarios = data ?? [];
+  const selected = scenarios.find((scenario) => scenario.id === selectedId) ?? scenarios[0] ?? null;
+  const selectedKey = selected ? selected.id : '';
+  const activeSteps = selected
+    ? fixedApplied && selected.afterSteps
+      ? selected.afterSteps
+      : selected.steps
+    : EMPTY_STEPS;
+
+  useEffect(() => {
+    setFixedApplied(false);
+  }, [selectedKey]);
+
+  useEffect(() => {
+    const total = activeSteps.length;
+    if (reduceMotion) {
+      setRevealed(total);
+      return;
+    }
+    setRevealed(0);
+    let count = 0;
+    const timer = setInterval(() => {
+      count += 1;
+      setRevealed(count);
+      if (count >= total) clearInterval(timer);
+    }, REPLAY_STEP_MS);
+    return () => clearInterval(timer);
+  }, [activeSteps, reduceMotion]);
+
+  if (isLoading) {
+    return (
+      <div className="mx-auto max-w-4xl space-y-4 px-4 py-8">
+        <Skeleton className="h-8 w-1/2" />
+        <Skeleton className="h-16 rounded-lg" />
+        <Skeleton className="h-64 rounded-lg" />
+      </div>
+    );
+  }
+
+  if (isError) {
+    return (
+      <div role="alert" className="mx-auto max-w-4xl px-4 py-8">
+        <div className="flex items-center justify-between gap-3 rounded-lg border border-vibe-danger/40 bg-vibe-danger/5 p-4 text-sm text-vibe-danger">
+          <span className="flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 shrink-0" />
+            {t('error')}
+          </span>
+          <button
+            type="button"
+            onClick={() => refetch()}
+            className="inline-flex shrink-0 items-center gap-1 rounded-md border border-vibe-danger/30 bg-vibe-danger/10 px-2 py-1.5 text-xs hover:bg-vibe-danger/20"
+          >
+            <RotateCw className="h-3.5 w-3.5" />
+            {t('retry')}
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  const showAfter = Boolean(selected?.fixedCode) && fixedApplied;
+  const payoffScore = selected ? (showAfter ? selected.afterScore ?? null : selected.score) : null;
+  const payoffSeverity = selected ? (showAfter ? selected.afterSeverity ?? null : selected.severity) : null;
+  const stamp = selected ? stampKey(selected, showAfter) : 'attention';
+  const pulseIndex = revealed > 0 && revealed < activeSteps.length ? revealed - 1 : null;
+
+  return (
+    <div className="mx-auto max-w-4xl space-y-5 px-4 py-8">
+      <header>
+        <h1 className="flex items-center gap-2 text-2xl font-semibold text-vibe-text">
+          <Theater className="h-6 w-6 text-vibe-accent" />
+          {t('title')}
+        </h1>
+        <p className="mt-1 text-sm text-vibe-muted">{t('subtitle')}</p>
+      </header>
+
+      <p
+        data-testid="theatre-disclosure"
+        className="rounded-lg border border-vibe-border bg-vibe-surface p-3 text-xs leading-relaxed text-vibe-muted"
+      >
+        {t('disclosure')}
+      </p>
+
+      <nav aria-label={t('scenarioListAria')} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+        {scenarios.map((scenario) => {
+          const active = selected?.id === scenario.id;
+          const Icon = SCENARIO_ICONS[scenario.id] ?? Theater;
+          return (
+            <button
+              key={scenario.id}
+              type="button"
+              aria-pressed={active}
+              onClick={() => setSelectedId(scenario.id)}
+              className={
+                'rounded-lg border p-3 text-left transition-colors ' +
+                (active
+                  ? 'border-vibe-accent bg-vibe-accent/10'
+                  : 'border-vibe-border bg-vibe-surface hover:border-vibe-accent/50')
+              }
+            >
+              <span className="flex items-center gap-2 text-sm font-medium text-vibe-text">
+                <Icon className="h-4 w-4 shrink-0 text-vibe-accent" aria-hidden="true" />
+                {t('cards.' + scenario.id + '.title', { defaultValue: scenario.title })}
+              </span>
+              <span className="mt-0.5 block text-xs text-vibe-muted">
+                {t('cards.' + scenario.id + '.subtitle', { defaultValue: scenario.subtitle })}
+              </span>
+              <span data-testid="card-meta" className="mt-1.5 block text-[10px] tabular-nums text-vibe-faint">
+                {t('meta.attempts')}: {scenario.modelAttempts} · {t('meta.duration')}: {formatDuration(scenario.durationMs)}
+              </span>
+            </button>
+          );
+        })}
+      </nav>
+
+      {selected && (
+        <section aria-label={t('traceAria')} className="space-y-4">
+          <div className="rounded-lg border border-vibe-border bg-vibe-surface p-4">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <h2 className="text-lg font-semibold text-vibe-text">
+                {t('cards.' + selected.id + '.title', { defaultValue: selected.title })}
+              </h2>
+              <button
+                type="button"
+                onClick={() => setRevealed(0)}
+                className="inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1.5 text-xs text-vibe-muted hover:border-vibe-accent/50 hover:text-vibe-text"
+              >
+                <RotateCw className="h-3.5 w-3.5" />
+                {t('replay')}
+              </button>
+            </div>
+            <p className="mt-1 text-sm text-vibe-muted">{selected.lesson}</p>
+
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <span className="rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-vibe-muted">
+                {t('meta.attempts')}: {selected.modelAttempts}
+              </span>
+              <span className="rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-vibe-muted">
+                {t('meta.duration')}: {formatDuration(selected.durationMs)}
+              </span>
+              {selected.failClosed && !showAfter ? (
+                <span
+                  data-testid="fail-closed-chip"
+                  className="rounded-md border border-vibe-danger/40 bg-vibe-danger/10 px-2 py-1 text-vibe-danger"
+                >
+                  {t('meta.failClosed')}
+                </span>
+              ) : (
+                payoffScore != null && (
+                  <span className="rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-vibe-muted">
+                    {t('meta.score')}: {payoffScore}/10{payoffSeverity ? ` · ${payoffSeverity}` : ''}
+                  </span>
+                )
+              )}
+              <a
+                href={adrUrl(selected.adr)}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1 text-vibe-accent hover:border-vibe-accent/50"
+              >
+                <ExternalLink className="h-3 w-3" />
+                {t('meta.adr')}
+              </a>
+            </div>
+
+            <VerdictPayoff score={payoffScore} severity={payoffSeverity} stamp={stamp} reduced={Boolean(reduceMotion)} />
+
+            {Boolean(selected.fixedCode) && (
+              <div data-testid="fix-panel" className="mt-3 rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 p-3">
+                <p className="text-xs text-vibe-muted">{t('fix.applyHint')}</p>
+                <div className="mt-2 flex flex-wrap items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="apply-fix"
+                    aria-pressed={fixedApplied}
+                    onClick={() => setFixedApplied((value) => !value)}
+                    className="inline-flex items-center gap-1 rounded-md border border-vibe-accent/50 bg-vibe-accent/10 px-2 py-1.5 text-xs font-medium text-vibe-accent hover:bg-vibe-accent/20"
+                  >
+                    <Wrench className="h-3.5 w-3.5" />
+                    {fixedApplied ? t('fix.revert') : t('fix.apply')}
+                  </button>
+                  <span data-testid="fix-state" className="text-xs text-vibe-muted">
+                    {fixedApplied ? t('fix.after') : t('fix.before')}: {payoffScore ?? '—'}/10
+                  </span>
+                </div>
+              </div>
+            )}
+
+            {selected.id === 'repaired-json' && !showAfter && selected.repairedJson && (
+              <div data-testid="json-compare" className="mt-3 grid gap-3 sm:grid-cols-2">
+                <figure className="min-w-0">
+                  <figcaption className="text-xs text-vibe-muted">{t('payoff.compare.broken')}</figcaption>
+                  <BrokenJsonPayload raw={selected.rawOutput} />
+                </figure>
+                <figure className="min-w-0">
+                  <figcaption className="text-xs text-vibe-muted">{t('payoff.compare.repaired')}</figcaption>
+                  <PayloadPanel payload={selected.repairedJson} />
+                </figure>
+              </div>
+            )}
+          </div>
+
+          <div className="h-1 w-full overflow-hidden rounded-full bg-vibe-border">
+            <div
+              data-testid="replay-progress"
+              data-progress={revealed}
+              className="h-full bg-vibe-accent transition-[width] duration-300"
+              style={{ width: `${activeSteps.length ? (revealed / activeSteps.length) * 100 : 0}%` }}
+            />
+          </div>
+
+          <StepList steps={activeSteps} scenarioId={selected.id} revealed={revealed} pulseIndex={pulseIndex} />
+
+          {!selected.fixedCode && <CounterfactualPanel scenario={selected} />}
+
+          {revealed < activeSteps.length && (
+            <p role="status" className="text-xs text-vibe-muted">
+              {t('replaying')}
+            </p>
+          )}
+        </section>
+      )}
+    </div>
+  );
+}
+
+export function TheatreEntry({ label, desc }: { label: string; desc: string }) {
+  return (
+    <Link
+      to="/theatre"
+      data-testid="theatre-entry"
+      className="press-feedback group flex items-center justify-between gap-3 rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 px-4 py-3 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-accent/10"
+    >
+      <span className="min-w-0">
+        <span className="block text-sm font-medium text-vibe-text">{label}</span>
+        <span className="mt-0.5 block text-xs text-vibe-muted">{desc}</span>
+      </span>
+      <ArrowRight className="h-4 w-4 shrink-0 text-vibe-accent" />
+    </Link>
+  );
+}

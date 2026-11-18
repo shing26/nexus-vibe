@@ -83,6 +83,9 @@ alternatives that were rejected.
 | [fe1-boundary-layering](tickets/fe1-boundary-layering.md) | FE-1's second half: per-route error boundaries under the layout, one broken page no longer unmounts the SPA, and the outer boundary stays as the last resort |
 | [saturation-test-deflake](tickets/saturation-test-deflake.md) | One test class, three CI failures in a day: a poll deadline racing the retry ladder, a precondition that read one refusal as proof of a full pool, and a latch read from a field |
 | [frontend-polish-round-3](tickets/frontend-polish-round-3.md) | Nine patterns from a comparable product, arbitrated against the tree: one is a defect (the author cannot see their own held post), five are cheap, and three are declined with the reason written down |
+| [chaos-theater-a](tickets/chaos-theater-a.md) | `/theatre`: four scripted-failure exhibits replayed through the real review pipeline, public and offline — the thesis playable without an account |
+| [chaos-theater-a2](tickets/chaos-theater-a2.md) | A2: the fix-challenge scenario (3→9 on apply-the-fix), four counterfactual runs, the score-dial/stamp payoff, JSON evidence highlighting, and Chinese-first step narration |
+| [observability-forum-round](tickets/observability-forum-round.md) | Make the honest system legible in the community UI: sidebar system pulse, AI credential chips, narrative profile stats and per-tab ranking notes — borrowed selectively from Luzi, gamification declined |
 
 ## Plans — `docs/plans/`
 
@@ -97,6 +100,9 @@ alternatives that were rejected.
 | [fe-3-group-b-degradation-banner](plans/fe-3-group-b-degradation-banner.md) | Frozen contract for round-3 item 3: a shaped public capability read model and a dismissible banner, without reopening the actuator paths ADR-0007 closed |
 | [fe-3-group-c-detail-comments](plans/fe-3-group-c-detail-comments.md) | Frozen contract for round-3 items 5 and 7: a worked example on prompt posts, and a rule-based comment sentiment that cannot fail the write or go dark with the LLM |
 | [fe-3-group-d-palette](plans/fe-3-group-d-palette.md) | Frozen contract for round-3 item 9: the palette's second destination is the row's link, not a product the tree does not have |
+| [chaos-theater-a](plans/chaos-theater-a.md) | Frozen contract for the Chaos Theatre's first slice: allowed paths, the four scenario semantics, the honesty-badge rule, and what the demo may not do |
+| [chaos-theater-a2](plans/chaos-theater-a2.md) | Frozen contract for A2: the fifth scenario's double-run semantics, the counterfactual runs (including the injection-obeyed 10/low), the new DTO fields, and the same forbidden list |
+| [observability-forum-round](plans/observability-forum-round.md) | Frozen contract for the observability forum round: real-data-only pulse and credential, narrative stats and ranking notes, Luzi's gamification explicitly rejected, creations library deferred |
 | [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
 
 ## Design and product

@@ -7,6 +7,7 @@ import { useAuthStore } from '../stores/authStore';
 import PostCard from '../components/PostCard';
 import EmptyState from '../components/EmptyState';
 import ShowcaseEntry from '../components/ShowcaseEntry';
+import { TheatreEntry } from './TheatrePage';
 import Pagination from '../components/Pagination';
 import Skeleton from '../components/Skeleton';
 import { ArrowRight, GitFork, Terminal, Bug, Palette } from 'lucide-react';
@@ -20,7 +21,7 @@ type Tab = 'hot' | 'latest' | 'ai-verified' | 'debug' | 'prompts';
  * additionally see the Mission Control band.
  */
 export default function HomePage() {
-  const { t } = useTranslation(['home', 'common']);
+  const { t } = useTranslation(['home', 'common', 'theatre']);
   const [activeTab, setActiveTab] = useState<Tab>('hot');
   const [page, setPage] = useState(1);
   const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
@@ -163,6 +164,11 @@ export default function HomePage() {
           because the sidebar owns channel navigation. */}
       <ShowcaseEntry />
 
+      {/* The Chaos Theatre: the signed-out visitor can watch the review pipeline
+          fail and recover without an account, so the thesis is playable in one
+          click. Signed-in readers keep the navbar; the link stays here too. */}
+      <TheatreEntry label={t('theatre:entry.label')} desc={t('theatre:entry.desc')} />
+
       {/* Underline tabs — GitHub style: a bottom border per tab, the active one
           carries the accent rail and the text darkens, nothing else moves. */}
       <div className="flex flex-wrap items-center gap-1 border-b border-vibe-border">
@@ -185,6 +191,13 @@ export default function HomePage() {
           </button>
         ))}
       </div>
+
+      {/* One plain sentence explaining the order the reader is looking at.
+          The product's ranking dialect stays honest without a hover; this is
+          the forum's version of "show your work" (observability-forum round). */}
+      <p data-testid="ranking-note" className="mt-2 text-xs text-vibe-muted">
+        {t('home:tabNotes.' + activeTab)}
+      </p>
 
       {/* Empty state (shown when no posts) */}
       {isEmpty && (

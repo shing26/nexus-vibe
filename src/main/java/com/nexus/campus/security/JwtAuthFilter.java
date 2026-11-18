@@ -106,7 +106,10 @@ public class JwtAuthFilter implements Filter {
         // to see where the number came from.
         return uri.startsWith("/api/v1/agent-logs/post/")
                 || uri.startsWith("/api/v1/agent-logs/user/")
-                || uri.equals("/api/v1/agent-logs/ticker");
+                || uri.equals("/api/v1/agent-logs/ticker")
+                // The Chaos Theatre is a signed-out exhibit: its traces are
+                // precomputed, read-only and contain no post or user data.
+                || uri.startsWith("/api/v1/demo/");
     }
 
     private String extractToken(HttpServletRequest request) {

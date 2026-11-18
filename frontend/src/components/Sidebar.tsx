@@ -4,6 +4,7 @@ import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
 import { CHANNELS } from '../lib/channels';
+import SystemPulse from './SystemPulse';
 
 interface SidebarProps {
   /** Drawer rows close the drawer on navigation. */
@@ -103,6 +104,8 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
           {row('/agent-logs', Activity, t('common:nav.agentLogs'), location.pathname.startsWith('/agent-logs'))}
         </>
       )}
+
+      <SystemPulse />
     </nav>
   );
 }

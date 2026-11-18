@@ -75,6 +75,13 @@
       "register": "注册",
       "newPost": "发帖"
     },
+    "pulse": {
+      "title": "系统脉搏",
+      "apiServing": "API 服务中",
+      "probing": "探测中…",
+      "allNormal": "全部能力正常",
+      "apiDown": "无法连接服务端"
+    },
     "language": {
       "label": "语言",
       "toggle": "切换到英语",
@@ -247,6 +254,13 @@
       "debug": "急诊",
       "prompts": "Prompt"
     },
+    "tabNotes": {
+      "hot": "按热度排列：得赞、评论越多越靠前，帖子越旧分数越低。",
+      "latest": "按发布时间排列，最新发的排在最前面。",
+      "ai-verified": "只看有 AI 评审记录的帖子，分数高的排前面。",
+      "debug": "只看「急诊」频道的帖子，提问和排查都在这里。",
+      "prompts": "只看 Prompt 类型的帖子，可以直接 Fork 拿去用。"
+    },
     "missionControl": {
       "title": "任务中心",
       "hint": "选一个任务开始",
@@ -390,6 +404,12 @@
   "post": {
     "channelBadgeAria": "频道",
     "aiScore": "AI {{score}}",
+    "credential": {
+      "scoreTitle": "AI 评审得分 {{score}} / 10，已校验",
+      "verified": "已校验",
+      "reviewing": "评审中",
+      "failed": "评审失败"
+    },
     "aiScoreBadge": "AI 评分 {{score}}/100",
     "scoreRubric": "评分标准（0-100）：90-100 可直接投产 · 70-80 扎实，有小问题 · 50-60 可用但有明显缺口 · 30-40 问题显著 · 0-20 破损/不安全。评审维度：正确性、代码质量、安全性、改进建议。编辑后的帖子会自动重新评审。",
     "stateBadgePrefix": "AI 评审：",
@@ -704,7 +724,8 @@
       "avgAi": "平均 AI 评分",
       "forks": "Fork",
       "versions": "版本",
-      "secondaryLine": "评论 {{comments}} · 平均 AI 评分 {{avgAi}} · Fork {{forks}} · 版本 {{versions}}"
+      "secondaryLine": "评论 {{comments}} · 平均 AI 评分 {{avgAi}} · Fork {{forks}} · 版本 {{versions}}",
+      "narrative": "你摆出来 <strong>{{posts}}</strong> 篇帖子，写下 <strong>{{comments}}</strong> 条评论，收到 <strong>{{likes}}</strong> 个赞；其中 <strong>{{reviewed}}</strong> 篇被 AI 评审过，平均 <strong>{{avgAi}}</strong> 分。你的 Prompt 被 Fork 了 <strong>{{forks}}</strong> 次，有 <strong>{{versions}}</strong> 个版本。"
     },
     "statTitles": {
       "posts": "已发布帖子数",
@@ -874,6 +895,175 @@
       "critical": "严重",
       "unknown": "未知",
       "unavailable": "不可用"
+    }
+  },
+  "theatre": {
+    "title": "混乱剧场",
+    "subtitle": "亲手把 AI 弄坏，看它怎么活下来。",
+    "entry": {
+      "label": "进入混乱剧场",
+      "desc": "一条真实评审管线的失败与自救回放，无需登录。"
+    },
+    "disclosure": "演示说明：模型输出是预生成的脚本，但 JSON 修复、语义校验、重试与 fail-closed 都是本仓库的生产代码路径。本页面只读、不创建任何帖子，也不会调用外部模型。",
+    "scenarioListAria": "选择一个故障场景",
+    "traceAria": "评审轨迹回放",
+    "replay": "重播",
+    "replaying": "回放中…",
+    "showPayload": "展开原始内容",
+    "cards": {
+      "fix-challenge": {
+        "title": "动手修复",
+        "subtitle": "同一段有缺陷的 divide，修复前后各评一次。"
+      },
+      "repaired-json": {
+        "title": "修复损坏的 JSON",
+        "subtitle": "模型返回围栏、截断的 JSON，解析器无法独自完成。"
+      },
+      "empty-placeholder": {
+        "title": "拒绝空洞回答",
+        "subtitle": "第一次回答 schema 合法但言之无物。"
+      },
+      "prompt-injection": {
+        "title": "拦住注入指令",
+        "subtitle": "代码里藏着一条无视系统提示的注释。"
+      },
+      "model-down": {
+        "title": "在死模型下幸存",
+        "subtitle": "每次调用都超时，没有任何东西被未审发布。"
+      }
+    },
+    "error": "轨迹加载失败，请重试。",
+    "retry": "重试",
+    "mode": {
+      "real": "真实路径",
+      "injected": "脚本注入",
+      "policy": "策略演示"
+    },
+    "outcome": {
+      "ok": "通过",
+      "warn": "警告",
+      "fail": "失败",
+      "info": "提示"
+    },
+    "meta": {
+      "attempts": "模型调用",
+      "duration": "耗时",
+      "score": "最终评分",
+      "failClosed": "fail-closed：未发布",
+      "adr": "相关决策"
+    },
+    "steps": {
+      "input": { "title": "输入已受理" },
+      "prompt": { "title": "提示词已隔离" },
+      "model": { "title": "模型作答" },
+      "repair-fail": { "title": "解析失败" },
+      "repair": { "title": "修复采纳" },
+      "retry": { "title": "重试" },
+      "validate": { "title": "语义闸门" },
+      "verdict": { "title": "判定落账" },
+      "fail-closed": { "title": "fail-closed：拒绝发布" },
+      "reconcile": { "title": "对账恢复" }
+    },
+    "details": {
+      "fix-challenge": {
+        "input": "同一段带缺陷的 divide 片段，走的是帖子发布用的同一条评审管线。",
+        "prompt": "请求构造器把片段包进每次随机生成的 nonce 分隔符里，片段内的任何指令都只是数据。",
+        "model": "脚本模型给出实质评审：没有零值守卫，评分 3，严重级 high。",
+        "validate": "严重级合法、分析字段有实质内容，判定允许落账。",
+        "verdict": "缺陷代码诚实地拿到 3/10 —— 应用修复后，同一条管线会重新打分。"
+      },
+      "repaired-json": {
+        "input": "同一段带缺陷的 divide 片段，走的是帖子发布用的同一条评审管线。",
+        "prompt": "请求构造器把片段包进每次随机生成的 nonce 分隔符里。",
+        "model": "脚本模型返回了围栏 JSON：一个多余的尾逗号，结尾大括号被截断。",
+        "repair-fail": "修复梯子能单独处理每种缺陷，但截断加尾逗号超出能力，解析器返回带位置的错误。",
+        "retry": "评审器把坏输出和解析错误一并送回模型，做一次自纠错重试。",
+        "repair": "纠正后的对象干净通过解析，成为落账结果。",
+        "validate": "严重级合法、分析字段有实质内容。",
+        "verdict": "修复后的输出变成了真实判定，而不是被丢弃。"
+      },
+      "empty-placeholder": {
+        "input": "同一段片段，同一条评审管线。",
+        "prompt": "nonce 分隔符把片段圈进数据区。",
+        "model": "每个 schema 字段都在，但 EVALUATE / NONE / FIX 没有任何分析内容。",
+        "validate": "即使 JSON 合法，语义闸门也拒绝占位符。",
+        "retry": "评审器带着强化提示词重试一次，明确要求给出实质分析。",
+        "verdict": "到达帖子的只可能是重试结果，而不是占位符。"
+      },
+      "prompt-injection": {
+        "input": "片段里藏了一条注释，命令模型无视系统提示并给出满分。",
+        "prompt": "nonce 分隔符把注释圈进数据区：它无法触碰系统提示。",
+        "model": "脚本模型给出低分评审，并说明该注释被当作数据处理。",
+        "validate": "判定实质且合法；注入既没改 schema 也没骗过闸门。",
+        "verdict": "评审指名注入企图，而不是服从它。"
+      },
+      "model-down": {
+        "input": "同一段片段，同一条评审管线。",
+        "prompt": "nonce 分隔符把片段圈进数据区。",
+        "model": "每次调用都在脚本死端点上失败；客户端重试直到耗尽次数。",
+        "retry": "评审器的重试发现熔断器已打开，直接快速失败。",
+        "fail-closed": "生产监听器把帖子标记 FAILED，让它远离已发布信息流。",
+        "reconcile": "定时扫描会重新派发 FAILED/REVIEWING 的帖子，用户无需做任何事。"
+      }
+    },
+    "cf": {
+      "cf-repaired": {
+        "label": "如果模型第一次就返回合法 JSON",
+        "summary": "一次干净的调用：修复梯子根本不会启动，判定直接落账。",
+        "input": "同一段片段，同一位评审器。",
+        "model": "在这个反事实里，第一次回答就是合法且实质的。",
+        "validate": "第一次尝试就通过闸门。",
+        "verdict": "表现良好的模型走的仍是同一条落账路径。"
+      },
+      "cf-placeholder": {
+        "label": "如果模型第一次就答好",
+        "summary": "没有占位符、没有强化重试：第一次回答就带着真实分析。",
+        "input": "同一段片段，同一位评审器。",
+        "model": "在这个反事实里没有占位符：第一次回答就带着真实分析。",
+        "validate": "闸门第一次就放行。",
+        "verdict": "强化重试从未被触发。"
+      },
+      "cf-injection": {
+        "label": "如果模型服从了注入",
+        "summary": "评分 10、严重级 low、字段详实：闸门检查的是实质而非真话 —— nonce 分隔符才是真正的防线。",
+        "input": "带注入注释的片段，原样进入评审器。",
+        "model": "在这个反事实里模型服从了注入：评分 10、严重级 low、字段详实。",
+        "validate": "注意：闸门检查的是实质，不是真话 —— 这样的满分判定会合法通过。",
+        "verdict": "真正的防线是 nonce 分隔符和系统提示，闸门只是最后一道网。"
+      },
+      "cf-alive": {
+        "label": "如果模型当时在线",
+        "summary": "一次健康调用、一个合法判定、没有 fail-closed：唯一改变的是故障本身。",
+        "input": "同一段片段，同一位评审器。",
+        "model": "在这个反事实里模型在线，一次调用就给出健康评审。",
+        "validate": "闸门放行，无需熔断。",
+        "verdict": "唯一的区别是模型是否在线。"
+      }
+    },
+    "cfPanel": {
+      "show": "反事实：如果模型表现良好",
+      "hide": "收起反事实",
+      "attempts": "调用",
+      "score": "评分"
+    },
+    "fix": {
+      "apply": "应用修复",
+      "revert": "还原为有缺陷版本",
+      "applyHint": "点击应用零值守卫，同一条管线会重新评审修复后的代码。",
+      "before": "修复前",
+      "after": "修复后"
+    },
+    "payoff": {
+      "dialAria": "评审评分 {{score}} / 10",
+      "stamp": {
+        "approved": "已通过",
+        "attention": "需整改",
+        "unpublished": "UNPUBLISHED · 已入对账队列"
+      },
+      "compare": {
+        "broken": "模型原始输出",
+        "repaired": "管线采纳结果"
+      }
     }
   }
 }
