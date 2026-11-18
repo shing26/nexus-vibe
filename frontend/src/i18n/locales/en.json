@@ -53,6 +53,7 @@
       "tags": "Tags",
       "tagsAria": "Hot Tags",
       "myPosts": "My Posts",
+      "myCreations": "My Creations",
       "drafts": "Drafts",
       "messages": "Messages",
       "settings": "Settings",
@@ -1065,5 +1066,37 @@
         "repaired": "What the pipeline accepted"
       }
     }
+  },
+  "creations": {
+    "title": "My Creations",
+    "subtitle": "The posts you've written, the prompts you've made, and the templates you brought back from the plaza.",
+    "newPost": "Create something",
+    "tabs": {
+      "all": "All",
+      "post": "Posts",
+      "prompt": "Prompts",
+      "fork": "Forks",
+      "draft": "Drafts"
+    },
+    "kind": {
+      "post": "Post",
+      "prompt": "Prompt template",
+      "fork": "Forked from plaza",
+      "draft": "Draft"
+    },
+    "deviceOnly": "on this device only",
+    "windowHint": "showing the most recent {{count}}",
+    "score": "AI {{score}}",
+    "empty": {
+      "all": "Nothing here yet. Write your first post, or fork a template from the plaza.",
+      "post": "No published posts yet.",
+      "prompt": "No original prompt templates yet.",
+      "fork": "Nothing forked from the plaza yet.",
+      "draft": "No drafts on this device yet."
+    },
+    "error": "Failed to load your creations.",
+    "retry": "Retry",
+    "loadingAria": "Loading creations",
+    "listAria": "Creation list"
   }
 }

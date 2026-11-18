@@ -53,6 +53,7 @@
       "tags": "标签",
       "tagsAria": "热门标签",
       "myPosts": "我的帖子",
+      "myCreations": "创作物库",
       "drafts": "草稿",
       "messages": "消息",
       "settings": "设置",
@@ -1065,5 +1066,37 @@
         "repaired": "管线采纳结果"
       }
     }
+  },
+  "creations": {
+    "title": "创作物库",
+    "subtitle": "你写过的文章、做过的提示词，和你从广场搬回来的模板。",
+    "newPost": "写点新的",
+    "tabs": {
+      "all": "全部",
+      "post": "文章",
+      "prompt": "提示词",
+      "fork": "Fork",
+      "draft": "草稿"
+    },
+    "kind": {
+      "post": "文章",
+      "prompt": "提示词模板",
+      "fork": "Fork 自广场",
+      "draft": "草稿"
+    },
+    "deviceOnly": "仅存于本机",
+    "windowHint": "显示最近 {{count}} 条",
+    "score": "AI {{score}}",
+    "empty": {
+      "all": "这里还空着。写下第一篇，或从广场 Fork 一个模板。",
+      "post": "还没有发布文章。",
+      "prompt": "还没有原创提示词模板。",
+      "fork": "还没有从广场 Fork 过模板。",
+      "draft": "本机上还没有草稿。"
+    },
+    "error": "创作物加载失败。",
+    "retry": "重试",
+    "loadingAria": "正在加载创作物",
+    "listAria": "创作物列表"
   }
 }
