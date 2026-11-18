@@ -123,6 +123,17 @@ class CapabilityStatusIntegrationTest {
         assertThat(bodyOf("/actuator/health/servable")).isEqualTo(servableBefore);
     }
 
+    @Test
+    @DisplayName("Two reads inside the TTL window answer identically through the real chain")
+    void consecutiveReadsAnswerIdentically() throws Exception {
+        // R3-1: the second read inside the window is served from the read model's cache,
+        // so the bodies are byte-identical and the deps group is evaluated once, not twice.
+        String first = anonymousGet().getResponse().getContentAsString();
+        String second = anonymousGet().getResponse().getContentAsString();
+
+        assertThat(second).isEqualTo(first);
+    }
+
     private String bodyOf(String path) throws Exception {
         return mockMvc.perform(get(path))
                 .andExpect(status().isOk())

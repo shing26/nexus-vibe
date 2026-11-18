@@ -5,10 +5,13 @@ import org.springframework.boot.actuate.health.CompositeHealth;
 import org.springframework.boot.actuate.health.HealthComponent;
 import org.springframework.boot.actuate.health.HealthEndpoint;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Autowired;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.springframework.beans.factory.annotation.Value;
 
 /**
  * Turns the {@code deps} health group into the shaped read model the product can show.
@@ -51,12 +54,54 @@ public class DegradedCapabilityService {
 
     private final HealthEndpoint healthEndpoint;
 
-    public DegradedCapabilityService(HealthEndpoint healthEndpoint) {
-        this.healthEndpoint = healthEndpoint;
+    private final Clock clock;
+    private final long ttlMillis;
+
+    private final Object cacheLock = new Object();
+    private volatile List<CapabilityStatusVo> cached;
+    private volatile long cachedAtMillis;
+
+    @Autowired
+    public DegradedCapabilityService(HealthEndpoint healthEndpoint,
+            @Value("${campus.status.capabilities-ttl-seconds:15}") long ttlSeconds) {
+        this(healthEndpoint, ttlSeconds, Clock.systemDefaultZone());
     }
 
-    /** The degraded capabilities, in vocabulary order; empty when everything is up. */
+    DegradedCapabilityService(HealthEndpoint healthEndpoint, long ttlSeconds, Clock clock) {
+        this.healthEndpoint = healthEndpoint;
+        this.clock = clock;
+        this.ttlMillis = Math.max(0, ttlSeconds) * 1000L;
+    }
+
+    /**
+     * The degraded capabilities, in vocabulary order; empty when everything is up.
+     *
+     * <p>Reads inside the TTL window answer from a cache and perform no probe at all
+     * (R3-1: the group evaluation is expensive and this endpoint is anonymous and
+     * unthrottled). The first read after expiry re-probes once. A capability change can
+     * therefore take up to the TTL to reach the banner - the accepted freshness cost,
+     * stated in the frozen contract. A TTL of 0 disables the cache entirely.</p>
+     */
     public List<CapabilityStatusVo> current() {
+        long now = clock.millis();
+        List<CapabilityStatusVo> snapshot = cached;
+        if (snapshot != null && ttlMillis > 0 && now - cachedAtMillis < ttlMillis) {
+            return snapshot;
+        }
+        synchronized (cacheLock) {
+            now = clock.millis();
+            if (cached != null && ttlMillis > 0 && now - cachedAtMillis < ttlMillis) {
+                return cached;
+            }
+            List<CapabilityStatusVo> fresh = probe();
+            cached = fresh;
+            cachedAtMillis = now;
+            return fresh;
+        }
+    }
+
+    /** The uncached probe: evaluate the deps group and shape it into the read model. */
+    private List<CapabilityStatusVo> probe() {
         HealthComponent deps = healthEndpoint.healthForPath("deps");
         if (deps instanceof CompositeHealth composite) {
             return toDegradedCapabilities(composite.getComponents());
