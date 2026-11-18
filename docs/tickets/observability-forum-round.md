@@ -1,8 +1,14 @@
 # Observability Forum — make the honest system legible in the community UI
 
-Status: **done, awaiting independent verification.** Contract:
+Status: **done — Verifier PASS (2026-11-18, HEAD `4677e8c`, clean tree).** Contract:
 `plans/observability-forum-round.md` (frozen before implementation). Branch:
 `codex/observability-forum-round`, stacked on `codex/chaos-theater-a2`.
+An independent Verifier re-ran all commands: 145 frontend tests / 28 files,
+oxlint and build clean, `git diff e7dba71..HEAD` touching only allowed
+frontend+docs paths, and the live signed-out `GET /api/v1/status/capabilities`
+returning the real closed-vocabulary list (`search`, `ai-review`) that the
+system pulse consumes. All five criteria and every hard prohibition passed.
+Merge still requires written user sign-off.
 
 ## Scope
 
