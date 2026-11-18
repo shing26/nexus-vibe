@@ -27,6 +27,7 @@ const UserProfilePage = lazy(() => import('./pages/UserProfilePage'));
 const SettingsPage = lazy(() => import('./pages/SettingsPage'));
 const MessagesPage = lazy(() => import('./pages/MessagesPage'));
 const DraftsPage = lazy(() => import('./pages/DraftsPage'));
+const MyCreationsPage = lazy(() => import('./pages/MyCreationsPage'));
 const TagsPage = lazy(() => import('./pages/TagsPage'));
 const AuditPage = lazy(() => import('./pages/AuditPage'));
 const AgentLogsPage = lazy(() => import('./pages/AgentLogsPage'));
@@ -97,6 +98,7 @@ export default function App() {
                   <Route path="user/settings" element={<ErrorBoundary section="settings"><SettingsPage /></ErrorBoundary>} />
                   <Route path="user/messages" element={<ErrorBoundary section="messages"><MessagesPage /></ErrorBoundary>} />
                   <Route path="drafts" element={<ErrorBoundary section="drafts"><DraftsPage /></ErrorBoundary>} />
+                  <Route path="creations" element={<ErrorBoundary section="my creations"><MyCreationsPage /></ErrorBoundary>} />
                 </Route>
               </Route>
               <Route path="/" element={<AdminLayout />}>

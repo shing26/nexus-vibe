@@ -1,5 +1,5 @@
 ﻿import { Link, useLocation } from 'react-router-dom';
-import { Activity, FileText, LayoutDashboard, Mail, Settings, ShieldCheck, Tag, User } from 'lucide-react';
+import { Activity, FileText, LayoutDashboard, Library, Mail, Settings, ShieldCheck, Tag, User } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
@@ -89,6 +89,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       {user && (
         <>
           <p className={sectionClass + ' pt-4'}>{t('common:nav.mine')}</p>
+          {row('/creations', Library, t('common:nav.myCreations'), location.pathname === '/creations')}
           {row('/user/' + user.id, User, t('common:nav.myPosts'), location.pathname === '/user/' + user.id)}
           {row('/drafts', FileText, t('common:nav.drafts'), location.pathname === '/drafts')}
           {row('/user/messages', Mail, t('common:nav.messages'), location.pathname.startsWith('/user/messages'))}
