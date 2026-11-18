@@ -59,6 +59,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [alert-bridge-address-fallback-2026-09](research/alert-bridge-address-fallback-2026-09.md) | A CDN edge that accepts TCP and blackholes TLS: why urlopen retried nothing, the live before/after, and the wrong-secret check it had been masking |
 | [alert-path-in-ci-2026-09](research/alert-path-in-ci-2026-09.md) | Which three drill steps moved into CI, the precondition they turned out to need, the two mutations that proved the gate goes red, and why the rollback step did not |
 | [es-index-lag-2026-09](research/es-index-lag-2026-09.md) | Elasticsearch recovery made search return less: the post that was findable during the outage and gone after it, and the app that never indexes again if it boots without the cluster |
+| [real-user-trial-2026-11](research/real-user-trial-2026-11.md) | A5's living record: the invitation every participant saw, their verbatim words, and the one SQL command that counts real usage — empty until humans fill it |
 | [llm-model-upgrade-options](research/llm-model-upgrade-options.md) | Model selection: local 7B versus hosted APIs, on quality and cost |
 | [openai-code-review-prompt-strategies](research/openai-code-review-prompt-strategies.md) | Prompt strategies for structured code review output |
 | [production-readiness-assessment-2026-09](research/production-readiness-assessment-2026-09.md) | The readiness assessment that generated the P0/P1 work |
@@ -95,6 +96,7 @@ alternatives that were rejected.
 | [observability-forum-round](tickets/observability-forum-round.md) | Make the honest system legible in the community UI: sidebar system pulse, AI credential chips, narrative profile stats and per-tab ranking notes — borrowed selectively from Luzi, gamification declined |
 | [my-creations-library](tickets/my-creations-library.md) | The owner's `/creations` library: posts, original prompts, plaza forks and device-local drafts as four counted kinds, all derived from real fields with no new endpoint |
 | [review-severity-chip](tickets/review-severity-chip.md) | The feed shows the reviewer's severity verdict on the topic row: one batched query, real `ai_review_log` rows, unknown values render nothing |
+| [a5-real-user-trial](tickets/a5-real-user-trial.md) | The harness for the real-user trial: invitation copy, journey definition, verbatim-quote log and the usage measurement — the humans are invited, not simulated |
 | [r3-1-capability-throttle](tickets/r3-1-capability-throttle.md) | The anonymous capabilities endpoint stops re-probing per read: a TTL cache on the read model, the limiter rejected because it bypasses itself when Redis is down |
 
 ## Plans — `docs/plans/`
