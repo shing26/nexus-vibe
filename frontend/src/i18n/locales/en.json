@@ -75,6 +75,13 @@
       "register": "Register",
       "newPost": "New Post"
     },
+    "pulse": {
+      "title": "System pulse",
+      "apiServing": "API serving",
+      "probing": "probing…",
+      "allNormal": "All capabilities normal",
+      "apiDown": "Cannot reach the server"
+    },
     "language": {
       "label": "Language",
       "toggle": "Switch to Chinese",
@@ -247,6 +254,13 @@
       "debug": "Debug",
       "prompts": "Prompts"
     },
+    "tabNotes": {
+      "hot": "Ranked by heat: more likes and replies rise, older posts sink.",
+      "latest": "Newest first, straight by publish time.",
+      "ai-verified": "Only posts with a completed AI review, highest score first.",
+      "debug": "Only the Debug channel — questions and troubleshooting live here.",
+      "prompts": "Only prompt posts — fork one and use it yourself."
+    },
     "missionControl": {
       "title": "Mission Control",
       "hint": "Pick a mission to start",
@@ -390,6 +404,12 @@
   "post": {
     "channelBadgeAria": "Channel",
     "aiScore": "AI {{score}}",
+    "credential": {
+      "scoreTitle": "AI review score {{score}} / 10, verified",
+      "verified": "verified",
+      "reviewing": "reviewing",
+      "failed": "review failed"
+    },
     "aiScoreBadge": "AI score {{score}}/100",
     "scoreRubric": "Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically.",
     "stateBadgePrefix": "AI review: ",
@@ -704,7 +724,8 @@
       "avgAi": "Avg AI Score",
       "forks": "Forks",
       "versions": "Versions",
-      "secondaryLine": "Comments {{comments}} · Avg AI score {{avgAi}} · Forks {{forks}} · Versions {{versions}}"
+      "secondaryLine": "Comments {{comments}} · Avg AI score {{avgAi}} · Forks {{forks}} · Versions {{versions}}",
+      "narrative": "You've put out <strong>{{posts}}</strong> posts and <strong>{{comments}}</strong> comments, earning <strong>{{likes}}</strong> likes. <strong>{{reviewed}}</strong> posts were AI-reviewed, averaging <strong>{{avgAi}}</strong>. Your prompts were forked <strong>{{forks}}</strong> times across <strong>{{versions}}</strong> versions."
     },
     "statTitles": {
       "posts": "Published post count",

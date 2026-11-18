@@ -1,6 +1,6 @@
 import { Link, useParams } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { useTranslation } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import {
   Activity,
   AlertCircle,
@@ -160,6 +160,7 @@ export default function UserProfilePage() {
         ? Number((avgScore * 10).toFixed(1)).toLocaleString()
         : Number(avgScore).toFixed(1);
   const summaryUnavailable = !summaryQuery.isLoading && !summaryQuery.isError && !summary;
+  const reviewedCount = posts.filter((post) => post.aiReviewed === AI_REVIEW.REVIEWED).length;
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-8">
@@ -226,7 +227,7 @@ export default function UserProfilePage() {
                   value:
                     postsQuery.isLoading
                       ? '--'
-                      : formatCount(posts.filter((post) => post.aiReviewed === AI_REVIEW.REVIEWED).length),
+                  : formatCount(reviewedCount),
                   title: t('statTitles.reviewedPosts'),
                 },
               ].map((stat) => {
@@ -248,15 +249,22 @@ export default function UserProfilePage() {
                 );
               })}
             </div>
-            {/* The rest of the numbers survive as one quiet line: they matter to
-                an owner checking their own record, not to a first read. */}
-            <p className="mt-2 text-xs text-vibe-muted">
-              {t('stats.secondaryLine', {
-                comments: formatCount(summary.stats?.comments),
-                avgAi: avgAiText,
-                forks: formatCount(summary.stats?.forks),
-                versions: formatCount(summary.stats?.versions),
-              })}
+            {/* Numbers the reader can feel, woven into one sentence rather than a
+                label grid — the forum's "show your work", not decoration. Values
+                are the same stats the cards above use; no new query. */}
+            <p data-testid="narrative-stats" className="mt-3 text-sm leading-relaxed text-vibe-muted [&>strong]:font-semibold [&>strong]:tabular-nums [&>strong]:text-vibe-text">
+              <Trans
+                i18nKey="profile:stats.narrative"
+                values={{
+                  posts: formatCount(summary.stats?.posts),
+                  comments: formatCount(summary.stats?.comments),
+                  likes: formatCount(summary.stats?.likesReceived),
+                  reviewed: formatCount(reviewedCount),
+                  avgAi: avgAiText,
+                  forks: formatCount(summary.stats?.forks),
+                  versions: formatCount(summary.stats?.versions),
+                }}
+              />
             </p>
           </section>
 

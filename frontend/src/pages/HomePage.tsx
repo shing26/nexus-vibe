@@ -192,6 +192,13 @@ export default function HomePage() {
         ))}
       </div>
 
+      {/* One plain sentence explaining the order the reader is looking at.
+          The product's ranking dialect stays honest without a hover; this is
+          the forum's version of "show your work" (observability-forum round). */}
+      <p data-testid="ranking-note" className="mt-2 text-xs text-vibe-muted">
+        {t('home:tabNotes.' + activeTab)}
+      </p>
+
       {/* Empty state (shown when no posts) */}
       {isEmpty && (
         <EmptyState
