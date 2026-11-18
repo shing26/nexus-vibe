@@ -26,6 +26,12 @@ const AI_REVIEW_TONE: Record<number, string> = {
   [AI_REVIEW.FAILED]: 'text-vibe-danger',
 };
 
+const REVIEW_SEVERITY_TONE: Record<string, string> = {
+  critical: 'border-vibe-danger/40 bg-vibe-danger/10 text-vibe-danger',
+  high: 'border-vibe-warning/40 bg-vibe-warning/10 text-vibe-warning',
+  low: 'border-vibe-border bg-vibe-card text-vibe-muted',
+};
+
 /**
  * The state of one row, as words. Shared by `PostCard` and `UserProfilePage` so the
  * codes are read through `lib/postStatus` in both places and an unrecognised code
@@ -58,6 +64,14 @@ export function PostStateBadges({ post }: { post: PostPageVo }) {
         {t('common:stateBadgePrefix')}
         {aiText}
       </span>
+      {post.aiReviewed === AI_REVIEW.REVIEWED && post.reviewSeverity != null && REVIEW_SEVERITY_TONE[post.reviewSeverity] && (
+        <span
+          data-testid="review-severity-badge"
+          className={'rounded-full border px-2 py-0.5 text-xs ' + REVIEW_SEVERITY_TONE[post.reviewSeverity]}
+        >
+          {t('common:reviewSeverity.' + post.reviewSeverity)}
+        </span>
+      )}
       {reason && (
         <span
           data-testid="rejection-reason"

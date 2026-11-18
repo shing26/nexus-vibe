@@ -13,6 +13,12 @@
    createTime: string;
    aiReviewed: number;
    aiReviewScore: number;
+  /**
+   * Severity verdict from the latest code-review-agent row (`critical`,
+   * `high`, `low`); null/absent when the review has not completed or the
+   * list path did not batch-load it. Rendered only for reviewed rows.
+   */
+  reviewSeverity?: string | null;
    postType?: string;
    promptMetadata?: string;
    forkedFromId?: string;

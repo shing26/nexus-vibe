@@ -25,6 +25,14 @@ public class PostPageVo implements Serializable {
     private Integer status;
     private Integer aiReviewed;
     private Integer aiReviewScore;
+
+    /**
+     * Severity verdict from the post's latest code-review-agent row:
+     * critical, high, low, or null when the review has not completed or the
+     * list path did not batch-load it. Filled by the list conversion only;
+     * the detail page shows the full verdict through the review terminal.
+     */
+    private String reviewSeverity;
     private LocalDateTime createTime;
     private String[] tags;
     

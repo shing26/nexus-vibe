@@ -415,6 +415,11 @@
     "scoreRubric": "Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically.",
     "stateBadgePrefix": "AI review: ",
     "rejectReasonPrefix": "Reason: ",
+    "reviewSeverity": {
+      "low": "low",
+      "high": "high",
+      "critical": "critical"
+    },
     "template": "Template",
     "forkedFrom": "Forked from post #{{id}}",
     "statsAria": "Engagement",

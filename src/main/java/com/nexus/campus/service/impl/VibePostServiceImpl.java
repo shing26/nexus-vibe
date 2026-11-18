@@ -5,6 +5,7 @@ import com.nexus.campus.dto.PostCreateRequest;
 import com.nexus.campus.dto.PostPageVo;
 import com.nexus.campus.dto.PostUpdateRequest;
 import com.nexus.campus.dto.PostVersionVo;
+import com.nexus.campus.agent.AiReviewLog;
 import com.nexus.campus.entity.PromptVersion;
 import com.nexus.campus.entity.SysMessage;
 import com.nexus.campus.entity.SysUser;
@@ -33,6 +34,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 @Service
@@ -417,7 +419,17 @@ public class VibePostServiceImpl implements VibePostService {
     }
 
     private List<PostPageVo> convertToPageVos(List<VibePost> posts) {
-        return posts.stream().map(this::convertToPageVo).collect(Collectors.toList());
+        if (posts.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Long> postIds = posts.stream().map(VibePost::getId).collect(Collectors.toList());
+        Map<Long, String> severityByPost = reviewLogs.findLatestCodeReview(postIds).stream()
+                .collect(Collectors.toMap(AiReviewLog::getPostId, AiReviewLog::getSeverity, (first, second) -> first));
+        return posts.stream().map(post -> {
+            PostPageVo vo = convertToPageVo(post);
+            vo.setReviewSeverity(severityByPost.get(post.getId()));
+            return vo;
+        }).collect(Collectors.toList());
     }
 
     private PostPageVo convertToPageVo(VibePost post) {

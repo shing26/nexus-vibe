@@ -3,6 +3,8 @@ package com.nexus.campus.service;
 import com.nexus.campus.dto.PostAuditResult;
 import com.nexus.campus.dto.PostCreateRequest;
 import com.nexus.campus.dto.PostUpdateRequest;
+import com.nexus.campus.agent.AiReviewLog;
+import com.nexus.campus.repository.AiReviewLogRepository;
 import com.nexus.campus.entity.VibePost;
 import com.nexus.campus.entity.SysUser;
 import com.nexus.campus.entity.PromptVersion;
@@ -40,6 +42,9 @@ class VibePostServiceImplTest {
 
     @Autowired
     private PromptVersionMapper promptVersionMapper;
+
+    @Autowired
+    private AiReviewLogRepository reviewLogs;
 
     private Long testUserId;
 
@@ -263,5 +268,62 @@ class VibePostServiceImplTest {
         List<com.nexus.campus.dto.PostPageVo> showcase = VibePostService.getUnansweredPosts(20, 3L);
         assertTrue(showcase.stream().anyMatch(p -> showcasePost.getId().equals(p.getId())));
         assertFalse(showcase.stream().anyMatch(p -> workshopPost.getId().equals(p.getId())));
+    }
+
+    @Test
+    @DisplayName("Feed rows carry the latest code-review severity in one batched load")
+    void feedRowsCarryLatestCodeReviewSeverity() {
+        VibePost post = new VibePost();
+        post.setUserId(testUserId);
+        post.setCategoryId(2);
+        post.setTitle("Severity chip feed post");
+        post.setContent("Body with a completed code review.");
+        post.setStatus(1);
+        post.setCreateTime(java.time.LocalDateTime.now());
+        VibePostMapper.insert(post);
+
+        AiReviewLog older = new AiReviewLog();
+        older.setPostId(post.getId());
+        older.setReviewer("code-review-agent");
+        older.setSeverity("low");
+        older.setResultJson("{}");
+        older.setCreatedAt(java.time.LocalDateTime.now().minusMinutes(10));
+        reviewLogs.insert(older);
+
+        AiReviewLog newer = new AiReviewLog();
+        newer.setPostId(post.getId());
+        newer.setReviewer("code-review-agent");
+        newer.setSeverity("critical");
+        newer.setResultJson("{}");
+        newer.setCreatedAt(java.time.LocalDateTime.now().minusMinutes(5));
+        reviewLogs.insert(newer);
+
+        com.nexus.campus.dto.PostPageVo row = VibePostService.getActivePosts(1, 20).getList().stream()
+                .filter(p -> post.getId().equals(p.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Freshly created post must sit on page 1"));
+
+        // Latest row wins: the judgment the reviewer last wrote, not the first.
+        assertEquals("critical", row.getReviewSeverity());
+    }
+
+    @Test
+    @DisplayName("A post with no review log carries null severity, never a placeholder")
+    void feedRowWithoutReviewLogCarriesNullSeverity() {
+        VibePost post = new VibePost();
+        post.setUserId(testUserId);
+        post.setCategoryId(2);
+        post.setTitle("No review yet feed post");
+        post.setContent("Body nobody has reviewed.");
+        post.setStatus(1);
+        post.setCreateTime(java.time.LocalDateTime.now());
+        VibePostMapper.insert(post);
+
+        com.nexus.campus.dto.PostPageVo row = VibePostService.getActivePosts(1, 20).getList().stream()
+                .filter(p -> post.getId().equals(p.getId()))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("Freshly created post must sit on page 1"));
+
+        assertNull(row.getReviewSeverity());
     }
 }
