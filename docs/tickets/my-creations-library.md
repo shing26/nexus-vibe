@@ -1,8 +1,9 @@
 # My Creations — the owner's personal library of posts, prompts, forks and drafts
 
-Status: **done, awaiting independent verification.** Contract:
+Status: **done — independent Verifier PASS, 2026-11-18.** Contract:
 `plans/my-creations-library.md` (frozen before implementation). Branch:
-`codex/my-creations`, based on merged master `f5171b5` (PR #49).
+`codex/my-creations`, based on merged master `f5171b5` (PR #49). Verified
+HEAD: `e341365`; the commit recording this verdict touches this ticket only.
 
 ## Scope
 
@@ -42,6 +43,33 @@ Changes:
   25 workers intermittently exhausts the Node heap or fails to spawn threads
   workers while the dev server is running (environment fault, not a code
   failure). The narrower run and the single-file run are both green.
+
+## Verification (independent)
+
+An independent Verifier (`creations_verifier_7`) re-ran every command against
+HEAD `e3413658076cf7b928d940085c2db8bb01f2314f`; `git status --short` was
+empty before and after. Verdict: **PASS**, no P0/P1 findings. Implementer logs
+were not accepted as evidence.
+
+| Command | Result |
+|---|---|
+| `npm run test -- --pool=threads --maxWorkers=4` | 149 tests / 29 files, 0 failures |
+| `npm run lint` | clean |
+| `npm run build` | clean |
+| `npx tsc --noEmit` | clean |
+| `git diff f5171b5..HEAD --name-only` | 10 paths, all inside Allowed paths |
+
+The Verifier confirmed all ten contract checks: allowed paths only; kinds
+derived from `postType`/`forkedFromId`/`nexus_vibe_drafts`; count chips equal
+the cards under each tab; drafts visibly device-local; real links; `/creations`
+inside `AuthGuard` with `ErrorBoundary`; sidebar entry shared by the drawer;
+zh/en `creations` key sets identical (24 keys each); no weakened tests; no
+gamification, token or public-profile change. The `--maxWorkers=4` flag is the
+one recorded deviation, for the environment OOM described above. The verdict
+binds to `e341365`; the bookkeeping commit after it changes this ticket only.
+
+Sign-off: 2026-11-18, user instruction "重派独立 Verifier 拿正式 PASS，再签收
+合并" — approval conditional on PASS, satisfied by the verdict above.
 
 ## Files
 
