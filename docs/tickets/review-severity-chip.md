@@ -1,8 +1,12 @@
 # Severity chip on topic rows — the feed shows what the reviewer judged
 
-Status: **implemented, awaiting independent verification.** Contract:
+Status: **done — independent Verifier PASS, 2026-11-19.** Contract:
 `plans/review-severity-chip.md` (frozen before implementation). Branch:
 `codex/review-severity-chip`, based on merged master `41ea470` (PR #50).
+Verified HEAD: `1c0c8ef`; the commit recording this verdict touches this
+ticket only. The round first received a formal FAIL (the chip read the
+wrong i18n namespace, and the unanchored test assertions could not catch
+it); the fix commit `1c0c8ef` closed both findings and the re-review passed.
 
 ## Scope
 
@@ -46,6 +50,31 @@ Changes:
   load; the single-file rerun and a second full run both passed (152/152).
   Pre-existing flake outside this round's diff, recorded rather than
   smoothed over.
+
+## Verification (independent)
+
+An independent Verifier ran the round twice. The first verdict was **FAIL**
+with one P1 code finding — the chip called `common:reviewSeverity.*` while
+the keys live in the `post` namespace, so both locales rendered raw keys —
+plus a test-effectiveness finding: the unanchored `toHaveTextContent('critical')`
+assertions were satisfied by the raw keys themselves. The second verdict,
+against the fix commit, is **PASS**, no P0/P1 findings, bound to HEAD
+`1c0c8ef17b2fb12f06e5a977e842dae279319d97` with `git status --short` empty
+before and after. Implementer logs were not accepted as evidence.
+
+| Command (Verifier-run) | Result |
+|---|---|
+| `mvn -B test` | 557 tests, 0 failures, JaCoCo floor met |
+| `npm run test -- --pool=threads --maxWorkers=4` | 152 tests / 29 files, 0 failures |
+| `npm run lint` / `npm run build` | clean |
+| `git diff 41ea470..HEAD --name-only` | 15 paths, all inside Allowed paths |
+| i18next probe on the real locale files | zh: 严重/较高/低 · en: critical/high/low |
+
+All ten contract checks passed on re-review, including the N+1 ban (one
+batched query per list) and the honesty rules (unknown values and
+not-completed reviews render nothing). The `--maxWorkers=4` flag is the one
+recorded deviation, for the environment OOM described above. The verdict
+binds to `1c0c8ef`; the bookkeeping commit after it changes this ticket only.
 
 ## Files
 
