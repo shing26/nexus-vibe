@@ -1,8 +1,10 @@
 # R3-1 — the public capabilities endpoint stops re-probing on every read
 
-Status: **implemented, awaiting independent verification.** Contract:
+Status: **done — independent Verifier PASS, 2026-11-19.** Contract:
 `plans/r3-1-capability-throttle.md` (frozen before implementation). Branch:
 `codex/r3-1-capability-throttle`, based on merged master `5b99407` (PR #52).
+Verified HEAD: `f423ccb`; the commit recording this verdict touches this
+ticket only.
 
 ## Scope
 
@@ -34,6 +36,30 @@ Changes:
   through the real filter chain.
 - The existing `healthAnswersStayByteForByte` pinned-actuator test passes
   unmodified.
+
+## Verification (independent)
+
+An independent Verifier re-ran every command against HEAD
+`f423ccb5df8d9a07c63cf4febd941416e3c0df96`; `git status --short` was empty
+before and after. Verdict: **PASS**, no P0/P1 findings — including a
+concurrency read of the double-checked locking (a torn read between `cached`
+and `cachedAtMillis` can only cause one extra probe, never a wrong answer)
+and confirmation that the cached object is the shaped, immutable,
+closed-vocabulary list rather than the raw deps document. Implementer logs
+were not accepted as evidence.
+
+| Command (Verifier-run) | Result |
+|---|---|
+| `mvn -B test` | 561 tests, 0 failures, JaCoCo floor met |
+| `npm run test -- --pool=threads --maxWorkers=4` | 152 tests / 29 files, 0 failures |
+| `npm run lint` / `npm run build` | clean |
+| `git diff 5b99407..HEAD --name-only` | 7 paths, all inside Allowed paths |
+
+All ten contract checks passed, including the untouched actuator surface and
+the absent limiter/config changes. The `--maxWorkers=4` flag is the one
+recorded deviation, for the environment OOM described in the contract. The
+verdict binds to `f423ccb`; the bookkeeping commit after it changes this
+ticket only.
 
 ## Files
 
