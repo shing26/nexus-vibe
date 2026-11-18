@@ -87,6 +87,7 @@ alternatives that were rejected.
 | [chaos-theater-a2](tickets/chaos-theater-a2.md) | A2: the fix-challenge scenario (3→9 on apply-the-fix), four counterfactual runs, the score-dial/stamp payoff, JSON evidence highlighting, and Chinese-first step narration |
 | [observability-forum-round](tickets/observability-forum-round.md) | Make the honest system legible in the community UI: sidebar system pulse, AI credential chips, narrative profile stats and per-tab ranking notes — borrowed selectively from Luzi, gamification declined |
 | [my-creations-library](tickets/my-creations-library.md) | The owner's `/creations` library: posts, original prompts, plaza forks and device-local drafts as four counted kinds, all derived from real fields with no new endpoint |
+| [review-severity-chip](tickets/review-severity-chip.md) | The feed shows the reviewer's severity verdict on the topic row: one batched query, real `ai_review_log` rows, unknown values render nothing |
 
 ## Plans — `docs/plans/`
 
@@ -105,6 +106,7 @@ alternatives that were rejected.
 | [chaos-theater-a2](plans/chaos-theater-a2.md) | Frozen contract for A2: the fifth scenario's double-run semantics, the counterfactual runs (including the injection-obeyed 10/low), the new DTO fields, and the same forbidden list |
 | [observability-forum-round](plans/observability-forum-round.md) | Frozen contract for the observability forum round: real-data-only pulse and credential, narrative stats and ranking notes, Luzi's gamification explicitly rejected, creations library deferred |
 | [my-creations-library](plans/my-creations-library.md) | Frozen contract for the creations library: real-field kind derivation, counts matching cards, device-local drafts honestly marked, and the rejected aggregate endpoint |
+| [review-severity-chip](plans/review-severity-chip.md) | Frozen contract for the severity chip: latest code-review row per page in one query, honest tone mapping, the N+1 and retry-chip rejections |
 | [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
 
 ## Design and product

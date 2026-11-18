@@ -243,3 +243,49 @@ describe('PostCard counts (A8)', () => {
     expect(screen.queryByText('9')).not.toBeInTheDocument();
   });
 });
+
+describe('PostStateBadges review severity chip', () => {
+  const reviewed = { ...fixtures.activeText, aiReviewScore: 8.5 };
+
+  it('shows the reviewer severity verdict with an honest tone per level', () => {
+    render(
+      <MemoryRouter>
+        <PostStateBadges post={{ ...reviewed, reviewSeverity: 'critical' }} />
+        <PostStateBadges post={{ ...reviewed, reviewSeverity: 'high' }} />
+        <PostStateBadges post={{ ...reviewed, reviewSeverity: 'low' }} />
+      </MemoryRouter>,
+    );
+
+    const badges = screen.getAllByTestId('review-severity-badge');
+    expect(badges).toHaveLength(3);
+    // Known values become words in the dictionary, and the tone follows the verdict.
+    expect(badges[0]).toHaveTextContent(/^critical$/);
+    expect(badges[0]).toHaveClass('text-vibe-danger');
+    expect(badges[1]).toHaveTextContent(/^high$/);
+    expect(badges[1]).toHaveClass('text-vibe-warning');
+    expect(badges[2]).toHaveTextContent(/^low$/);
+    expect(badges[2]).toHaveClass('text-vibe-muted');
+  });
+
+  it('renders nothing for an unknown severity value rather than guessing a tone', () => {
+    render(
+      <MemoryRouter>
+        <PostStateBadges post={{ ...reviewed, reviewSeverity: 'catastrophic' }} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('review-severity-badge')).not.toBeInTheDocument();
+  });
+
+  it('renders nothing for rows whose review has not completed', () => {
+    render(
+      <MemoryRouter>
+        <PostStateBadges post={{ ...fixtures.pendingPrompt, reviewSeverity: 'high' }} />
+        <PostStateBadges post={{ ...fixtures.emptyFailed, reviewSeverity: 'low' }} />
+        <PostStateBadges post={{ ...fixtures.rejected, reviewSeverity: 'critical' }} />
+      </MemoryRouter>,
+    );
+
+    expect(screen.queryByTestId('review-severity-badge')).not.toBeInTheDocument();
+  });
+});

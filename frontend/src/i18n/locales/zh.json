@@ -415,6 +415,11 @@
     "scoreRubric": "评分标准（0-100）：90-100 可直接投产 · 70-80 扎实，有小问题 · 50-60 可用但有明显缺口 · 30-40 问题显著 · 0-20 破损/不安全。评审维度：正确性、代码质量、安全性、改进建议。编辑后的帖子会自动重新评审。",
     "stateBadgePrefix": "AI 评审：",
     "rejectReasonPrefix": "原因：",
+    "reviewSeverity": {
+      "low": "低",
+      "high": "较高",
+      "critical": "严重"
+    },
     "template": "模板",
     "forkedFrom": "Fork 自帖子 #{{id}}",
     "statsAria": "互动数据",

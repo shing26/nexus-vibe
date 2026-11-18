@@ -6,6 +6,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Select;
 
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 
 @Mapper
@@ -28,6 +29,26 @@ public interface AiReviewLogMapper extends BaseMapper<AiReviewLog> {
             "WHERE post_id = #{postId} AND reviewer = 'code-review-agent' " +
             "ORDER BY created_at DESC, id DESC LIMIT 1")
     AiReviewLog selectLatestCodeReviewByPostId(@Param("postId") Long postId);
+
+    /**
+     * Latest code-review log per post for a whole page of posts, in one query.
+     * The anti-join (same shape as the pending-recheck queries above) keeps
+     * this readable on any MySQL the stack might run; a feed list calls this
+     * once, never once per row.
+     */
+    @Select("<script>SELECT l.* FROM ai_review_log l " +
+            "LEFT JOIN ai_review_log newer " +
+            "  ON newer.post_id = l.post_id " +
+            " AND newer.reviewer = 'code-review-agent' " +
+            " AND newer.comment_id IS NULL " +
+            " AND (newer.created_at &gt; l.created_at " +
+            "      OR (newer.created_at = l.created_at AND newer.id &gt; l.id)) " +
+            "WHERE l.reviewer = 'code-review-agent' " +
+            "  AND l.comment_id IS NULL " +
+            "  AND l.post_id IN " +
+            "  <foreach item='id' collection='postIds' open='(' separator=',' close=')'>#{id}</foreach> " +
+            " AND newer.id IS NULL</script>")
+    List<AiReviewLog> selectLatestCodeReviewByPostIds(@Param("postIds") Collection<Long> postIds);
 
     /**
      * Fetch code-review logs for a user's active posts, newest first.
