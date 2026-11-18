@@ -259,11 +259,11 @@ describe('PostStateBadges review severity chip', () => {
     const badges = screen.getAllByTestId('review-severity-badge');
     expect(badges).toHaveLength(3);
     // Known values become words in the dictionary, and the tone follows the verdict.
-    expect(badges[0]).toHaveTextContent('critical');
+    expect(badges[0]).toHaveTextContent(/^critical$/);
     expect(badges[0]).toHaveClass('text-vibe-danger');
-    expect(badges[1]).toHaveTextContent('high');
+    expect(badges[1]).toHaveTextContent(/^high$/);
     expect(badges[1]).toHaveClass('text-vibe-warning');
-    expect(badges[2]).toHaveTextContent('low');
+    expect(badges[2]).toHaveTextContent(/^low$/);
     expect(badges[2]).toHaveClass('text-vibe-muted');
   });
 

@@ -27,7 +27,8 @@ Changes:
   credential: danger tone for `critical`, warning for `high`, muted border
   for `low` — palette tokens that already exist on the page. Unknown values
   render nothing; rows whose review did not complete render nothing.
-- i18n `common.reviewSeverity` in zh (低 / 较高 / 严重) and en.
+- i18n `post.reviewSeverity` in zh (低 / 较高 / 严重) and en, read through
+  the same namespace the badge row already uses for its other labels.
 
 ## Acceptance
 
@@ -40,6 +41,11 @@ Changes:
   nothing, and reviewing/failed/not-reviewed rows showing no chip.
 - The wire-type contract check needed no edit: it asserts every TS field
   exists on the server DTO, and `reviewSeverity` exists on both sides.
+- Note on stability: the first full frontend run during independent
+  verification hit one `LoginPage.test.tsx` 5s timeout under the 4-worker
+  load; the single-file rerun and a second full run both passed (152/152).
+  Pre-existing flake outside this round's diff, recorded rather than
+  smoothed over.
 
 ## Files
 

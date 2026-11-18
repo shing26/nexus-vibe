@@ -69,7 +69,7 @@ export function PostStateBadges({ post }: { post: PostPageVo }) {
           data-testid="review-severity-badge"
           className={'rounded-full border px-2 py-0.5 text-xs ' + REVIEW_SEVERITY_TONE[post.reviewSeverity]}
         >
-          {t('common:reviewSeverity.' + post.reviewSeverity)}
+          {t('post:reviewSeverity.' + post.reviewSeverity)}
         </span>
       )}
       {reason && (
