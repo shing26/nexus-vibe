@@ -43,6 +43,18 @@ frontend-polish-round-3 修复，详情页是同一缺陷的另一半。
   `npm run lint`、`npm run build` 干净。前端测试因本机默认 25 worker OOM 而使用
   `--pool=threads --maxWorkers=4`，属环境偏离，如实记录。
 
+## Verifier 首审 FAIL 与修复（2026-11-21）
+
+- 首审裁决：**FAIL**。两条失败项：① 契约验收 3（作者 `status=3` 详情仍 404）
+  无测试覆盖、验收 1 未断言标题/正文；② diff 范围含 `docs/research/`
+  走查报告，不在 Allowed paths。其余 8 条 PASS，无运行时/安全 P0/P1。
+- 修复：新增 `getPostDetail_authorRejectedPost_shouldReturn404`（作者 token 请求
+  `status=3` 帖子断言 404）；既有作者可见测试补 `data.title`/`data.content` 断言；
+  契约增补 Amendment 界定走查报告为冻结前提交（`8b08fa0` 早于 `2813ac5` 冻结）。
+- 补测后实测：`mvn -B test` 563 tests / 93 classes 全绿，覆盖率达标；
+  最窄 `PostControllerIntegrationTest` 31/0。前端代码未再变动（152/29 绿），
+  lint/build 待 Verifier 复审重跑。
+
 ## 相关
 
 - 上游：`docs/tickets/frontend-polish-round-3.md`（列表侧修复）

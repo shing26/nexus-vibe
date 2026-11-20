@@ -146,7 +146,9 @@ class PostControllerIntegrationTest {
                 // Jackson writes Long ids as strings; assert the string form rather
                 // than narrowing to int (the id is a 64-bit snowflake).
                 .andExpect(jsonPath("$.data.id", is(String.valueOf(postId))))
-                .andExpect(jsonPath("$.data.status", is(2)));
+                .andExpect(jsonPath("$.data.status", is(2)))
+                .andExpect(jsonPath("$.data.title", is("Author-scoped pending post")))
+                .andExpect(jsonPath("$.data.content", containsString("get_name")));
 
         // A different signed-in user may not: 404, not a hidden page.
         String otherToken = jwtUtil.generateToken(3L, "alice", "USER");
@@ -157,6 +159,34 @@ class PostControllerIntegrationTest {
 
         // Anonymous may not either.
         mockMvc.perform(get(POSTS_URL + "/" + postId))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is(404)));
+    }
+
+    @Test
+    @DisplayName("Author is refused on their own rejected (status=3) post detail")
+    void getPostDetail_authorRejectedPost_shouldReturn404() throws Exception {
+        PostCreateRequest request = new PostCreateRequest();
+        request.setTitle("Author-scoped rejected post");
+        request.setContent("A post the review would ultimately reject.");
+        request.setCategoryId(2);
+        request.setTags(null);
+
+        MvcResult created = mockMvc.perform(post(POSTS_URL)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long postId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("postId").asLong();
+
+        // Force the rejected state; status=3 stays outside this round's scope.
+        org.junit.jupiter.api.Assertions.assertTrue(posts.updateStatus(postId, 3));
+
+        // Even the author gets 404: rejection has no detail page, by contract.
+        mockMvc.perform(get(POSTS_URL + "/" + postId)
+                        .header("Authorization", "Bearer " + authToken))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is(404)));
     }

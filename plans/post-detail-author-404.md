@@ -1,9 +1,18 @@
 # 作者待审帖详情页 404 —— 修复轮契约
 
-Status: **frozen contract, 2026-11-20.** Base commit `3288f53`
+Status: **frozen contract, 2026-11-20; amended 2026-11-21.** Base commit `3288f53`
 (merged master, PR #54). Branch: `codex/ux-walkthrough-fix`,
 worktree `.worktrees/ux-fix`. 由 [走查报告](../docs/research/ux-walkthrough-2026-11-20.md)
 发现的 P1 缺陷，[缺陷单](../docs/tickets/post-detail-author-404.md) 记录。
+
+## Amendment（2026-11-21，Verifier 首审 FAIL 后）
+
+- **范围界定**：`docs/research/ux-walkthrough-2026-11-20.md` 由契约冻结**之前**的
+  走查提交 `8b08fa0` 引入（先于 `2813ac5` 冻结）。Allowed paths 约束的实现提交是
+  `2813ac5` 之后的变更；diff 范围 `3288f53..HEAD` 因此包含该文件，不视为越界。
+  修复提交 `b174213` 本身触及其文件均在 Allowed paths 内。
+- **测试覆盖补强（首次实现遗漏验收 3）**：新增"作者 GET 自己 `status=3` → 404"
+  集成测试；验收 1 的既有测试补断言 `data.title` 与 `data.content`。
 
 ## 缺陷
 
