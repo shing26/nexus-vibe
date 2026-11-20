@@ -44,6 +44,9 @@ class PostControllerIntegrationTest {
     private ObjectMapper objectMapper;
 
     @Autowired
+    private com.nexus.campus.repository.VibePostRepository posts;
+
+    @Autowired
     private JwtUtil jwtUtil;
 
     // The publish-time safety gate fail-closes new posts when the LLM looks
@@ -101,6 +104,59 @@ class PostControllerIntegrationTest {
     @DisplayName("GET /api/v1/posts/{id} should return 404 for nonexistent post")
     void getPostDetail_nonexistent_shouldReturn404() throws Exception {
         mockMvc.perform(get(POSTS_URL + "/999999999"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is(404)));
+    }
+
+    /**
+     * The UX walkthrough's P1: a post the gate held for review (status=2) exists in the
+     * library, but {@code getPostDetail} answered 404 to everyone - including the author
+     * who had just published it. The author must see their own pending post; nobody else
+     * may, or the held row's existence leaks.
+     */
+    @Test
+    @DisplayName("Author sees their own pending-review post detail; others and anonymous get 404")
+    void getPostDetail_authorSeesOwnPendingPost() throws Exception {
+        // Create a post as the seeded author (id=2, token above) and force it into the
+        // held state the safety gate produces, so the assertion does not depend on a
+        // live LLM or on the mock being bypassed.
+        PostCreateRequest request = new PostCreateRequest();
+        request.setTitle("Author-scoped pending post");
+        request.setContent("```python\ndef get_name(user):\n    return user.profile.name\n```\n");
+        request.setCategoryId(2);
+        request.setTags(null);
+
+        MvcResult created = mockMvc.perform(post(POSTS_URL)
+                        .header("Authorization", "Bearer " + authToken)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isOk())
+                .andReturn();
+        long postId = objectMapper.readTree(created.getResponse().getContentAsString())
+                .get("data").get("postId").asLong();
+
+        // Hold it, the way the safety gate does when the LLM is unavailable.
+        org.junit.jupiter.api.Assertions.assertTrue(posts.updateStatus(postId, 2));
+
+        // The author (id=2) sees it, with the pending status intact.
+        mockMvc.perform(get(POSTS_URL + "/" + postId)
+                        .header("Authorization", "Bearer " + authToken))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code", is(200)))
+                // Jackson writes Long ids as strings; assert the string form rather
+                // than narrowing to int (the id is a 64-bit snowflake).
+                .andExpect(jsonPath("$.data.id", is(String.valueOf(postId))))
+                .andExpect(jsonPath("$.data.status", is(2)));
+
+        // A different signed-in user may not: 404, not a hidden page.
+        String otherToken = jwtUtil.generateToken(3L, "alice", "USER");
+        mockMvc.perform(get(POSTS_URL + "/" + postId)
+                        .header("Authorization", "Bearer " + otherToken))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code", is(404)));
+
+        // Anonymous may not either.
+        mockMvc.perform(get(POSTS_URL + "/" + postId))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code", is(404)));
     }

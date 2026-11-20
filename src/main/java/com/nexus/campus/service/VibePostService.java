@@ -58,7 +58,12 @@ public interface VibePostService {
      */
     List<PostPageVo> getUnansweredPosts(int size, Long channelId);
 
-    PostPageVo getPostDetail(Long id);
+    /**
+     * Detail read. {@code viewerId} is the signed-in user, or null for anonymous.
+     * The author may read their own pending-review post; everyone else only sees
+     * active posts, so the existence of a held row never leaks.
+     */
+    PostPageVo getPostDetail(Long id, Long viewerId);
 
     boolean incrementView(Long postId);
 
