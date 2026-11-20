@@ -1,8 +1,9 @@
 # 帖子详情页对作者本人返回 404 —— 发布后即“不存在”
 
-Status: **implemented, awaiting independent verification**（2026-11-21）。由 2026-11-20 的
-UX 走查（[报告](../research/ux-walkthrough-2026-11-20.md)）发现；契约已冻结于
-`plans/post-detail-author-404.md`，实现完成，待独立 Verifier 裁决。
+Status: **done — independent Verifier PASS, 2026-11-21**（裁决绑定 HEAD
+`d7bd0f2`，`git status --short` 干净）。由 2026-11-20 的 UX 走查
+（[报告](../research/ux-walkthrough-2026-11-20.md)）发现；契约冻结于
+`plans/post-detail-author-404.md`（含 2026-11-21 Amendment）。
 
 ## 缺陷
 
@@ -54,6 +55,26 @@ frontend-polish-round-3 修复，详情页是同一缺陷的另一半。
 - 补测后实测：`mvn -B test` 563 tests / 93 classes 全绿，覆盖率达标；
   最窄 `PostControllerIntegrationTest` 31/0。前端代码未再变动（152/29 绿），
   lint/build 待 Verifier 复审重跑。
+
+## 独立 Verifier 复审裁决（PASS，2026-11-21）
+
+证据包：HEAD `d7bd0f288cc839c52d82b597afb1d3febf93d7b1`，验证命令全部退出码 0，
+结束后 `git status --short` 为空。
+
+| 项 | 结果 | 证据 |
+|---|---|---|
+| `mvn -B test`（全量） | ✅ | 563 tests / 93 classes，0 失败 0 跳过；JaCoCo 覆盖率达标 |
+| `npm run test -- --pool=threads --maxWorkers=4` | ✅ | 152 tests / 29 files（本机默认 25 worker OOM 的环境偏离，契约命令本身即此形式） |
+| `npm run lint` / `npm run build` | ✅ | oxlint 无告警；tsc strict + vite 构建通过 |
+| Allowed paths | ✅ | 10 个路径全部合规（走查报告经 Amendment 界定为冻结前提交） |
+| 验收 1–3 测试覆盖 | ✅ | 作者 status=2 可见（title/content 断言）+ 他人/匿名 404 + 新增作者 status=3 404 |
+| 存在性不泄露 / status=3 不放开 | ✅ | 非作者与匿名同走统一 404；`status=3` 无详情页 |
+| 既有测试无弱化 | ✅ | 测试文件 diff 纯新增（numstat 86/0），Skipped: 0 |
+| README 计数 | ✅ | 563/152 与实测一致 |
+| i18n 命名空间 | ✅ | `common:status.pendingReview` 两份 locale 实测存在 |
+
+遗留记录（不判 FAIL）：`PostDetailPage.test.tsx` 不存在，契约验收 6 的"若文件存在"
+未触发，前端"待审"标签仅代码路径 + i18n 键证据；未做真实浏览器手工走查。
 
 ## 相关
 
