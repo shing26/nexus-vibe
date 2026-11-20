@@ -60,6 +60,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [alert-path-in-ci-2026-09](research/alert-path-in-ci-2026-09.md) | Which three drill steps moved into CI, the precondition they turned out to need, the two mutations that proved the gate goes red, and why the rollback step did not |
 | [es-index-lag-2026-09](research/es-index-lag-2026-09.md) | Elasticsearch recovery made search return less: the post that was findable during the outage and gone after it, and the app that never indexes again if it boots without the cluster |
 | [real-user-trial-2026-11](research/real-user-trial-2026-11.md) | A5's living record: the invitation every participant saw, their verbatim words, and the one SQL command that counts real usage — empty until humans fill it |
+| [ux-walkthrough-2026-11-20](research/ux-walkthrough-2026-11-20.md) | A real browser walk of the user journey: one P1 (the author's own held post 404s on the detail page) and two P2 findings, with the reproduction |
 | [llm-model-upgrade-options](research/llm-model-upgrade-options.md) | Model selection: local 7B versus hosted APIs, on quality and cost |
 | [openai-code-review-prompt-strategies](research/openai-code-review-prompt-strategies.md) | Prompt strategies for structured code review output |
 | [production-readiness-assessment-2026-09](research/production-readiness-assessment-2026-09.md) | The readiness assessment that generated the P0/P1 work |
@@ -98,6 +99,7 @@ alternatives that were rejected.
 | [review-severity-chip](tickets/review-severity-chip.md) | The feed shows the reviewer's severity verdict on the topic row: one batched query, real `ai_review_log` rows, unknown values render nothing |
 | [a5-real-user-trial](tickets/a5-real-user-trial.md) | The harness for the real-user trial: invitation copy, journey definition, verbatim-quote log and the usage measurement — the humans are invited, not simulated |
 | [r3-1-capability-throttle](tickets/r3-1-capability-throttle.md) | The anonymous capabilities endpoint stops re-probing per read: a TTL cache on the read model, the limiter rejected because it bypasses itself when Redis is down |
+| [post-detail-author-404](tickets/post-detail-author-404.md) | Open: the author's just-published, held post answers 404 on the detail page — the list-side fix's missing half |
 
 ## Plans — `docs/plans/`
 
