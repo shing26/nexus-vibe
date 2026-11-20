@@ -277,12 +277,25 @@ public class VibePostServiceImpl implements VibePostService {
     }
 
     @Override
-    public PostPageVo getPostDetail(Long id) {
+    public PostPageVo getPostDetail(Long id, Long viewerId) {
         VibePost post = posts.findWithDetails(id).orElse(null);
-        if (post == null || post.getStatus() == null || post.getStatus() != 1) {
+        if (post == null || post.getStatus() == null) {
             return null;
         }
-        return convertToPageVo(post);
+        if (post.getStatus() == 1) {
+            return convertToPageVo(post);
+        }
+        // The author may read their own held post. A post the safety gate is still
+        // reviewing exists — answering 404 told the author their submit vanished.
+        // Only PENDING_REVIEW is opened here: a rejection keeps its explanation on
+        // the author's list view, and nobody else learns the row exists.
+        boolean authorReadingOwnPending = post.getStatus() == 2
+                && viewerId != null
+                && viewerId.equals(post.getUserId());
+        if (authorReadingOwnPending) {
+            return convertToPageVo(post);
+        }
+        return null;
     }
 
     @Override

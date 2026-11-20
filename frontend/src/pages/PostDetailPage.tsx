@@ -9,7 +9,7 @@ import { apiClient } from '../api/client';
 import type { ApiResponse } from '../api/client';
 import { useAuthStore } from '../stores/authStore';
 import { useToastStore } from '../stores/toastStore';
-import { AI_REVIEW } from '../lib/postStatus';
+import { AI_REVIEW, POST_STATUS, postStatusLabel } from '../lib/postStatus';
 import { timeAgo } from '../lib/time';
 import { readRole, readVariables } from '../components/promptMetadata';
 import Avatar from '../components/Avatar';
@@ -307,6 +307,14 @@ export default function PostDetailPage() {
             <span>{post.authorName}</span>
             <span aria-hidden="true">·</span>
             <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5">{post.categoryName}</span>
+            {/* The author's own held post reaches this page only through the
+                author-scoped detail read; a pending label turns "it 404'd" into
+                "it exists and is waiting for review". Nobody else can see it. */}
+            {post.status === POST_STATUS.PENDING_REVIEW && (
+              <span className="rounded-full border border-vibe-warning/40 bg-vibe-warning/10 px-1.5 py-0.5 text-vibe-warning">
+                {postStatusLabel(post.status)}
+              </span>
+            )}
             {post.postType === 'prompt' && (
               <span className="rounded-full border border-vibe-border px-1.5 py-0.5">{t('post:template')}</span>
             )}

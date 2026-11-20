@@ -193,7 +193,9 @@ public class PostController {
     @GetMapping("/{id}")
     public ApiResponse<PostPageVo> getPostDetail(@PathVariable Long id, HttpServletRequest request) {
         vibePostService.incrementView(id);
-        PostPageVo post = vibePostService.getPostDetail(id);
+        Object viewerAttr = request.getAttribute("currentUserId");
+        Long viewerId = viewerAttr instanceof Long currentUserId ? currentUserId : null;
+        PostPageVo post = vibePostService.getPostDetail(id, viewerId);
         if (post == null) {
             throw BusinessException.notFound("Post not found.");
         }
