@@ -11,6 +11,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **The GitHub README gets a Forge front door (`docs/tickets/readme-forge-front-door.md`)**: a
+  logo mark, a light/dark resilience banner, three for-the-badge calls to action, a real
+  approved-review hero (5/10 -> 50/100, low, Approved), a four-card thesis table, and a
+  dark/light product tour for the community feed, the Chaos Theatre, the profile score curve
+  and My Creations. The live-demo note now says the hand-rebuilt ngrok instance can lag
+  `master` and that `/theatre` appears after a rebuild. Every capture is 1440 x 1000 from
+  this tree; the ticket names the route, backend and theme for each. The pre-Forge
+  `recorded-review.png`, `async-review.png` and `community-feed.png` stay in the tree as
+  history but are no longer referenced.
 - **The README gets a visual front door (`docs/tickets/readme-visual-front-door.md`)**: a real
   dark-mode capture of a post page (code card, five real likes, the AI review terminal replaying a
   completed run to `Approved` at 70/100), the community feed, and a native Mermaid architecture
