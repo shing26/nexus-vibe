@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96" width="96" height="96" role="img" aria-labelledby="logoTitle">
+  <title id="logoTitle">Nexus-Vibe monogram</title>
+  <rect width="96" height="96" rx="22" fill="#1f6feb"/>
+  <path d="M0 22C0 9.85 9.85 0 22 0h52c12.15 0 22 9.85 22 22v7H0z" fill="#ffffff" opacity="0.09"/>
+  <path d="M28 70V26h8.6l22.8 29.4V26H68v44h-8.6L36.6 40.6V70H28z" fill="#ffffff"/>
+</svg>

@@ -1,5 +1,7 @@
 <a name="top"></a>
 
+<p align="center"><img src="docs/assets/readme/logo.svg" width="76" alt="Nexus-Vibe logo"></p>
+
 <h1 align="center">Nexus-Vibe</h1>
 
 <p align="center"><b>A full-stack AI developer community whose subject is treating an LLM as an unreliable dependency.</b></p>
@@ -11,27 +13,75 @@
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
   <img src="https://img.shields.io/badge/tests-563%20Java%20%2B%20152%20frontend-brightgreen?style=flat-square" alt="563 Java tests + 152 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
+  <img src="https://img.shields.io/github/stars/shing26/nexus-vibe?style=flat-square&label=stars" alt="GitHub stars">
+  <img src="https://img.shields.io/github/last-commit/shing26/nexus-vibe?style=flat-square" alt="Last commit">
 </p>
 
 <p align="center">
-  <a href="https://qualifier-discuss-marry.ngrok-free.dev"><b>Live demo</b></a> ·
-  <a href="#run-it-in-three-minutes"><b>Run locally</b></a> ·
+  <a href="https://qualifier-discuss-marry.ngrok-free.dev"><img src="https://img.shields.io/badge/Live_demo-open-1f6feb?style=for-the-badge&logo=googlechrome&logoColor=white" alt="Open the live demo"></a>
+  <a href="https://qualifier-discuss-marry.ngrok-free.dev/theatre"><img src="https://img.shields.io/badge/Chaos_Theatre-play-6e40c9?style=for-the-badge" alt="Open the Chaos Theatre"></a>
+  <a href="#run-it-in-three-minutes"><img src="https://img.shields.io/badge/Run_locally-3_minutes-2ea44f?style=for-the-badge&logo=docker&logoColor=white" alt="Run locally in three minutes"></a>
+</p>
+
+<p align="center">
+  <a href="#product-tour"><b>Product tour</b></a> ·
+  <a href="#what-this-is"><b>What this is</b></a> ·
   <a href="#fork-map"><b>Fork map</b></a> ·
   <a href="#evidence-wall"><b>Evidence wall</b></a> ·
   <a href="docs/reading-path.md"><b>Reading path</b></a> ·
   <a href="docs/INDEX.md"><b>Docs index</b></a>
 </p>
 
-<p align="center"><img src="docs/assets/readme/banner.svg" alt="The resilience chain: a post is lease-claimed, reviewed by the LLM, and its output repaired and validated; an unreachable model sends posts to a fail-closed queue that reconciliation restores." width="100%"></p>
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/banner-light.svg">
+  <img src="docs/assets/readme/banner.svg" alt="The resilience chain: a post is lease-claimed, reviewed by the LLM, and its output repaired and validated; an unreachable model sends posts to a fail-closed queue that reconciliation restores." width="100%">
+</picture>
+</p>
 
 <p align="center">One compose file, two pipeline seams, and a review terminal whose steps are a data file.<br><b>Built to be forked.</b></p>
 
-<p align="center"><img src="docs/assets/readme/async-review.png" alt="Dark-mode Nexus-Vibe post detail: a code card, a like counter, and the collapsed AI review card reading score 50/100, severity low, verdict approved" width="760"></p>
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/review-light.png">
+  <img src="docs/assets/readme/review-dark.png" alt="Nexus-Vibe post detail: a Java code card and the collapsed AI Review card reading Score 50/100, severity low, Approved" width="860">
+</picture>
+</p>
 
 *One real run, not a mock-up.* The pictured post was published to this machine's stack on
-2026-9-28 and carries a real stored review: the collapsed card header reads score, severity
-and verdict straight from the database, and the step replay is one expand away
+2026-9-28 and carries a real stored review: 5/10 becomes **50/100**, severity **low**, verdict
+**Approved**, read straight from the database. The screenshot is the current Forge shell; the
+review's steps replay one expand away
 ([ADR-0010](docs/adr/0010-the-showcase-review-is-a-recording.md)).
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<b>Fail closed</b><br>
+<sub>An unreachable model sends new posts to an audit queue; nothing publishes unreviewed.</sub><br>
+<a href="docs/adr/0004-safety-check-fail-closed.md">ADR-0004 →</a>
+</td>
+<td width="50%" valign="top">
+<b>Lease, not lock</b><br>
+<sub>Two workers cannot claim one review, and a crashed worker's task is re-dispatched.</sub><br>
+<a href="docs/adr/0005-lease-based-review-claim.md">ADR-0005 →</a>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<b>Repair, then validate</b><br>
+<sub>Fences, truncation and trailing commas are repaired; schema-valid garbage is retried, then degraded.</sub><br>
+<a href="docs/blog/llm-code-review-structured-output-injection-defense.md">Technical write-up →</a>
+</td>
+<td width="50%" valign="top">
+<b>Degraded, not dead</b><br>
+<sub>Redis, search or the model dropping out is DEGRADED with HTTP 200; only storage can mark the service DOWN.</sub><br>
+<a href="docs/adr/0007-degraded-status-is-not-unhealthy.md">ADR-0007 →</a>
+</td>
+</tr>
+</table>
+
+<a name="what-this-is"></a>
 
 ## 📖 What this is
 
@@ -48,6 +98,52 @@ code that matters is the failure handling around the model:
   crashed worker's task is re-dispatched by reconciliation rather than lost.
 - Every number in this README names the run that produced it.
 
+<a name="product-tour"></a>
+
+## 🖼️ Product tour
+
+The current Forge shell, in both themes. Every capture uses the frontend in this tree; the
+note below names the backend each one ran against.
+
+<table>
+<tr>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/home-light.png">
+  <img src="docs/assets/readme/home-dark.png" alt="Nexus-Vibe home feed: mission control, the recorded-review showcase, the Chaos Theatre entry, the channel rail and the hot-ranked feed" width="100%">
+</picture><br>
+<sub><b>The community.</b> Hot-ranked feed, channels, system pulse, and the reviewer's severity verdict on a completed topic row.</sub>
+</td>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/theatre-light.png">
+  <img src="docs/assets/readme/theatre-dark.png" alt="Chaos Theatre: five failure exhibits and the fix-challenge trace, showing score 3/10, severity high and Needs attention before the fix" width="100%">
+</picture><br>
+<sub><b>The Chaos Theatre.</b> Five precomputed failure exhibits; the model output is scripted, the repair, retry and fail-closed paths are real.</sub>
+</td>
+</tr>
+<tr>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/profile-light.png">
+  <img src="docs/assets/readme/profile-dark.png" alt="Profile page with the AI Score Curve drawn from review records, a narrative stats sentence and recent activity" width="100%">
+</picture><br>
+<sub><b>The evidence index.</b> The profile's score curve is drawn from review records, not a stored aggregate.</sub>
+</td>
+<td width="50%" valign="top">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/creations-light.png">
+  <img src="docs/assets/readme/creations-dark.png" alt="My Creations: one library tabbed into posts, prompt forks and device-local drafts" width="100%">
+</picture><br>
+<sub><b>My Creations.</b> Posts, prompt forks and device-local drafts behind one route, with count chips on every tab.</sub>
+</td>
+</tr>
+</table>
+
+The home and review captures use the production seed through the current frontend; the
+theatre, profile and creations captures use the local H2 development stack, where the
+degradation banner is a genuine capability state and can be dismissed by the visitor.
+
 ## 🌐 Live demo
 
 **<https://qualifier-discuss-marry.ngrok-free.dev>** - no account needed. The home page links
@@ -59,19 +155,30 @@ records why it is a recording of one real run rather than a live feed, and
 `benchmark/showcase/` holds the script that produced it, so the claim is reproducible
 rather than asserted.
 
-<p align="center"><img src="docs/assets/showcase/recorded-review.png" alt="The recorded showcase review rendered by the live deployment" width="720"></p>
+<p align="center">
+<picture>
+  <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/showcase-light.png">
+  <img src="docs/assets/readme/showcase-dark.png" alt="The showcase post on the current frontend: the cache snippet, the recording note, and the collapsed AI Review card reading Score 30/100, severity high, Needs Review" width="860">
+</picture>
+</p>
 
-Two things to know before you click:
+*The showcase, captured from this tree against the production seed.* The post is deliberately
+unsafe; the reviewer scored it 3/10 and wrote the findings shown one expand below.
+
+Three things to know before you click:
 
 - ngrok's free tier shows a one-time "Visit Site" warning page the first time a browser
   sees the domain. It is not part of this project; one click dismisses it for seven days.
 - It is a single home machine. If it is asleep the address stops answering, and every
   piece of evidence below was measured on the same class of machine rather than in a cloud
   region.
+- The instance is rebuilt by hand, so it can lag `master` by a release. If it predates the
+  Forge release, the shell looks older than the captures here and `/theatre` may not be
+  routed yet; rebuild `app` and `web` to pick both up.
 
 **No account? Watch the pipeline fail and recover.** [`/theatre`](https://qualifier-discuss-marry.ngrok-free.dev/theatre)
-replays four failure exhibits — malformed JSON, an empty placeholder, a prompt
-injection, a dead model — against the production reviewer. The model output is a
+replays five failure exhibits — malformed JSON, an empty placeholder, a prompt
+injection, a dead model, and a fix-challenge case — against the production reviewer. The model output is a
 pre-generated script (labelled `INJECTED`); the JSON repair, the semantic gate, the
 retry ladder and fail-closed are the real code paths (`REAL`/`POLICY`), precomputed at
 startup so the exhibit is deterministic, offline and free.
@@ -147,12 +254,14 @@ seeds accounts and sample content - never in production.
 
 ## 📦 What you get
 
-<p align="center"><img src="docs/assets/readme/community-feed.png" alt="The dark-mode home feed: the task-center hero, the channel rail, and the hot-ranked feed" width="760"></p>
-
 **The forum.** Registration and JWT auth with unique-email recovery, Markdown posts with
 live preview, channel browsing with slug routing, threaded comments, prompt-template
 forking with version history and rollback, per-user profile workspace with an activity
-timeline, and an admin audit dashboard with assisted account recovery.
+timeline, an admin audit dashboard with assisted account recovery, and a **My Creations
+library** that gathers your posts, prompt forks and device-local drafts behind one route.
+The community surface is open again (ADR-0022): topic rows carry the reviewer's severity
+verdict once the review completes, and the profile draws its AI score curve from the
+evidence index instead of a stored number.
 
 **The AI pipeline.** Posts containing code blocks are reviewed asynchronously with
 structured output and a visible rubric; fenced output, truncation and trailing commas are
@@ -161,12 +270,16 @@ within two model calls; a second listener classifies content into four safety cl
 editing a post re-triggers the review and supersedes the stale comment; the whole run
 history is queryable with severity stats and filters.
 
-**The parts that carry the thesis.** Redis Lua like toggle with write-behind flush and
+**The parts that carry the thesis.** Content is stored raw and escaped at egress
+(ADR-0021), so a post is one canonical record across feed, search and review; the
+capabilities read model caches its probe behind a TTL (R3-1), so a capability check does
+not become a request-time dependency. Redis Lua like toggle with write-behind flush and
 hourly drift reconciliation, sliding-window rate limiting, DFA sensitive-word filtering
 with hot reload, gravity-decay hot ranking, lease-based review claims with an attempt
 budget and a terminal notification, a dedicated agent pool that turns a saturated dispatch
-into a retryable state instead of failing the request, and an IDE-station dark UI whose
-motion work collapses under `prefers-reduced-motion`.
+into a retryable state instead of failing the request, and a Forge visual system (ADR-0020:
+neutral-grey surface, single blue accent, decorative motion removed) whose interactive
+motion still collapses under `prefers-reduced-motion`.
 
 <a name="fork-map"></a>
 
@@ -338,9 +451,10 @@ prove - that habit is kept on purpose.
 | [Observability drill](docs/research/observability-drill-2026-09.md) | 23 scripted failure injections against the real stack, including what the drill cannot prove |
 | [Technical blog](docs/blog/llm-code-review-structured-output-injection-defense.md) | How the structured-output review survives injection attempts and malformed model output |
 
-The decisions behind all of it: **[fifteen ADRs, 0001-0015](docs/adr/)** - fail-closed
+The decisions behind all of it: **[22 ADRs, 0001-0022](docs/adr/)** - fail-closed
 moderation, lease-based claims, degraded-is-not-unhealthy, the recording discipline, the
-two seams, metrics and rules.
+two seams, metrics and rules, the Forge visual pivot (0020), raw-content storage with
+escape-at-egress (0021), and reopening the community surface (0022).
 
 Where to look, in the time you have:
 
@@ -372,6 +486,12 @@ to check a claim instead of trusting it, start there.
 | **Observability** | Prometheus + Grafana + alert-bridge (monitoring profile) |
 | **Build** | Maven 3.9+ + Vite, multi-stage Docker, GitHub Actions CI |
 
+**Configuration note.** `GET /api/v1/capabilities` is cached behind a TTL; a stale
+capability set is possible within that window. `GET /api/v1/agent-logs/user/{userId}`
+exposes a user's own review index for the profile score curve — it reads the evidence
+index, it does not recompute a model score. The `/theatre` scenario list is served from
+`GET /api/v1/demo/chaos-scenarios`. No new environment variable was introduced by R3-1.
+
 ## ⚙️ Configuration quick reference
 
 The full list lives in [.env.example](.env.example), one comment per variable, and
@@ -397,6 +517,10 @@ prod / CI values for each. These are the ones a first run touches.
 | `REDIS_ENABLED` | `true` | Off sends likes, rate limiting and ranking down the MySQL fallback path |
 
 </details>
+
+**Trial harness (A5).** A real-user trial harness and its 2026-11 research note under
+`docs/research/` record the walkthrough step by step; the run is evidence, not a claim of
+representative usability. See `docs/tickets/a5-real-user-trial.md`.
 
 ## 🔭 Observability
 
