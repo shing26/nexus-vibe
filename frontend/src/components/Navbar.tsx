@@ -116,7 +116,7 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
 
         {/* Logo */}
         <Link to="/" className="flex shrink-0 items-center gap-2">
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-vibe-accent text-xs font-bold text-white">N</span>
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-vibe-text text-xs font-semibold text-vibe-bg">N</span>
           <span className="text-sm font-semibold text-vibe-text">Nexus-Vibe</span>
         </Link>
 
@@ -187,7 +187,7 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
           {isAuthenticated && (
             <Link
               to="/post/new"
-              className="press-feedback hidden items-center gap-1.5 rounded-md bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white hover:opacity-90 sm:inline-flex"
+              className="press-feedback hidden items-center gap-1.5 rounded-md bg-vibe-accent px-3 py-1.5 text-xs font-medium text-vibe-on-accent transition-colors hover:bg-vibe-accent/90 sm:inline-flex"
             >
               <PenSquare className="h-3.5 w-3.5" />
               {t('common:user.newPost')}
@@ -201,10 +201,14 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
               </Link>
               <Link
                 to="/register"
-                className="press-feedback inline-flex items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1.5 text-xs font-medium text-vibe-text hover:border-vibe-accent sm:px-3"
+                aria-label={t('common:user.register')}
+                className="press-feedback inline-flex shrink-0 items-center gap-1 rounded-md border border-vibe-border bg-vibe-card px-2 py-1.5 text-xs font-medium text-vibe-text hover:border-vibe-accent sm:px-3"
               >
                 <UserPlus className="h-3.5 w-3.5" />
-                {t('common:user.register')}
+                {/* The label is the button's accessible name, so hiding it on a
+                    narrow bar keeps the control named without pushing the row
+                    past the viewport (390px used to overflow to 410px). */}
+                <span className="sr-only sm:not-sr-only">{t('common:user.register')}</span>
               </Link>
             </div>
           ) : (
@@ -215,7 +219,7 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
                 aria-label={t('common:user.menu')}
                 aria-haspopup="menu"
                 aria-expanded={menuOpen}
-                className="press-feedback flex h-8 w-8 items-center justify-center rounded-full bg-vibe-accent text-xs font-semibold text-white"
+                className="press-feedback flex h-8 w-8 items-center justify-center rounded-full bg-vibe-text text-xs font-semibold text-vibe-bg"
               >
                 {(user?.nickname || user?.username || '?').charAt(0).toUpperCase()}
               </button>

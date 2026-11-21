@@ -31,14 +31,14 @@ export default function ShowcaseEntry() {
   return (
     <Link
       to={'/post/' + data.postId}
-      className="press-feedback group block rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-accent/10"
+      className="press-feedback group block rounded-lg border border-vibe-border bg-vibe-surface transition-colors hover:bg-vibe-card"
     >
       <div className="flex items-start gap-3 px-4 py-3">
-        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-vibe-accent/40 bg-vibe-accent/10">
-          <ShieldCheck className="h-4 w-4 text-vibe-accent" />
+        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-vibe-success/40 bg-vibe-success/10">
+          <ShieldCheck className="h-4 w-4 text-vibe-success" />
         </div>
         <div className="min-w-0 flex-1">
-          <p className="text-xs font-medium uppercase tracking-wide text-vibe-accent">
+          <p className="text-xs text-vibe-faint">
             {t('showcaseEntry.kicker')}
           </p>
           <p className="mt-1 truncate text-sm font-medium text-vibe-text">
@@ -49,10 +49,10 @@ export default function ShowcaseEntry() {
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0 self-center">
-          <span className="text-xs font-semibold tabular-nums text-vibe-accent">
+          <span className="font-mono text-xs font-medium tabular-nums text-vibe-success">
             {data.aiReviewScore}/10
           </span>
-          <ArrowRight className="h-3.5 w-3.5 text-vibe-faint transition-colors group-hover:text-vibe-accent" />
+          <ArrowRight className="h-3.5 w-3.5 text-vibe-faint transition-colors group-hover:text-vibe-text" />
         </div>
       </div>
     </Link>

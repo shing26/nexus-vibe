@@ -302,7 +302,7 @@ export default function PostDetailPage() {
       <div className="mb-6 flex flex-wrap items-start gap-3">
         <Avatar name={post.authorName} size="md" />
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-semibold leading-snug text-vibe-text">{post.title}</h1>
+          <h1 className="text-xl font-medium leading-snug text-vibe-text">{post.title}</h1>
           <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-vibe-muted">
             <span>{post.authorName}</span>
             <span aria-hidden="true">·</span>

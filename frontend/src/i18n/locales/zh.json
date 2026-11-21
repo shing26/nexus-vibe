@@ -147,6 +147,7 @@
       "label": "Agent 评审动态",
       "idle": "Agent 队列空闲。发布带代码的帖子即可触发自动评审。",
       "verified": "[{{time}}] {{reviewer}} 评审了帖子「{{title}}」 · 帖子 #{{id}} · 严重度：{{severity}} · 状态：{{status}}",
+      "verifiedNoTitle": "[{{time}}] {{reviewer}} 评审了帖子 #{{id}} · 严重度：{{severity}} · 状态：{{status}}",
       "status": {
         "idle": "空闲",
         "unavailable": "不可用",
@@ -410,6 +411,14 @@
       "verified": "已校验",
       "reviewing": "评审中",
       "failed": "评审失败"
+    },
+    "counts": {
+      "likes": "赞",
+      "comments": "评论",
+      "views": "浏览",
+      "likesValue": "{{count}} 个赞",
+      "commentsValue": "{{count}} 条评论",
+      "viewsValue": "{{count}} 次浏览"
     },
     "aiScoreBadge": "AI 评分 {{score}}/100",
     "scoreRubric": "评分标准（0-100）：90-100 可直接投产 · 70-80 扎实，有小问题 · 50-60 可用但有明显缺口 · 30-40 问题显著 · 0-20 破损/不安全。评审维度：正确性、代码质量、安全性、改进建议。编辑后的帖子会自动重新评审。",

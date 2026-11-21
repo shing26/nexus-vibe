@@ -673,13 +673,13 @@ export function TheatreEntry({ label, desc }: { label: string; desc: string }) {
     <Link
       to="/theatre"
       data-testid="theatre-entry"
-      className="press-feedback group flex items-center justify-between gap-3 rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 px-4 py-3 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-accent/10"
+      className="press-feedback group flex items-center justify-between gap-3 rounded-lg border border-vibe-border bg-vibe-surface px-4 py-3 transition-colors hover:bg-vibe-card"
     >
       <span className="min-w-0">
         <span className="block text-sm font-medium text-vibe-text">{label}</span>
         <span className="mt-0.5 block text-xs text-vibe-muted">{desc}</span>
       </span>
-      <ArrowRight className="h-4 w-4 shrink-0 text-vibe-accent" />
+      <ArrowRight className="h-4 w-4 shrink-0 text-vibe-faint transition-colors group-hover:text-vibe-text" />
     </Link>
   );
 }
