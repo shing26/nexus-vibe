@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-563%20Java%20%2B%20162%20frontend-brightgreen?style=flat-square" alt="563 Java tests + 162 frontend tests">
+  <img src="https://img.shields.io/badge/tests-563%20Java%20%2B%20171%20frontend-brightgreen?style=flat-square" alt="563 Java tests + 171 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -444,15 +444,18 @@ pending-post detail on top of the A5 trial harness): backend **563 tests / 93
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
 never `target/surefire-reports/`, which accumulates runs and lies. The new backend case:
 the author of a fail-closed-held post reads their own pending-review detail while another
-user and an anonymous request still get 404. Frontend **162 tests /
-32 files**: the severity chip on topic rows (a reviewed row shows the reviewer's severity
+user and an anonymous request still get 404. Frontend **171 tests /
+33 files**: the severity chip on topic rows (a reviewed row shows the reviewer's severity
 verdict in the verdict's own tone, an unknown value renders nothing, rows whose review
 has not completed show no chip), the my-creations library (kind derivation from real post fields, count chips matching cards, tab filtering, device-local drafts), the observability-forum surface (the sidebar system pulse from the real capability API — degraded, all-normal and broken-API states; the AI credential chip on topic rows; the home ranking note; the profile's narrative stats sentence), the Chaos Theatre page (the scripted-output disclosure, the five scenario
 buttons, per-step REAL/INJECTED/POLICY honesty badges, the score-dial/stamp payoff, the
 apply-the-fix toggle, the counterfactual panel, the fail-closed chip, and the
 error/retry panel), the profile score curve (one mark per returned record, oldest on the left, no
 SVG at all when the index is empty, a screen-reader table carrying date/score/title, the
-same 0-10-to-0-100 rule as the voucher card), the axios response interceptor (a 401 replayed once against the refreshed token,
+same 0-10-to-0-100 rule as the voucher card), the Chaos Theatre's narrative pass (the reviewed
+snippet rendered with its defect line marked, the fix's guard line marked, no per-step stopwatch,
+scenario cards read as fault/defense/verdict, and the counterfactual open beside the actual trace),
+the axios response interceptor (a 401 replayed once against the refreshed token,
 one refresh shared across concurrent 401s, a refused refresh that logs out without
 looping, a 5xx named with its trace id), the server-error sentence mapping, the login
 page's server reason, the AI review panel (a stored 0-10 shown as the 0-100 it claims, a
@@ -491,7 +494,7 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 mvn test                      # 563: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 162
+cd frontend && npm run test   # 171
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28
 ```
 

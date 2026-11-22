@@ -115,9 +115,13 @@ export default function Navbar({ onOpenDrawer }: NavbarProps) {
         </button>
 
         {/* Logo */}
-        <Link to="/" className="flex shrink-0 items-center gap-2">
+        {/* Below `sm` the wordmark collapses to the square: at 375px the signed-out
+            cluster (evidence, theme, language, login, register) needs 206px, and the
+            full wordmark pushed the bar to 382px. The link keeps a name via
+            aria-label, because hiding the text would otherwise leave it unnamed. */}
+        <Link to="/" aria-label="Nexus-Vibe" className="flex shrink-0 items-center gap-2">
           <span className="flex h-6 w-6 items-center justify-center rounded-md bg-vibe-text text-xs font-semibold text-vibe-bg">N</span>
-          <span className="text-sm font-semibold text-vibe-text">Nexus-Vibe</span>
+          <span className="hidden text-sm font-semibold text-vibe-text sm:inline">Nexus-Vibe</span>
         </Link>
 
         {/* Center search — submits to the existing search page; Ctrl+K opens the palette */}

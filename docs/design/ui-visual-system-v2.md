@@ -134,6 +134,28 @@ unchanged (it already reads well). The in-flight review box and replay box live 
 column, above comments. (Amended by Slice C2; the earlier wording kept the body in a card
 and repeated the counts in the header.)
 
+## Chaos Theatre
+
+One reading order, top to bottom: title, the thesis line (a left accent rail, one sentence
+that names the cost rather than the feature), the disclosure, the five scenario cards, then
+the selected trace. Each card reads as **fault / defense / verdict** on three label-value
+rows, so the five exhibits compare as a taxonomy instead of a feature list.
+
+The selected trace opens with the code that was actually reviewed: `CodeBlock`, Java
+highlighted, with the line under discussion carrying a 2px left rail in `vibe-warning`
+(danger for the injection comment, success for the guard the fix adds). `fix-challenge`
+shows before and after side by side above 640px, stacked below it.
+
+There is **no per-step clock**. The only timing the page may claim is the scenario's
+measured duration, labelled "本次回放耗时" (and, for `fix-challenge`, "含修复前后两次评审").
+The rows are an ordered account, numbered `01`, `02`, …; a hardcoded "+400 ms" beside a
+measured "4 ms" is a contradiction a reader would rightly read as fabrication.
+
+Below 640px the actual trace and its counterfactual stack; at and above it they sit in two
+columns headed "实际发生" / "如果模型正常", both visible by default. The comparison is the
+lesson, so it is not behind a toggle — the toggle only collapses it. The setup rows every
+scenario shares (`input`, `prompt`) stay in the list as evidence but are demoted in weight.
+
 ## AiReviewTerminal v2
 
 A quiet check-run card, not a terminal: `rounded-lg border border-vibe-border

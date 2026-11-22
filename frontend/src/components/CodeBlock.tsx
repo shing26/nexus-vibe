@@ -145,11 +145,43 @@ const githubLight: Record<string, CSSProperties> = {
   namespace: { opacity: 0.8 },
 };
 
-export default function CodeBlock({ language, code }: { language: string; code: string }) {
+/**
+ * `highlightLines` marks 1-based line numbers with a left rail. The Chaos Theatre
+ * uses it to point at the line the review is about — the unguarded division, then
+ * the guard the fix adds. Omitting it keeps every existing call site unchanged.
+ */
+export default function CodeBlock({
+  language,
+  code,
+  highlightLines,
+}: {
+  language: string;
+  code: string;
+  highlightLines?: number[];
+}) {
   const dark = useThemeStore((s) => s.dark);
   const normalized = LANGUAGE_ALIASES[language.toLowerCase()] ?? language.toLowerCase();
+  const marked = highlightLines ?? [];
   if (!SUPPORTED_LANGUAGES.has(normalized)) {
-    return <pre className="overflow-x-auto bg-vibe-bg p-4 text-xs text-vibe-text">{code}</pre>;
+    return (
+      <pre className="overflow-x-auto bg-vibe-bg p-4 text-xs text-vibe-text">
+        {marked.length
+          ? code.split('\n').map((line, index) => (
+              <span
+                key={index}
+                data-testid={marked.includes(index + 1) ? 'code-highlight-line' : undefined}
+                className={
+                  marked.includes(index + 1)
+                    ? 'block border-l-2 border-vibe-warning bg-vibe-warning/10 pl-2'
+                    : 'block'
+                }
+              >
+                {line || ' '}
+              </span>
+            ))
+          : code}
+      </pre>
+    );
   }
 
   return (
@@ -157,6 +189,29 @@ export default function CodeBlock({ language, code }: { language: string; code: 
       style={dark ? oneDark : githubLight}
       language={normalized}
       PreTag="div"
+      wrapLines={marked.length > 0}
+      // `lineProps` only receives a real line number when the generator is asked
+      // for line numbers; the column itself is hidden, we only want the number.
+      showLineNumbers={marked.length > 0}
+      lineNumberContainerStyle={{ display: 'none' }}
+      lineNumberStyle={{ display: 'none' }}
+      lineProps={
+        marked.length > 0
+          ? (lineNumber: number) => ({
+              style: {
+                display: 'block',
+                ...(marked.includes(lineNumber)
+                  ? {
+                      borderLeft: '2px solid var(--color-vibe-warning, #d9a13b)',
+                      backgroundColor: 'rgba(217, 161, 59, 0.12)',
+                      paddingLeft: '0.5rem',
+                    }
+                  : {}),
+              },
+              'data-testid': marked.includes(lineNumber) ? 'code-highlight-line' : undefined,
+            })
+          : undefined
+      }
       // R6: the block lives inside a TerminalWindow whose rounded corners come from
       // overflow-hidden, so a line longer than the viewport used to be clipped with no
       // way to reach the rest of it - on a phone, permanently. PreTag is a div, so

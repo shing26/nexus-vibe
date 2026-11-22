@@ -103,6 +103,7 @@ alternatives that were rejected.
 | [post-detail-author-404](tickets/post-detail-author-404.md) | Open: the author's just-published, held post answers 404 on the detail page — the list-side fix's missing half |
 | [console-dark-slice](tickets/console-dark-slice.md) | Slice C1: the home shell re-skinned as a night-shift console — dark by default, one audit-green accent, stamps instead of decorative color |
 | [post-detail-info-arch](tickets/post-detail-info-arch.md) | Slice C2: the detail page becomes one column — identity, body, evidence — and the accent swap's contrast regression is closed |
+| [theatre-narrative](tickets/theatre-narrative.md) | Slice C3: the theatre shows the code it judges, drops the fabricated step clock, and puts the counterfactual beside the actual trace |
 
 ## Plans — `docs/plans/`
 
@@ -124,6 +125,7 @@ alternatives that were rejected.
 | [review-severity-chip](plans/review-severity-chip.md) | Frozen contract for the severity chip: latest code-review row per page in one query, honest tone mapping, the N+1 and retry-chip rejections |
 | [r3-1-capability-throttle](plans/r3-1-capability-throttle.md) | Frozen contract for R3-1: TTL cache branch of the acceptance, actuator bytes pinned, the Redis-dependent limiter rejected |
 | [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
+| [theatre-narrative](plans/theatre-narrative.md) | Frozen contract for Slice C3: code on screen, the fabricated step clock removed from the DTO, fault/defense/verdict cards, and counterfactuals shown beside the actual trace |
 
 ## Design and product
 

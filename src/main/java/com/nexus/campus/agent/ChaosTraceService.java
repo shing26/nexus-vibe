@@ -312,73 +312,73 @@ public class ChaosTraceService {
         List<ChaosStepVo> steps = new ArrayList<>();
         steps.add(step("input", "Input accepted",
                 "A fenced Java snippet enters the same reviewer used by published posts.",
-                "REAL", "OK", sampleCode, 0));
+                "REAL", "OK", sampleCode));
         steps.add(step("prompt", "Prompt isolated",
                 "The request builder wraps the snippet in per-request nonce delimiters; instructions inside the snippet stay data.",
-                "REAL", "OK", prompt, 400));
+                "REAL", "OK", prompt));
 
         switch (kind) {
             case REPAIRED_JSON -> {
                 steps.add(step("model", "Model returns broken JSON",
                         "The scripted model returned fenced JSON with a trailing comma and no closing brace.",
-                        "INJECTED", "WARN", rawOutput, 900));
+                        "INJECTED", "WARN", rawOutput));
                 steps.add(step("repair-fail", "Parser cannot finish it",
                         "The repair ladder handles each defect alone; truncation plus a trailing comma exceeds it, so the parser returns a positional error.",
-                        "REAL", "FAIL", firstParseError, 1300));
+                        "REAL", "FAIL", firstParseError));
                 steps.add(step("retry", "Self-correction retry",
                         "The reviewer retries once, sending the broken output and the parser error back to the model.",
-                        "REAL", "WARN", responses.isEmpty() ? null : responses.get(responses.size() - 1), 1700));
+                        "REAL", "WARN", responses.isEmpty() ? null : responses.get(responses.size() - 1)));
                 steps.add(step("repair", "Repaired JSON accepted",
                         "The corrected object parses cleanly and becomes the recorded result.",
-                        "REAL", "OK", repairedJson, 2100));
+                        "REAL", "OK", repairedJson));
                 steps.add(step("validate", "Semantic gate accepts",
                         "Severity is valid and both analysis fields are substantive, so the verdict may be recorded.",
-                        "REAL", "OK", null, 2500));
+                        "REAL", "OK", null));
                 steps.add(step("verdict", "Verdict recorded",
                         "The repaired output became a real verdict instead of being dropped.",
-                        "REAL", "OK", resultJson(verdict), 2900));
+                        "REAL", "OK", resultJson(verdict)));
             }
             case EMPTY_PLACEHOLDER -> {
                 steps.add(step("model", "Attempt 1 returns a placeholder",
                         "Every schema field is present, but EVALUATE / NONE / FIX carry no analysis.",
-                        "INJECTED", "WARN", rawOutput, 900));
+                        "INJECTED", "WARN", rawOutput));
                 steps.add(step("validate", "Semantic gate rejects",
                         "The validity gate refuses placeholders even when the JSON parses.",
-                        "REAL", "FAIL", rawOutput, 1300));
+                        "REAL", "FAIL", rawOutput));
                 steps.add(step("retry", "Reinforced retry",
                         "The reviewer retries once with an explicit instruction to produce substantive analysis.",
-                        "REAL", "WARN", responses.isEmpty() ? null : responses.get(responses.size() - 1), 1700));
+                        "REAL", "WARN", responses.isEmpty() ? null : responses.get(responses.size() - 1)));
                 steps.add(step("validate", "Retry passes",
                         "The second answer is substantive and the same gate accepts it.",
-                        "REAL", "OK", null, 2100));
+                        "REAL", "OK", null));
                 steps.add(step("verdict", "Verdict recorded",
                         "The retry, not the placeholder, is what reaches the post.",
-                        "REAL", "OK", resultJson(verdict), 2500));
+                        "REAL", "OK", resultJson(verdict)));
             }
             case PROMPT_INJECTION -> {
                 steps.add(step("model", "Model refuses the instruction",
                         "The scripted model returned a low score and stated that the injected comment was treated as data.",
-                        "INJECTED", "OK", rawOutput, 900));
+                        "INJECTED", "OK", rawOutput));
                 steps.add(step("validate", "Semantic gate accepts",
                         "The verdict is substantive and legal; the injection changed neither the schema nor the gate.",
-                        "REAL", "OK", null, 1300));
+                        "REAL", "OK", null));
                 steps.add(step("verdict", "Verdict recorded",
                         "The review names the injection attempt instead of obeying it.",
-                        "REAL", "OK", resultJson(verdict), 1700));
+                        "REAL", "OK", resultJson(verdict)));
             }
             case MODEL_DOWN -> {
                 steps.add(step("model", "Every call times out",
                         "Each attempt fails against the scripted dead endpoint; the client retries transport failures until its attempt budget is spent.",
-                        "INJECTED", "FAIL", "No response body: the connection timed out.", 900));
+                        "INJECTED", "FAIL", "No response body: the connection timed out."));
                 steps.add(step("retry", "Circuit breaker fails fast",
                         "The reviewer's retry finds the breaker open instead of waiting through another timeout.",
-                        "REAL", "WARN", null, 1300));
+                        "REAL", "WARN", null));
                 steps.add(step("fail-closed", "No verdict, no publication",
                         "The production listener marks the post FAILED and keeps it out of the published feed.",
-                        "POLICY", "FAIL", null, 1700));
+                        "POLICY", "FAIL", null));
                 steps.add(step("reconcile", "Reconciliation owns the recovery",
                         "A scheduled sweep re-dispatches FAILED/REVIEWING posts; the user does not have to do anything.",
-                        "POLICY", "INFO", null, 2100));
+                        "POLICY", "INFO", null));
             }
         }
         return List.copyOf(steps);
@@ -395,19 +395,19 @@ public class ChaosTraceService {
         List<ChaosStepVo> steps = new ArrayList<>();
         steps.add(step("input", "Input accepted",
                 "A fenced Java snippet enters the same reviewer used by published posts.",
-                "REAL", "OK", sampleCode, 0));
+                "REAL", "OK", sampleCode));
         steps.add(step("prompt", "Prompt isolated",
                 "The request builder wraps the snippet in per-request nonce delimiters; instructions inside the snippet stay data.",
-                "REAL", "OK", prompt, 400));
+                "REAL", "OK", prompt));
         steps.add(step("model", "Model scores the bug",
                 "The scripted model returned a substantive review: no zero guard, score 3, severity high.",
-                "INJECTED", "WARN", rawOutput, 900));
+                "INJECTED", "WARN", rawOutput));
         steps.add(step("validate", "Semantic gate accepts",
                 "Severity is valid and both analysis fields are substantive, so the verdict may be recorded.",
-                "REAL", "OK", null, 1300));
+                "REAL", "OK", null));
         steps.add(step("verdict", "Verdict recorded",
                 "The buggy snippet earns its 3/10 honestly; apply the fix and the same pipeline re-scores it.",
-                "REAL", "OK", resultJson(verdict), 1700));
+                "REAL", "OK", resultJson(verdict)));
         return List.copyOf(steps);
     }
 
@@ -417,16 +417,16 @@ public class ChaosTraceService {
         List<ChaosStepVo> steps = new ArrayList<>();
         steps.add(step("input", "Fixed input accepted",
                 "The snippet now guards the divisor before dividing.",
-                "REAL", "OK", fixedCode, 0));
+                "REAL", "OK", fixedCode));
         steps.add(step("model", "Model re-scores the fix",
                 "The same scripted pipeline reviewed the patched code and answered score 9, severity low.",
-                "INJECTED", "OK", afterRaw, 400));
+                "INJECTED", "OK", afterRaw));
         steps.add(step("validate", "Semantic gate accepts",
                 "The after-fix verdict passes the same substance gate.",
-                "REAL", "OK", null, 800));
+                "REAL", "OK", null));
         steps.add(step("verdict", "Verdict recorded",
                 "Same pipeline, same gate: the score moved because the code moved.",
-                "REAL", "OK", resultJson(after), 1200));
+                "REAL", "OK", resultJson(after)));
         return List.copyOf(steps);
     }
 
@@ -436,16 +436,16 @@ public class ChaosTraceService {
         List<ChaosStepVo> steps = new ArrayList<>();
         steps.add(step("input", "Input accepted",
                 "The same snippet enters the same reviewer.",
-                "REAL", "OK", sampleCode, 0));
+                "REAL", "OK", sampleCode));
         steps.add(step("model", "Model answers well",
                 "In this counterfactual the first answer is already valid and substantive.",
-                "INJECTED", "OK", rawOutput, 400));
+                "INJECTED", "OK", rawOutput));
         steps.add(step("validate", "Semantic gate accepts",
                 "The verdict passes the gate on the first attempt.",
-                "REAL", "OK", null, 800));
+                "REAL", "OK", null));
         steps.add(step("verdict", "Verdict recorded",
                 "A well-behaved model still goes through the same recording path.",
-                "REAL", "OK", resultJson(verdict), 1200));
+                "REAL", "OK", resultJson(verdict)));
         return List.copyOf(steps);
     }
 
@@ -454,9 +454,8 @@ public class ChaosTraceService {
                                     String detail,
                                     String mode,
                                     String outcome,
-                                    String payload,
-                                    long offsetMs) {
-        return new ChaosStepVo(id, title, detail, mode, outcome, truncate(payload, 4000), offsetMs);
+                                    String payload) {
+        return new ChaosStepVo(id, title, detail, mode, outcome, truncate(payload, 4000));
     }
 
     private static String truncate(String value, int maxChars) {
