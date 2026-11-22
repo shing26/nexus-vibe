@@ -102,6 +102,7 @@ alternatives that were rejected.
 | [r3-1-capability-throttle](tickets/r3-1-capability-throttle.md) | The anonymous capabilities endpoint stops re-probing per read: a TTL cache on the read model, the limiter rejected because it bypasses itself when Redis is down |
 | [post-detail-author-404](tickets/post-detail-author-404.md) | Open: the author's just-published, held post answers 404 on the detail page — the list-side fix's missing half |
 | [console-dark-slice](tickets/console-dark-slice.md) | Slice C1: the home shell re-skinned as a night-shift console — dark by default, one audit-green accent, stamps instead of decorative color |
+| [post-detail-info-arch](tickets/post-detail-info-arch.md) | Slice C2: the detail page becomes one column — identity, body, evidence — and the accent swap's contrast regression is closed |
 
 ## Plans — `docs/plans/`
 
