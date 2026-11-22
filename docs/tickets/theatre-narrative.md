@@ -1,6 +1,6 @@
 # Slice C3：剧场页的叙事
 
-Status: **implemented, awaiting independent verification**（2026-11-22）。
+Status: **done — independent verification PASS, awaiting sign-off**（2026-11-23）。
 契约：[`plans/theatre-narrative.md`](../../plans/theatre-narrative.md)。
 
 ## 为什么做
@@ -32,7 +32,7 @@ Status: **implemented, awaiting independent verification**（2026-11-22）。
 
 - 首屏一句中文论点（`theatre:thesis`），说明代价而不是功能。
 - 五张卡改为「故障 / 防线 / 判定」三轴，从功能列表变成可比较的分类学。
-- 反事实默认展开，≥1024px 与实际轨迹左右并列（「实际发生」/「如果模型正常」）。
+- 反事实默认展开，≥640px 与实际轨迹左右并列（「实际发生」/「如果模型正常」）。
 - 五个场景共有的 `input`/`prompt` 两步视觉降权，但不删除。
 
 ## 实测（2026-11-22，本机）
@@ -49,6 +49,21 @@ Status: **implemented, awaiting independent verification**（2026-11-22）。
 | AC7 反事实并列 | 默认可见，`grid-template-columns: 424px 424px`，标题「实际发生 / 如果模型正常」 |
 
 截图：`scratch/theatre-narrative/c3-fix.png`、`c3-pair.png`、`c3-injection.png`、`c3-375.png`。
+
+## 独立验收（2026-11-23）
+
+Verifier：**独立 subagent `theatre_verifier_v2`**，在 worktree 内亲自重跑命令、
+拉起源码实例（后端 `:8098`、Vite `:5198`）并用真实浏览器复核。结论：**PASS**，
+无 P0/P1。证据：`scratch/theatre-narrative/verifier-report-v2.md`、`verify-*.png`、
+`browser-results.txt`。
+
+- HEAD：`b70ec66ac5fa8ec54cd00473963635b6fa9ffd7d`，`git status --short` 为空。
+- AC1–AC9：**全部 PASS**。AC1 五场景代码齐全、危险行/守卫行各 1；AC2 全页
+  `step-offset` 0 个；AC4 `/` 与 `/theatre` 在 375px 均 `375 === 375`；
+  AC7 640px 两栏同排、375px 堆叠；AC8 既有行为逐项实测保持。
+- `mvn -B test`：563 tests / 0 failures / 0 errors / 0 skipped，JaCoCo 79.14%。
+- 前端：33 files / 171 tests；`lint`、`build` 退出码 0。
+- 路径合规：`git diff --name-only c7bb34a..HEAD` 16 个文件，全部在 Allowed paths 内。
 
 ## 未做
 
