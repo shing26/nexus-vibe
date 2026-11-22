@@ -151,7 +151,7 @@ measured duration, labelled "本次回放耗时" (and, for `fix-challenge`, "含
 The rows are an ordered account, numbered `01`, `02`, …; a hardcoded "+400 ms" beside a
 measured "4 ms" is a contradiction a reader would rightly read as fabrication.
 
-Below 1024px the actual trace and its counterfactual stack; at and above it they sit in two
+Below 640px the actual trace and its counterfactual stack; at and above it they sit in two
 columns headed "实际发生" / "如果模型正常", both visible by default. The comparison is the
 lesson, so it is not behind a toggle — the toggle only collapses it. The setup rows every
 scenario shares (`input`, `prompt`) stay in the list as evidence but are demoted in weight.

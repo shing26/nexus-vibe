@@ -765,7 +765,7 @@ export default function TheatrePage() {
           </div>
 
           {!selected.fixedCode ? (
-            <div data-testid="trace-pair" className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+            <div data-testid="trace-pair" className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div data-testid="trace-actual" className="min-w-0 space-y-3">
                 <h3 className="text-xs font-medium uppercase tracking-wide text-vibe-faint">{t('pair.actual')}</h3>
                 <div className="h-1 w-full overflow-hidden rounded-full bg-vibe-border">
