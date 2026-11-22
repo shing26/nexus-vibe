@@ -1,6 +1,6 @@
 # Slice C4：剧场页的骨架
 
-Status: **implemented, awaiting independent verification**（2026-11-23）。
+Status: **done — independent verification PASS, awaiting sign-off**（2026-11-23）。
 契约：[`plans/theatre-spine.md`](../../plans/theatre-spine.md)。
 
 ## 为什么做
@@ -48,6 +48,23 @@ C3 修好诚实性之后，用户对布局连续给出三条反馈：「有点�
   视口 950px，最大滚动 483px；600px 处站点 footer 已进入视口，任何实现都无法
   同时满足“落款距视口底 ≤40px”和“不覆盖 footer”。修订单独成提交，理由写在
   契约的「契约修订」一节，未混进实现提交。
+
+## 独立验收（2026-11-23）
+
+Verifier：**独立 subagent `theatre_spine_verifier`**，在 worktree 内亲自重跑命令、
+用真实浏览器复核；首轮 AC3 判 FAIL（按钮被提示文案顶下 24px）并指出契约修订
+混在实现提交里，修复后复验 **PASS**，无 P0/P1。证据：
+`scratch/theatre-narrative/verifier-c4-report.md`。
+
+- HEAD：`6625053b9a08db575a56652cea8529be16bda63e`，`git status --short` 为空。
+- AC1–AC9：**全部 PASS**。正文左缘/返回左缘 1440/1280/1024 均差 0；索引
+  `304/304/260px` 且 sticky；评分环与按钮 top 均 `675.71875`（差 0）；stat
+  `5/3/0`；滚动 200 时竖带底=内容底、落款距视口底 32px；5 条 ticker 逐条一致
+  且只发 1 次请求；375px 无溢出。
+- `mvn -B test`：563 / 0；前端 175 / 34；`lint`、`build` 通过；README 同步。
+- 路径合规：13 个文件全部在 Allowed paths 内，后端 `src/`、`docker/`、`pom.xml` 零改动。
+- 流程：`c865531`（契约修订，单独 +13/−2）→ `97b109f`（实现）→ `6625053`
+  （记录），修订先于实现，未混入实现提交。
 
 ## 未做
 
