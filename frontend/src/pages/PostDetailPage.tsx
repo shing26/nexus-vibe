@@ -439,11 +439,11 @@ export default function PostDetailPage() {
          <button
            type="button"
            onClick={handleLike}
-           aria-label={t('post:actions.like')}
+           aria-label={t('post:counts.likesValue', { count: likeCount })}
            className={'inline-flex items-center gap-1.5 transition-colors ' + (liked ? 'text-vibe-danger' : 'text-vibe-muted hover:text-vibe-danger')}
          >
            <Heart className={'h-3.5 w-3.5 ' + (liked ? 'fill-vibe-danger' : '')} aria-hidden="true" />
-           <span className="tabular-nums">{likeCount}</span>
+           <span className="tabular-nums" aria-hidden="true">{likeCount}</span>
          </button>
          <span className="flex items-center gap-1" aria-label={t('post:stats.comments', { count: totalComments })}>
            <MessageCircle className="h-3.5 w-3.5 text-vibe-faint" aria-hidden="true" />

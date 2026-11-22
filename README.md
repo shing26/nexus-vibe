@@ -9,7 +9,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-563%20Java%20%2B%20152%20frontend-brightgreen?style=flat-square" alt="563 Java tests + 152 frontend tests">
+  <img src="https://img.shields.io/badge/tests-563%20Java%20%2B%20162%20frontend-brightgreen?style=flat-square" alt="563 Java tests + 162 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
 </p>
 
@@ -444,8 +444,8 @@ pending-post detail on top of the A5 trial harness): backend **563 tests / 93
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
 never `target/surefire-reports/`, which accumulates runs and lies. The new backend case:
 the author of a fail-closed-held post reads their own pending-review detail while another
-user and an anonymous request still get 404. Frontend **152 tests /
-29 files**: the severity chip on topic rows (a reviewed row shows the reviewer's severity
+user and an anonymous request still get 404. Frontend **162 tests /
+32 files**: the severity chip on topic rows (a reviewed row shows the reviewer's severity
 verdict in the verdict's own tone, an unknown value renders nothing, rows whose review
 has not completed show no chip), the my-creations library (kind derivation from real post fields, count chips matching cards, tab filtering, device-local drafts), the observability-forum surface (the sidebar system pulse from the real capability API — degraded, all-normal and broken-API states; the AI credential chip on topic rows; the home ranking note; the profile's narrative stats sentence), the Chaos Theatre page (the scripted-output disclosure, the five scenario
 buttons, per-step REAL/INJECTED/POLICY honesty badges, the score-dial/stamp payoff, the
@@ -491,7 +491,7 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 mvn test                      # 563: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 152
+cd frontend && npm run test   # 162
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28
 ```
 

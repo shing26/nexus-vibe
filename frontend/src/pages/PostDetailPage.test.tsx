@@ -87,6 +87,7 @@ describe('PostDetailPage information architecture', () => {
 
     expect(await screen.findByLabelText('328 views')).toBeInTheDocument();
     expect(screen.getByLabelText('3 comments')).toBeInTheDocument();
+    expect(screen.getByLabelText('1 likes')).toBeInTheDocument();
   });
 
   it('does not render an empty pending stamp on an active post', async () => {

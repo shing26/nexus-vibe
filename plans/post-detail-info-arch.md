@@ -59,6 +59,7 @@ Slice C1 只重做了首页外壳。详情页仍是 v2 forge 时期的结构，�
 - `frontend/src/components/CommentSentimentFilter.tsx`（仅选中态与链接色）
 - `frontend/src/components/CommentSentimentFilter.test.tsx`（仅新增断言）
 - `frontend/src/i18n/locales/zh.json`、`frontend/src/i18n/locales/en.json`
+- `README.md`（仅测试计数，见「契约补充」）
 
 ## Acceptance criteria
 
@@ -67,7 +68,9 @@ Slice C1 只重做了首页外壳。详情页仍是 v2 forge 时期的结构，�
 2. 头部只有两段：身份行（作者、分类、时间）与状态印章行；没有值的印章不渲染，
    不出现空胶囊。
 3. 正文不再有卡片背景，直接落在页面底色上；正文与后续区块之间是发丝分隔线。
-4. 赞/评论/浏览在整页只出现一次（合并后的操作行），且各有可访问名称。
+4. 赞/评论/浏览在整页只出现一次（合并后的操作行），且各有可访问名称；
+   点赞按钮的可访问名必须包含当前计数（如 `1 个赞` / `1 likes`），不能只是
+   「点赞」这个动作名。
 5. 390px 宽度下详情页无横向溢出，标题不与操作按钮重叠。
 6. 既有的待审可见性、AI 评审凭证、playground、版本面板、评论分组行为不变。
 7. 评论筛选标签的选中态不再使用 accent 色，与页面其余部分同属中性色阶。
@@ -83,6 +86,20 @@ git diff b07fcf3..HEAD --stat
 ```
 
 Verifier 需在真实浏览器中复核第 1、4、5 条（对比度、计数唯一性、移动端不溢出）。
+
+## 契约补充（2026-11-22，Verifier 首审后）
+
+首审 FAIL 两项，均为契约自身的遗漏，不是范围变更：
+
+1. **AC4 的点赞计数**：按钮的可访问名只有 `actions.like`（「点赞」），可见计数
+   `1` 不在可访问名内。修复为复用已存在的 `post:counts.likesValue`
+   （`{{count}} 个赞` / `{{count}} likes`），并把可见数字标为 `aria-hidden`，
+   与浏览/评论两个计数的写法一致。
+2. **README 测试计数**：仓库根 `AGENTS.md` 要求改动测试计数时同步 README badge
+   与 Testing 节，但本契约的 Allowed paths 漏了 `README.md`。补充该路径，
+   仅允许改测试计数（badge 与 Testing 节两处数字），不允许改其它内容。
+
+因此 Allowed paths 追加一项：`README.md`（仅测试计数）。
 
 ## Forbidden
 
