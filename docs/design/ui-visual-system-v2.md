@@ -125,11 +125,14 @@ blocks); the five copied shimmer blocks die with it. `ShimmerButton`, `BorderBea
 
 ## Post detail
 
-Single centered column (`max-w-3xl`), GitHub Discussions anatomy: title row (`text-xl`,
-sans), under it a metadata line (author, channel badge, relative time, AI score badge —
-the badge is a bordered pill, `vibe-accent` text, not a neon chip), then rendered body,
-then the comment stream. `CodeBlock` styling unchanged (it already reads well). The
-in-flight review box and replay box live in the same column, above comments.
+Single centered column (`max-w-3xl`), one reading order: title (`text-2xl`, sans), an
+identity line (author · channel · relative time, mono `text-xs`), then a state-stamp line
+that renders only values the post actually has (pending, template, role, version, AI score
+as a green audit stamp), then the body **on the page background rather than in a card**,
+then the single engagement/action row, then the comment stream. `CodeBlock` styling
+unchanged (it already reads well). The in-flight review box and replay box live in the same
+column, above comments. (Amended by Slice C2; the earlier wording kept the body in a card
+and repeated the counts in the header.)
 
 ## AiReviewTerminal v2
 

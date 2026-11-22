@@ -432,6 +432,10 @@
     "template": "模板",
     "forkedFrom": "Fork 自帖子 #{{id}}",
     "statsAria": "互动数据",
+    "stats": {
+      "views": "{{count}} 次浏览",
+      "comments": "{{count}} 条评论"
+    },
     "actions": {
       "like": "点赞",
       "share": "分享",

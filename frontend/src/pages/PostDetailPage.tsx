@@ -299,53 +299,52 @@ export default function PostDetailPage() {
      <div className="mx-auto max-w-3xl px-4 py-8">
       {/* HEADER ROW — wraps so the action buttons drop below the title on
           narrow screens instead of squeezing it to one word per line */}
-      <div className="mb-6 flex flex-wrap items-start gap-3">
+      <div className="mb-8 flex flex-wrap items-start gap-3">
         <Avatar name={post.authorName} size="md" />
         <div className="min-w-0 flex-1">
-          <h1 className="text-xl font-medium leading-snug text-vibe-text">{post.title}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-vibe-muted">
+          <h1 className="text-2xl font-medium leading-snug text-vibe-text">{post.title}</h1>
+          {/* Identity line: who wrote it, where, when. Mono, one row, no pills. */}
+          <div className="mt-1.5 flex flex-wrap items-center gap-x-2 font-mono text-xs text-vibe-faint">
             <span>{post.authorName}</span>
             <span aria-hidden="true">·</span>
-            <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5">{post.categoryName}</span>
+            <span>{post.categoryName}</span>
+            <span aria-hidden="true">·</span>
+            <span className="tabular-nums">{timeAgo(post.createTime)}</span>
+          </div>
+          {/* State stamps: only what is actually true of this post. An absent
+              value renders nothing, so the line never fills with empty pills. */}
+          <div className="mt-2 flex flex-wrap items-center gap-1.5 text-xs">
             {/* The author's own held post reaches this page only through the
                 author-scoped detail read; a pending label turns "it 404'd" into
                 "it exists and is waiting for review". Nobody else can see it. */}
             {post.status === POST_STATUS.PENDING_REVIEW && (
-              <span className="rounded-full border border-vibe-warning/40 bg-vibe-warning/10 px-1.5 py-0.5 text-vibe-warning">
+              <span className="rounded border border-vibe-warning/40 bg-vibe-warning/10 px-1.5 py-0.5 text-vibe-warning">
                 {postStatusLabel(post.status)}
               </span>
             )}
             {post.postType === 'prompt' && (
-              <span className="rounded-full border border-vibe-border px-1.5 py-0.5">{t('post:template')}</span>
+              <span className="rounded border border-vibe-border px-1.5 py-0.5 text-vibe-muted">{t('post:template')}</span>
             )}
             {/* The row used to carry the prompt's role; it lives here now, where
                 there is room to read it. */}
             {promptRole && (
-              <span className="max-w-[220px] truncate rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5" title={promptRole}>
+              <span className="max-w-[220px] truncate rounded border border-vibe-border px-1.5 py-0.5 font-mono text-vibe-muted" title={promptRole}>
                 {promptRole}
               </span>
             )}
             {post.postType === 'prompt' && post.versionCount > 0 && (
-              <span className="rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5 tabular-nums">v{post.versionCount}</span>
+              <span className="rounded border border-vibe-border px-1.5 py-0.5 font-mono tabular-nums text-vibe-muted">v{post.versionCount}</span>
             )}
-            {/* The score is metadata, not a neon chip: a bordered pill in the
-                same line as author, channel and time. */}
+            {/* The score is the audit stamp: mono digits in the accent, the same
+                language as the feed's credential. */}
             {aiScorePill != null && (
               <span
-                className="cursor-help rounded-full border border-vibe-border px-2 py-0.5 tabular-nums text-vibe-accent"
+                className="cursor-help rounded border border-vibe-success/45 bg-vibe-success/5 px-1.5 py-0.5 font-mono tabular-nums text-vibe-success"
                 title={t('post:scoreRubric')}
               >
                 {t('post:scoreDisplay', { score: aiScorePill })}
               </span>
             )}
-            <span aria-hidden="true">·</span>
-            <span className="tabular-nums">{timeAgo(post.createTime)}</span>
-          </div>
-          {/* Stats badges */}
-          <div aria-label={t('post:statsAria')} className="mt-1.5 flex items-center gap-3 text-xs tabular-nums text-vibe-muted">
-            <span className="flex items-center gap-1"><Eye className="h-3 w-3" /> {post.viewCount}</span>
-            <span className="flex items-center gap-1"><Heart className="h-3 w-3" /> {likeCount}</span>
-            <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3" /> {totalComments}</span>
           </div>
           {post.forkedFromId && (
             <Link
@@ -363,7 +362,7 @@ export default function PostDetailPage() {
               type="button"
               onClick={handleFork}
               disabled={forking}
-              className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:opacity-50"
+              className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-3 py-1.5 text-xs font-medium text-vibe-on-accent transition-colors hover:bg-vibe-accent/90 disabled:opacity-50"
               title={t('post:actions.forkTitle')}
             >
               <GitFork className="h-3.5 w-3.5" />
@@ -404,7 +403,7 @@ export default function PostDetailPage() {
 
       {/* POST CONTENT — plain bordered card, the v2 replacement for the
           terminal window */}
-      <div className="mb-6 rounded-lg border border-vibe-border bg-vibe-surface p-4 prose prose-sm max-w-none dark:prose-invert prose-headings:text-vibe-text prose-a:text-vibe-accent prose-code:text-vibe-accent prose-code:bg-vibe-card prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-pre:bg-transparent prose-pre:p-0">
+      <div className="prose prose-sm mb-6 max-w-none text-vibe-text dark:prose-invert prose-headings:text-vibe-text prose-a:text-vibe-accent prose-code:text-vibe-accent prose-code:bg-vibe-card prose-code:px-1 prose-code:py-0.5 prose-code:text-xs prose-pre:bg-transparent prose-pre:p-0">
         <ReactMarkdown
           remarkPlugins={[remarkGfm]}
           components={{
@@ -428,23 +427,34 @@ export default function PostDetailPage() {
       </div>
 
       {/* INTERACTIVE DOCK */}
-      <div className="mb-8 flex items-center justify-between px-2">
-        <div className="flex items-center gap-4">
+      {/* The only place the three counts appear: a hairline-separated action row.
+          The header used to repeat them, so a reader saw the same numbers twice
+          on one screen. */}
+      <div className="mb-8 flex items-center justify-between border-t border-vibe-border pt-3">
+        <div className="flex items-center gap-4 font-mono text-xs tabular-nums text-vibe-muted">
+          <span className="flex items-center gap-1" aria-label={t('post:stats.views', { count: post.viewCount })}>
+            <Eye className="h-3.5 w-3.5 text-vibe-faint" aria-hidden="true" />
+            <span aria-hidden="true">{post.viewCount}</span>
+          </span>
          <button
            type="button"
            onClick={handleLike}
-           aria-label={t('post:actions.like')}
-           className={'inline-flex items-center gap-1.5 text-xs transition-colors ' + (liked ? 'text-vibe-danger' : 'text-vibe-muted hover:text-vibe-danger')}
+           aria-label={t('post:counts.likesValue', { count: likeCount })}
+           className={'inline-flex items-center gap-1.5 transition-colors ' + (liked ? 'text-vibe-danger' : 'text-vibe-muted hover:text-vibe-danger')}
          >
-           <Heart className={'h-4 w-4 ' + (liked ? 'fill-vibe-danger' : '')} />
-           <span className="tabular-nums">{likeCount}</span>
+           <Heart className={'h-3.5 w-3.5 ' + (liked ? 'fill-vibe-danger' : '')} aria-hidden="true" />
+           <span className="tabular-nums" aria-hidden="true">{likeCount}</span>
          </button>
+         <span className="flex items-center gap-1" aria-label={t('post:stats.comments', { count: totalComments })}>
+           <MessageCircle className="h-3.5 w-3.5 text-vibe-faint" aria-hidden="true" />
+           <span aria-hidden="true">{totalComments}</span>
+         </span>
          <button
            type="button"
            onClick={handleCopyLink}
-           className="inline-flex items-center gap-1.5 text-xs text-vibe-muted transition-colors hover:text-vibe-accent"
+           className="inline-flex items-center gap-1.5 text-vibe-muted transition-colors hover:text-vibe-text"
          >
-            {copiedLink ? <Check className="h-4 w-4 text-vibe-success" /> : <Share2 className="h-4 w-4" />}
+            {copiedLink ? <Check className="h-3.5 w-3.5 text-vibe-success" /> : <Share2 className="h-3.5 w-3.5" />}
             {copiedLink ? t('post:actions.copied') : t('post:actions.share')}
           </button>
         </div>
@@ -466,7 +476,7 @@ export default function PostDetailPage() {
               className="flex w-full items-center gap-2 border-b border-vibe-border bg-vibe-card/50 px-4 py-2.5 text-left transition-colors hover:bg-vibe-card"
               aria-expanded={playgroundOpen}
             >
-              <span className="text-xs font-semibold uppercase tracking-wide text-vibe-text">
+              <span className="text-xs font-medium text-vibe-faint">
                 {t('post:playground.sectionTitle')}
               </span>
               <span className="text-xs tabular-nums text-vibe-muted">{t('post:playground.tokens', { n: playgroundTokens })}</span>
@@ -504,7 +514,7 @@ export default function PostDetailPage() {
                   <button
                     type="button"
                     onClick={handleCopyRendered}
-                    className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-4 py-2 text-xs font-medium text-white transition-colors hover:opacity-90"
+                    className="inline-flex items-center gap-1.5 rounded-md bg-vibe-accent px-4 py-2 text-xs font-medium text-vibe-on-accent transition-colors hover:bg-vibe-accent/90"
                   >
                     {playgroundCopied ? <><Check className="h-3.5 w-3.5" /> {t('post:playground.copied')}</> : <><Copy className="h-3.5 w-3.5" /> {t('post:playground.copyPrompt')}</>}
                   </button>
@@ -624,7 +634,7 @@ export default function PostDetailPage() {
               type="button"
               onClick={handleCommentSubmit}
               disabled={!commentText.trim() || commentMutation.isPending}
-              className="rounded-md bg-vibe-accent px-4 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40"
+              className="rounded-md bg-vibe-accent px-4 py-1.5 text-xs font-medium text-vibe-on-accent transition-colors hover:bg-vibe-accent/90 disabled:cursor-not-allowed disabled:opacity-40"
             >
               {commentMutation.isPending ? t('post:comments.form.posting') : t('post:comments.form.post')}
             </button>
