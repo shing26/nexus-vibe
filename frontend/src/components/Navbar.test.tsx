@@ -41,4 +41,14 @@ describe('Navbar signed-out cluster', () => {
 
     expect(screen.getByRole('link', { name: 'Login' })).toHaveAttribute('href', '/login');
   });
+
+  it('keeps the logo named once its wordmark collapses below sm', () => {
+    renderNavbar();
+
+    // Slice C3: the wordmark is hidden under `sm` so the 375px row fits; the
+    // link must still have a name, and the wordmark must still exist above sm.
+    const logo = screen.getByRole('link', { name: 'Nexus-Vibe' });
+    expect(logo).toHaveAttribute('href', '/');
+    expect(screen.getByText('Nexus-Vibe')).toHaveClass('hidden', 'sm:inline');
+  });
 });

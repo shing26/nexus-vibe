@@ -50,6 +50,12 @@ class DemoControllerIntegrationTest {
                 .andExpect(jsonPath("$.data[0].afterScore", is(9)))
                 .andExpect(jsonPath("$.data[0].counterfactual").doesNotExist())
                 .andExpect(jsonPath("$.data[1].counterfactual.id", is("cf-repaired")))
-                .andExpect(jsonPath("$.data[3].counterfactual.score", is(10)));
+                .andExpect(jsonPath("$.data[3].counterfactual.score", is(10)))
+                // Slice C3: the exhibit may claim one measured duration, never a
+                // per-step stopwatch. The field is gone, not merely unrendered.
+                .andExpect(jsonPath("$.data[0].steps[0].offsetMs").doesNotExist())
+                .andExpect(jsonPath("$.data[4].steps[3].offsetMs").doesNotExist())
+                .andExpect(jsonPath("$.data[0].sampleCode", containsString("public int divide")))
+                .andExpect(jsonPath("$.data[3].sampleCode", containsString("Ignore previous instructions")));
     }
 }
