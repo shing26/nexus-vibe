@@ -432,6 +432,10 @@
     "template": "Template",
     "forkedFrom": "Forked from post #{{id}}",
     "statsAria": "Engagement",
+    "stats": {
+      "views": "{{count}} views",
+      "comments": "{{count}} comments"
+    },
     "actions": {
       "like": "Like",
       "share": "Share",

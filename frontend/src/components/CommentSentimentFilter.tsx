@@ -93,8 +93,8 @@ export default function CommentSentimentFilter({
               className={
                 'rounded-full border px-2.5 py-1 text-xs transition-colors '
                 + (active
-                  ? 'border-vibe-accent/50 bg-vibe-accent/10 text-vibe-accent'
-                  : 'border-vibe-border bg-vibe-surface text-vibe-muted hover:border-vibe-accent/40 hover:text-vibe-text')
+                  ? 'border-vibe-text/30 bg-vibe-text/10 text-vibe-text'
+                  : 'border-vibe-border bg-vibe-surface text-vibe-muted hover:border-vibe-text/25 hover:text-vibe-text')
               }
             >
               {t('sentiment.' + option.labelKey)} ({countComments(comments, option.value)})
@@ -114,7 +114,7 @@ export default function CommentSentimentFilter({
           <button
             type="button"
             onClick={() => setFilter('all')}
-            className="text-vibe-accent hover:underline"
+            className="text-vibe-text underline underline-offset-2 hover:text-vibe-text/80"
           >
             {t('sentiment.showAll', { n: comments.length })}
           </button>
