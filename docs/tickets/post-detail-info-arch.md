@@ -1,6 +1,6 @@
 # Slice C2：帖子详情页信息架构
 
-Status: **implemented, awaiting independent verification**（2026-11-22）。
+Status: **done**（2026-11-22）。独立 Verifier PASS，HEAD `9271400`。
 契约：[`plans/post-detail-info-arch.md`](../../plans/post-detail-info-arch.md)。
 
 ## 为什么做
@@ -33,6 +33,40 @@ Slice C1 只重做首页外壳，详情页仍是 v2 forge 结构，在暗色下�
 | 主按钮对比度（真实浏览器） | 7.846:1 |
 | 计数节点数 | 浏览 1、评论 1（整页唯一） |
 | 390px | `scrollWidth=clientWidth=390` |
+
+## 验证记录
+
+### 首审 FAIL（`8322d3c`）
+
+| 失败项 | 证据 |
+|---|---|
+| AC4：点赞按钮可访问名只有「点赞」，可见计数没有名字 | `page.get_by_label('1 个赞').count()` → 0；按钮 AX 名为 `点赞` |
+| 契约缺口：README 测试计数未同步，且 `README.md` 不在 Allowed paths | README 仍是 152 frontend / 29 files，实际 162 / 32 |
+
+修复提交 `9271400`：点赞按钮改用 `post:counts.likesValue`（复用已有键），可见数字
+`aria-hidden`；README badge、Testing 节、命令注释三处计数同步；契约补 `README.md`
+路径并写明 AC4 要求可访问名包含计数。
+
+### 复审 PASS（`9271400`）
+
+| 项 | 结果 |
+|---|---|
+| 全量前端测试 | `162 passed / 32 files`，退出 0 |
+| `npm run lint` / `npm run build` | 退出 0，build 1.84s |
+| `git diff --name-only b07fcf3..HEAD` | 11 个文件，与契约 Allowed paths 精确相等 |
+| AC1 对比度 | 暗色 7.846:1、亮色 5.192:1（Fork / 复制 Prompt / 发表评论） |
+| AC2 头部 | 身份行 + 状态印章行，`emptyBordered=0`、`fullPills=0` |
+| AC3 正文 | `.prose` 背景透明，分隔线 `1px rgb(46,52,58)` |
+| AC4 计数可访问名 | `343 次浏览` / `1 个赞` / `3 条评论`；`get_by_role('button', name='1 个赞')` = 1 |
+| AC5 390px | `clientWidth=scrollWidth=390`，`titleButtonOverlap=false` |
+| AC6 既有行为 | AI 凭证、playground、版本面板、评论分组均可用；待审可见性经源码差异确认，未构造待审帖实测 |
+| AC7 筛选选中态 | `text-vibe-text` + `bg-vibe-text/10`，未用 accent |
+| AC8 测试完整性 | 删除行数 0，无 `.skip` / `.only` / `todo` |
+
+AC6 的待审可见性只做了源码差异确认，没有浏览器实测；这是本轮唯一未取到运行时证据的
+子项，条件仍是 `post.status === POST_STATUS.PENDING_REVIEW`，与改动前一致。
+
+浏览器证据：`C:\WINDOWS\AppData\Local\Temp\c2-verify\browser-recheck.json`。
 
 ## 未做
 
