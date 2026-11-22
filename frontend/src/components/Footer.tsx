@@ -56,6 +56,18 @@ function AgentTicker() {
 
   const message = useMemo(() => {
     if (!active) return t('ticker.idle');
+    // A review log outlives its post: deleting a post leaves rows whose title
+    // lookup returns null. Printing the empty quotes that produced ("reviewed
+    // 「」") reads as a broken feed, so a titleless row names the post id alone.
+    if (!active.postTitle) {
+      return t('ticker.verifiedNoTitle', {
+        time: formatTime(active.createdAt),
+        reviewer: active.reviewer,
+        id: active.postId,
+        severity: severityLabel,
+        status,
+      });
+    }
     return t('ticker.verified', {
       time: formatTime(active.createdAt),
       reviewer: active.reviewer,
@@ -67,29 +79,25 @@ function AgentTicker() {
   }, [active, severityLabel, status, t]);
 
   return (
-    <div className="border-b border-vibe-border bg-vibe-bg">
+    <div className="border-b border-vibe-border bg-vibe-card">
       <div className="mx-auto max-w-[1400px] px-4 sm:px-6 lg:px-8">
-        <div className="flex min-w-0 items-center gap-3 py-2">
-          <span className="flex shrink-0 items-center gap-1.5 text-[11px] text-vibe-muted">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full rounded-full bg-vibe-success opacity-60 motion-reduce:animate-none animate-ping" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-vibe-success" />
-            </span>
+        <div className="flex min-w-0 items-center gap-3 py-2 font-mono text-[11px]">
+          <span className="flex shrink-0 items-center gap-1.5 text-vibe-muted">
+            <span aria-hidden="true" className="h-1.5 w-1.5 rounded-full bg-vibe-success" />
             {t('ticker.label')}
           </span>
-          <span className="hidden shrink-0 text-[11px] text-vibe-faint sm:inline">
+          <span className="hidden shrink-0 tabular-nums text-vibe-faint sm:inline">
             <Bot className="mr-1 inline h-3 w-3 align-[-2px]" />
             {logs.length}
           </span>
-          <div className="min-w-0 flex-1 truncate text-[11px] text-vibe-muted">
-            <span className="mr-1.5 select-none text-vibe-accent">$</span>
+          <div className="min-w-0 flex-1 truncate text-vibe-muted">
             <span key={active?.id ?? 'idle'} className="inline-block max-w-full align-middle">
               {message}
             </span>
           </div>
           <span
             className={
-              'shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium ' +
+              'shrink-0 rounded border px-1.5 py-0.5 font-medium ' +
               (unavailable
                 ? 'border-vibe-border text-vibe-faint'
                 : active?.isApproved === 1
@@ -101,7 +109,7 @@ function AgentTicker() {
           >
             {status}
           </span>
-          <Radio className="hidden shrink-0 text-vibe-faint md:block" />
+          <Radio className="hidden shrink-0 text-vibe-faint md:block" aria-hidden="true" />
         </div>
       </div>
     </div>

@@ -18,9 +18,14 @@ content first, zero decorative animation.
    feedback (`active:scale-[0.98]`, via the shared `.press-feedback` class) is state
    communication, not decoration; it must carry `motion-reduce:transform-none`. Every
    animation keeps `motion-reduce:animate-none`.
-4. **Mono is for code.** `font-mono` appears only inside code blocks, code spans, and the
-   trace id. Headings, buttons, labels, timestamps are `font-sans`.
-5. **One accent.** Blue for interactive. Green/red for success/danger semantics only.
+4. **Mono is for machine output.** `font-mono` is used inside code blocks and code spans,
+   on the trace id, and on audit metadata where aligned digits matter: timestamps,
+   counters, review scores and the AI-credential stamp. Headings, buttons and navigation
+   labels stay `font-sans`. (Amended by ADR-0023: the console surface treats a log line as
+   machine output, not as a label.)
+5. **One accent.** The audit green marks the primary action, a completed review and a live
+   status; amber/red stay warning/danger semantics only. (Amended by ADR-0023: the accent
+   is no longer blue.)
 6. **Honest AI surfaces.** Every AI-related surface (review card, live pipeline strip, AI
    profile) renders real pipeline state — failure, retry, and degradation get the same
    design care as success, and nothing ever reads as live unless it is (ADR-0010's rule,
@@ -39,17 +44,22 @@ in one commit.
 
 | Token | Light | Dark | Role |
 | --- | --- | --- | --- |
-| `vibe-bg` | `#FFFFFF` | `#0D1117` | App background |
-| `vibe-surface` | `#F6F8FA` | `#161B22` | Sidebar, panels, header bars |
-| `vibe-card` | `#FFFFFF` | `#21262D` | Cards, hover rows, elevated content |
-| `vibe-border` | `#D0D7DE` | `#30363D` | All borders and dividers |
-| `vibe-accent` | `#0969DA` | `#58A6FF` | Links, primary buttons, active states, focus |
-| `vibe-success` | `#1A7F37` | `#3FB950` | Approved, safe, done |
-| `vibe-danger` | `#CF222E` | `#F85149` | Critical severity, destructive actions |
-| `vibe-warning` | `#9A6700` | `#D29922` | Medium severity, pending states |
-| `vibe-text` | `#1F2328` | `#E6EDF3` | Primary text |
-| `vibe-muted` | `#59636E` | `#8B949E` | Secondary text, metadata |
-| `vibe-faint` | `#818B98` | `#6E7681` | Disabled, decorative, empty copy |
+| `vibe-bg` | `#FFFFFF` | `#14171A` | App background |
+| `vibe-surface` | `#F6F8FA` | `#1B1F24` | Sidebar, panels, header bars |
+| `vibe-card` | `#FFFFFF` | `#171B1F` | Cards, hover rows, elevated content |
+| `vibe-border` | `#D0D7DE` | `#2E343A` | All borders and dividers (a hairline, not a box) |
+| `vibe-accent` | `#0969DA` | `#4ABF92` | Primary action, completed review, live status |
+| `vibe-on-accent` | `#FFFFFF` | `#14171A` | Text drawn on an accent fill (dark ink in dark) |
+| `vibe-success` | `#1A7F37` | `#4ABF92` | Approved, safe, done |
+| `vibe-danger` | `#CF222E` | `#E2746A` | Critical severity, destructive actions |
+| `vibe-warning` | `#9A6700` | `#D29A4A` | Medium severity, pending states |
+| `vibe-text` | `#1F2328` | `#E8ECEF` | Primary text |
+| `vibe-muted` | `#59636E` | `#9AA5B1` | Secondary text, metadata |
+| `vibe-faint` | `#818B98` | `#5F6B77` | Disabled, decorative, empty copy |
+
+Dark is the default theme (ADR-0023); light stays fully supported and switchable. The
+dark column above is the console ramp: three surface steps carry depth, and the hairline
+is pre-blended so `border-vibe-border` reads as a rule rather than a box.
 
 Retired: `vibe-cyan` (emerald), `vibe-neon`, `vibe-purple`, the radial dot-grid body
 background, every gradient that is not inside a code block.
@@ -141,8 +151,9 @@ ADR-0010, and the existing test assertions on step order and score all carry ove
 
 ## Forms, buttons, feedback
 
-- Primary button: solid `vibe-accent` background, white text, `rounded-md`; secondary:
-  bordered, `vibe-surface`; danger: `vibe-danger` outline. No gradients, no shimmer.
+- Primary button: solid `vibe-accent` background, `vibe-on-accent` text, `rounded-md`;
+  secondary: bordered, `vibe-surface`; danger: `vibe-danger` outline. No gradients, no
+  shimmer. (White on the audit green fails AA, hence the paired token.)
 - Inputs: 1px `vibe-border`, focus ring `vibe-accent` (2px), `rounded-md`.
 - Toasts: `vibe-card` surface, 1px border, sans text, severity icon; no `bg-black/80`.
 - Empty states: `EmptyState` stays, icons and copy per i18n; no ASCII-art flourishes.

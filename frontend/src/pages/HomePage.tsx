@@ -10,7 +10,7 @@ import ShowcaseEntry from '../components/ShowcaseEntry';
 import { TheatreEntry } from './TheatrePage';
 import Pagination from '../components/Pagination';
 import Skeleton from '../components/Skeleton';
-import { ArrowRight, GitFork, Terminal, Bug, Palette } from 'lucide-react';
+import { GitFork, Terminal, Bug, Palette } from 'lucide-react';
 
 type Tab = 'hot' | 'latest' | 'ai-verified' | 'debug' | 'prompts';
 
@@ -120,42 +120,31 @@ export default function HomePage() {
   return (
     <div className="mx-auto max-w-[1200px] space-y-6 px-4 py-6">
       <h1 className="sr-only">{t('home:srTitle')}</h1>
-      {/* Mission Control — shown to signed-out visitors only. Signed-in users
-          already have the navbar's New Post button, and this band plus the
-          channel grid below pushed the first post past the fold on every
-          screen size. */}
+      {/* Start-a-task strip — shown to signed-out visitors only. Four equal
+          cards with coloured icon tiles read as a template; one quiet strip of
+          four entries does the same job without competing with the feed. */}
       {!isAuthenticated && (
-        <div className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
-          <div className="flex items-center justify-between border-b border-vibe-border px-4 py-2.5">
-            <h2 className="text-xs font-semibold uppercase tracking-wide text-vibe-muted">
-              {t('home:missionControl.title')}
-            </h2>
-            <span className="hidden text-xs text-vibe-faint sm:inline">
-              {t('home:missionControl.hint')}
-            </span>
-          </div>
-          <div className="grid grid-cols-2 gap-2 p-3 lg:grid-cols-4">
+        <section className="overflow-hidden rounded-lg border border-vibe-border bg-vibe-surface">
+          <h2 className="px-4 pt-3 text-xs text-vibe-faint">{t('home:missionControl.title')}</h2>
+          <div className="grid grid-cols-2 divide-vibe-border sm:grid-cols-4 sm:divide-x">
             {missions.map((m) => {
               const Icon = m.icon;
               return (
                 <Link
                   key={m.to}
                   to={m.to}
-                  className="group/mission rounded-lg border border-vibe-border bg-vibe-card p-3.5 transition-colors hover:border-vibe-accent/50 hover:bg-vibe-surface"
+                  className="group/mission flex items-start gap-2.5 p-3.5 transition-colors hover:bg-vibe-card"
                 >
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-md border border-vibe-border bg-vibe-bg text-vibe-accent">
-                      <Icon className="h-4 w-4" />
-                    </div>
-                    <ArrowRight className="h-3.5 w-3.5 text-vibe-faint transition-colors group-hover/mission:text-vibe-accent" />
+                  <Icon className="mt-0.5 h-4 w-4 shrink-0 text-vibe-faint transition-colors group-hover/mission:text-vibe-text" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-vibe-text">{m.label}</p>
+                    <p className="mt-0.5 text-xs leading-snug text-vibe-muted">{m.sub}</p>
                   </div>
-                  <p className="mt-3 text-sm font-medium text-vibe-text">{m.label}</p>
-                  <p className="mt-0.5 text-xs leading-snug text-vibe-muted">{m.sub}</p>
                 </Link>
               );
             })}
           </div>
-        </div>
+        </section>
       )}
 
       {/* The featured strip: one real, recorded review — the product's claim,
@@ -169,8 +158,8 @@ export default function HomePage() {
           click. Signed-in readers keep the navbar; the link stays here too. */}
       <TheatreEntry label={t('theatre:entry.label')} desc={t('theatre:entry.desc')} />
 
-      {/* Underline tabs — GitHub style: a bottom border per tab, the active one
-          carries the accent rail and the text darkens, nothing else moves. */}
+      {/* Underline tabs — a bottom border per tab, the active one carries the
+          text-color rail, nothing else moves. */}
       <div className="flex flex-wrap items-center gap-1 border-b border-vibe-border">
         {(['hot', 'latest', 'ai-verified', 'debug', 'prompts'] as Tab[]).map((key) => (
           <button
@@ -183,7 +172,7 @@ export default function HomePage() {
             className={
               '-mb-px border-b-2 px-3 py-2 text-sm transition-colors ' +
               (activeTab === key
-                ? 'border-vibe-accent font-medium text-vibe-text'
+                ? 'border-vibe-text font-medium text-vibe-text'
                 : 'border-transparent text-vibe-muted hover:border-vibe-border hover:text-vibe-text')
             }
           >

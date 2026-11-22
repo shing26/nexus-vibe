@@ -140,11 +140,11 @@ export default function PostCard({ post }: PostCardProps) {
       <span
         data-testid="ai-credential"
         title={t('post:credential.scoreTitle', { score: aiScore })}
-        className="inline-flex items-center gap-1 rounded border border-vibe-border bg-vibe-bg px-1.5 py-0.5 text-[11px]"
+        className="inline-flex items-center gap-1 rounded border border-vibe-success/45 bg-vibe-success/5 px-1.5 py-0.5 font-mono text-[11px] tabular-nums text-vibe-success"
       >
-        <Check className="h-3 w-3 text-vibe-success" aria-hidden="true" />
-        <span className="tabular-nums text-vibe-text">{aiScore}</span>
-        <span className="text-vibe-faint">{t('post:credential.verified')}</span>
+        <Check className="h-3 w-3" aria-hidden="true" />
+        <span>{aiScore}</span>
+        <span>{t('post:credential.verified')}</span>
       </span>
     ) : post.aiReviewed === AI_REVIEW.REVIEWING ? (
       <span data-testid="ai-credential" className="inline-flex items-center gap-1 text-xs text-vibe-warning">
@@ -236,25 +236,34 @@ export default function PostCard({ post }: PostCardProps) {
           </div>
           {/* One line at every width: the author truncates, nothing wraps, and the
               counts stay right-aligned. Role/template moved to the detail page. */}
-          <div className="mt-1 flex items-center gap-2 overflow-hidden whitespace-nowrap text-xs text-vibe-muted">
-            <span className="max-w-[40%] shrink-0 truncate rounded-full border border-vibe-border bg-vibe-bg px-1.5 py-0.5 text-xs text-vibe-muted">
-              {post.categoryName}
-            </span>
+          <div className="mt-1 flex items-center gap-2 overflow-hidden whitespace-nowrap font-mono text-xs text-vibe-faint">
             <span className="min-w-0 truncate">{post.authorName}</span>
             <span className="shrink-0 tabular-nums">{timeAgo(post.createTime)}</span>
             <span className="ml-auto flex shrink-0 items-center gap-2.5 tabular-nums">
               {credential}
-              <span className="flex items-center gap-1">
-                <Heart className="h-3 w-3" />
-                {post.likeCount}
+              <span
+                className="flex items-center gap-1"
+                title={t('post:counts.likes')}
+                aria-label={t('post:counts.likesValue', { count: post.likeCount })}
+              >
+                <Heart className="h-3 w-3 text-vibe-faint" aria-hidden="true" />
+                <span aria-hidden="true">{post.likeCount}</span>
               </span>
-              <span className="flex items-center gap-1">
-                <MessageCircle className="h-3 w-3" />
-                {post.commentCount}
+              <span
+                className="flex items-center gap-1"
+                title={t('post:counts.comments')}
+                aria-label={t('post:counts.commentsValue', { count: post.commentCount })}
+              >
+                <MessageCircle className="h-3 w-3 text-vibe-faint" aria-hidden="true" />
+                <span aria-hidden="true">{post.commentCount}</span>
               </span>
-              <span className="flex items-center gap-1">
-                <Eye className="h-3 w-3" />
-                {post.viewCount}
+              <span
+                className="flex items-center gap-1"
+                title={t('post:counts.views')}
+                aria-label={t('post:counts.viewsValue', { count: post.viewCount })}
+              >
+                <Eye className="h-3 w-3 text-vibe-faint" aria-hidden="true" />
+                <span aria-hidden="true">{post.viewCount}</span>
               </span>
             </span>
           </div>

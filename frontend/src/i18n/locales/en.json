@@ -147,6 +147,7 @@
       "label": "Agent review ticker",
       "idle": "Agent fleet idle. Publish a post with code to trigger auto review.",
       "verified": "[{{time}}] {{reviewer}} verified post \"{{title}}\" · Post #{{id}} · Severity: {{severity}} · Status: {{status}}",
+      "verifiedNoTitle": "[{{time}}] {{reviewer}} verified post #{{id}} · Severity: {{severity}} · Status: {{status}}",
       "status": {
         "idle": "IDLE",
         "unavailable": "UNAVAILABLE",
@@ -410,6 +411,14 @@
       "verified": "verified",
       "reviewing": "reviewing",
       "failed": "review failed"
+    },
+    "counts": {
+      "likes": "Likes",
+      "comments": "Comments",
+      "views": "Views",
+      "likesValue": "{{count}} likes",
+      "commentsValue": "{{count}} comments",
+      "viewsValue": "{{count}} views"
     },
     "aiScoreBadge": "AI score {{score}}/100",
     "scoreRubric": "Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically.",

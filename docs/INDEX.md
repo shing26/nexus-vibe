@@ -42,6 +42,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0020](adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md) | The forge pivot replaces the terminal aesthetic |
 | [0021](adr/0021-content-is-stored-raw-and-escaped-at-egress.md) | Content is stored raw and escaped at egress |
 | [0022](adr/0022-reopening-scope-for-the-self-demonstrating-community.md) | The scope reopens for a self-demonstrating community - ADR-0009's freeze is superseded |
+| [0023](adr/0023-the-console-palette-and-a-dark-default.md) | The console palette and a dark default - supersedes ADR-0020's accent clause and system-following theme |
 
 ## Measurements — `docs/research/`
 
@@ -100,6 +101,7 @@ alternatives that were rejected.
 | [a5-real-user-trial](tickets/a5-real-user-trial.md) | The harness for the real-user trial: invitation copy, journey definition, verbatim-quote log and the usage measurement — the humans are invited, not simulated |
 | [r3-1-capability-throttle](tickets/r3-1-capability-throttle.md) | The anonymous capabilities endpoint stops re-probing per read: a TTL cache on the read model, the limiter rejected because it bypasses itself when Redis is down |
 | [post-detail-author-404](tickets/post-detail-author-404.md) | Open: the author's just-published, held post answers 404 on the detail page — the list-side fix's missing half |
+| [console-dark-slice](tickets/console-dark-slice.md) | Slice C1: the home shell re-skinned as a night-shift console — dark by default, one audit-green accent, stamps instead of decorative color |
 
 ## Plans — `docs/plans/`
 

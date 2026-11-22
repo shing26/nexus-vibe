@@ -11,6 +11,7 @@ export default {
            card: 'rgb(var(--vibe-card) / <alpha-value>)',
            border: 'rgb(var(--vibe-border) / <alpha-value>)',
            accent: 'rgb(var(--vibe-accent) / <alpha-value>)',
+           'on-accent': 'rgb(var(--vibe-on-accent) / <alpha-value>)',
            success: 'rgb(var(--vibe-success) / <alpha-value>)',
            danger: 'rgb(var(--vibe-danger) / <alpha-value>)',
            warning: 'rgb(var(--vibe-warning) / <alpha-value>)',

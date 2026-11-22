@@ -32,18 +32,18 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
     'press-feedback group relative flex items-center gap-2.5 rounded-md px-2 py-1.5 text-sm transition-colors ' +
     'lg:justify-center lg:gap-0 lg:px-0 xl:justify-start xl:gap-2.5 xl:px-2 ' +
     (active
-      ? 'font-medium text-vibe-accent bg-vibe-accent/10'
-      : 'text-vibe-text hover:bg-vibe-card hover:text-vibe-accent');
+      ? 'bg-vibe-bg font-medium text-vibe-text'
+      : 'text-vibe-muted hover:bg-vibe-card hover:text-vibe-text');
 
   const railClass = (active: boolean) =>
     'before:absolute before:left-0 before:top-1.5 before:bottom-1.5 before:w-0.5 before:rounded-full ' +
-    (active ? 'before:bg-vibe-accent' : 'before:bg-transparent');
+    (active ? 'before:bg-vibe-text' : 'before:bg-transparent');
 
   const labelClass =
     'min-w-0 flex-1 truncate lg:sr-only xl:not-sr-only xl:min-w-0 xl:flex-1 xl:truncate';
 
   const sectionClass =
-    'px-2 pb-1 pt-2 text-[11px] font-semibold uppercase tracking-wide text-vibe-faint lg:hidden xl:block';
+    'px-2 pb-1 pt-4 text-xs text-vibe-faint lg:hidden xl:block';
 
   const handleClick = () => onNavigate?.();
 
