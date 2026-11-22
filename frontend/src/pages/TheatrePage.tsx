@@ -347,7 +347,7 @@ function VerdictPayoff({
   return (
     <div
       data-testid="verdict-payoff"
-      className="mt-3 flex flex-wrap items-center gap-4 rounded-lg border border-vibe-border bg-vibe-card p-3"
+      className="flex flex-wrap items-center gap-4 rounded-lg border border-vibe-border bg-vibe-card p-3"
     >
       {score != null && <ScoreDial score={score} reduced={reduced} />}
       <div className="space-y-2">
@@ -413,7 +413,7 @@ function StepList({
   const { t } = useTranslation('theatre');
   const reduceMotion = useReducedMotion();
   return (
-    <ol className="space-y-2">
+    <ol className="space-y-1.5">
       {steps.map((step, index) => {
         const isRevealed = index < revealed;
         const compact = Boolean(compactIds?.includes(step.id));
@@ -428,7 +428,7 @@ function StepList({
             data-revealed={isRevealed}
             data-compact={compact}
             className={
-              'rounded-lg border border-vibe-border bg-vibe-surface p-3 transition-opacity ' +
+              'rounded-lg border border-vibe-border bg-vibe-surface px-3 py-2 transition-opacity ' +
               (isRevealed ? 'opacity-100' : 'opacity-40') +
               (index === pulseIndex && !reduceMotion ? ' animate-pulse' : '') +
               (compact ? ' opacity-70' : '')
@@ -588,27 +588,64 @@ export default function TheatrePage() {
   const pulseIndex = revealed > 0 && revealed < activeSteps.length ? revealed - 1 : null;
 
   return (
-    <div className="mx-auto max-w-4xl space-y-5 px-4 py-8">
-      <header>
-        <h1 className="flex items-center gap-2 text-2xl font-semibold text-vibe-text">
-          <Theater className="h-6 w-6 text-vibe-accent" />
-          {t('title')}
-        </h1>
-        <p className="mt-1 text-sm text-vibe-muted">{t('subtitle')}</p>
-      </header>
+    <div data-testid="theatre-root" className="mx-auto max-w-[1400px] space-y-4 px-4 py-6 sm:px-6 lg:px-8">
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1.7fr)_minmax(0,1fr)] lg:items-start">
+        <div>
+          <header>
+            <h1 className="flex items-center gap-2 text-2xl font-semibold text-vibe-text">
+              <Theater className="h-6 w-6 text-vibe-accent" />
+              {t('title')}
+            </h1>
+            <p className="mt-1 text-sm text-vibe-muted">{t('subtitle')}</p>
+          </header>
 
-      <p data-testid="theatre-thesis" className="border-l-2 border-vibe-accent pl-3 text-sm leading-relaxed text-vibe-text">
-        {t('thesis')}
-      </p>
+          <p
+            data-testid="theatre-thesis"
+            className="mt-3 border-l-2 border-vibe-accent pl-3 text-sm leading-relaxed text-vibe-text"
+          >
+            {t('thesis')}
+          </p>
+        </div>
 
-      <p
-        data-testid="theatre-disclosure"
-        className="rounded-lg border border-vibe-border bg-vibe-surface p-3 text-xs leading-relaxed text-vibe-muted"
-      >
-        {t('disclosure')}
-      </p>
+        <div>
+          <p
+            data-testid="theatre-disclosure"
+            className="rounded-lg border border-vibe-border bg-vibe-surface p-2.5 text-xs leading-relaxed text-vibe-muted"
+          >
+            {t('disclosure')}
+          </p>
+          <div data-testid="theatre-stats" className="mt-2 grid grid-cols-3 gap-2">
+            {[
+              { value: scenarios.length || '—', label: t('stats.cases'), accent: false },
+              { value: 3, label: t('stats.tags'), accent: false },
+              { value: 0, label: t('stats.writes'), accent: true },
+            ].map((stat) => (
+              <div
+                key={stat.label}
+                className="rounded-md border border-vibe-border bg-vibe-surface px-2 py-1.5"
+              >
+                <div
+                  className={
+                    'text-base font-semibold leading-tight tabular-nums ' +
+                    (stat.accent ? 'text-vibe-accent' : 'text-vibe-text')
+                  }
+                >
+                  {stat.value}
+                </div>
+                <div className="text-[10px] leading-tight text-vibe-faint">{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
 
-      <nav aria-label={t('scenarioListAria')} className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[260px_minmax(0,1fr)] lg:items-start xl:grid-cols-[304px_minmax(0,1fr)]">
+        <div data-testid="case-rail" className="min-w-0 lg:sticky lg:top-16">
+          <p className="mb-2 hidden text-[11px] tracking-wide text-vibe-faint lg:block">{t('index')}</p>
+          <nav
+            aria-label={t('scenarioListAria')}
+            className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:flex lg:flex-col lg:gap-1.5"
+          >
         {scenarios.map((scenario) => {
           const active = selected?.id === scenario.id;
           const Icon = SCENARIO_ICONS[scenario.id] ?? Theater;
@@ -619,7 +656,7 @@ export default function TheatrePage() {
               aria-pressed={active}
               onClick={() => setSelectedId(scenario.id)}
               className={
-                'rounded-lg border p-3 text-left transition-colors ' +
+                'rounded-lg border p-2.5 text-left transition-colors ' +
                 (active
                   ? 'border-vibe-accent bg-vibe-accent/10'
                   : 'border-vibe-border bg-vibe-surface hover:border-vibe-accent/50')
@@ -650,11 +687,13 @@ export default function TheatrePage() {
             </button>
           );
         })}
-      </nav>
+          </nav>
+          <p className="mt-1.5 hidden text-[9px] leading-tight text-vibe-faint lg:block">{t('railSource')}</p>
+        </div>
 
-      {selected && (
-        <section aria-label={t('traceAria')} className="space-y-4">
-          <div className="rounded-lg border border-vibe-border bg-vibe-surface p-4">
+        {selected && (
+        <section aria-label={t('traceAria')} className="min-w-0 space-y-3">
+          <div className="rounded-lg border border-vibe-border bg-vibe-surface p-3.5">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="text-lg font-semibold text-vibe-text">
                 {t('cards.' + selected.id + '.title', { defaultValue: selected.title })}
@@ -727,28 +766,41 @@ export default function TheatrePage() {
               </div>
             )}
 
-            <VerdictPayoff score={payoffScore} severity={payoffSeverity} stamp={stamp} reduced={Boolean(reduceMotion)} />
-
-            {Boolean(selected.fixedCode) && (
-              <div data-testid="fix-panel" className="mt-3 rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 p-3">
-                <p className="text-xs text-vibe-muted">{t('fix.applyHint')}</p>
-                <div className="mt-2 flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    data-testid="apply-fix"
-                    aria-pressed={fixedApplied}
-                    onClick={() => setFixedApplied((value) => !value)}
-                    className="inline-flex items-center gap-1 rounded-md border border-vibe-accent/50 bg-vibe-accent/10 px-2 py-1.5 text-xs font-medium text-vibe-accent hover:bg-vibe-accent/20"
-                  >
-                    <Wrench className="h-3.5 w-3.5" />
-                    {fixedApplied ? t('fix.revert') : t('fix.apply')}
-                  </button>
-                  <span data-testid="fix-state" className="text-xs text-vibe-muted">
-                    {fixedApplied ? t('fix.after') : t('fix.before')}: {payoffScore ?? '—'}/10
-                  </span>
-                </div>
+            <div
+              data-testid="verdict-row"
+              className={
+                'mt-3 flex flex-col gap-2 ' +
+                (selected.fixedCode ? 'sm:flex-row sm:items-stretch' : '')
+              }
+            >
+              <div className={selected.fixedCode ? 'sm:shrink-0' : 'min-w-0 flex-1'}>
+                <VerdictPayoff score={payoffScore} severity={payoffSeverity} stamp={stamp} reduced={Boolean(reduceMotion)} />
               </div>
-            )}
+
+              {Boolean(selected.fixedCode) && (
+                <div
+                  data-testid="fix-panel"
+                  className="flex-1 rounded-lg border border-vibe-accent/30 bg-vibe-accent/5 p-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      data-testid="apply-fix"
+                      aria-pressed={fixedApplied}
+                      onClick={() => setFixedApplied((value) => !value)}
+                      className="inline-flex items-center gap-1 rounded-md border border-vibe-accent/50 bg-vibe-accent/10 px-2 py-1.5 text-xs font-medium text-vibe-accent hover:bg-vibe-accent/20"
+                    >
+                      <Wrench className="h-3.5 w-3.5" />
+                      {fixedApplied ? t('fix.revert') : t('fix.apply')}
+                    </button>
+                    <span data-testid="fix-state" className="text-xs text-vibe-muted">
+                      {fixedApplied ? t('fix.after') : t('fix.before')}: {payoffScore ?? '—'}/10
+                    </span>
+                  </div>
+                  <p className="mt-1.5 text-xs leading-snug text-vibe-muted">{t('fix.applyHint')}</p>
+                </div>
+              )}
+            </div>
 
             {selected.id === 'repaired-json' && !showAfter && selected.repairedJson && (
               <div data-testid="json-compare" className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -820,6 +872,7 @@ export default function TheatrePage() {
           )}
         </section>
       )}
+      </div>
     </div>
   );
 }

@@ -104,6 +104,7 @@ alternatives that were rejected.
 | [console-dark-slice](tickets/console-dark-slice.md) | Slice C1: the home shell re-skinned as a night-shift console — dark by default, one audit-green accent, stamps instead of decorative color |
 | [post-detail-info-arch](tickets/post-detail-info-arch.md) | Slice C2: the detail page becomes one column — identity, body, evidence — and the accent swap's contrast regression is closed |
 | [theatre-narrative](tickets/theatre-narrative.md) | Slice C3: the theatre shows the code it judges, drops the fabricated step clock, and puts the counterfactual beside the actual trace |
+| [theatre-spine](tickets/theatre-spine.md) | Slice C4: the theatre becomes a case rail plus stage, the verdict joins the fix action, and the channel rail gets a live review feed |
 
 ## Plans — `docs/plans/`
 
@@ -126,6 +127,7 @@ alternatives that were rejected.
 | [r3-1-capability-throttle](plans/r3-1-capability-throttle.md) | Frozen contract for R3-1: TTL cache branch of the acceptance, actuator bytes pinned, the Redis-dependent limiter rejected |
 | [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
 | [theatre-narrative](plans/theatre-narrative.md) | Frozen contract for Slice C3: code on screen, the fabricated step clock removed from the DTO, fault/defense/verdict cards, and counterfactuals shown beside the actual trace |
+| [theatre-spine](plans/theatre-spine.md) | Frozen contract for Slice C4: one spine, a sticky case index, a filled channel rail, and the ticker reused rather than re-fetched |
 
 ## Design and product
 

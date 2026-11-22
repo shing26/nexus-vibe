@@ -1,6 +1,7 @@
 ﻿import { useState } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import { useEffect } from 'react';
+import { useTranslation } from 'react-i18next';
 import Navbar from '../Navbar';
 import Footer from '../Footer';
 import MobileTabBar from '../MobileTabBar';
@@ -20,6 +21,7 @@ import BackButton from '../BackButton';
  * return control sits inside every public non-home page, as it did in v1.</p>
  */
 export default function MainLayout() {
+  const { t } = useTranslation('common');
   const { pathname } = useLocation();
   const [drawerOpen, setDrawerOpen] = useState(false);
 
@@ -40,16 +42,26 @@ export default function MainLayout() {
       {/* Site-wide, so it sits in the one shell every public route renders under. The
           component renders nothing on a healthy deployment. */}
       <DegradationBanner />
-      <div className="flex flex-1">
+      <div className="relative flex flex-1">
+        {/* The rail is a column, not a card that stops at the viewport height:
+            this strip carries the surface and the right border across the whole
+            content area, while the aside stays sticky and only carries content. */}
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute inset-y-0 left-0 hidden w-12 border-r border-vibe-border bg-vibe-surface lg:block xl:w-60"
+        />
         {/* ≥lg: the fixed left rail. `sticky` keeps it in view while content scrolls.
             At 1024–1279px it is a 48px icon rail, so it must not clip the tooltips
             that leave it horizontally; from 1280px it becomes the 240px sidebar and
             scrolls its own tall list. */}
         <aside
           aria-label="Channel navigation"
-          className="sticky top-12 hidden h-[calc(100vh-3rem)] w-12 shrink-0 overflow-visible border-r border-vibe-border bg-vibe-surface px-1 pb-8 lg:block xl:w-60 xl:overflow-y-auto xl:px-3"
+          className="sticky top-12 hidden h-[calc(100vh-3rem)] w-12 shrink-0 overflow-visible px-1 pb-8 lg:flex lg:flex-col xl:w-60 xl:overflow-y-auto xl:px-3"
         >
           <Sidebar />
+          <p className="mt-auto hidden border-t border-vibe-border px-2 pt-2 text-[9px] leading-tight text-vibe-faint xl:block">
+            {t('railFooter')}
+          </p>
         </aside>
         <main className="min-w-0 flex-1">
           {pathname !== '/' && (
