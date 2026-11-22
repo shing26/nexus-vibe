@@ -3,6 +3,7 @@ import { render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { MemoryRouter } from 'react-router-dom';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import i18next from 'i18next';
 import TheatrePage, { TheatreEntry } from './TheatrePage';
 import { apiClient } from '../api/client';
 
@@ -171,6 +172,29 @@ describe('TheatrePage', () => {
     await screen.findByTestId('verdict-payoff');
     expect(stepBadges()).toContain('REAL');
     expect(stepBadges()).toContain('INJECTED');
+  });
+
+  it('puts the case index on a sticky rail and the verdict beside the fix action', async () => {
+    get.mockResolvedValue({ data: { code: 200, data: fiveScenarios() } });
+
+    renderPage();
+
+    await screen.findByTestId('theatre-disclosure');
+    const root = screen.getByTestId('theatre-root');
+    expect(root.className).toContain('max-w-[1400px]');
+    expect(screen.getByTestId('case-rail').className).toContain('lg:sticky');
+    expect(within(screen.getByTestId('case-rail')).getByText(i18next.t('theatre:index'))).toBeInTheDocument();
+
+    const stats = screen.getByTestId('theatre-stats');
+    expect(stats.children).toHaveLength(3);
+    expect(stats).toHaveTextContent('5');
+    expect(stats).toHaveTextContent('3');
+    expect(stats).toHaveTextContent('0');
+
+    const verdictRow = screen.getByTestId('verdict-row');
+    expect(within(verdictRow).getByTestId('verdict-payoff')).toBeInTheDocument();
+    expect(within(verdictRow).getByTestId('fix-panel')).toBeInTheDocument();
+    expect(within(verdictRow).getByTestId('apply-fix')).toBeInTheDocument();
   });
 
   it('renders a score dial with a severity stamp payoff', async () => {

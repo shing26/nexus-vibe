@@ -5,6 +5,7 @@ import { useTranslation } from 'react-i18next';
 import { useAuthStore } from '../stores/authStore';
 import { CHANNELS } from '../lib/channels';
 import SystemPulse from './SystemPulse';
+import SidebarReviews from './SidebarReviews';
 
 interface SidebarProps {
   /** Drawer rows close the drawer on navigation. */
@@ -107,6 +108,7 @@ export default function Sidebar({ onNavigate }: SidebarProps) {
       )}
 
       <SystemPulse />
+      <SidebarReviews />
     </nav>
   );
 }

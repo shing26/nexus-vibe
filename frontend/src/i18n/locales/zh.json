@@ -155,6 +155,17 @@
         "flagged": "标记"
       }
     },
+    "sidebarReviews": {
+      "title": "最近评审",
+      "live": "LIVE",
+      "loading": "读取中…",
+      "empty": "暂无评审记录",
+      "error": "评审日志暂不可用",
+      "source": "服务端日志 · 每 60 秒刷新",
+      "approved": "通过",
+      "flagged": "拦截"
+    },
+    "railFooter": "只读演示 · 数据可复现",
     "time": {
       "justNow": "刚刚",
       "minutesAgo": "{{n}} 分钟前",
@@ -1121,7 +1132,14 @@
         "broken": "模型原始输出",
         "repaired": "管线采纳结果"
       }
-    }
+    },
+    "index": "案例索引 · 01–05",
+    "stats": {
+      "cases": "失败案例",
+      "tags": "类诚实标签",
+      "writes": "个写接口"
+    },
+    "railSource": "数据来自本机管线的一次实测回放"
   },
   "creations": {
     "title": "创作物库",

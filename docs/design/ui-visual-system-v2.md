@@ -136,10 +136,16 @@ and repeated the counts in the header.)
 
 ## Chaos Theatre
 
-One reading order, top to bottom: title, the thesis line (a left accent rail, one sentence
-that names the cost rather than the feature), the disclosure, the five scenario cards, then
-the selected trace. Each card reads as **fault / defense / verdict** on three label-value
-rows, so the five exhibits compare as a taxonomy instead of a feature list.
+The page is a console, not a feed: above 1280px a 304px case index sits on the left and the
+selected exhibit fills the rest; below 1280px the index becomes the card grid and the exhibit
+stacks under it. The header is two columns — title, subtitle and thesis on the left, the
+disclosure and three real counters (5 cases / 3 honesty tags / 0 write endpoints) on the right.
+The container is `max-w-[1400px]` with the shell's `px-8`, so its left edge is the same line as
+the "返回" control rather than a 896px column centred inside a 1200px main area.
+
+Each index card reads as **fault / defense / verdict** on three label-value rows, so the five
+exhibits compare as a taxonomy instead of a feature list; the order is fixed. The index is
+`sticky` at `top-16` while the exhibit scrolls, which keeps case switching reachable.
 
 The selected trace opens with the code that was actually reviewed: `CodeBlock`, Java
 highlighted, with the line under discussion carrying a 2px left rail in `vibe-warning`
@@ -155,6 +161,23 @@ Below 640px the actual trace and its counterfactual stack; at and above it they 
 columns headed "实际发生" / "如果模型正常", both visible by default. The comparison is the
 lesson, so it is not behind a toggle — the toggle only collapses it. The setup rows every
 scenario shares (`input`, `prompt`) stay in the list as evidence but are demoted in weight.
+
+The score dial and the apply-the-fix action share one row (dial left, action right). They used
+to be two full-width blocks, the second one mostly empty; the action is the only thing a reader
+can do on this page, so it belongs beside the verdict it changes.
+
+## Channel rail
+
+The rail is one continuous column: `MainLayout` paints the surface and the right border as an
+absolute strip spanning the content area, while the `aside` stays `sticky` and carries only
+content. It no longer ends at the viewport height in the middle of a long page.
+
+At 1280px and up the rail holds the channel nav, the system-pulse panel, the five most recent
+review-log rows, and a footer line ("只读演示 · 数据可复现") pinned to the bottom. The review feed
+reuses the footer's `agent-ticker` query key, so it adds no request; its rows are exactly the
+server's, and an empty list or a failed request gets its own sentence instead of a placeholder
+row. At 1024–1279px the rail is 48px of icons and the feed and footer are hidden; below 1024px
+they live only in the drawer.
 
 ## AiReviewTerminal v2
 

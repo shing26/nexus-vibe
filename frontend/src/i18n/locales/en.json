@@ -155,6 +155,17 @@
         "flagged": "FLAGGED"
       }
     },
+    "sidebarReviews": {
+      "title": "Recent reviews",
+      "live": "LIVE",
+      "loading": "Loading…",
+      "empty": "No reviews yet",
+      "error": "Review log unavailable",
+      "source": "Server log · every 60s",
+      "approved": "Passed",
+      "flagged": "Flagged"
+    },
+    "railFooter": "Read-only demo · reproducible data",
     "time": {
       "justNow": "just now",
       "minutesAgo": "{{n}}m ago",
@@ -1121,7 +1132,14 @@
         "broken": "Raw model output",
         "repaired": "What the pipeline accepted"
       }
-    }
+    },
+    "index": "Case index · 01–05",
+    "stats": {
+      "cases": "failure cases",
+      "tags": "honesty tags",
+      "writes": "write endpoints"
+    },
+    "railSource": "Numbers from one real replay on this machine"
   },
   "creations": {
     "title": "My Creations",
