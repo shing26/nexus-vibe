@@ -39,12 +39,15 @@ participant's date; no translation, no summarising, no softening.
 
 ## Usage measurement (run on this machine, read-only)
 
-Baseline: **not yet taken.** The first measurement below was attempted on
-2026-11-19 but Docker Desktop's engine was unreachable from the shell
-(HTTP 500 on the engine pipe), so no number exists yet — this file records
-the attempt rather than inventing the count. Run the command at kickoff and
-again whenever a participant completes, and paste the output here with the
-date.
+Baseline: **taken 2026-11-24**, on this machine, against the running stack
+(image `nexus-vibe-app:20261123-01`), with the command below. The first
+attempt on 2026-11-19 failed because Docker Desktop's engine was unreachable
+from the shell (HTTP 500 on the engine pipe); that attempt is kept here as
+history. Run the command again whenever a participant completes.
+
+| Date | registered_users | human_code_posts | human_code_reviews |
+|---|---|---|---|
+| 2026-11-24 | 23 | 18 | 25 |
 
 ```powershell
 docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" nexus_campus -e "$0"' "
@@ -60,8 +63,18 @@ SELECT
 ```
 
 Exclusions: user 999 is the AI agent account; post `900000000000000001` is the
-curated showcase recording. Everything else in these counts is a real
-registration and a real post.
+curated showcase recording.
+
+**Read the numbers with this caveat, measured on the same day.** The three
+counts above are not 23 independent people and 18 outsider posts. They include
+the eight seeded demo accounts (`data.sql`: `admin`, `shing`, `alice`, `bob`,
+`testuser`, `eve`, `charlie`, `AiAgent`) and the QA probe accounts earlier
+verification rounds created (`nimtest…`, `deploycheck…`, `pubcheck…`,
+`showcaserec…`, `releasecheck…`, `verifyc…`, `verifyr…`). Excluding the seed
+set and every probe prefix leaves **2 outsider accounts** (`shing426`,
+2026-11-14; `reviewer1`, 2026-11-22), with **0 code posts and 0 reviews**. In
+journey terms the trial stands at **0 of 3–5**. The rows are listed by account
+and date in the query output, not estimated.
 
 ## What this trial cannot prove
 
