@@ -84,6 +84,14 @@ describe('CommentSentimentFilter', () => {
     expect(screen.getByText('great walkthrough')).toBeInTheDocument();
   });
 
+  it('marks the selected group with the neutral surface, not the accent', () => {
+    render(<Harness comments={COMMENTS} />);
+
+    const selected = screen.getByRole('button', { name: 'All (5)' });
+    expect(selected.className).toContain('text-vibe-text');
+    expect(selected.className).not.toContain('vibe-accent');
+  });
+
   it('labels the grouping as a keyword heuristic, not a model judgement (A7-5)', () => {
     render(<Harness comments={COMMENTS} />);
 

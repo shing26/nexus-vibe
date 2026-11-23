@@ -3,27 +3,22 @@
    size?: 'sm' | 'md' | 'lg';
  }
  
- const colors = [
-   'bg-vibe-accent', 'bg-vibe-success', 'bg-vibe-warning', 'bg-vibe-high',
-   'bg-vibe-danger', 'bg-vibe-muted',
- ];
- 
- function hashColor(name: string): string {
-   let hash = 0;
-   for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
-   return colors[Math.abs(hash) % colors.length];
- }
- 
  const sizeMap = {
    sm: 'h-8 w-8 text-xs',
    md: 'h-10 w-10 text-sm',
    lg: 'h-14 w-14 text-lg',
  };
  
+/**
+ * A person's initial on one neutral block. The old version hashed the name into
+ * six saturated hues, which put a different colour on every commenter and made
+ * the comment list read as a legend of categories that do not exist. Identity
+ * comes from the letter; colour is reserved for the audit green.
+ */
  export default function Avatar({ name, size = 'md' }: AvatarProps) {
    return (
      <div
-       className={`${hashColor(name)} ${sizeMap[size]} flex shrink-0 items-center justify-center rounded-full font-semibold text-white`}
+      className={`${sizeMap[size]} flex shrink-0 items-center justify-center rounded-full bg-vibe-text font-medium text-vibe-bg`}
        title={name}
      >
        {name.charAt(0).toUpperCase()}

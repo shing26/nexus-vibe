@@ -147,6 +147,7 @@
       "label": "Agent review ticker",
       "idle": "Agent fleet idle. Publish a post with code to trigger auto review.",
       "verified": "[{{time}}] {{reviewer}} verified post \"{{title}}\" · Post #{{id}} · Severity: {{severity}} · Status: {{status}}",
+      "verifiedNoTitle": "[{{time}}] {{reviewer}} verified post #{{id}} · Severity: {{severity}} · Status: {{status}}",
       "status": {
         "idle": "IDLE",
         "unavailable": "UNAVAILABLE",
@@ -154,6 +155,17 @@
         "flagged": "FLAGGED"
       }
     },
+    "sidebarReviews": {
+      "title": "Recent reviews",
+      "live": "LIVE",
+      "loading": "Loading…",
+      "empty": "No reviews yet",
+      "error": "Review log unavailable",
+      "source": "Server log · every 60s",
+      "approved": "Passed",
+      "flagged": "Flagged"
+    },
+    "railFooter": "Read-only demo · reproducible data",
     "time": {
       "justNow": "just now",
       "minutesAgo": "{{n}}m ago",
@@ -411,6 +423,14 @@
       "reviewing": "reviewing",
       "failed": "review failed"
     },
+    "counts": {
+      "likes": "Likes",
+      "comments": "Comments",
+      "views": "Views",
+      "likesValue": "{{count}} likes",
+      "commentsValue": "{{count}} comments",
+      "viewsValue": "{{count}} views"
+    },
     "aiScoreBadge": "AI score {{score}}/100",
     "scoreRubric": "Score rubric (0-100): 90-100 production-ready · 70-80 solid, minor issues · 50-60 functional with notable gaps · 30-40 significant problems · 0-20 broken/unsafe. Reviewed on correctness, code quality, security, and suggested improvements. Edited posts are re-reviewed automatically.",
     "stateBadgePrefix": "AI review: ",
@@ -423,6 +443,10 @@
     "template": "Template",
     "forkedFrom": "Forked from post #{{id}}",
     "statsAria": "Engagement",
+    "stats": {
+      "views": "{{count}} views",
+      "comments": "{{count}} comments"
+    },
     "actions": {
       "like": "Like",
       "share": "Share",
@@ -906,6 +930,7 @@
   "theatre": {
     "title": "Chaos Theatre",
     "subtitle": "Break the AI yourself, then watch it survive.",
+    "thesis": "The model will lie, disappear, and hand back half a JSON object. The pipeline's job is not to trust it — it is to make sure nothing unreviewed ever ships. Every failure below was really run.",
     "entry": {
       "label": "Enter the Chaos Theatre",
       "desc": "Watch the real review pipeline fail and recover. No account needed."
@@ -916,26 +941,62 @@
     "replay": "Replay",
     "replaying": "Replaying…",
     "showPayload": "Show raw content",
+    "axis": {
+      "fault": "Fault",
+      "defense": "Defense",
+      "verdict": "Verdict"
+    },
+    "pair": {
+      "actual": "What happened",
+      "counterfactual": "If the model had behaved"
+    },
+    "code": {
+      "reviewed": "Code under review",
+      "before": "Before the fix",
+      "after": "After the fix"
+    },
+    "lessons": {
+      "fix-challenge": "The verdict moved because the code moved, not because the model got nicer: 3 before the guard, 9 after it.",
+      "repaired-json": "The model emitted half a JSON object. The parser could not finish it, so it sent the error back and the model corrected itself — the output was repaired, not the luck.",
+      "empty-placeholder": "Every field present is not the same as saying something. The semantic gate reads substance, not syntax, so a placeholder never reaches a post.",
+      "prompt-injection": "\"Ignore previous instructions\" arrived as data. What contained it was not the score — it was the per-request nonce delimiters.",
+      "model-down": "The model was dead and nothing shipped. The post stayed FAILED, waiting for reconciliation to pick it up."
+    },
     "cards": {
       "fix-challenge": {
         "title": "Apply the fix yourself",
-        "subtitle": "The same buggy divide, twice: once as written, once with the zero guard."
+        "subtitle": "The same buggy divide, twice: once as written, once with the zero guard.",
+        "fault": "A divisor that may be zero, divided unguarded",
+        "defense": "The same pipeline re-reviews the patched code",
+        "verdict": "3/10 high → 9/10 low, approved"
       },
       "repaired-json": {
         "title": "Repair the broken JSON",
-        "subtitle": "The model returns fenced, truncated JSON the parser cannot finish alone."
+        "subtitle": "The model returns fenced, truncated JSON the parser cannot finish alone.",
+        "fault": "Trailing comma plus truncation; the parser cannot combine them",
+        "defense": "The error goes back to the model for one self-correction",
+        "verdict": "The repaired object is recorded as a real verdict"
       },
       "empty-placeholder": {
         "title": "Reject the empty answer",
-        "subtitle": "The first answer is schema-valid but says nothing."
+        "subtitle": "The first answer is schema-valid but says nothing.",
+        "fault": "Schema-valid, but every analysis field is a placeholder",
+        "defense": "The semantic gate rejects it; a reinforced retry follows",
+        "verdict": "Only the retry reaches the post"
       },
       "prompt-injection": {
         "title": "Contain the instruction",
-        "subtitle": "The code contains a comment that tells the reviewer to ignore its system prompt."
+        "subtitle": "The code contains a comment that tells the reviewer to ignore its system prompt.",
+        "fault": "A code comment says \"ignore previous instructions\"",
+        "defense": "Per-request nonce delimiters lock the snippet into the data block",
+        "verdict": "The review names the injection instead of obeying it"
       },
       "model-down": {
         "title": "Survive the dead model",
-        "subtitle": "Every model call times out. Nothing is published unreviewed."
+        "subtitle": "Every model call times out. Nothing is published unreviewed.",
+        "fault": "Every call times out; the attempt budget is spent",
+        "defense": "The breaker fails fast; the listener marks the post FAILED",
+        "verdict": "Fail-closed: not published, handed to reconciliation"
       }
     },
     "error": "Failed to load the traces. Please retry.",
@@ -953,7 +1014,8 @@
     },
     "meta": {
       "attempts": "Model calls",
-      "duration": "Duration",
+      "duration": "This replay took",
+      "durationBothRuns": "includes both reviews",
       "score": "Final score",
       "failClosed": "fail-closed: not published",
       "adr": "Related decision"
@@ -1070,7 +1132,14 @@
         "broken": "Raw model output",
         "repaired": "What the pipeline accepted"
       }
-    }
+    },
+    "index": "Case index · 01–05",
+    "stats": {
+      "cases": "failure cases",
+      "tags": "honesty tags",
+      "writes": "write endpoints"
+    },
+    "railSource": "Numbers from one real replay on this machine"
   },
   "creations": {
     "title": "My Creations",

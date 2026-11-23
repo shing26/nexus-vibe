@@ -11,7 +11,7 @@
   <img src="https://img.shields.io/badge/Java-18-orange?logo=openjdk&logoColor=white&style=flat-square" alt="Java 18">
   <img src="https://img.shields.io/badge/Spring%20Boot-3.3.5-6DB33F?logo=springboot&logoColor=white&style=flat-square" alt="Spring Boot 3.3.5">
   <img src="https://img.shields.io/badge/React-19-61DAFB?logo=react&logoColor=white&style=flat-square" alt="React 19">
-  <img src="https://img.shields.io/badge/tests-563%20Java%20%2B%20152%20frontend-brightgreen?style=flat-square" alt="563 Java tests + 152 frontend tests">
+  <img src="https://img.shields.io/badge/tests-563%20Java%20%2B%20175%20frontend-brightgreen?style=flat-square" alt="563 Java tests + 175 frontend tests">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License: MIT"></a>
   <img src="https://img.shields.io/github/stars/shing26/nexus-vibe?style=flat-square&label=stars" alt="GitHub stars">
   <img src="https://img.shields.io/github/last-commit/shing26/nexus-vibe?style=flat-square" alt="Last commit">
@@ -50,8 +50,9 @@
 
 *One real run, not a mock-up.* The pictured post was published to this machine's stack on
 2026-9-28 and carries a real stored review: 5/10 becomes **50/100**, severity **low**, verdict
-**Approved**, read straight from the database. The screenshot is the current Forge shell; the
-review's steps replay one expand away
+**Approved**, read straight from the database. The screenshot is the current console shell
+([ADR-0023](docs/adr/0023-the-console-palette-and-a-dark-default.md): dark by default, one
+audit-green accent); the review's steps replay one expand away
 ([ADR-0010](docs/adr/0010-the-showcase-review-is-a-recording.md)).
 
 <table>
@@ -102,7 +103,7 @@ code that matters is the failure handling around the model:
 
 ## 🖼️ Product tour
 
-The current Forge shell, in both themes. Every capture uses the frontend in this tree; the
+The current console shell, in both themes. Every capture uses the frontend in this tree; the
 note below names the backend each one ran against.
 
 <table>
@@ -112,14 +113,14 @@ note below names the backend each one ran against.
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/home-light.png">
   <img src="docs/assets/readme/home-dark.png" alt="Nexus-Vibe home feed: mission control, the recorded-review showcase, the Chaos Theatre entry, the channel rail and the hot-ranked feed" width="100%">
 </picture><br>
-<sub><b>The community.</b> Hot-ranked feed, channels, system pulse, and the reviewer's severity verdict on a completed topic row.</sub>
+<sub><b>The community.</b> Hot-ranked feed, channels, system pulse, a live recent-reviews rail, and the reviewer's severity verdict on a completed topic row.</sub>
 </td>
 <td width="50%" valign="top">
 <picture>
   <source media="(prefers-color-scheme: light)" srcset="docs/assets/readme/theatre-light.png">
   <img src="docs/assets/readme/theatre-dark.png" alt="Chaos Theatre: five failure exhibits and the fix-challenge trace, showing score 3/10, severity high and Needs attention before the fix" width="100%">
 </picture><br>
-<sub><b>The Chaos Theatre.</b> Five precomputed failure exhibits; the model output is scripted, the repair, retry and fail-closed paths are real.</sub>
+<sub><b>The Chaos Theatre.</b> Five failure cases on a sticky case rail, with a stage that shows the faulty and fixed code; three honesty counters and per-step REAL / scripted / policy badges.</sub>
 </td>
 </tr>
 <tr>
@@ -173,7 +174,7 @@ Three things to know before you click:
   piece of evidence below was measured on the same class of machine rather than in a cloud
   region.
 - The instance is rebuilt by hand, so it can lag `master` by a release. If it predates the
-  Forge release, the shell looks older than the captures here and `/theatre` may not be
+  console release, the shell looks older than the captures here and `/theatre` may not be
   routed yet; rebuild `app` and `web` to pick both up.
 
 **No account? Watch the pipeline fail and recover.** [`/theatre`](https://qualifier-discuss-marry.ngrok-free.dev/theatre)
@@ -261,7 +262,8 @@ timeline, an admin audit dashboard with assisted account recovery, and a **My Cr
 library** that gathers your posts, prompt forks and device-local drafts behind one route.
 The community surface is open again (ADR-0022): topic rows carry the reviewer's severity
 verdict once the review completes, and the profile draws its AI score curve from the
-evidence index instead of a stored number.
+evidence index instead of a stored number. Post detail reads as one column, and the
+sidebar's recent-reviews rail streams the last five verdicts as they are recorded.
 
 **The AI pipeline.** Posts containing code blocks are reviewed asynchronously with
 structured output and a visible rubric; fenced output, truncation and trailing commas are
@@ -277,9 +279,9 @@ not become a request-time dependency. Redis Lua like toggle with write-behind fl
 hourly drift reconciliation, sliding-window rate limiting, DFA sensitive-word filtering
 with hot reload, gravity-decay hot ranking, lease-based review claims with an attempt
 budget and a terminal notification, a dedicated agent pool that turns a saturated dispatch
-into a retryable state instead of failing the request, and a Forge visual system (ADR-0020:
-neutral-grey surface, single blue accent, decorative motion removed) whose interactive
-motion still collapses under `prefers-reduced-motion`.
+into a retryable state instead of failing the request, and a console palette (ADR-0023:
+dark by default, one audit-green accent carrying "review recorded", decorative motion
+removed) whose interactive motion still collapses under `prefers-reduced-motion`.
 
 <a name="fork-map"></a>
 
@@ -451,10 +453,11 @@ prove - that habit is kept on purpose.
 | [Observability drill](docs/research/observability-drill-2026-09.md) | 23 scripted failure injections against the real stack, including what the drill cannot prove |
 | [Technical blog](docs/blog/llm-code-review-structured-output-injection-defense.md) | How the structured-output review survives injection attempts and malformed model output |
 
-The decisions behind all of it: **[22 ADRs, 0001-0022](docs/adr/)** - fail-closed
+The decisions behind all of it: **[23 ADRs, 0001-0023](docs/adr/)** - fail-closed
 moderation, lease-based claims, degraded-is-not-unhealthy, the recording discipline, the
 two seams, metrics and rules, the Forge visual pivot (0020), raw-content storage with
-escape-at-egress (0021), and reopening the community surface (0022).
+escape-at-egress (0021), reopening the community surface (0022), and the console palette
+with a dark default (0023).
 
 Where to look, in the time you have:
 
@@ -568,15 +571,21 @@ pending-post detail on top of the A5 trial harness): backend **563 tests / 93
 classes**, 0 failures, 0 errors, 0 skipped - counted from one `mvn -B test` summary line,
 never `target/surefire-reports/`, which accumulates runs and lies. The new backend case:
 the author of a fail-closed-held post reads their own pending-review detail while another
-user and an anonymous request still get 404. Frontend **152 tests /
-29 files**: the severity chip on topic rows (a reviewed row shows the reviewer's severity
+user and an anonymous request still get 404. Frontend **175 tests /
+34 files**: the severity chip on topic rows (a reviewed row shows the reviewer's severity
 verdict in the verdict's own tone, an unknown value renders nothing, rows whose review
 has not completed show no chip), the my-creations library (kind derivation from real post fields, count chips matching cards, tab filtering, device-local drafts), the observability-forum surface (the sidebar system pulse from the real capability API — degraded, all-normal and broken-API states; the AI credential chip on topic rows; the home ranking note; the profile's narrative stats sentence), the Chaos Theatre page (the scripted-output disclosure, the five scenario
 buttons, per-step REAL/INJECTED/POLICY honesty badges, the score-dial/stamp payoff, the
 apply-the-fix toggle, the counterfactual panel, the fail-closed chip, and the
 error/retry panel), the profile score curve (one mark per returned record, oldest on the left, no
 SVG at all when the index is empty, a screen-reader table carrying date/score/title, the
-same 0-10-to-0-100 rule as the voucher card), the axios response interceptor (a 401 replayed once against the refreshed token,
+same 0-10-to-0-100 rule as the voucher card), the Chaos Theatre's narrative pass (the reviewed
+snippet rendered with its defect line marked, the fix's guard line marked, no per-step stopwatch,
+scenario cards read as fault/defense/verdict, and the counterfactual open beside the actual trace),
+the C4 spine (a sticky case rail, the verdict ring and the apply action in one row, three real
+counters), the sidebar review feed (five ticker rows with their own time and verdict, plus empty
+and failed states),
+the axios response interceptor (a 401 replayed once against the refreshed token,
 one refresh shared across concurrent 401s, a refused refresh that logs out without
 looping, a 5xx named with its trace id), the server-error sentence mapping, the login
 page's server reason, the AI review panel (a stored 0-10 shown as the 0-100 it claims, a
@@ -615,7 +624,7 @@ no test pairing `isOk()` with a non-200 code; a fifth scan requires every fronte
 mvn test                      # 563: unit + H2 integration + the source-scanning contract checks + the JaCoCo floor
 cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
-cd frontend && npm run test   # 152
+cd frontend && npm run test   # 175
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28
 ```
 

@@ -242,6 +242,19 @@ describe('PostCard counts (A8)', () => {
     expect(screen.queryByText('17')).not.toBeInTheDocument();
     expect(screen.queryByText('9')).not.toBeInTheDocument();
   });
+
+  it('gives each count an accessible name, not just a tooltip', () => {
+    vi.spyOn(Date, 'now').mockReturnValue(NOW);
+
+    renderCard({ ...fixtures.activeText, viewCount: 4321, likeCount: 17, commentCount: 9 });
+
+    // `title` alone is only an accessible *description*; a screen reader reading
+    // the row aloud otherwise announces bare numbers ("17 9 4321"). The visible
+    // digit stays decorative so the name is spoken once, with its unit.
+    expect(screen.getByLabelText('17 likes')).toBeInTheDocument();
+    expect(screen.getByLabelText('9 comments')).toBeInTheDocument();
+    expect(screen.getByLabelText('4321 views')).toBeInTheDocument();
+  });
 });
 
 describe('PostStateBadges review severity chip', () => {

@@ -42,6 +42,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0020](adr/0020-the-forge-pivot-replaces-the-terminal-aesthetic.md) | The forge pivot replaces the terminal aesthetic |
 | [0021](adr/0021-content-is-stored-raw-and-escaped-at-egress.md) | Content is stored raw and escaped at egress |
 | [0022](adr/0022-reopening-scope-for-the-self-demonstrating-community.md) | The scope reopens for a self-demonstrating community - ADR-0009's freeze is superseded |
+| [0023](adr/0023-the-console-palette-and-a-dark-default.md) | The console palette and a dark default - supersedes ADR-0020's accent clause and system-following theme |
 
 ## Measurements — `docs/research/`
 
@@ -87,7 +88,7 @@ alternatives that were rejected.
 | [review-terminal-replay](tickets/review-terminal-replay.md) | The finished AI review replays its steps on the post page, the in-flight box cycles them without confirming any, and the navbar/footer link out to the ADRs and the load test |
 | [readme-open-source](tickets/readme-open-source.md) | The README becomes a front door: the diagnosis of the five stated pain points, the corrections to the circulated draft, the new section order, and the allowed numbers |
 | [readme-visual-front-door](tickets/readme-visual-front-door.md) | The README gets a hero capture, a native Mermaid architecture diagram and a measured Lua-vs-naive consistency figure - and where the brief's score-92 label could not be honoured |
-| [readme-forge-front-door](tickets/readme-forge-front-door.md) | The README syncs to the Forge shell: a logo, a theme-aware banner, dark/light capture pairs, the four-card thesis table and an honest note about the hand-rebuilt live instance |
+| [readme-forge-front-door](tickets/readme-forge-front-door.md) | The README syncs to the console shell: a logo, a theme-aware banner, dark/light capture pairs for the feed, theatre, profile and creations, the four-card thesis table and an honest note about the hand-rebuilt live instance |
 | [ai-fusion-round](tickets/ai-fusion-round.md) | ADR-0016's round: comment safety check (post-visible), prompt review on the ADR-0012 seam, and the agent mention with its placeholder-retry semantics |
 | [frontend-polish-round-2](tickets/frontend-polish-round-2.md) | FE-1 crash reporting (browser to one capped log line), a /tags directory with visible-post counts, and the two critique items this round declined |
 | [fe1-boundary-layering](tickets/fe1-boundary-layering.md) | FE-1's second half: per-route error boundaries under the layout, one broken page no longer unmounts the SPA, and the outer boundary stays as the last resort |
@@ -101,6 +102,10 @@ alternatives that were rejected.
 | [a5-real-user-trial](tickets/a5-real-user-trial.md) | The harness for the real-user trial: invitation copy, journey definition, verbatim-quote log and the usage measurement — the humans are invited, not simulated |
 | [r3-1-capability-throttle](tickets/r3-1-capability-throttle.md) | The anonymous capabilities endpoint stops re-probing per read: a TTL cache on the read model, the limiter rejected because it bypasses itself when Redis is down |
 | [post-detail-author-404](tickets/post-detail-author-404.md) | Open: the author's just-published, held post answers 404 on the detail page — the list-side fix's missing half |
+| [console-dark-slice](tickets/console-dark-slice.md) | Slice C1: the home shell re-skinned as a night-shift console — dark by default, one audit-green accent, stamps instead of decorative color |
+| [post-detail-info-arch](tickets/post-detail-info-arch.md) | Slice C2: the detail page becomes one column — identity, body, evidence — and the accent swap's contrast regression is closed |
+| [theatre-narrative](tickets/theatre-narrative.md) | Slice C3: the theatre shows the code it judges, drops the fabricated step clock, and puts the counterfactual beside the actual trace |
+| [theatre-spine](tickets/theatre-spine.md) | Slice C4: the theatre becomes a case rail plus stage, the verdict joins the fix action, and the channel rail gets a live review feed |
 
 ## Plans — `docs/plans/`
 
@@ -122,6 +127,8 @@ alternatives that were rejected.
 | [review-severity-chip](plans/review-severity-chip.md) | Frozen contract for the severity chip: latest code-review row per page in one query, honest tone mapping, the N+1 and retry-chip rejections |
 | [r3-1-capability-throttle](plans/r3-1-capability-throttle.md) | Frozen contract for R3-1: TTL cache branch of the acceptance, actuator bytes pinned, the Redis-dependent limiter rejected |
 | [ai4-acceptance](plans/ai4-acceptance.md) | The frozen acceptance contract for AI-4: allowed paths, five criteria, verification commands, forbidden moves |
+| [theatre-narrative](plans/theatre-narrative.md) | Frozen contract for Slice C3: code on screen, the fabricated step clock removed from the DTO, fault/defense/verdict cards, and counterfactuals shown beside the actual trace |
+| [theatre-spine](plans/theatre-spine.md) | Frozen contract for Slice C4: one spine, a sticky case index, a filled channel rail, and the ticker reused rather than re-fetched |
 
 ## Design and product
 

@@ -18,9 +18,14 @@ content first, zero decorative animation.
    feedback (`active:scale-[0.98]`, via the shared `.press-feedback` class) is state
    communication, not decoration; it must carry `motion-reduce:transform-none`. Every
    animation keeps `motion-reduce:animate-none`.
-4. **Mono is for code.** `font-mono` appears only inside code blocks, code spans, and the
-   trace id. Headings, buttons, labels, timestamps are `font-sans`.
-5. **One accent.** Blue for interactive. Green/red for success/danger semantics only.
+4. **Mono is for machine output.** `font-mono` is used inside code blocks and code spans,
+   on the trace id, and on audit metadata where aligned digits matter: timestamps,
+   counters, review scores and the AI-credential stamp. Headings, buttons and navigation
+   labels stay `font-sans`. (Amended by ADR-0023: the console surface treats a log line as
+   machine output, not as a label.)
+5. **One accent.** The audit green marks the primary action, a completed review and a live
+   status; amber/red stay warning/danger semantics only. (Amended by ADR-0023: the accent
+   is no longer blue.)
 6. **Honest AI surfaces.** Every AI-related surface (review card, live pipeline strip, AI
    profile) renders real pipeline state — failure, retry, and degradation get the same
    design care as success, and nothing ever reads as live unless it is (ADR-0010's rule,
@@ -39,17 +44,22 @@ in one commit.
 
 | Token | Light | Dark | Role |
 | --- | --- | --- | --- |
-| `vibe-bg` | `#FFFFFF` | `#0D1117` | App background |
-| `vibe-surface` | `#F6F8FA` | `#161B22` | Sidebar, panels, header bars |
-| `vibe-card` | `#FFFFFF` | `#21262D` | Cards, hover rows, elevated content |
-| `vibe-border` | `#D0D7DE` | `#30363D` | All borders and dividers |
-| `vibe-accent` | `#0969DA` | `#58A6FF` | Links, primary buttons, active states, focus |
-| `vibe-success` | `#1A7F37` | `#3FB950` | Approved, safe, done |
-| `vibe-danger` | `#CF222E` | `#F85149` | Critical severity, destructive actions |
-| `vibe-warning` | `#9A6700` | `#D29922` | Medium severity, pending states |
-| `vibe-text` | `#1F2328` | `#E6EDF3` | Primary text |
-| `vibe-muted` | `#59636E` | `#8B949E` | Secondary text, metadata |
-| `vibe-faint` | `#818B98` | `#6E7681` | Disabled, decorative, empty copy |
+| `vibe-bg` | `#FFFFFF` | `#14171A` | App background |
+| `vibe-surface` | `#F6F8FA` | `#1B1F24` | Sidebar, panels, header bars |
+| `vibe-card` | `#FFFFFF` | `#171B1F` | Cards, hover rows, elevated content |
+| `vibe-border` | `#D0D7DE` | `#2E343A` | All borders and dividers (a hairline, not a box) |
+| `vibe-accent` | `#0969DA` | `#4ABF92` | Primary action, completed review, live status |
+| `vibe-on-accent` | `#FFFFFF` | `#14171A` | Text drawn on an accent fill (dark ink in dark) |
+| `vibe-success` | `#1A7F37` | `#4ABF92` | Approved, safe, done |
+| `vibe-danger` | `#CF222E` | `#E2746A` | Critical severity, destructive actions |
+| `vibe-warning` | `#9A6700` | `#D29A4A` | Medium severity, pending states |
+| `vibe-text` | `#1F2328` | `#E8ECEF` | Primary text |
+| `vibe-muted` | `#59636E` | `#9AA5B1` | Secondary text, metadata |
+| `vibe-faint` | `#818B98` | `#5F6B77` | Disabled, decorative, empty copy |
+
+Dark is the default theme (ADR-0023); light stays fully supported and switchable. The
+dark column above is the console ramp: three surface steps carry depth, and the hairline
+is pre-blended so `border-vibe-border` reads as a rule rather than a box.
 
 Retired: `vibe-cyan` (emerald), `vibe-neon`, `vibe-purple`, the radial dot-grid body
 background, every gradient that is not inside a code block.
@@ -115,11 +125,59 @@ blocks); the five copied shimmer blocks die with it. `ShimmerButton`, `BorderBea
 
 ## Post detail
 
-Single centered column (`max-w-3xl`), GitHub Discussions anatomy: title row (`text-xl`,
-sans), under it a metadata line (author, channel badge, relative time, AI score badge —
-the badge is a bordered pill, `vibe-accent` text, not a neon chip), then rendered body,
-then the comment stream. `CodeBlock` styling unchanged (it already reads well). The
-in-flight review box and replay box live in the same column, above comments.
+Single centered column (`max-w-3xl`), one reading order: title (`text-2xl`, sans), an
+identity line (author · channel · relative time, mono `text-xs`), then a state-stamp line
+that renders only values the post actually has (pending, template, role, version, AI score
+as a green audit stamp), then the body **on the page background rather than in a card**,
+then the single engagement/action row, then the comment stream. `CodeBlock` styling
+unchanged (it already reads well). The in-flight review box and replay box live in the same
+column, above comments. (Amended by Slice C2; the earlier wording kept the body in a card
+and repeated the counts in the header.)
+
+## Chaos Theatre
+
+The page is a console, not a feed: above 1280px a 304px case index sits on the left and the
+selected exhibit fills the rest; below 1280px the index becomes the card grid and the exhibit
+stacks under it. The header is two columns — title, subtitle and thesis on the left, the
+disclosure and three real counters (5 cases / 3 honesty tags / 0 write endpoints) on the right.
+The container is `max-w-[1400px]` with the shell's `px-8`, so its left edge is the same line as
+the "返回" control rather than a 896px column centred inside a 1200px main area.
+
+Each index card reads as **fault / defense / verdict** on three label-value rows, so the five
+exhibits compare as a taxonomy instead of a feature list; the order is fixed. The index is
+`sticky` at `top-16` while the exhibit scrolls, which keeps case switching reachable.
+
+The selected trace opens with the code that was actually reviewed: `CodeBlock`, Java
+highlighted, with the line under discussion carrying a 2px left rail in `vibe-warning`
+(danger for the injection comment, success for the guard the fix adds). `fix-challenge`
+shows before and after side by side above 640px, stacked below it.
+
+There is **no per-step clock**. The only timing the page may claim is the scenario's
+measured duration, labelled "本次回放耗时" (and, for `fix-challenge`, "含修复前后两次评审").
+The rows are an ordered account, numbered `01`, `02`, …; a hardcoded "+400 ms" beside a
+measured "4 ms" is a contradiction a reader would rightly read as fabrication.
+
+Below 640px the actual trace and its counterfactual stack; at and above it they sit in two
+columns headed "实际发生" / "如果模型正常", both visible by default. The comparison is the
+lesson, so it is not behind a toggle — the toggle only collapses it. The setup rows every
+scenario shares (`input`, `prompt`) stay in the list as evidence but are demoted in weight.
+
+The score dial and the apply-the-fix action share one row (dial left, action right). They used
+to be two full-width blocks, the second one mostly empty; the action is the only thing a reader
+can do on this page, so it belongs beside the verdict it changes.
+
+## Channel rail
+
+The rail is one continuous column: `MainLayout` paints the surface and the right border as an
+absolute strip spanning the content area, while the `aside` stays `sticky` and carries only
+content. It no longer ends at the viewport height in the middle of a long page.
+
+At 1280px and up the rail holds the channel nav, the system-pulse panel, the five most recent
+review-log rows, and a footer line ("只读演示 · 数据可复现") pinned to the bottom. The review feed
+reuses the footer's `agent-ticker` query key, so it adds no request; its rows are exactly the
+server's, and an empty list or a failed request gets its own sentence instead of a placeholder
+row. At 1024–1279px the rail is 48px of icons and the feed and footer are hidden; below 1024px
+they live only in the drawer.
 
 ## AiReviewTerminal v2
 
@@ -141,8 +199,9 @@ ADR-0010, and the existing test assertions on step order and score all carry ove
 
 ## Forms, buttons, feedback
 
-- Primary button: solid `vibe-accent` background, white text, `rounded-md`; secondary:
-  bordered, `vibe-surface`; danger: `vibe-danger` outline. No gradients, no shimmer.
+- Primary button: solid `vibe-accent` background, `vibe-on-accent` text, `rounded-md`;
+  secondary: bordered, `vibe-surface`; danger: `vibe-danger` outline. No gradients, no
+  shimmer. (White on the audit green fails AA, hence the paired token.)
 - Inputs: 1px `vibe-border`, focus ring `vibe-accent` (2px), `rounded-md`.
 - Toasts: `vibe-card` surface, 1px border, sans text, severity icon; no `bg-black/80`.
 - Empty states: `EmptyState` stays, icons and copy per i18n; no ASCII-art flourishes.

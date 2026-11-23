@@ -21,6 +21,7 @@
   --vibe-text: 31 35 40;
   --vibe-muted: 89 99 110;
   --vibe-faint: 129 139 152;
+  --vibe-on-accent: 255 255 255;
   /* The legacy `slate-*` utilities are kept as aliases of the v2 scale so any
      surface that has not been re-tokened yet still renders on-palette. New
      code should use the vibe-* tokens directly. */
@@ -38,18 +39,25 @@
 
 .dark {
   color-scheme: dark;
-  --vibe-bg: 13 17 23;
-  --vibe-surface: 22 27 34;
-  --vibe-card: 33 38 45;
-  --vibe-border: 48 54 61;
-  --vibe-accent: 88 166 255;
-  --vibe-success: 63 185 80;
-  --vibe-danger: 248 81 73;
-  --vibe-warning: 210 153 34;
-  --vibe-high: 219 109 40;
-  --vibe-text: 230 237 243;
-  --vibe-muted: 139 148 158;
-  --vibe-faint: 110 118 129;
+  /* The console ramp: one cool neutral, three surface steps, a hairline that
+     reads as a rule rather than a box. The accent is the audit green and it is
+     the only hue the chrome uses; amber and red stay semantic. */
+  --vibe-bg: 20 23 26;
+  --vibe-surface: 27 31 36;
+  --vibe-card: 23 27 31;
+  /* Hairline: roughly the text color at 9%, pre-blended over the surface so
+     `border-vibe-border` stays a rule instead of a box. */
+  --vibe-border: 46 52 58;
+  --vibe-accent: 74 191 146;
+  --vibe-success: 74 191 146;
+  --vibe-danger: 226 116 106;
+  --vibe-warning: 210 154 74;
+  --vibe-high: 214 128 74;
+  --vibe-text: 232 236 239;
+  --vibe-muted: 154 165 177;
+  --vibe-faint: 95 107 119;
+  /* Dark text on the green primary action; white on green fails contrast. */
+  --vibe-on-accent: 20 23 26;
   --slate-100: 230 237 243;
   --slate-200: 230 237 243;
   --slate-300: 230 237 243;

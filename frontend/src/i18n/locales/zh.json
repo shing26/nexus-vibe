@@ -147,6 +147,7 @@
       "label": "Agent 评审动态",
       "idle": "Agent 队列空闲。发布带代码的帖子即可触发自动评审。",
       "verified": "[{{time}}] {{reviewer}} 评审了帖子「{{title}}」 · 帖子 #{{id}} · 严重度：{{severity}} · 状态：{{status}}",
+      "verifiedNoTitle": "[{{time}}] {{reviewer}} 评审了帖子 #{{id}} · 严重度：{{severity}} · 状态：{{status}}",
       "status": {
         "idle": "空闲",
         "unavailable": "不可用",
@@ -154,6 +155,17 @@
         "flagged": "标记"
       }
     },
+    "sidebarReviews": {
+      "title": "最近评审",
+      "live": "LIVE",
+      "loading": "读取中…",
+      "empty": "暂无评审记录",
+      "error": "评审日志暂不可用",
+      "source": "服务端日志 · 每 60 秒刷新",
+      "approved": "通过",
+      "flagged": "拦截"
+    },
+    "railFooter": "只读演示 · 数据可复现",
     "time": {
       "justNow": "刚刚",
       "minutesAgo": "{{n}} 分钟前",
@@ -411,6 +423,14 @@
       "reviewing": "评审中",
       "failed": "评审失败"
     },
+    "counts": {
+      "likes": "赞",
+      "comments": "评论",
+      "views": "浏览",
+      "likesValue": "{{count}} 个赞",
+      "commentsValue": "{{count}} 条评论",
+      "viewsValue": "{{count}} 次浏览"
+    },
     "aiScoreBadge": "AI 评分 {{score}}/100",
     "scoreRubric": "评分标准（0-100）：90-100 可直接投产 · 70-80 扎实，有小问题 · 50-60 可用但有明显缺口 · 30-40 问题显著 · 0-20 破损/不安全。评审维度：正确性、代码质量、安全性、改进建议。编辑后的帖子会自动重新评审。",
     "stateBadgePrefix": "AI 评审：",
@@ -423,6 +443,10 @@
     "template": "模板",
     "forkedFrom": "Fork 自帖子 #{{id}}",
     "statsAria": "互动数据",
+    "stats": {
+      "views": "{{count}} 次浏览",
+      "comments": "{{count}} 条评论"
+    },
     "actions": {
       "like": "点赞",
       "share": "分享",
@@ -906,6 +930,7 @@
   "theatre": {
     "title": "混乱剧场",
     "subtitle": "亲手把 AI 弄坏，看它怎么活下来。",
+    "thesis": "模型会撒谎、会失联、会吐出一半的 JSON。这条管线的任务不是相信它，而是让没被审过的东西永远发不出去——下面每一次失败都是真的跑出来的。",
     "entry": {
       "label": "进入混乱剧场",
       "desc": "一条真实评审管线的失败与自救回放，无需登录。"
@@ -916,26 +941,62 @@
     "replay": "重播",
     "replaying": "回放中…",
     "showPayload": "展开原始内容",
+    "axis": {
+      "fault": "故障",
+      "defense": "防线",
+      "verdict": "判定"
+    },
+    "pair": {
+      "actual": "实际发生",
+      "counterfactual": "如果模型正常"
+    },
+    "code": {
+      "reviewed": "被评审的代码",
+      "before": "修复前",
+      "after": "修复后"
+    },
+    "lessons": {
+      "fix-challenge": "分数变了，是因为代码变了，不是因为模型心情变好：加守卫前 3 分，加守卫后 9 分。",
+      "repaired-json": "模型吐出了半截 JSON。解析器接不住，于是把错误原样退回模型，让它自己改一次——修好的是输出，不是运气。",
+      "empty-placeholder": "字段齐全不等于说了话。语义闸门不看 JSON 合不合法，只看它有没有内容，所以占位符到不了帖子。",
+      "prompt-injection": "代码里那句“忽略以上指令”被当成了数据。真正拦住它的不是评分，是随机 nonce 分隔符。",
+      "model-down": "模型彻底死了，也什么都没发出去。帖子停在 FAILED，等对账任务把它捡回来。"
+    },
     "cards": {
       "fix-challenge": {
         "title": "动手修复",
-        "subtitle": "同一段有缺陷的 divide，修复前后各评一次。"
+        "subtitle": "同一段有缺陷的 divide，修复前后各评一次。",
+        "fault": "除数可能为 0，直接相除",
+        "defense": "同一条管线重评修复后的代码",
+        "verdict": "3/10 high → 9/10 low，通过"
       },
       "repaired-json": {
         "title": "修复损坏的 JSON",
-        "subtitle": "模型返回围栏、截断的 JSON，解析器无法独自完成。"
+        "subtitle": "模型返回围栏、截断的 JSON，解析器无法独自完成。",
+        "fault": "尾逗号 + 截断，解析器单独修不了",
+        "defense": "把错误退回模型，自纠错重试一次",
+        "verdict": "修复后的对象落账为真实判定"
       },
       "empty-placeholder": {
         "title": "拒绝空洞回答",
-        "subtitle": "第一次回答 schema 合法但言之无物。"
+        "subtitle": "第一次回答 schema 合法但言之无物。",
+        "fault": "schema 合法，但分析字段全是占位符",
+        "defense": "语义闸门拒绝，强化提示词重试",
+        "verdict": "到达帖子的只有重试结果"
       },
       "prompt-injection": {
         "title": "拦住注入指令",
-        "subtitle": "代码里藏着一条无视系统提示的注释。"
+        "subtitle": "代码里藏着一条无视系统提示的注释。",
+        "fault": "代码注释里写着“忽略以上指令”",
+        "defense": "随机 nonce 分隔符把片段锁进数据区",
+        "verdict": "评审指名注入企图，而不是服从它"
       },
       "model-down": {
         "title": "在死模型下幸存",
-        "subtitle": "每次调用都超时，没有任何东西被未审发布。"
+        "subtitle": "每次调用都超时，没有任何东西被未审发布。",
+        "fault": "每次调用都超时，重试预算耗尽",
+        "defense": "熔断器快速失败，监听器标记 FAILED",
+        "verdict": "fail-closed：不发布，交对账恢复"
       }
     },
     "error": "轨迹加载失败，请重试。",
@@ -953,7 +1014,8 @@
     },
     "meta": {
       "attempts": "模型调用",
-      "duration": "耗时",
+      "duration": "本次回放耗时",
+      "durationBothRuns": "含修复前后两次评审",
       "score": "最终评分",
       "failClosed": "fail-closed：未发布",
       "adr": "相关决策"
@@ -1070,7 +1132,14 @@
         "broken": "模型原始输出",
         "repaired": "管线采纳结果"
       }
-    }
+    },
+    "index": "案例索引 · 01–05",
+    "stats": {
+      "cases": "失败案例",
+      "tags": "类诚实标签",
+      "writes": "个写接口"
+    },
+    "railSource": "数据来自本机管线的一次实测回放"
   },
   "creations": {
     "title": "创作物库",

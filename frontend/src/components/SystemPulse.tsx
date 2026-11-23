@@ -14,7 +14,7 @@ function PulseRow({ dot, label }: { dot: string; label: string }) {
         aria-hidden="true"
         className={'mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full ' + (DOT_STYLES[dot] ?? DOT_STYLES.ok)}
       />
-      <span className="min-w-0">{label}</span>
+      <span className="min-w-0 break-words">{label}</span>
     </p>
   );
 }
@@ -40,7 +40,7 @@ export default function SystemPulse() {
       data-testid="system-pulse"
       className="mx-2 mb-2 mt-4 rounded-md border border-vibe-border bg-vibe-surface p-2 lg:hidden xl:block"
     >
-      <p className="pb-1.5 text-[11px] font-semibold uppercase tracking-wide text-vibe-faint">
+      <p className="pb-1.5 text-xs text-vibe-faint">
         {t('pulse.title')}
       </p>
       <div className="space-y-1.5">

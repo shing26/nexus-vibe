@@ -9,7 +9,10 @@
  export const useThemeStore = create<ThemeStore>()(
    persist(
      (set) => ({
-       dark: window.matchMedia?.('(prefers-color-scheme: dark)').matches ?? false,
+      // Dark is the product default: the console world is where the audit
+      // stamps, mono timestamps and status lights were designed. `persist`
+      // restores a reader's stored choice (including light) on top of this.
+      dark: true,
        toggle: () => set((s) => ({ dark: !s.dark })),
      }),
      { name: 'nexus-vibe-theme' }
