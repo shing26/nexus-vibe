@@ -19,14 +19,32 @@ block, and `ai_review_log` carries a `code-review-agent` row for it.
 
 ## Invitation copy (sent verbatim to every participant)
 
-> 帮我测个东西，大概 10 分钟：
->
-> 1. 打开 <https://qualifier-discuss-marry.ngrok-free.dev>，注册一个账号。
-> 2. 发一篇帖子，正文里贴一段你自己写过的代码（什么语言都行，随便一段）。
-> 3. 发完等一两分钟，回到帖子页面，看 AI 给它的评审——分数、严重度、逐条发现。
->
-> 然后把这一路的感受用你自己的话发给我：卡住的地方、觉得奇怪的、觉得
-> 好的、觉得多余的，都算。原话最好——我会一字不改地记下来，只用来改东西。
+The block below is the message, ready to paste. It is reproduced here exactly
+as sent, so the wording every participant saw stays part of the record.
+
+```text
+帮我做个小测试，大概 10 分钟，全程只用浏览器：
+
+1. 打开 https://qualifier-discuss-marry.ngrok-free.dev
+   （如果先看到 ngrok 的提示页，点一下 "Visit Site" 就行）
+2. 注册一个账号（用户名随意，别用真实姓名）
+3. 发一篇帖子，正文里贴一段你自己写过的代码，语言不限，几行就够
+4. 等 1–2 分钟，回到这篇帖子，看「AI 评审」给出的分数、严重度和逐条建议
+
+这是个 AI 开发者社区的作品集项目，我想验证三件事：
+注册顺不顺、发帖卡不卡、AI 评审读不读得懂。
+
+做完把感受用你自己的话回我就行：哪里卡住、哪里看不懂、
+哪里觉得多余、哪里觉得还行。原话最好——我会一字不改地记进项目记录，
+不写你的名字，只记日期和原话。中途不想继续随时停，没关系。
+```
+
+Follow-up used when someone says they can start later (also sent verbatim):
+
+```text
+不急，你方便的时候做就行，全程 10 分钟左右。
+做完把原话发我；做不完或者卡住了也直接说，卡住本身就是我要的数据。
+```
 
 ## Verbatim feedback (unedited)
 
