@@ -157,3 +157,11 @@ The same pass fixed eleven broken relative links in the sibling ticket
 `docs/tickets/`. A repository-wide scan now resolves every relative link under `docs/` - the only
 two reported misses are an application route (`/post/101`) and two `file.java:49` citations that are
 paths with a line suffix, not links.
+
+## Superseded captures (2026-11-22)
+
+The Forge round changed the shell under ADR-0020, so the README's front-door captures were
+re-shot from the current tree. The new set and its provenance are in
+[readme-forge-front-door.md](readme-forge-front-door.md). The assets described above stay in
+`docs/assets/readme/` as the record of the pre-Forge front door; `README.md` no longer points at
+`async-review.png` or `community-feed.png`.
