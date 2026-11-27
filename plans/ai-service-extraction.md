@@ -610,7 +610,7 @@ recorded as a limitation rather than silently claimed.
 - **The application deadline exceeds the service's retry budget.** The read timeout
   moves from 65 s to 120 s (still below the 240 s lease). The service now enforces the
   request's `budget.timeoutMs` (falling back to
-  `maxAttempts * llm.timeout + backoffs`) and refuses to start an attempt that cannot
+  `maxAttempts * llm.timeout + backoffs + 1 s`) and refuses to start an attempt that cannot
   finish before it — including the repair pass and the first attempt — so a slow
   provider returns one failure to the application instead of triggering a duplicate
   review.

@@ -58,14 +58,16 @@ public class AiServiceProperties {
 
         /**
          * Worst-case wall time for one logical call: every attempt consumes
-         * the per-attempt timeout, plus the linear backoff between attempts.
-         * The application's read timeout must exceed this or the least
-         * retryable provider outage turns into a duplicate review.
+         * the per-attempt timeout, plus the linear backoff between attempts,
+         * plus a small margin so scheduling/class-loading time cannot make the
+         * first attempt look too expensive to start. The application's read
+         * timeout must exceed this or the least retryable provider outage
+         * turns into a duplicate review.
          */
         public long maxBudgetMillis() {
             long perAttempt = timeout.toMillis();
             long backoffs = retryBackoffMs * (long) maxAttempts * (maxAttempts - 1) / 2;
-            return perAttempt * maxAttempts + backoffs;
+            return perAttempt * maxAttempts + backoffs + 1_000L;
         }
     }
 
