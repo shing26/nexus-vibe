@@ -613,7 +613,9 @@ recorded as a limitation rather than silently claimed.
   `maxAttempts * llm.timeout + backoffs + 1 s`) and refuses to start an attempt that cannot
   finish before it — including the repair pass and the first attempt — so a slow
   provider returns one failure to the application instead of triggering a duplicate
-  review.
+  review. The service's attempt timeout is its own knob (`AI_LLM_TIMEOUT`, default 30 s),
+  not the application's direct-path `LLM_TIMEOUT`: local Ollama may need 180 s for the
+  direct path, but three 180 s service attempts cannot fit inside the 120 s deadline.
 - **`CONTEXT.md` is on the Allowed paths.** It was already modified for the two new
   terms; the list now says so.
 - **Mention replies are explicitly out of P0.** `@ai-agent` is a chat surface; the
@@ -622,6 +624,14 @@ recorded as a limitation rather than silently claimed.
   endpoint is argued for in a separate plan. The local/demo stack still runs against
   keyless Ollama, so mentions stay enabled there. The switch is listed in
   `.env.example` so a copied environment does not miss it.
+- **The service needs a different provider base URL from the direct path.** Spring AI
+  appends `/v1/chat/completions`, while `LlmClient` appends only `/chat/completions`.
+  `AI_LLM_ENDPOINT` is an optional provider-root override. When it is absent the service
+  derives the root from the application's `LLM_ENDPOINT` and strips a trailing `/v1`, so
+  a production environment that predates the split cannot silently fall back to Ollama.
+  The service probes `/v1/models`; the application keeps `LLM_ENDPOINT` with `/v1`.
+  The compose smoke test caught the `/v1/v1/...` 404 that unit tests with a fake gateway
+  could not.
 - **Parity evidence is layered, not a single live comparison.** The application test
   compares direct mode against the typed service response and the shared renderer; the
   service's own `ReviewServiceTest` pins model JSON to response fields. Prompt-text drift

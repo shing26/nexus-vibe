@@ -19,10 +19,15 @@ management:
 
 ai-service:
   llm:
-    base-url: ${LLM_ENDPOINT:http://localhost:11434/v1}
+    # Provider root: Spring AI appends /v1/chat/completions. AI_LLM_ENDPOINT
+    # overrides; otherwise reuse the direct path's LLM_ENDPOINT and normalize
+    # away its trailing /v1.
+    base-url: ${AI_LLM_ENDPOINT:${LLM_ENDPOINT:http://localhost:11434/v1}}
     api-key: ${LLM_API_KEY:ollama}
     model: ${LLM_MODEL:qwen2.5:3b}
-    timeout: ${LLM_TIMEOUT:30s}
+    # Deliberately independent of LLM_TIMEOUT: the direct path may need 180s,
+    # but three such attempts cannot fit inside the application's read deadline.
+    timeout: ${AI_LLM_TIMEOUT:30s}
     max-attempts: ${AI_LLM_MAX_ATTEMPTS:3}
     retry-backoff-ms: ${AI_LLM_RETRY_BACKOFF_MS:500}
     health-cache-seconds: ${AI_HEALTH_CACHE_SECONDS:60}

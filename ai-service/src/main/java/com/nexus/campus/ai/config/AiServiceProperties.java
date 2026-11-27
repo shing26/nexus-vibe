@@ -32,8 +32,14 @@ public class AiServiceProperties {
     @Setter
     public static class Llm {
 
+        /**
+         * Provider root, without a trailing {@code /v1}: Spring AI appends
+         * {@code /v1/chat/completions} itself. The application's direct
+         * {@code LlmClient} wants the {@code /v1} form, so the two processes
+         * cannot share the same value.
+         */
         @NotBlank
-        private String baseUrl = "http://localhost:11434/v1";
+        private String baseUrl = "http://localhost:11434";
 
         private String apiKey = "ollama";
 
@@ -54,6 +60,23 @@ public class AiServiceProperties {
         @AssertTrue(message = "ai-service.llm.timeout must be greater than zero")
         public boolean isTimeoutPositive() {
             return timeout != null && !timeout.isZero() && !timeout.isNegative();
+        }
+
+        /**
+         * Accept the direct path's {@code /v1} form as a fallback and normalize
+         * it to the provider root. An explicit {@code AI_LLM_ENDPOINT} is still
+         * preferred, but a production environment that only has the older
+         * {@code LLM_ENDPOINT} must not silently point the service at Ollama.
+         */
+        public void setBaseUrl(String baseUrl) {
+            String normalized = baseUrl == null ? null : baseUrl.trim();
+            while (normalized != null && normalized.endsWith("/")) {
+                normalized = normalized.substring(0, normalized.length() - 1);
+            }
+            if (normalized != null && normalized.endsWith("/v1")) {
+                normalized = normalized.substring(0, normalized.length() - 3);
+            }
+            this.baseUrl = normalized;
         }
 
         /**
