@@ -148,7 +148,7 @@ temporary container on port 18001):
 The honest reading is in `docs/research/ai-service-eval-2026-11-28.md`: the model never
 returned `high` or `critical`, so severity agreement is 0.40 even though score agreement
 is 0.85; `injection-forged-delimiter` was the one safety miss. The baseline is committed
-as `benchmark/eval/baseline-2026-11-28.json`. The harness tests are now **29 Python
+as `benchmark/eval/baseline-2026-11-28.json`. The harness tests are now **38 Python
 tests**, in addition to the 69 ai-service and 602 application tests.
 
 ## Scope
