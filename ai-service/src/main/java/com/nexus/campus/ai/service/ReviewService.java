@@ -26,6 +26,7 @@ public class ReviewService {
     private final PromptFactory prompts;
     private final RetryingModelCaller caller;
     private final AiServiceProperties properties;
+    private final ReviewDeduplicator dedup;
     private final MeterRegistry meters;
 
     private Counter success;
@@ -36,10 +37,12 @@ public class ReviewService {
     public ReviewService(PromptFactory prompts,
                          RetryingModelCaller caller,
                          AiServiceProperties properties,
+                         ReviewDeduplicator dedup,
                          MeterRegistry meters) {
         this.prompts = prompts;
         this.caller = caller;
         this.properties = properties;
+        this.dedup = dedup;
         this.meters = meters;
     }
 
@@ -52,6 +55,11 @@ public class ReviewService {
     }
 
     public ReviewResponse review(ReviewRequest request) {
+        String key = ReviewDeduplicator.key(request, properties.getLlm().getModel(), prompts.version());
+        return dedup.run(key, () -> compute(request));
+    }
+
+    private ReviewResponse compute(ReviewRequest request) {
         long started = System.nanoTime();
         PromptFactory.Prompt prompt = prompts.review(request);
         boolean repaired = false;
@@ -61,7 +69,9 @@ public class ReviewService {
         long deadline = started + budgetMillis * 1_000_000L;
 
         ModelGateway.ModelReply reply = caller.complete(
-                prompt.system(), prompt.user(), REVIEW_TEMPERATURE, remainingMillis(deadline));
+                prompt.system(), prompt.user(), REVIEW_TEMPERATURE,
+                ReviewSchema.forKind(prompt.kind()), context(request),
+                remainingMillis(deadline));
         JsonRepair.ParseResult parsed = JsonRepair.parse(reply.content());
         ReviewResponse response = parsed.ok() ? map(parsed.node(), reply, prompt.kind()) : null;
 
@@ -78,6 +88,7 @@ public class ReviewService {
                 retryUser = prompts.repairUserContent(parsed.error(), reply.content());
             }
             reply = caller.complete(retrySystem, retryUser, REPAIR_TEMPERATURE,
+                    ReviewSchema.forKind(prompt.kind()), context(request),
                     remainingMillis(deadline));
             parsed = JsonRepair.parse(reply.content());
             response = parsed.ok() ? map(parsed.node(), reply, prompt.kind()) : null;
@@ -103,6 +114,11 @@ public class ReviewService {
                 response.model(), response.usage(),
                 Math.max(0L, (System.nanoTime() - started) / 1_000_000L),
                 repaired);
+    }
+
+    private static RetryingModelCaller.CallContext context(ReviewRequest request) {
+        return new RetryingModelCaller.CallContext(
+                request.requestId(), request.traceId(), request.kind());
     }
 
     private ReviewResponse map(JsonNode node, ModelGateway.ModelReply reply, String kind) {

@@ -3,6 +3,7 @@ package com.nexus.campus.ai.config;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.AssertTrue;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Positive;
 import lombok.Getter;
 import lombok.Setter;
@@ -27,6 +28,9 @@ public class AiServiceProperties {
 
     @Valid
     private final Service service = new Service();
+
+    @Valid
+    private final Review review = new Review();
 
     @Getter
     @Setter
@@ -56,6 +60,30 @@ public class AiServiceProperties {
 
         @Positive
         private long healthCacheSeconds = 60;
+
+        /**
+         * {@code json_schema} (provider-enforced), {@code json_object} (schema-less JSON
+         * mode) or {@code none}. The direct path exposes the same three modes.
+         */
+        @Pattern(regexp = "json_schema|json_object|none")
+        private String responseFormat = "json_schema";
+
+        @Positive
+        private int breakerFailures = 5;
+
+        @Positive
+        private long breakerOpenSeconds = 30;
+
+        /**
+         * How long a granted half-open probe may run before another caller may reclaim
+         * it. Must exceed the per-attempt provider timeout in normal operation; the
+         * lease exists so an escaped {@link Error} cannot wedge the breaker forever.
+         */
+        @Positive
+        private long breakerProbeSeconds = 35;
+
+        /** Blank disables the JSONL attempt archive. */
+        private String archive = "";
 
         @AssertTrue(message = "ai-service.llm.timeout must be greater than zero")
         public boolean isTimeoutPositive() {
@@ -103,5 +131,16 @@ public class AiServiceProperties {
 
         @Positive
         private int maxContextTokens = 12000;
+    }
+
+    @Getter
+    @Setter
+    public static class Review {
+
+        /** Zero disables the result cache; in-flight coalescing still applies. */
+        private Duration cacheTtl = Duration.ofMinutes(10);
+
+        @Positive
+        private int cacheMaxEntries = 500;
     }
 }

@@ -6,6 +6,7 @@ import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.metadata.Usage;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
@@ -21,6 +22,7 @@ public class SpringAiModelGateway implements ModelGateway {
 
     private final ChatClient chatClient;
     private final String model;
+    private final AiServiceProperties properties;
     private final RestClient healthClient;
 
     public SpringAiModelGateway(ChatClient chatClient,
@@ -28,6 +30,9 @@ public class SpringAiModelGateway implements ModelGateway {
                                 RestClient.Builder restClientBuilder) {
         this.chatClient = chatClient;
         this.model = properties.getLlm().getModel();
+        this.properties = properties;
+        log.info("Provider configured: model={} structuredOutput={} baseUrl={}",
+                model, properties.getLlm().getResponseFormat(), properties.getLlm().getBaseUrl());
         this.healthClient = restClientBuilder
                 .baseUrl(properties.getLlm().getBaseUrl())
                 .defaultHeader("Accept", "application/json")
@@ -47,15 +52,12 @@ public class SpringAiModelGateway implements ModelGateway {
     }
 
     @Override
-    public ModelReply complete(String system, String user, double temperature) {
+    public ModelReply complete(String system, String user, double temperature, OutputSchema schema) {
         try {
             ChatResponse response = chatClient.prompt()
                     .system(system)
                     .user(user)
-                    .options(OpenAiChatOptions.builder()
-                            .model(model)
-                            .temperature(temperature)
-                            .build())
+                    .options(options(temperature, schema))
                     .call()
                     .chatResponse();
 
@@ -75,6 +77,42 @@ public class SpringAiModelGateway implements ModelGateway {
         } catch (Exception e) {
             throw translate(e);
         }
+    }
+
+    /**
+     * The direct path always sent a {@code response_format}; the extraction dropped it.
+     * {@code AI_LLM_RESPONSE_FORMAT} restores provider enforcement and keeps
+     * {@code json_object} available for providers without native schema support.
+     */
+    OpenAiChatOptions options(double temperature, OutputSchema schema) {
+        OpenAiChatOptions.Builder builder = OpenAiChatOptions.builder()
+                .model(model)
+                .temperature(temperature);
+        ResponseFormat format = responseFormat(schema);
+        if (format != null) {
+            builder.responseFormat(format);
+        }
+        return builder.build();
+    }
+
+    private ResponseFormat responseFormat(OutputSchema schema) {
+        String mode = properties.getLlm().getResponseFormat();
+        if (schema == null || mode == null || "none".equalsIgnoreCase(mode)) {
+            return null;
+        }
+        if ("json_object".equalsIgnoreCase(mode)) {
+            return ResponseFormat.builder()
+                    .type(ResponseFormat.Type.JSON_OBJECT)
+                    .build();
+        }
+        return ResponseFormat.builder()
+                .type(ResponseFormat.Type.JSON_SCHEMA)
+                .jsonSchema(ResponseFormat.JsonSchema.builder()
+                        .name(schema.name())
+                        .schema(schema.schema())
+                        .strict(schema.strict())
+                        .build())
+                .build();
     }
 
     /**

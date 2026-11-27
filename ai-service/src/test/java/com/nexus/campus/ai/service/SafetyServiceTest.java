@@ -4,7 +4,10 @@ import com.nexus.campus.ai.api.dto.SafetyRequest;
 import com.nexus.campus.ai.api.dto.SafetyResponse;
 import com.nexus.campus.ai.config.AiServiceProperties;
 import com.nexus.campus.ai.model.AiServiceException;
+import com.nexus.campus.ai.model.CallArchive;
 import com.nexus.campus.ai.model.ModelGateway;
+import com.nexus.campus.ai.model.OutputSchema;
+import com.nexus.campus.ai.model.ProviderCircuitBreaker;
 import com.nexus.campus.ai.model.RetryingModelCaller;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,12 +29,14 @@ class SafetyServiceTest {
     void setUp() {
         properties.getLlm().setMaxAttempts(1);
         properties.getLlm().setModel("test-model");
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
         gateway = new FakeGateway();
         service = new SafetyService(
                 new PromptFactory(properties),
-                new RetryingModelCaller(gateway, properties),
+                new RetryingModelCaller(gateway, properties,
+                        new ProviderCircuitBreaker(properties, meters), CallArchive.NOOP, meters),
                 properties,
-                new SimpleMeterRegistry());
+                meters);
         service.registerMetrics();
     }
 
@@ -75,7 +80,7 @@ class SafetyServiceTest {
         private final Deque<ModelReply> replies = new ArrayDeque<>();
 
         @Override
-        public ModelReply complete(String system, String user, double temperature) {
+        public ModelReply complete(String system, String user, double temperature, OutputSchema schema) {
             return replies.poll();
         }
 

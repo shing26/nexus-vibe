@@ -4,7 +4,10 @@ import com.nexus.campus.ai.api.dto.ReviewRequest;
 import com.nexus.campus.ai.api.dto.ReviewResponse;
 import com.nexus.campus.ai.config.AiServiceProperties;
 import com.nexus.campus.ai.model.AiServiceException;
+import com.nexus.campus.ai.model.CallArchive;
 import com.nexus.campus.ai.model.ModelGateway;
+import com.nexus.campus.ai.model.OutputSchema;
+import com.nexus.campus.ai.model.ProviderCircuitBreaker;
 import com.nexus.campus.ai.model.RetryingModelCaller;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -14,6 +17,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Deque;
 import java.util.List;
+import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -30,12 +34,16 @@ class ReviewServiceTest {
         properties.getLlm().setMaxAttempts(1);
         properties.getLlm().setModel("test-model");
         properties.getService().setMaxContextTokens(12000);
+        properties.getReview().setCacheTtl(Duration.ZERO);
+        SimpleMeterRegistry meters = new SimpleMeterRegistry();
         gateway = new FakeGateway();
         service = new ReviewService(
                 new PromptFactory(properties),
-                new RetryingModelCaller(gateway, properties),
+                new RetryingModelCaller(gateway, properties,
+                        new ProviderCircuitBreaker(properties, meters), CallArchive.NOOP, meters),
                 properties,
-                new SimpleMeterRegistry());
+                new ReviewDeduplicator(properties, meters),
+                meters);
         service.registerMetrics();
     }
 
@@ -96,7 +104,7 @@ class ReviewServiceTest {
         private final List<String> systems = new ArrayList<>();
 
         @Override
-        public ModelReply complete(String system, String user, double temperature) {
+        public ModelReply complete(String system, String user, double temperature, OutputSchema schema) {
             systems.add(system);
             return replies.poll();
         }

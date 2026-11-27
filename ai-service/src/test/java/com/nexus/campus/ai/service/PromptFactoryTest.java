@@ -7,6 +7,7 @@ import org.junit.jupiter.api.Test;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PromptFactoryTest {
@@ -51,5 +52,17 @@ class PromptFactoryTest {
         assertEquals("safety", prompt.kind());
         assertTrue(prompt.user().contains("hello"));
         assertTrue(prompt.system().contains("safe"));
+    }
+
+    @Test
+    void theVersionIsStableAndCoversTheSchemas() {
+        String first = factory().version();
+        String second = factory().version();
+
+        assertEquals(first, second);
+        assertEquals(12, first.length());
+        assertFalse(first.isBlank());
+        assertFalse(first.equals(ReviewSchema.fingerprint()),
+                "prompt version must not be the schema fingerprint alone");
     }
 }

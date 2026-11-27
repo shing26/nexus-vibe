@@ -46,7 +46,8 @@ class ProviderHealthProbeTest {
         }
 
         @Override
-        public ModelReply complete(String system, String user, double temperature) {
+        public ModelReply complete(String system, String user, double temperature,
+                                   com.nexus.campus.ai.model.OutputSchema schema) {
             throw new UnsupportedOperationException();
         }
 
