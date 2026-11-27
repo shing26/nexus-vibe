@@ -1,6 +1,6 @@
 # AI service extraction (P0)
 
-Status: **verified on `codex/ai-service-extraction` — PASS on acceptance 1–16.**
+Status: **verified on `codex/ai-service-extraction` — PASS on acceptance 1–16; draft PR #62.**
 Contract: `plans/ai-service-extraction.md`. Decision: ADR-0024.
 
 Verification record (independent subagent, not the implementer):
@@ -11,7 +11,9 @@ Verification record (independent subagent, not the implementer):
 - Frontend `vitest --maxWorkers=2` 162/162, `lint` and `build` clean; `frontend/` unchanged.
 - Both compose renders checked: base `AI_MODE=service`, `ai` no ports / 512 MiB, `app`
   key empty, `ai` key non-empty; direct overlay `AI_MODE=direct` with the key re-injected.
-- Uncommitted by design; no merge or push performed.
+- Committed as `cfd7b57` and opened as draft PR #62 against `master`.
+- CI on PR #62: backend, frontend, alert bridge, inference service and Docker image
+  build all pass.
 
 ## Scope
 
