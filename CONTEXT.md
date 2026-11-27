@@ -138,6 +138,17 @@ _Avoid_: Schema Rollback, DB Rollback, Revert Migration（与 Release Rollback �
 - 内容：结构化四段——评分、代码质量、安全隐患、优化建议
 - 展示：自动回帖（全文）+ 帖子详情页评分徽章
 
+## AI Service Boundary
+
+**AI Inference Service（AI 推理服务）**:
+承载模型侧关注点的独立进程：prompt 模板、provider 适配与怪癖、JSON 修复、provider 重试、token/耗时统计。检索不在本轮契约内，需单独一轮并有 recall@5 基线。它不持有业务状态、不写库、不决定失败语义。
+与 **Policy Owner** 相对：一次评审的结果先由推理服务产出，再由 Policy Owner 重新校验；推理服务返回 200 不等于结果有效。
+_Avoid_: AI Layer, AI Module, Model Proxy（后者专指只转发模型请求的薄代理方案）
+
+**Policy Owner（策略所有者）**:
+Java 主服务在 AI 链路中的角色：决定什么被评审、何时领取、失败如何处置、结果是否有效、如何落库与恢复。它可以替换推理实现（direct / service），但不把上述决定下放给推理服务。
+_Avoid_: Orchestrator, AI Controller
+
 ## LLM 语义安全审查
 
 四分类 + 按类处理：

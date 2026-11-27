@@ -1,0 +1,17 @@
+# Rollback overlay. The base compose file starts the AI service and sends the
+# application there; production begins on the direct path until P0 passes
+# verification. Use:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.direct.yml up -d app
+#
+# The overlay restores AI_MODE=direct and the provider key to the application
+# container without touching the AI service, so the rollback is one command and
+# no code change. Flip back by running plain `docker compose up -d app`.
+services:
+  app:
+    # The rollback must not wait for (or start) the thing being rolled back
+    # from: drop the base file's `depends_on: ai` entirely.
+    depends_on: !reset []
+    environment:
+      AI_MODE: direct
+      LLM_API_KEY: ${LLM_API_KEY:-}

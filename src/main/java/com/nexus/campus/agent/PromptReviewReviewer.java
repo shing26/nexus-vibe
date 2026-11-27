@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.VibePost;
-import com.nexus.campus.util.ContentSanitizer;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -139,30 +138,7 @@ public class PromptReviewReviewer extends AbstractLlmReviewer {
 
     @Override
     protected String renderBody(Verdict verdict) {
-        // LLM output is untrusted content: sanitize through the same whitelist
-        // as user comments (this path bypasses the request XSS filter).
-        String quality = ContentSanitizer.clean(verdict.quality);
-        String security = ContentSanitizer.clean(verdict.security);
-        String suggestions = ContentSanitizer.clean(verdict.suggestions);
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("**Overall Score**: ").append(verdict.score).append("/10\n\n");
-        sb.append("**Severity**: ").append(verdict.severity).append("\n\n");
-        sb.append("**Verdict**: ").append(verdict.approved ? "Approved" : "Needs Attention").append("\n\n");
-
-        if (quality != null && !quality.isBlank()) {
-            sb.append("### Structure & Clarity\n").append(quality).append("\n\n");
-        }
-        if (security != null && !security.isBlank()) {
-            sb.append("### Safety & Misuse\n").append(security).append("\n\n");
-        }
-        if (suggestions != null && !suggestions.isBlank()) {
-            sb.append("### Reproducibility\n").append(suggestions).append("\n");
-        }
-        sb.append("\n---\n*Score guide: 9-10 exemplary prompt craft · 7-8 solid, minor gaps · "
-                  + "5-6 workable with notable weaknesses · 3-4 fragile or underspecified · 0-2 unusable. "
-                  + "Edited prompts are re-reviewed automatically; the latest score wins.*\n");
-        return sb.toString();
+        return VerdictRenderer.renderPrompt(verdict);
     }
 
     private String truncate(String content) {

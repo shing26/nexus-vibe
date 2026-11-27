@@ -18,12 +18,12 @@ public class LlmHealthCache {
 
     private static final long HEALTH_CACHE_MILLIS = 5 * 60 * 1000;
 
-    private final LlmClient llmClient;
+    private final LlmHealthProbe llmClient;
 
     private volatile long lastHealthCheckAt;
     private volatile boolean lastHealthy;
 
-    public LlmHealthCache(LlmClient llmClient) {
+    public LlmHealthCache(LlmHealthProbe llmClient) {
         this.llmClient = llmClient;
     }
 

@@ -72,6 +72,12 @@ campus:
   es:
     uri: ${ES_URI:http://localhost:9200}
   ai:
+    mode: ${AI_MODE:direct}
+    service:
+      url: ${AI_SERVICE_URL:http://ai:8000}
+      api-key: ${AI_SERVICE_KEY:}
+      connect-timeout: ${AI_SERVICE_CONNECT_TIMEOUT:5s}
+      read-timeout: ${AI_SERVICE_READ_TIMEOUT:120s}
     reconcile:
       stale-minutes: ${AI_RECONCILE_STALE_MINUTES:10}
     review:

@@ -133,6 +133,47 @@ services:
       retries: 5
       start_period: 20s
 
+  ai:
+    build:
+      context: ./ai-service
+      dockerfile: Dockerfile
+    image: nexus-ai-service:${APP_TAG:?APP_TAG must be set in .env}
+    container_name: nexus-ai
+    restart: unless-stopped
+    logging: *default-logging
+    # Inference state is a prompt and a response in flight. 512m covers the JVM
+    # plus Spring AI's HTTP buffers; the cap keeps a runaway provider from
+    # taking the Docker VM down with it.
+    mem_limit: 512m
+    environment:
+      # Default to prod so a blank AI_SERVICE_KEY fails startup instead of
+      # leaving /v1/* open on nexus-net. Local compose supplies a non-blank
+      # dev key in .env.example; both containers must share it.
+      SPRING_PROFILES_ACTIVE: ${AI_SERVICE_PROFILE:-prod}
+      LLM_ENDPOINT: ${LLM_ENDPOINT:-http://ollama:11434/v1}
+      # Local Ollama ignores the key; Spring AI's client still wants a non-blank value.
+      LLM_API_KEY: ${LLM_API_KEY:-ollama}
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
+      LLM_TIMEOUT: ${LLM_TIMEOUT:-30s}
+      AI_SERVICE_KEY: ${AI_SERVICE_KEY:-}
+      AI_MAX_CONTEXT_TOKENS: ${AI_MAX_CONTEXT_TOKENS:-12000}
+      TZ: Asia/Shanghai
+    # Internal only: no `ports:` entry and no nginx route. The application is
+    # the only caller; Prometheus scrapes /metrics over nexus-net.
+    expose:
+      - "8000"
+    networks:
+      - nexus-net
+    depends_on:
+      ollama:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/healthz"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   app:
     build:
       context: .
@@ -159,6 +200,8 @@ services:
         condition: service_started
       ollama:
         condition: service_started
+      ai:
+        condition: service_healthy
     env_file: .env
     environment:
       SPRING_PROFILES_ACTIVE: prod
@@ -170,6 +213,16 @@ services:
       REDIS_PORT: "6379"
       ES_URI: ${ES_URI:-http://elasticsearch:9200}
       TZ: Asia/Shanghai
+      # The boundary switch. Compose defaults to service so local and demo runs
+      # exercise the split; production runs the direct overlay until P0
+      # sign-off (docker-compose.direct.yml), then starts the base stack.
+      AI_MODE: ${AI_MODE:-service}
+      AI_SERVICE_URL: http://ai:8000
+      AI_SERVICE_KEY: ${AI_SERVICE_KEY:-}
+      # D4: in service mode the provider credential belongs to the AI service.
+      # `environment` overrides `env_file`, so this is an explicit empty value,
+      # not an omission. The direct-mode overlay re-injects the key.
+      LLM_API_KEY: ""
       # Where logback/prod-file-appender.xml writes the structured JSON log (rotated, capped).
       LOG_DIR: /app/logs
       # Heap = 75% of the 768m container limit (~576m); G1 + rotating GC log

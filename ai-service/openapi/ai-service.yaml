@@ -1,0 +1,240 @@
+openapi: 3.1.0
+info:
+  title: Nexus AI Inference Service
+  version: 1.0.0
+  description: Internal typed contract between the forum application and the inference service.
+servers:
+  - url: http://ai:8000
+paths:
+  /v1/reviews:
+    post:
+      operationId: review
+      parameters:
+        - name: X-Trace-Id
+          in: header
+          required: true
+          description: Trace id propagated from the application; also copied into the service log.
+          schema:
+            type: string
+        - name: X-AI-Service-Key
+          in: header
+          required: false
+          description: Optional locally, required in production; a wrong or missing key is 401.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ReviewRequest'
+      responses:
+        '200':
+          description: Structured review verdict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReviewResponse'
+        '400':
+          description: Invalid request or non-retryable provider rejection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid X-AI-Service-Key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Provider unavailable or unparseable output
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '504':
+          description: Provider timeout
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v1/safety:
+    post:
+      operationId: classifySafety
+      parameters:
+        - name: X-Trace-Id
+          in: header
+          required: true
+          description: Trace id propagated from the application; also copied into the service log.
+          schema:
+            type: string
+        - name: X-AI-Service-Key
+          in: header
+          required: false
+          description: Optional locally, required in production; a wrong or missing key is 401.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SafetyRequest'
+      responses:
+        '200':
+          description: Four-class safety verdict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SafetyResponse'
+        '400':
+          description: Invalid request or non-retryable provider rejection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid X-AI-Service-Key
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Provider unavailable or unparseable output
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /healthz:
+    get:
+      operationId: healthz
+      responses:
+        '200':
+          description: Process is alive
+  /readyz:
+    get:
+      operationId: readyz
+      responses:
+        '200':
+          description: Cached provider probe is healthy
+        '503':
+          description: Cached provider probe is not healthy
+  /metrics:
+    get:
+      operationId: metrics
+      responses:
+        '200':
+          description: Prometheus text exposition
+components:
+  schemas:
+    ReviewRequest:
+      type: object
+      required: [requestId, postId, kind]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        postId:
+          type: integer
+          format: int64
+        kind:
+          type: string
+          enum: [code, prompt]
+        title:
+          type: string
+        content:
+          type: string
+        snippets:
+          type: array
+          items:
+            type: string
+        budget:
+          $ref: '#/components/schemas/Budget'
+    Budget:
+      type: object
+      properties:
+        maxContextTokens:
+          type: integer
+        timeoutMs:
+          type: integer
+    ReviewResponse:
+      type: object
+      required: [score, severity, quality, security, suggestions, approved, resultJson, model, usage, latencyMs]
+      properties:
+        score:
+          type: integer
+        severity:
+          type: string
+          enum: [low, medium, high, critical, unknown]
+        quality:
+          type: string
+        security:
+          type: string
+        suggestions:
+          type: string
+        approved:
+          type: boolean
+        resultJson:
+          type: string
+        model:
+          type: string
+        usage:
+          $ref: '#/components/schemas/Usage'
+        latencyMs:
+          type: integer
+          format: int64
+        repaired:
+          type: boolean
+    Usage:
+      type: object
+      properties:
+        promptTokens:
+          type: integer
+        completionTokens:
+          type: integer
+    SafetyRequest:
+      type: object
+      required: [requestId, text, surface]
+      properties:
+        requestId:
+          type: string
+        traceId:
+          type: string
+        text:
+          type: string
+        surface:
+          type: string
+          enum: [post, comment]
+    SafetyResponse:
+      type: object
+      required: [classification, confidence, reasons, resultJson, model, latencyMs]
+      properties:
+        classification:
+          type: string
+          enum: [safe, prompt_injection, harmful, spam]
+        confidence:
+          type: number
+          format: double
+        reasons:
+          type: array
+          items:
+            type: string
+        resultJson:
+          type: string
+        model:
+          type: string
+        latencyMs:
+          type: integer
+          format: int64
+    ErrorResponse:
+      type: object
+      required: [code, message, retryable]
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        retryable:
+          type: boolean

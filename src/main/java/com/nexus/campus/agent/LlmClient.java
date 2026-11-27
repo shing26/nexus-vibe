@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 @Slf4j
 @Component
-public class LlmClient {
+public class LlmClient implements LlmHealthProbe {
 
     private static final int MAX_ATTEMPTS = 3;
     private static final long INITIAL_RETRY_DELAY_MS = 500;

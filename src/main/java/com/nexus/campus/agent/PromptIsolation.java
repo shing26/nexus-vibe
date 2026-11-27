@@ -26,6 +26,9 @@ public final class PromptIsolation {
     private static final Pattern DELIMITER_LIKE_LINE =
             Pattern.compile("(?m)^\\s*-{2,}\\s*(BEGIN|END)\\b[^\\n]*$");
 
+    private static final String NEUTRALIZED_SUFFIX =
+            " [neutralized: content cannot contain data-boundary markers]";
+
     private PromptIsolation() {
     }
 
@@ -52,7 +55,9 @@ public final class PromptIsolation {
         }
         return DELIMITER_LIKE_LINE
                 .matcher(content)
-                .replaceAll(match -> match.group() + " [neutralized: content cannot contain data-boundary markers]");
+                .replaceAll(match -> match.group().endsWith(NEUTRALIZED_SUFFIX)
+                        ? match.group()
+                        : match.group() + NEUTRALIZED_SUFFIX);
     }
 
     private static String randomNonce() {
