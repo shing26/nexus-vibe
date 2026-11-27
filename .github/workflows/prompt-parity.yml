@@ -47,7 +47,7 @@ jobs:
         run: mvn -B -q -Djacoco.skip=true -Dtest=PromptTextCorpusTest -Dparity.out="$PWD/target/prompt-parity/direct" test
 
       - name: Render the service corpus
-        run: mvn -B -q -f ai-service/pom.xml -Dtest=PromptTextCorpusTest -Dparity.out="$PWD/target/prompt-parity/service" test
+        run: mvn -B -q -f ai-service/pom.xml -Dtest=PromptTextCorpusTest -Dparity.out="$PWD/ai-service/target/prompt-parity/service" test
 
       - name: Compare with the recorded baseline
         run: python3 scripts/prompt_parity.py
