@@ -1,0 +1,58 @@
+{
+  "buggy-code": {
+    "lineRatio": 0.9565,
+    "tokenJaccard": 0.8494,
+    "changedLines": 2,
+    "directLines": 23,
+    "serviceLines": 23
+  },
+  "clean-code": {
+    "lineRatio": 0.9565,
+    "tokenJaccard": 0.8344,
+    "changedLines": 2,
+    "directLines": 23,
+    "serviceLines": 23
+  },
+  "empty-title": {
+    "lineRatio": 0.9545,
+    "tokenJaccard": 0.8288,
+    "changedLines": 2,
+    "directLines": 22,
+    "serviceLines": 22
+  },
+  "injection": {
+    "lineRatio": 0.96,
+    "tokenJaccard": 0.8476,
+    "changedLines": 2,
+    "directLines": 25,
+    "serviceLines": 25
+  },
+  "multi-block": {
+    "lineRatio": 0.8013,
+    "tokenJaccard": 0.6692,
+    "changedLines": 905,
+    "directLines": 1826,
+    "serviceLines": 2729
+  },
+  "oversized-code": {
+    "lineRatio": 0.9997,
+    "tokenJaccard": 0.9984,
+    "changedLines": 2,
+    "directLines": 3841,
+    "serviceLines": 3841
+  },
+  "oversized-prompt": {
+    "lineRatio": 0.9524,
+    "tokenJaccard": 0.9961,
+    "changedLines": 2,
+    "directLines": 21,
+    "serviceLines": 21
+  },
+  "prompt-post": {
+    "lineRatio": 0.9524,
+    "tokenJaccard": 0.8555,
+    "changedLines": 2,
+    "directLines": 21,
+    "serviceLines": 21
+  }
+}
