@@ -1,6 +1,7 @@
 package com.nexus.campus.ai.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.nexus.campus.ai.model.OutputSchema;
 
 import java.security.MessageDigest;
@@ -15,7 +16,8 @@ import java.util.Map;
  */
 public final class ReviewSchema {
 
-    private static final ObjectMapper MAPPER = new ObjectMapper();
+    private static final ObjectMapper MAPPER = new ObjectMapper()
+            .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
     public static final OutputSchema CODE_REVIEW = new OutputSchema(
             "code_review", review("overall code quality", "security vulnerabilities, risks or concerns found"),

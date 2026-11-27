@@ -36,6 +36,8 @@ ai-service:
     response-format: ${AI_LLM_RESPONSE_FORMAT:json_schema}
     breaker-failures: ${AI_LLM_BREAKER_FAILURES:5}
     breaker-open-seconds: ${AI_LLM_BREAKER_OPEN_SECONDS:30}
+    # A probe that never reports back (Error, killed thread) is reclaimed after this.
+    breaker-probe-seconds: ${AI_LLM_BREAKER_PROBE_SECONDS:35}
     # Opt-in JSONL archive of every provider attempt. Blank = off; the operator owns
     # rotation and a container without a writable mount must still start.
     archive: ${AI_CALL_ARCHIVE:}

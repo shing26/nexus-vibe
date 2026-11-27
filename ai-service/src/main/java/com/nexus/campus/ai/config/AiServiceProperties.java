@@ -74,6 +74,14 @@ public class AiServiceProperties {
         @Positive
         private long breakerOpenSeconds = 30;
 
+        /**
+         * How long a granted half-open probe may run before another caller may reclaim
+         * it. Must exceed the per-attempt provider timeout in normal operation; the
+         * lease exists so an escaped {@link Error} cannot wedge the breaker forever.
+         */
+        @Positive
+        private long breakerProbeSeconds = 35;
+
         /** Blank disables the JSONL attempt archive. */
         private String archive = "";
 
@@ -129,7 +137,7 @@ public class AiServiceProperties {
     @Setter
     public static class Review {
 
-        /** Zero disables both the in-flight and the result cache. */
+        /** Zero disables the result cache; in-flight coalescing still applies. */
         private Duration cacheTtl = Duration.ofMinutes(10);
 
         @Positive

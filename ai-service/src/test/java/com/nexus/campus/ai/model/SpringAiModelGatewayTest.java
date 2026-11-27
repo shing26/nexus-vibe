@@ -62,6 +62,17 @@ class SpringAiModelGatewayTest {
     }
 
     @Test
+    void everyKindCarriesItsOwnSchemaNameAndStrictFlag() {
+        AiServiceProperties properties = new AiServiceProperties();
+        SpringAiModelGateway gateway = new SpringAiModelGateway(
+                mock(ChatClient.class), properties, RestClient.builder());
+
+        assertSchema(gateway, 0.2, ReviewSchema.CODE_REVIEW, "code_review");
+        assertSchema(gateway, 0.2, ReviewSchema.PROMPT_REVIEW, "prompt_review");
+        assertSchema(gateway, 0.0, ReviewSchema.SAFETY, "safety_classification");
+    }
+
+    @Test
     void jsonObjectModeDropsTheSchemaAndNoneDisablesTheFormat() {
         AiServiceProperties properties = new AiServiceProperties();
         SpringAiModelGateway gateway = new SpringAiModelGateway(
@@ -73,5 +84,15 @@ class SpringAiModelGatewayTest {
 
         properties.getLlm().setResponseFormat("none");
         assertNull(gateway.options(0.2, ReviewSchema.CODE_REVIEW).getResponseFormat());
+    }
+
+    private static void assertSchema(SpringAiModelGateway gateway, double temperature,
+                                     com.nexus.campus.ai.model.OutputSchema schema,
+                                     String expectedName) {
+        ResponseFormat format = gateway.options(temperature, schema).getResponseFormat();
+        assertNotNull(format);
+        assertEquals(ResponseFormat.Type.JSON_SCHEMA, format.getType());
+        assertEquals(expectedName, format.getJsonSchema().getName());
+        assertEquals(true, format.getJsonSchema().getStrict());
     }
 }

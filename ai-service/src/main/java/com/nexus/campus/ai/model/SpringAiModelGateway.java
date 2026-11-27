@@ -31,6 +31,8 @@ public class SpringAiModelGateway implements ModelGateway {
         this.chatClient = chatClient;
         this.model = properties.getLlm().getModel();
         this.properties = properties;
+        log.info("Provider configured: model={} structuredOutput={} baseUrl={}",
+                model, properties.getLlm().getResponseFormat(), properties.getLlm().getBaseUrl());
         this.healthClient = restClientBuilder
                 .baseUrl(properties.getLlm().getBaseUrl())
                 .defaultHeader("Accept", "application/json")

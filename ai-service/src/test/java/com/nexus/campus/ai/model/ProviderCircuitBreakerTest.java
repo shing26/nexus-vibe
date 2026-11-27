@@ -71,4 +71,19 @@ class ProviderCircuitBreakerTest {
         assertTrue(breaker.isOpen());
         assertThrows(AiServiceException.class, breaker::beforeCall);
     }
+
+    @Test
+    void aProbeThatNeverReportsIsReclaimed() throws InterruptedException {
+        properties.getLlm().setBreakerProbeSeconds(1);
+        breaker = new ProviderCircuitBreaker(properties, new SimpleMeterRegistry());
+        breaker.onFailure();
+        breaker.onFailure();
+        Thread.sleep(1_100L);
+
+        breaker.beforeCall();
+        assertTrue(breaker.isOpen(), "a half-open probe still reports the circuit as not closed");
+
+        Thread.sleep(1_100L);
+        breaker.beforeCall();
+    }
 }

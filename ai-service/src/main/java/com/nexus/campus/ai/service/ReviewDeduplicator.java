@@ -66,8 +66,16 @@ public class ReviewDeduplicator {
             return join(existing);
         }
 
-        misses.increment();
         try {
+            // A leader can finish between the first lookup and winning the in-flight
+            // slot; re-check so a descheduled caller does not pay for a duplicate.
+            ReviewResponse raced = lookup(key);
+            if (raced != null) {
+                hits.increment();
+                mine.complete(raced);
+                return raced;
+            }
+            misses.increment();
             ReviewResponse response = supplier.get();
             if (cacheable(response)) {
                 store(key, response);
