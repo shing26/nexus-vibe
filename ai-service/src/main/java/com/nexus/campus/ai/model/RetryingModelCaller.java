@@ -33,9 +33,10 @@ public class RetryingModelCaller {
         long perAttemptMillis = properties.getLlm().getTimeout().toMillis();
         long deadline = System.nanoTime() + Math.max(0L, budgetMillis) * 1_000_000L;
         for (int attempt = 1; ; attempt++) {
-            if (System.nanoTime() >= deadline) {
+            long remainingMillis = remainingMillis(deadline);
+            if (remainingMillis < perAttemptMillis) {
                 throw new AiServiceException("model_timeout", false, 504,
-                        "inference budget exhausted before attempt " + attempt);
+                        "inference budget cannot fit attempt " + attempt);
             }
             try {
                 return gateway.complete(system, user, temperature);
@@ -46,8 +47,7 @@ public class RetryingModelCaller {
                 log.warn("Provider attempt {}/{} failed ({}), retrying",
                         attempt, maxAttempts, e.getCode());
                 long backoff = properties.getLlm().getRetryBackoffMs() * attempt;
-                long remainingMillis = (deadline - System.nanoTime()) / 1_000_000L;
-                if (remainingMillis <= backoff + perAttemptMillis) {
+                if (remainingMillis(deadline) <= backoff + perAttemptMillis) {
                     throw new AiServiceException("model_timeout", false, 504,
                             "inference budget cannot fit another provider attempt");
                 }
@@ -64,5 +64,9 @@ public class RetryingModelCaller {
             throw new AiServiceException("model_timeout", false, 504,
                     "interrupted while backing off");
         }
+    }
+
+    private static long remainingMillis(long deadline) {
+        return Math.max(0L, (deadline - System.nanoTime() + 999_999L) / 1_000_000L);
     }
 }

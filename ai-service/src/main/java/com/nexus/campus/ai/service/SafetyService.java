@@ -88,6 +88,6 @@ public class SafetyService {
     }
 
     private static long remainingMillis(long deadline) {
-        return Math.max(1L, (deadline - System.nanoTime()) / 1_000_000L);
+        return Math.max(1L, (deadline - System.nanoTime() + 999_999L) / 1_000_000L);
     }
 }

@@ -60,14 +60,12 @@ class RetryingModelCallerTest {
     }
 
     @Test
-    void aBudgetThatCannotFitAnotherAttemptReturnsTimeoutInsteadOfRetrying() {
-        gateway.alwaysFail = new AiServiceException("model_timeout", true, 504, "slow");
-
+    void aBudgetShorterThanOneAttemptMakesNoProviderCall() {
         AiServiceException error = assertThrows(AiServiceException.class,
                 () -> caller.complete("s", "u", 0.2, 1_000L));
 
         assertEquals("model_timeout", error.getCode());
-        assertEquals(1, gateway.calls);
+        assertEquals(0, gateway.calls);
     }
 
     @Test

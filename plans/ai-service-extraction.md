@@ -611,15 +611,17 @@ recorded as a limitation rather than silently claimed.
   moves from 65 s to 120 s (still below the 240 s lease). The service now enforces the
   request's `budget.timeoutMs` (falling back to
   `maxAttempts * llm.timeout + backoffs`) and refuses to start an attempt that cannot
-  finish before it, so a slow provider returns one failure to the application instead of
-  triggering a duplicate review.
+  finish before it — including the repair pass and the first attempt — so a slow
+  provider returns one failure to the application instead of triggering a duplicate
+  review.
 - **`CONTEXT.md` is on the Allowed paths.** It was already modified for the two new
   terms; the list now says so.
 - **Mention replies are explicitly out of P0.** `@ai-agent` is a chat surface; the
   service exposes review and safety only. In production service mode the application has
   no provider key, so the flip requires `CAMPUS_AI_MENTION_ENABLED=false` until a chat
   endpoint is argued for in a separate plan. The local/demo stack still runs against
-  keyless Ollama, so mentions stay enabled there.
+  keyless Ollama, so mentions stay enabled there. The switch is listed in
+  `.env.example` so a copied environment does not miss it.
 - **Parity evidence is layered, not a single live comparison.** The application test
   compares direct mode against the typed service response and the shared renderer; the
   service's own `ReviewServiceTest` pins model JSON to response fields. Prompt-text drift
