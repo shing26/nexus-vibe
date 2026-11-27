@@ -106,6 +106,51 @@ at `ollama:11434`): the first `POST /v1/reviews` took 24.4 s and returned `score
 `ai.review.dedup{outcome="hit"}=1` and `{outcome="miss"}=1`. `ai-service` now has 67
 tests, 0 failures.
 
+## Increment B — measurement (2026-11-28)
+
+Increment A made the service deeper; increment B makes its quality measurable:
+
+- **Prompt version.** `PromptFactory.version()` is the first 12 hex characters of a
+  SHA-256 over the static templates and schemas. It is returned as the
+  `X-Prompt-Version` response header on `/v1/reviews` and `/v1/safety`, logged on every
+  request, and written into call-archive records. A new literal-hash assertion in
+  `PromptFactoryTest` (`4507b4663c31`) fails on any template edit until the change is
+  deliberate.
+- **Golden set.** `benchmark/eval/review-cases.json` has 20 cases (defects, clean code,
+  prompt quality, four injected languages) with an expected score band, defensible
+  severities and a rationale; `benchmark/eval/safety-cases.json` has 12 cases across
+  `post`/`comment` and the four classes.
+- **Harness.** `scripts/ai_eval.py` posts each case, reports score/severity/class
+  agreement, invalid rate, repair rate, nearest-rank p50/p95 latency, token totals and
+  evidence counts, writes JSON, and turns a run into a gate with
+  `--baseline <file> --tolerance 0.05` (agreement may not drop, `invalidRate` may not
+  rise), plus a per-case check: more than one case that passed in the baseline may
+  not stop passing (`--case-regressions`), and a missing case or section is a
+  failure. A truncated baseline cannot switch a gate off. `--fail-below <ratio>`
+  is the absolute floor. `scripts/test_ai_eval.py` covers corpus validation, the
+  maths, both gate directions, the constant-`4/medium` case and an end-to-end
+  stub-server run: **38 tests**, no model.
+- **CI.** `.github/workflows/ai-eval.yml` runs those 38 tests. It does not call a model,
+  because pull requests have no provider credential; the baseline is a local/nightly
+  act.
+
+Live baseline on the same local stack (`qwen2.5:3b`, prompt version `4507b4663c31`,
+temporary container on port 18001):
+
+| metric | review (20) | safety (12) |
+|---|---|---|
+| invalid | 0 | 0 |
+| agreement | score 0.85, severity 0.40 | class 0.9167 |
+| repair rate | 0 | n/a |
+| p50 / p95 | 15.0 s / 27.8 s | 7.8 s / 21.1 s |
+| tokens | 6,032 / 2,171 | n/a |
+
+The honest reading is in `docs/research/ai-service-eval-2026-11-28.md`: the model never
+returned `high` or `critical`, so severity agreement is 0.40 even though score agreement
+is 0.85; `injection-forged-delimiter` was the one safety miss. The baseline is committed
+as `benchmark/eval/baseline-2026-11-28.json`. The harness tests are now **38 Python
+tests**, in addition to the 69 ai-service and 602 application tests.
+
 ## Scope
 
 Move the model-facing half of the AI pipeline into an independent Java 21 / Spring Boot

@@ -150,7 +150,13 @@ Modified:
 
 - **A — capability parity:** implemented on `codex/ai-service-depth-a`. 67 ai-service
   tests; live dedup evidence recorded in the ticket.
-- **B — measurement:** pending.
+- **B — measurement:** implemented on `codex/ai-service-depth-b`. The prompt version is
+  `4507b4663c31` and is returned as `X-Prompt-Version`; the golden set is 20 review
+  cases plus 12 safety cases; `scripts/test_ai_eval.py` covers the harness without a
+  model (38 tests); the local `qwen2.5:3b` baseline is
+  `benchmark/eval/baseline-2026-11-28.json` (score agreement 0.85, severity 0.40,
+  safety class 0.9167), documented in
+  `docs/research/ai-service-eval-2026-11-28.md`.
 - **C — evidence anchoring:** pending.
 
 ## Verification commands

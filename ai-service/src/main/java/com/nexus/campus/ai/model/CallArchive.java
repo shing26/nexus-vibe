@@ -16,6 +16,7 @@ public interface CallArchive {
             String requestId,
             String traceId,
             String kind,
+            String promptVersion,
             int attempt,
             String model,
             double temperature,

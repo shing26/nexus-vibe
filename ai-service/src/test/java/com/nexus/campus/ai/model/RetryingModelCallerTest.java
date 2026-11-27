@@ -23,7 +23,7 @@ class RetryingModelCallerTest {
     /** Three 30 s attempts plus backoff, with headroom. */
     private static final long BUDGET_MILLIS = 120_000L;
     private static final RetryingModelCaller.CallContext CONTEXT =
-            new RetryingModelCaller.CallContext("req-1", "trace-1", "code");
+            new RetryingModelCaller.CallContext("req-1", "trace-1", "code", "prompt-v1");
 
     private final AiServiceProperties properties = new AiServiceProperties();
     private RecordingGateway gateway;

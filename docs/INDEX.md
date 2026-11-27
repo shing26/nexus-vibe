@@ -70,6 +70,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [project-module-audit-2026-09](research/project-module-audit-2026-09.md) | Module-by-module structure and completion audit |
 | [project-structure-and-deep-dive-2026-09-18](research/project-structure-and-deep-dive-2026-09-18.md) | Whole-project walkthrough for deep-dive questions: packages, flows, mechanisms, data model, verification and known trade-offs |
 | [prompt-parity-2026-11-28](research/prompt-parity-2026-11-28.md) | Direct-mode and AI-service prompts compared on eight fixtures: seven differ only in the schema sentence, one multi-block payload differs, and the baseline gates further drift |
+| [ai-service-eval-2026-11-28](research/ai-service-eval-2026-11-28.md) | First golden-set baseline for the service: 20 review and 12 safety cases, score agreement 0.85 but severity 0.40 because the local 3B model never rates anything high, plus the regression gate and what the set cannot prove |
 
 ## Work items — `docs/tickets/`
 
