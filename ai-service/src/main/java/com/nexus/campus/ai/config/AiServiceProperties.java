@@ -33,7 +33,13 @@ public class AiServiceProperties {
     public static class Llm {
 
         @NotBlank
-        private String baseUrl = "http://localhost:11434/v1";
+        /**
+         * Provider root, without a trailing {@code /v1}: Spring AI appends
+         * {@code /v1/chat/completions} itself. The application's direct
+         * {@code LlmClient} wants the {@code /v1} form, so the two processes
+         * cannot share the same value.
+         */
+        private String baseUrl = "http://localhost:11434";
 
         private String apiKey = "ollama";
 

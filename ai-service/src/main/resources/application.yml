@@ -19,7 +19,8 @@ management:
 
 ai-service:
   llm:
-    base-url: ${LLM_ENDPOINT:http://localhost:11434/v1}
+    # Provider root: Spring AI appends /v1/chat/completions.
+    base-url: ${LLM_ENDPOINT:http://localhost:11434}
     api-key: ${LLM_API_KEY:ollama}
     model: ${LLM_MODEL:qwen2.5:3b}
     timeout: ${LLM_TIMEOUT:30s}

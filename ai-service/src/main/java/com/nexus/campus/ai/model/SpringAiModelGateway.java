@@ -81,7 +81,9 @@ public class SpringAiModelGateway implements ModelGateway {
     @Override
     public boolean isHealthy() {
         try {
-            healthClient.get().uri("/models").retrieve().toBodilessEntity();
+            // baseUrl is the provider root, so the OpenAI-compatible model
+            // listing lives under /v1/models.
+            healthClient.get().uri("/v1/models").retrieve().toBodilessEntity();
             return true;
         } catch (Exception e) {
             log.debug("Provider health probe failed: {}", e.getMessage());

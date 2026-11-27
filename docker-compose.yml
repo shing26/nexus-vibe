@@ -150,11 +150,16 @@ services:
       # leaving /v1/* open on nexus-net. Local compose supplies a non-blank
       # dev key in .env.example; both containers must share it.
       SPRING_PROFILES_ACTIVE: ${AI_SERVICE_PROFILE:-prod}
-      LLM_ENDPOINT: ${LLM_ENDPOINT:-http://ollama:11434/v1}
+      # Provider root, not the /v1 form the application's direct LlmClient
+      # uses: Spring AI appends /v1/chat/completions.
+      LLM_ENDPOINT: ${AI_LLM_ENDPOINT:-http://ollama:11434}
       # Local Ollama ignores the key; Spring AI's client still wants a non-blank value.
       LLM_API_KEY: ${LLM_API_KEY:-ollama}
       LLM_MODEL: ${LLM_MODEL:-qwen2.5:7b}
-      LLM_TIMEOUT: ${LLM_TIMEOUT:-30s}
+      # The service has its own attempt timeout: the application's direct-path
+      # LLM_TIMEOUT may be much larger (local Ollama), and three such attempts
+      # cannot fit inside the application's service read timeout.
+      LLM_TIMEOUT: ${AI_LLM_TIMEOUT:-30s}
       AI_SERVICE_KEY: ${AI_SERVICE_KEY:-}
       AI_MAX_CONTEXT_TOKENS: ${AI_MAX_CONTEXT_TOKENS:-12000}
       TZ: Asia/Shanghai
