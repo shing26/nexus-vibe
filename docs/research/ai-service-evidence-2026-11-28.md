@@ -85,8 +85,9 @@ why the baseline is a separate file rather than an edit to the B baseline.
 The same sentence changes the direct-vs-service prompt parity measurement. Mean
 line similarity stays 0.9417 because the sentence replaces one existing line,
 but token Jaccard on the five system-prompt fixtures drops from 0.83–0.86 to
-0.72–0.76; `multi-block` drops from 0.6692 to 0.6678, and the two oversized
-fixtures move by less than 0.001. `benchmark/parity/prompt-drift-baseline.json`
+0.72–0.76; `multi-block` drops from 0.6692 to 0.6678, `oversized-code` from
+0.9984 to 0.9970 (Δ0.0014) and `oversized-prompt` from 0.9961 to 0.9926
+(Δ0.0035). `benchmark/parity/prompt-drift-baseline.json`
 was regenerated deliberately. This is a service-only instruction by design; the
 application's direct prompt has no evidence contract to populate.
 
