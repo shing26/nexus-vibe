@@ -1,6 +1,6 @@
 # AI service extraction (P0)
 
-Status: **verified on `codex/ai-service-e2e-fixes` — 15 PASS, #3 PARTIAL (A8 limitation); PR #63.**
+Status: **verified and deployed on the local/demo stack as `20261127-02` — 15 PASS, #3 PARTIAL (A8 limitation); PR #63.**
 Contract: `plans/ai-service-extraction.md`. Decision: ADR-0024.
 
 Verification record (independent verifier, not the implementer):
@@ -22,6 +22,29 @@ Verification record (independent verifier, not the implementer):
   worst case is 1.5 s, below `AiServiceClient`'s 2 s `/readyz` read timeout.
 - CI on PR #63: backend, frontend, alert bridge, inference service and image-change
   workflows all pass (runs `46006974613` / `46006974649`).
+
+## Deployment smoke (2026-11-27)
+
+Release `20261127-02` was built from `master` `3f78308` and recreated on the local/demo
+stack: `nexus-app`, `nexus-ai` and `nexus-web` all use the `20261127-02` image tag;
+`nexus-app` and `nexus-ai` report healthy. The app's `/actuator/health/deps` reports
+`llm: UP`, and `app -> ai:8000/readyz` returns `{"status":"ready"}`.
+
+Smoke evidence, measured after pre-warming the local `qwen2.5:3b` model:
+
+- `POST /v1/reviews` returned HTTP 200 with `model=qwen2.5:3b`, `score=2`,
+  `severity=low`, `approved=false`, `repaired=false`, 288 prompt tokens / 98 completion
+  tokens, and 14.6 s provider latency (15.4 s wall time).
+- The same endpoint without `X-AI-Service-Key` returned HTTP 401.
+- `https://qualifier-discuss-marry.ngrok-free.dev/` returned 200; the authenticated
+  `/api/posts` route returned 401, so the public front door and auth boundary are live.
+- Runtime config: `AI_MODE=service`, `SPRING_PROFILES_ACTIVE=prod`,
+  `AI_LLM_ENDPOINT=http://ollama:11434/v1`, `AI_LLM_TIMEOUT=30s`, app provider key empty,
+  `CAMPUS_AI_MENTION_ENABLED=false`.
+
+This smoke uses the local Ollama provider, not the hosted production model. Cold-start
+latency remains a measured P2: with a cold model, 30 s per attempt can be tight; the
+smoke pre-warmed the model rather than changing the production timeout budget.
 
 ## Scope
 
