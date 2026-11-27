@@ -12,7 +12,7 @@
     "scoreAgreement": 0.85,
     "severityAgreement": 0.4,
     "repairRate": 0.0,
-    "latencyP50Ms": 15411.8,
+    "latencyP50Ms": 14961.8,
     "latencyP95Ms": 27842.4,
     "promptTokens": 6032,
     "completionTokens": 2171,
@@ -346,8 +346,8 @@
     "invalid": 0,
     "invalidRate": 0.0,
     "classificationAgreement": 0.9167,
-    "latencyP50Ms": 7852.4,
-    "latencyP95Ms": 12053.1,
+    "latencyP50Ms": 7757.2,
+    "latencyP95Ms": 21073.9,
     "results": [
       {
         "name": "safe-layout-question",

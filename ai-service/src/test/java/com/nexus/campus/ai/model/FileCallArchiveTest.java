@@ -27,6 +27,7 @@ class FileCallArchiveTest {
         JsonNode first = new ObjectMapper().readTree(lines.get(0));
         assertEquals("req-1", first.path("requestId").asText());
         assertEquals("success", first.path("outcome").asText());
+        assertEquals("prompt-v1", first.path("promptVersion").asText());
         assertEquals(12, first.path("promptTokens").asInt());
         assertEquals("system text", first.path("system").asText());
     }

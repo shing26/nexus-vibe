@@ -175,42 +175,98 @@ class SummarizeTest(unittest.TestCase):
 
 class CompareTest(unittest.TestCase):
     BASELINE = {
-        "review": {"scoreAgreement": 0.8, "severityAgreement": 0.9, "invalidRate": 0.0},
-        "safety": {"classificationAgreement": 0.75, "invalidRate": 0.0},
+        "review": {
+            "scoreAgreement": 0.8, "severityAgreement": 0.9, "invalidRate": 0.0,
+            "results": [
+                {"name": "a", "scoreOk": True, "severityOk": True},
+                {"name": "b", "scoreOk": True, "severityOk": True},
+            ],
+        },
+        "safety": {
+            "classificationAgreement": 0.75, "invalidRate": 0.0,
+            "results": [
+                {"name": "s1", "match": True},
+                {"name": "s2", "match": True},
+            ],
+        },
     }
+
+    @staticmethod
+    def copy_of(baseline):
+        return json.loads(json.dumps(baseline))
 
     def test_identical_run_passes(self):
         self.assertEqual([], ai_eval.compare(self.BASELINE, self.BASELINE, 0.05))
 
     def test_agreement_drop_beyond_tolerance_fails(self):
-        current = {
-            "review": {"scoreAgreement": 0.70, "severityAgreement": 0.9, "invalidRate": 0.0},
-            "safety": {"classificationAgreement": 0.75, "invalidRate": 0.0},
-        }
+        current = self.copy_of(self.BASELINE)
+        current["review"]["scoreAgreement"] = 0.70
         failures = ai_eval.compare(current, self.BASELINE, 0.05)
         self.assertEqual(1, len(failures))
         self.assertIn("review.scoreAgreement", failures[0])
 
     def test_agreement_drop_inside_tolerance_passes(self):
-        current = {
-            "review": {"scoreAgreement": 0.76, "severityAgreement": 0.9, "invalidRate": 0.0},
-            "safety": {"classificationAgreement": 0.75, "invalidRate": 0.0},
-        }
+        current = self.copy_of(self.BASELINE)
+        current["review"]["scoreAgreement"] = 0.76
         self.assertEqual([], ai_eval.compare(current, self.BASELINE, 0.05))
 
     def test_invalid_rate_rise_fails(self):
-        current = {
-            "review": {"scoreAgreement": 0.8, "severityAgreement": 0.9, "invalidRate": 0.10},
-            "safety": {"classificationAgreement": 0.75, "invalidRate": 0.0},
-        }
+        current = self.copy_of(self.BASELINE)
+        current["review"]["invalidRate"] = 0.10
         failures = ai_eval.compare(current, self.BASELINE, 0.05)
         self.assertEqual(1, len(failures))
         self.assertIn("review.invalidRate", failures[0])
 
-    def test_missing_section_is_skipped(self):
-        current = {"review": {"scoreAgreement": 0.8, "severityAgreement": 0.9,
-                              "invalidRate": 0.0}}
+    def test_missing_section_in_this_run_fails(self):
+        current = self.copy_of(self.BASELINE)
+        del current["safety"]
+        failures = ai_eval.compare(current, self.BASELINE, 0.05)
+        self.assertEqual(1, len(failures))
+        self.assertIn("safety: missing from this run", failures[0])
+
+    def test_missing_section_in_the_baseline_fails(self):
+        baseline = self.copy_of(self.BASELINE)
+        del baseline["safety"]
+        failures = ai_eval.compare(self.BASELINE, baseline, 0.05)
+        self.assertEqual(1, len(failures))
+        self.assertIn("safety: missing from the baseline", failures[0])
+
+    def test_a_baseline_without_per_case_results_fails(self):
+        baseline = self.copy_of(self.BASELINE)
+        del baseline["review"]["results"]
+        failures = ai_eval.compare(self.BASELINE, baseline, 0.05)
+        self.assertEqual(1, len(failures))
+        self.assertIn("baseline has no per-case results", failures[0])
+
+    def test_a_constant_response_cannot_hide_behind_aggregate_tolerance(self):
+        current = self.copy_of(self.BASELINE)
+        for case in current["review"]["results"]:
+            case["scoreOk"] = False
+            case["severityOk"] = False
+
+        failures = ai_eval.compare(current, self.BASELINE, 0.05)
+
+        self.assertEqual(1, len(failures))
+        self.assertIn("case regressions", failures[0])
+        self.assertIn("a.scoreOk", failures[0])
+
+    def test_one_case_regression_is_allowed(self):
+        current = self.copy_of(self.BASELINE)
+        current["review"]["results"][0]["scoreOk"] = False
         self.assertEqual([], ai_eval.compare(current, self.BASELINE, 0.05))
+
+    def test_a_missing_case_is_a_regression(self):
+        current = self.copy_of(self.BASELINE)
+        current["review"]["results"].pop()
+        failures = ai_eval.compare(current, self.BASELINE, 0.05)
+        self.assertIn("missing from this run", failures[0])
+
+    def test_safety_match_regression_fails(self):
+        current = self.copy_of(self.BASELINE)
+        for case in current["safety"]["results"]:
+            case["match"] = False
+        failures = ai_eval.compare(current, self.BASELINE, 0.05)
+        self.assertIn("s1.match", failures[0])
 
 
 class FloorTest(unittest.TestCase):
@@ -343,6 +399,43 @@ class EndToEndTest(unittest.TestCase):
                                  "--results", str(Path(temp) / "results.json")])
             self.assertEqual(1, code)
             self.assertIn("review.scoreAgreement", stderr.getvalue())
+
+    def test_a_partial_run_cannot_use_a_full_baseline(self):
+        with stub_service() as (base_url, _), tempfile.TemporaryDirectory() as temp:
+            baseline = Path(temp) / "baseline.json"
+            run_main(["--base-url", base_url, "--write-baseline", str(baseline),
+                      "--results", str(Path(temp) / "write.json")])
+            with contextlib.redirect_stdout(io.StringIO()), \
+                    contextlib.redirect_stderr(io.StringIO()) as stderr:
+                code = run_main(["--base-url", base_url, "--only", "review",
+                                 "--baseline", str(baseline),
+                                 "--results", str(Path(temp) / "results.json")])
+            self.assertEqual(1, code)
+            self.assertIn("safety: missing from this run", stderr.getvalue())
+
+    def test_safety_only_baseline_still_records_service_metadata(self):
+        with stub_service() as (base_url, _), tempfile.TemporaryDirectory() as temp:
+            baseline = Path(temp) / "baseline.json"
+            run_main(["--base-url", base_url, "--only", "safety",
+                      "--write-baseline", str(baseline),
+                      "--results", str(Path(temp) / "results.json")])
+            report = json.loads(baseline.read_text(encoding="utf-8"))
+            self.assertEqual("abc123def456", report["service"]["promptVersion"])
+            self.assertEqual("stub", report["service"]["model"])
+
+    def test_a_constant_reviewer_fails_the_case_gate_despite_better_aggregates(self):
+        with tempfile.TemporaryDirectory() as temp:
+            baseline = Path(temp) / "baseline.json"
+            with stub_service(review_score=7) as (base_url, _):
+                run_main(["--base-url", base_url, "--write-baseline", str(baseline),
+                          "--results", str(Path(temp) / "write.json")])
+            with stub_service(review_score=3) as (base_url, _):
+                with contextlib.redirect_stdout(io.StringIO()), \
+                        contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    code = run_main(["--base-url", base_url, "--baseline", str(baseline),
+                                     "--results", str(Path(temp) / "results.json")])
+            self.assertEqual(1, code)
+            self.assertIn("case regressions", stderr.getvalue())
 
 
 if __name__ == "__main__":

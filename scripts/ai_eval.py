@@ -15,7 +15,7 @@ from __future__ import annotations
 
 import argparse
 import json
-import statistics
+import math
 import sys
 import time
 import urllib.error
@@ -74,7 +74,7 @@ def percentile(values: list[float], fraction: float) -> float:
     if not values:
         return 0.0
     ordered = sorted(values)
-    index = max(0, min(len(ordered) - 1, int(round(fraction * (len(ordered) - 1)))))
+    index = max(0, min(len(ordered) - 1, math.ceil(fraction * len(ordered)) - 1))
     return round(ordered[index], 1)
 
 
@@ -111,11 +111,25 @@ def summarize_safety(results: list[dict]) -> dict:
     }
 
 
-def compare(current: dict, baseline: dict, tolerance: float) -> list[str]:
-    """Higher is better for agreement, lower for invalidRate."""
+def compare(current: dict, baseline: dict, tolerance: float,
+            max_case_regressions: int = 1) -> list[str]:
+    """Higher is better for agreement, lower for invalidRate.
+
+    Aggregate tolerance alone cannot distinguish a real run from a reviewer
+    that always answers the corpus's most common band. The per-case check
+    therefore fails when more than ``max_case_regressions`` cases that passed
+    in the baseline stop passing. A section missing from either side is an
+    error: a truncated baseline must not silently disable a gate.
+    """
     failures = []
     for section in ("review", "safety"):
-        if section not in current or section not in baseline:
+        if section not in current and section not in baseline:
+            continue
+        if section not in current:
+            failures.append(f"{section}: missing from this run")
+            continue
+        if section not in baseline:
+            failures.append(f"{section}: missing from the baseline")
             continue
         for metric in ("scoreAgreement", "severityAgreement", "classificationAgreement"):
             if metric in current[section] and metric in baseline[section]:
@@ -130,6 +144,45 @@ def compare(current: dict, baseline: dict, tolerance: float) -> list[str]:
                 failures.append(
                     f"{section}.invalidRate: {current[section]['invalidRate']:.4f} > "
                     f"baseline {baseline[section]['invalidRate']:.4f} + {tolerance}")
+        failures.extend(case_regressions(section, current[section], baseline[section],
+                                         max_case_regressions))
+    return failures
+
+
+def case_regressions(section: str, current: dict, baseline: dict,
+                     allowed: int) -> list[str]:
+    base_cases = baseline.get("results")
+    current_cases = current.get("results")
+    if not base_cases:
+        return [f"{section}: baseline has no per-case results"]
+    if not current_cases:
+        return [f"{section}: this run has no per-case results"]
+
+    base = {case["name"]: case for case in base_cases}
+    now = {case["name"]: case for case in current_cases}
+    missing = []
+    regressions = []
+    for name, before in base.items():
+        after = now.get(name)
+        if after is None:
+            missing.append(name)
+            continue
+        if section == "review":
+            for metric in ("scoreOk", "severityOk"):
+                if before.get(metric) and not after.get(metric):
+                    regressions.append(f"{name}.{metric}")
+        elif before.get("match") and not after.get("match"):
+            regressions.append(f"{name}.match")
+    failures = []
+    if missing:
+        failures.append(
+            f"{section}: {len(missing)} baseline cases missing from this run: "
+            + ", ".join(missing[:5]))
+    if len(regressions) <= allowed:
+        return failures
+    shown = ", ".join(regressions[:5])
+    failures.append(
+        f"{section}: {len(regressions)} case regressions (allowed {allowed}): {shown}")
     return failures
 
 
@@ -261,6 +314,8 @@ def main() -> int:
                         help="fail when any agreement metric is below this ratio")
     parser.add_argument("--results", type=Path, default=ROOT / "target" / "ai-eval" / "results.json")
     parser.add_argument("--tolerance", type=float, default=0.05)
+    parser.add_argument("--case-regressions", type=int, default=1,
+                        help="case-level regressions tolerated against a baseline")
     parser.add_argument("--timeout", type=float, default=180.0)
     parser.add_argument("--budget-ms", type=int, default=115_000)
     parser.add_argument("--only", choices=["all", "review", "safety"], default="all")
@@ -292,6 +347,14 @@ def main() -> int:
         results = run_safety(args.base_url, safety_cases, args.key, args.timeout)
         report["safety"] = summarize_safety(results)
         report["safety"]["results"] = results
+        versions = {r["promptVersion"] for r in results if r.get("promptVersion")}
+        models = {r["model"] for r in results if r.get("model")}
+        if not report["service"].get("promptVersion"):
+            report["service"]["promptVersion"] = next(iter(versions), "")
+        if not report["service"].get("model"):
+            report["service"]["model"] = next(iter(models), "")
+        if len(versions) > 1:
+            print(f"warning: prompt version changed mid-run: {sorted(versions)}", file=sys.stderr)
 
     args.results.parent.mkdir(parents=True, exist_ok=True)
     args.results.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
@@ -314,7 +377,8 @@ def main() -> int:
         failures.extend(floor_failures(report, args.fail_below))
     if args.baseline:
         baseline = json.loads(args.baseline.read_text(encoding="utf-8"))
-        failures.extend(compare(report, baseline, args.tolerance))
+        failures.extend(compare(report, baseline, args.tolerance,
+                                args.case_regressions))
     if failures:
         print("\nAI eval failed:", file=sys.stderr)
         for failure in failures:

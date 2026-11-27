@@ -124,10 +124,13 @@ Increment A made the service deeper; increment B makes its quality measurable:
   agreement, invalid rate, repair rate, nearest-rank p50/p95 latency, token totals and
   evidence counts, writes JSON, and turns a run into a gate with
   `--baseline <file> --tolerance 0.05` (agreement may not drop, `invalidRate` may not
-  rise) or an absolute floor with `--fail-below <ratio>`. `scripts/test_ai_eval.py`
-  covers corpus validation, the maths, both gate directions and an end-to-end
-  stub-server run: 29 tests, no model.
-- **CI.** `.github/workflows/ai-eval.yml` runs those 29 tests. It does not call a model,
+  rise), plus a per-case check: more than one case that passed in the baseline may
+  not stop passing (`--case-regressions`), and a missing case or section is a
+  failure. A truncated baseline cannot switch a gate off. `--fail-below <ratio>`
+  is the absolute floor. `scripts/test_ai_eval.py` covers corpus validation, the
+  maths, both gate directions, the constant-`4/medium` case and an end-to-end
+  stub-server run: **38 tests**, no model.
+- **CI.** `.github/workflows/ai-eval.yml` runs those 38 tests. It does not call a model,
   because pull requests have no provider credential; the baseline is a local/nightly
   act.
 
@@ -139,14 +142,14 @@ temporary container on port 18001):
 | invalid | 0 | 0 |
 | agreement | score 0.85, severity 0.40 | class 0.9167 |
 | repair rate | 0 | n/a |
-| p50 / p95 | 15.4 s / 27.8 s | 7.9 s / 12.1 s |
+| p50 / p95 | 15.0 s / 27.8 s | 7.8 s / 21.1 s |
 | tokens | 6,032 / 2,171 | n/a |
 
 The honest reading is in `docs/research/ai-service-eval-2026-11-28.md`: the model never
 returned `high` or `critical`, so severity agreement is 0.40 even though score agreement
 is 0.85; `injection-forged-delimiter` was the one safety miss. The baseline is committed
 as `benchmark/eval/baseline-2026-11-28.json`. The harness tests are now **29 Python
-tests**, in addition to the 68 ai-service and 602 application tests.
+tests**, in addition to the 69 ai-service and 602 application tests.
 
 ## Scope
 

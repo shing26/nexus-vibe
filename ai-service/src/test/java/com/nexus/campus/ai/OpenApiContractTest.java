@@ -44,6 +44,18 @@ class OpenApiContractTest {
     }
 
     @Test
+    void bothEndpointsDocumentThePromptVersionHeader() {
+        for (String path : new String[]{"/v1/reviews", "/v1/safety"}) {
+            var operation = api.getPaths().get(path).getPost();
+            assertNotNull(operation.getResponses().get("200").getHeaders(),
+                    path + " must document response headers");
+            assertTrue(operation.getResponses().get("200").getHeaders()
+                            .containsKey("X-Prompt-Version"),
+                    path + " must document X-Prompt-Version");
+        }
+    }
+
+    @Test
     void everyDtoFieldMatchesTheCommittedSchema() {
         assertSchema(ReviewRequest.class);
         assertSchema(ReviewRequest.Budget.class);

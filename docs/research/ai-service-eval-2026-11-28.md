@@ -42,8 +42,8 @@ end-to-end run against a stub HTTP server.
 | invalid / HTTP failure | 0 | 0 |
 | agreement | score 0.85, severity 0.40 | class 0.9167 |
 | repair rate | 0 | n/a |
-| p50 latency | 15,411.8 ms | 7,852.4 ms |
-| p95 latency | 27,842.4 ms | 12,053.1 ms |
+| p50 latency | 14,961.8 ms | 7,757.2 ms |
+| p95 latency | 27,842.4 ms | 21,073.9 ms |
 | tokens | 6,032 prompt / 2,171 completion | n/a |
 
 The score band admits 17 of 20 cases. Three missed: `null-dereference` (7
@@ -66,6 +66,9 @@ used the same content and the deduplicator served it from cache. That is the
 feature working, but it means p50 includes one cached sample; the remaining 19
 provider calls are 10.7–31.6 s.
 
+Latency percentiles are nearest-rank (`ceil(p * n)`), so the safety p95 is the
+slowest of its 12 cases, the 21.1 s forged-delimiter miss.
+
 ## The gate
 
 `--baseline <file>` fails when a higher-is-better metric (score, severity or
@@ -73,6 +76,13 @@ classification agreement) drops more than 0.05 below the baseline, or when
 `invalidRate` rises more than 0.05 above it. `--tolerance` changes that window.
 `--fail-below <ratio>` is the absolute alternative: any agreement metric below
 the named ratio fails the run, with or without a baseline.
+Aggregate tolerance alone would let a reviewer that always answers `4/medium`
+pass, because the corpus contains many cases that accept that band. The gate
+therefore also compares each baseline case: more than one case that passed now
+failing is a regression (`--case-regressions` changes the allowance), and a
+case missing from the run is always a failure. A section missing from either
+the run or the baseline is an error, so a truncated baseline cannot switch a
+gate off.
 The comparison and both failure directions are unit-tested
 (`CompareTest`, `EndToEndTest.test_regression_against_baseline_exits_non_zero`).
 
