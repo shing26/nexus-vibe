@@ -626,9 +626,12 @@ recorded as a limitation rather than silently claimed.
   `.env.example` so a copied environment does not miss it.
 - **The service needs a different provider base URL from the direct path.** Spring AI
   appends `/v1/chat/completions`, while `LlmClient` appends only `/chat/completions`.
-  The service therefore uses `AI_LLM_ENDPOINT` (provider root, no `/v1`) and probes
-  `/v1/models`; the application keeps `LLM_ENDPOINT` with `/v1`. The compose smoke test
-  caught the `/v1/v1/...` 404 that unit tests with a fake gateway could not.
+  `AI_LLM_ENDPOINT` is an optional provider-root override. When it is absent the service
+  derives the root from the application's `LLM_ENDPOINT` and strips a trailing `/v1`, so
+  a production environment that predates the split cannot silently fall back to Ollama.
+  The service probes `/v1/models`; the application keeps `LLM_ENDPOINT` with `/v1`.
+  The compose smoke test caught the `/v1/v1/...` 404 that unit tests with a fake gateway
+  could not.
 - **Parity evidence is layered, not a single live comparison.** The application test
   compares direct mode against the typed service response and the shared renderer; the
   service's own `ReviewServiceTest` pins model JSON to response fields. Prompt-text drift
