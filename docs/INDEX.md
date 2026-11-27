@@ -67,6 +67,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [production-readiness-assessment-2026-09](research/production-readiness-assessment-2026-09.md) | The readiness assessment that generated the P0/P1 work |
 | [project-module-audit-2026-09](research/project-module-audit-2026-09.md) | Module-by-module structure and completion audit |
 | [project-structure-and-deep-dive-2026-09-18](research/project-structure-and-deep-dive-2026-09-18.md) | Whole-project walkthrough for deep-dive questions: packages, flows, mechanisms, data model, verification and known trade-offs |
+| [prompt-parity-2026-11-28](research/prompt-parity-2026-11-28.md) | Direct-mode and AI-service prompts compared on eight fixtures: seven differ only in the schema sentence, one multi-block payload differs, and the baseline gates further drift |
 
 ## Work items — `docs/tickets/`
 

@@ -1,0 +1,53 @@
+name: Prompt parity
+
+# The two prompt builders live in separate Maven projects, so no single test can
+# instantiate both. This job renders each side's corpus from the same fixtures,
+# then measures the diff and fails when it grows past the recorded baseline.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "src/main/java/com/nexus/campus/agent/**"
+      - "src/test/java/com/nexus/campus/agent/PromptTextCorpusTest.java"
+      - "ai-service/**"
+      - "benchmark/parity/**"
+      - "scripts/prompt_parity.py"
+      - ".github/workflows/prompt-parity.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "src/main/java/com/nexus/campus/agent/**"
+      - "src/test/java/com/nexus/campus/agent/PromptTextCorpusTest.java"
+      - "ai-service/**"
+      - "benchmark/parity/**"
+      - "scripts/prompt_parity.py"
+      - ".github/workflows/prompt-parity.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  drift:
+    name: Measure prompt-text drift
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+
+      # JaCoCo is skipped: this run executes a single test per project, so the
+      # bundle coverage floor would fail on a corpus that is not the suite.
+      - name: Render the direct-mode corpus
+        run: mvn -B -q -Djacoco.skip=true -Dtest=PromptTextCorpusTest -Dparity.out="$PWD/target/prompt-parity/direct" test
+
+      - name: Render the service corpus
+        run: mvn -B -q -f ai-service/pom.xml -Dtest=PromptTextCorpusTest -Dparity.out="$PWD/target/prompt-parity/service" test
+
+      - name: Compare with the recorded baseline
+        run: python3 scripts/prompt_parity.py

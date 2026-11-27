@@ -637,8 +637,42 @@ recorded as a limitation rather than silently claimed.
 - **Parity evidence is layered, not a single live comparison.** The application test
   compares direct mode against the typed service response and the shared renderer; the
   service's own `ReviewServiceTest` pins model JSON to response fields. Prompt-text drift
-  between `AbstractLlmReviewer` and `PromptFactory` is still not measured by a test, and
-  is recorded as a limitation rather than claimed as parity.
+  between `AbstractLlmReviewer` and `PromptFactory` was the one criterion this left
+  unmeasured; A9 adds that measurement.
+
+### A9 — 2026-11-28 — prompt-text drift is measured, and one payload difference is pinned
+
+Acceptance #3 was PARTIAL because A8 disclosed prompt-text drift rather than
+measuring it. The two prompt builders live in separate Maven projects, so no single
+test can instantiate both. The measurement is therefore split:
+
+- `benchmark/parity/review-fixtures.json` holds eight inputs once.
+- `PromptTextCorpusTest` in each project renders its own side from that file, with
+  per-request nonces replaced by `NONCE`, into its module's `target/prompt-parity/`.
+  The service-side test builds the request the way `ServiceReviewer` does.
+- `scripts/prompt_parity.py` compares the two corpora against
+  `benchmark/parity/prompt-drift-baseline.json` and fails when a fixture drops more
+  than 0.005 below the recorded line ratio or token Jaccard.
+- `.github/workflows/prompt-parity.yml` runs the three steps on every change to
+  either prompt builder, the fixtures or the comparator.
+
+Result (`docs/research/prompt-parity-2026-11-28.md`): mean line similarity 0.9417.
+Seven of eight fixtures differ only in the system prompt's schema sentence and have
+byte-identical user messages. `multi-block` is the one semantic difference: direct
+mode filters three blocks against a 9,400-token budget and drops the third, while
+the service truncates each block at 42,000 characters and sends all three
+(1,826 vs 2,729 lines; 12,343 vs 8,230 tokens). That difference is now pinned by
+the baseline, not fixed: enforcing a total budget in the service is a behaviour
+change that needs its own review. Verdict parity (#3) is unaffected because it
+stubs the response, and the criterion is now PASS on the strength of the
+measurement plus that qualification.
+
+Added to Allowed paths: `benchmark/parity/review-fixtures.json`,
+`benchmark/parity/prompt-drift-baseline.json`,
+`scripts/prompt_parity.py`, `.github/workflows/prompt-parity.yml`,
+`src/test/java/com/nexus/campus/agent/PromptTextCorpusTest.java`,
+`ai-service/src/test/java/com/nexus/campus/ai/service/PromptTextCorpusTest.java`,
+`docs/research/prompt-parity-2026-11-28.md`.
 
 ## Freeze checklist
 

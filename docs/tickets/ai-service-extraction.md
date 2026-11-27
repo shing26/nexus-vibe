@@ -1,6 +1,6 @@
 # AI service extraction (P0)
 
-Status: **verified and deployed on the local/demo stack as `20261127-02` — 15 PASS, #3 PARTIAL (A8 limitation); PR #63.**
+Status: **verified and deployed on the local/demo stack as `20261127-02` — 16 PASS; PR #63.**
 Contract: `plans/ai-service-extraction.md`. Decision: ADR-0024.
 
 Verification record (independent verifier, not the implementer):
@@ -8,8 +8,8 @@ Verification record (independent verifier, not the implementer):
 - Test-bearing tree: `b7f4210` (9 code/config/test files). This ticket update is the
   docs-only follow-up. Earlier independent verification bound `c18ead7`; the only later
   code delta is the health probe from 1 s to 750 ms per phase.
-- `mvn -B test` → 601 tests, 0 failures, coverage floor met.
-- `mvn -B -f ai-service/pom.xml test` → 40 tests, 0 failures.
+- `mvn -B test` → 602 tests, 0 failures, coverage floor met.
+- `mvn -B -f ai-service/pom.xml test` → 41 tests, 0 failures.
 - `git status --short` before and after verification: empty.
 - Both compose renders checked: base `AI_MODE=service`, `ai` no ports / 512 MiB, `app`
   key empty, `ai` key non-empty and matching the app's service key; `AI_LLM_ENDPOINT`
@@ -59,6 +59,24 @@ model with `OLLAMA_KEEP_ALIVE=-1` plus a startup warm-up, are the two ways to re
 that wait. Neither is applied here: the first is an `.env` change that would diverge
 from the committed 30 s default, and the second needs a compose change and a PR.
 
+## Prompt-drift measurement (2026-11-28)
+
+Acceptance #3 was PARTIAL because the parity test stubs the model response and no test
+compared the prompts the two modes actually send. `PromptTextCorpusTest` now renders
+both sides from `benchmark/parity/review-fixtures.json` (eight fixtures) with nonces
+normalized to `NONCE`, and `scripts/prompt_parity.py` measures the diff against
+`benchmark/parity/prompt-drift-baseline.json`. The full method and the numbers are in
+`docs/research/prompt-parity-2026-11-28.md`; `.github/workflows/prompt-parity.yml`
+runs the same comparison and fails if drift grows past 0.005.
+
+Mean line similarity is 0.9417. Seven of eight fixtures differ only in the system
+prompt's schema sentence, and their user messages are byte-identical. `multi-block`
+is the one semantic difference: direct mode drops the third 14,400-character block at
+the 9,400-token filter budget, while the service truncates each block at 42,000
+characters and sends all three (1,826 vs 2,729 lines). Criterion #3 is PASS on that
+basis; the payload difference is pinned by the baseline and left as a follow-up,
+because making the service enforce a total budget is a behaviour change.
+
 ## Scope
 
 Move the model-facing half of the AI pipeline into an independent Java 21 / Spring Boot
@@ -89,7 +107,7 @@ implemented test mapping:
 |---|---|
 | 1 | `mvn -B test` (direct mode, no test removed) |
 | 2 | `AiModeConfigTest` — one `ServiceReviewer`, `AiServiceClient` probe, zero `LlmClient` interaction |
-| 3 | **PARTIAL.** `ReviewParityTest` — nine fixtures, including the eight named cases; layered evidence: direct-vs-typed/renderer parity plus `ReviewServiceTest` mapping. Prompt-text drift is disclosed, not measured (A8) |
+| 3 | `ReviewParityTest` — nine fixtures, including the eight named cases; layered evidence: direct-vs-typed/renderer parity plus `ReviewServiceTest` mapping. Prompt-text drift is now measured on eight prompt-producing fixtures by `docs/research/prompt-parity-2026-11-28.md`: mean line similarity 0.9417, seven fixtures differ only in the system schema sentence, `multi-block` is the one payload difference (direct drops the third block, the service sends it) |
 | 4, 5 | `AiServiceModeIntegrationTest` — down → FAILED + `unavailable` + notice, then reconcile re-publishes, attempt 2 succeeds at REVIEWED with score; `AiServiceFailureMappingTest` pins provider-down as one FAILED transition |
 | 6 | `AiSafetyCheckListenerTest`, `AiCommentSafetyCheckListenerTest`, `ServiceSafetyClassifierTest` |
 | 7 | `ServiceReviewerTest` — `malformedResponseShouldBecomeAnInvalidVerdict` (non-null invalid verdict, severity `unknown`) and `nonsenseVerdictShouldBeRejectedByTheJavaGate`, both rejected by `ReviewValidity`; `AiServiceClientTest.malformedJsonShouldBeAnInvalidResponse` pins the 502 mapping |
@@ -104,7 +122,7 @@ implemented test mapping:
 ## Files
 
 - `ai-service/**` — application, prompts, provider adapter, retry, repair, controllers,
-  auth and trace filters, Dockerfile, OpenAPI, 40 tests.
+  auth and trace filters, Dockerfile, OpenAPI, 41 tests.
 - `src/main/java/com/nexus/campus/agent/{AiServiceClient,ServiceReviewer,SafetyClassifier,LlmSafetyClassifier,ServiceSafetyClassifier,LlmHealthProbe,VerdictRenderer}.java`
 - `src/main/java/com/nexus/campus/config/{AiModeConfig,CampusAiProperties,ReviewPolicyConfig}.java`
 - `src/main/resources/application.yml`, `application-prod.yml`
