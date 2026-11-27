@@ -82,6 +82,14 @@ more of its answer on quotes; it also scored `injection-inside-code` 0/critical
 this time, outside the 1–5 band. This is a real prompt-version effect, which is
 why the baseline is a separate file rather than an edit to the B baseline.
 
+The same sentence changes the direct-vs-service prompt parity measurement. Mean
+line similarity stays 0.9417 because the sentence replaces one existing line,
+but token Jaccard on the five system-prompt fixtures drops from 0.83–0.86 to
+0.72–0.76; `multi-block` drops from 0.6692 to 0.6678, and the two oversized
+fixtures move by less than 0.001. `benchmark/parity/prompt-drift-baseline.json`
+was regenerated deliberately. This is a service-only instruction by design; the
+application's direct prompt has no evidence contract to populate.
+
 ## What this cannot prove
 
 - One run on one 3B model. A different provider, temperature or prompt version
