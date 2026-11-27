@@ -57,17 +57,17 @@ public class RetryingModelCaller {
                 throw new AiServiceException("model_timeout", false, 504,
                         "inference budget cannot fit attempt " + attempt);
             }
-            breaker.beforeCall();
+            long permit = breaker.beforeCall();
             long started = System.nanoTime();
             try {
                 ModelGateway.ModelReply reply = gateway.complete(system, user, temperature, schema);
-                breaker.onSuccess();
+                breaker.onSuccess(permit);
                 success.increment();
                 record(context, attempt, temperature, started, "success", null, reply,
                         system, user);
                 return reply;
             } catch (AiServiceException e) {
-                breaker.onFailure();
+                breaker.onFailure(permit);
                 error.increment();
                 record(context, attempt, temperature, started, "error", e.getCode(), null,
                         system, user);
@@ -83,7 +83,7 @@ public class RetryingModelCaller {
                 }
                 sleep(backoff);
             } catch (RuntimeException e) {
-                breaker.onFailure();
+                breaker.onFailure(permit);
                 error.increment();
                 record(context, attempt, temperature, started, "error", "unexpected", null,
                         system, user);

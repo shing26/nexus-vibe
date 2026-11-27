@@ -9,7 +9,7 @@ Verification record (independent verifier, not the implementer):
   docs-only follow-up. Earlier independent verification bound `c18ead7`; the only later
   code delta is the health probe from 1 s to 750 ms per phase.
 - `mvn -B test` → 602 tests, 0 failures, coverage floor met.
-- `mvn -B -f ai-service/pom.xml test` → 64 tests, 0 failures (after increment A of ADR-0025).
+- `mvn -B -f ai-service/pom.xml test` → 66 tests, 0 failures (after increment A of ADR-0025).
 - `git status --short` before and after verification: empty.
 - Both compose renders checked: base `AI_MODE=service`, `ai` no ports / 512 MiB, `app`
   key empty, `ai` key non-empty and matching the app's service key; `AI_LLM_ENDPOINT`
@@ -94,7 +94,8 @@ spend:
   seconds; the next call fails fast with 503 and `model_unavailable` instead of consuming
   the caller's budget. A single half-open probe closes it on success; a probe that never
   reports back is reclaimed after `AI_LLM_BREAKER_PROBE_SECONDS` (default 35), so an
-  escaped `Error` cannot leave the service answering 503 forever.
+  escaped `Error` cannot leave the service answering 503 forever. Only the current
+  probe permit may report, so a stale attempt cannot close or reopen the circuit.
 - **Call archive.** One JSONL line per provider attempt when `AI_CALL_ARCHIVE` names a
   file; an unwritable path is logged and does not fail the review.
 
@@ -102,7 +103,7 @@ Live evidence on the local stack (temporary container built from the branch jar,
 at `ollama:11434`): the first `POST /v1/reviews` took 24.4 s and returned `score=5`,
 `severity=medium`, `repaired=false`; the identical second call took **17 ms**, and
 `/metrics` showed `ai.provider.calls{outcome="success"}=1` with
-`ai.review.dedup{outcome="hit"}=1` and `{outcome="miss"}=1`. `ai-service` now has 64
+`ai.review.dedup{outcome="hit"}=1` and `{outcome="miss"}=1`. `ai-service` now has 66
 tests, 0 failures.
 
 ## Scope
@@ -150,7 +151,7 @@ implemented test mapping:
 ## Files
 
 - `ai-service/**` — application, prompts, provider adapter, retry, repair, controllers,
-  auth and trace filters, Dockerfile, OpenAPI, 64 tests.
+  auth and trace filters, Dockerfile, OpenAPI, 66 tests.
 - `src/main/java/com/nexus/campus/agent/{AiServiceClient,ServiceReviewer,SafetyClassifier,LlmSafetyClassifier,ServiceSafetyClassifier,LlmHealthProbe,VerdictRenderer}.java`
 - `src/main/java/com/nexus/campus/config/{AiModeConfig,CampusAiProperties,ReviewPolicyConfig}.java`
 - `src/main/resources/application.yml`, `application-prod.yml`

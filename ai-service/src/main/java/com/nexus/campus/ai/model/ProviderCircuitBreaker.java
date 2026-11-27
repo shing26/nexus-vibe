@@ -5,13 +5,17 @@ import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
-
 /**
  * Fails fast while the provider is known to be down, instead of queueing attempts that
  * will consume the caller's whole budget. One half-open probe decides whether to close.
+ *
+ * <p>Every state transition runs under one monitor. The alternative — CAS on an
+ * in-flight flag plus a separate expiry — has two failure modes that were reproduced in
+ * review: two callers can both reclaim an expired probe, and an abandoned probe can
+ * report success or failure after a newer probe has started, overwriting its state. The
+ * caller receives a permit; only the current permit may report. A probe that never
+ * reports is replaced after its lease, so an escaped {@link Error} cannot wedge the
+ * breaker.</p>
  */
 @Component
 public class ProviderCircuitBreaker {
@@ -19,10 +23,11 @@ public class ProviderCircuitBreaker {
     private final int failureThreshold;
     private final long openMillis;
     private final long probeLeaseMillis;
-    private final AtomicInteger consecutiveFailures = new AtomicInteger();
-    private final AtomicLong openUntil = new AtomicLong();
-    private final AtomicLong probeDeadline = new AtomicLong();
-    private final AtomicBoolean probeInFlight = new AtomicBoolean();
+
+    private int consecutiveFailures;
+    private long openUntil;
+    private long probeGeneration;
+    private long probeDeadline;
 
     public ProviderCircuitBreaker(AiServiceProperties properties, MeterRegistry meters) {
         this.failureThreshold = properties.getLlm().getBreakerFailures();
@@ -33,51 +38,70 @@ public class ProviderCircuitBreaker {
                 .register(meters);
     }
 
-    public void beforeCall() {
-        long until = openUntil.get();
-        if (until == 0) {
+    /**
+     * @return {@code 0} when the circuit is closed and the call is ordinary, or a
+     *         positive permit identifying the single half-open probe in flight
+     */
+    public synchronized long beforeCall() {
+        long now = System.currentTimeMillis();
+        if (openUntil == 0) {
+            return 0;
+        }
+        if (now < openUntil) {
+            throw openError();
+        }
+        if (probeGeneration != 0 && now < probeDeadline) {
+            throw openError();
+        }
+        probeGeneration++;
+        probeDeadline = now + probeLeaseMillis;
+        return probeGeneration;
+    }
+
+    public synchronized void onSuccess(long permit) {
+        if (!owns(permit)) {
+            return;
+        }
+        consecutiveFailures = 0;
+        openUntil = 0;
+        probeGeneration = 0;
+        probeDeadline = 0;
+    }
+
+    public synchronized void onFailure(long permit) {
+        if (!owns(permit)) {
             return;
         }
         long now = System.currentTimeMillis();
-        if (now < until) {
-            throw openError();
+        if (permit != 0) {
+            probeGeneration = 0;
+            probeDeadline = 0;
+            consecutiveFailures++;
+            openUntil = now + openMillis;
+            return;
         }
-        long lease = probeDeadline.get();
-        if (lease != 0 && now >= lease) {
-            // The probe never reported back (an Error, a killed thread, a hung caller).
-            // Reclaim it so the breaker cannot stay half-open forever.
-            probeInFlight.set(false);
-            probeDeadline.set(0);
-        }
-        if (!probeInFlight.compareAndSet(false, true)) {
-            throw openError();
-        }
-        probeDeadline.set(now + probeLeaseMillis);
-    }
-
-    public void onSuccess() {
-        consecutiveFailures.set(0);
-        openUntil.set(0);
-        probeInFlight.set(false);
-        probeDeadline.set(0);
-    }
-
-    public void onFailure() {
-        probeInFlight.set(false);
-        probeDeadline.set(0);
-        int failures = consecutiveFailures.incrementAndGet();
-        if (openUntil.get() > 0 || failures >= failureThreshold) {
-            openUntil.set(System.currentTimeMillis() + openMillis);
+        consecutiveFailures++;
+        if (consecutiveFailures >= failureThreshold) {
+            openUntil = now + openMillis;
         }
     }
 
-    public boolean isOpen() {
-        long until = openUntil.get();
-        return (until > 0 && System.currentTimeMillis() < until) || probeInFlight.get();
+    public synchronized boolean isOpen() {
+        return (openUntil > 0 && System.currentTimeMillis() < openUntil) || probeGeneration != 0;
     }
 
-    int consecutiveFailures() {
-        return consecutiveFailures.get();
+    synchronized int consecutiveFailures() {
+        return consecutiveFailures;
+    }
+
+    /**
+     * A closed-state permit (0) stops being current the moment the circuit opens: the
+     * success or failure belongs to an attempt that began before the decision.
+     */
+    private boolean owns(long permit) {
+        return permit != 0
+                ? permit == probeGeneration
+                : probeGeneration == 0 && openUntil == 0;
     }
 
     private static AiServiceException openError() {
