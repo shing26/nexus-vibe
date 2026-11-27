@@ -123,6 +123,7 @@ New:
 
 - `plans/ai-service-depth.md`, `docs/adr/0025-deepen-the-inference-service.md`
 - `docs/research/ai-service-eval-2026-11-28.md`
+- `docs/research/ai-service-evidence-2026-11-28.md`
 - `benchmark/eval/**`
 - `scripts/ai_eval.py`, `scripts/test_ai_eval.py`
 - `.github/workflows/ai-eval.yml`
@@ -145,6 +146,15 @@ Modified:
 - `src/test/java/com/nexus/campus/agent/{AiServiceClientTest,ReviewParityTest,ServiceReviewerTest}.java`
 - `docker-compose.yml` (archive path + volume only, if enabled)
 - `docs/tickets/ai-service-extraction.md`, `docs/INDEX.md`, `README.md`
+- `benchmark/parity/prompt-drift-baseline.json` (Amendment 1 only)
+
+### Amendment 1 (2026-11-28)
+
+C1 adds an evidence sentence to the service's system prompt. The direct prompt
+does not change, so `prompt-parity` measures a real, intentional increase in
+token drift and its committed baseline must be regenerated. The measurement is
+recorded in `docs/research/ai-service-evidence-2026-11-28.md`; no acceptance
+criterion or feature behaviour changes.
 
 ## Progress
 
@@ -157,7 +167,13 @@ Modified:
   `benchmark/eval/baseline-2026-11-28.json` (score agreement 0.85, severity 0.40,
   safety class 0.9167), documented in
   `docs/research/ai-service-eval-2026-11-28.md`.
-- **C — evidence anchoring:** pending.
+- **C — evidence anchoring:** implemented on `codex/ai-service-depth-c`. Prompt
+  version `eb5421e62edc`; accepted quotes carry 1-based line numbers, rejected
+  quotes are counted; `AI_EVIDENCE_REQUIRED` defaults to `false`. The measured
+  baseline (`benchmark/eval/baseline-2026-11-28-evidence.json`) has 15/20 cases
+  with evidence, 27 accepted and 29 rejected quotes, and one 504 timeout;
+  documented in `docs/research/ai-service-evidence-2026-11-28.md`. `ai-service`
+  now has 82 tests.
 
 ## Verification commands
 

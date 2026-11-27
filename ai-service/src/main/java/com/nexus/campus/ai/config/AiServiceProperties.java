@@ -142,5 +142,12 @@ public class AiServiceProperties {
 
         @Positive
         private int cacheMaxEntries = 500;
+
+        /**
+         * When true, a verdict with no accepted evidence quote is invalid. Off by
+         * default until the eval baseline shows the local model supplies quotes
+         * reliably.
+         */
+        private boolean evidenceRequired = false;
     }
 }

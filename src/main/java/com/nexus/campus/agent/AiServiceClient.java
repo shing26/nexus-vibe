@@ -216,10 +216,26 @@ public class AiServiceClient implements LlmHealthProbe {
                                  String model,
                                  Usage usage,
                                  long latencyMs,
-                                 boolean repaired) {
+                                 boolean repaired,
+                                 List<Evidence> evidence,
+                                 int evidenceRejected) {
+
+        /**
+         * Keeps callers compiled against the pre-evidence shape; the evidence
+         * fields default to empty. Jackson uses the canonical constructor.
+         */
+        public ReviewResponse(int score, String severity, String quality, String security,
+                              String suggestions, boolean approved, String resultJson,
+                              String model, Usage usage, long latencyMs, boolean repaired) {
+            this(score, severity, quality, security, suggestions, approved, resultJson,
+                    model, usage, latencyMs, repaired, List.of(), 0);
+        }
     }
 
     public record Usage(int promptTokens, int completionTokens) {
+    }
+
+    public record Evidence(String quote, int startLine, int endLine) {
     }
 
     public record SafetyRequest(String requestId,

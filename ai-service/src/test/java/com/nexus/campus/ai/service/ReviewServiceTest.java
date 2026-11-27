@@ -20,6 +20,7 @@ import java.util.List;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -82,6 +83,60 @@ class ReviewServiceTest {
         assertThrows(AiServiceException.class, () -> service.review(request()));
     }
 
+    @Test
+    void verifiesEvidenceAndStoresItInTheResultJson() {
+        gateway.replies.add(reply(validReviewWithEvidence("int x = 1;")));
+
+        ReviewResponse response = service.review(request());
+
+        assertEquals(1, response.evidence().size());
+        assertTrue(response.resultJson().contains("\"startLine\":2"),
+                () -> "resultJson was: " + response.resultJson());
+        assertEquals(0, response.evidenceRejected());
+    }
+
+    @Test
+    void requiredEvidenceTriggersARepairPassAndThenAnInvalidVerdict() {
+        properties.getReview().setEvidenceRequired(true);
+        gateway.replies.add(reply(validReview()));
+        gateway.replies.add(reply(validReview()));
+
+        ReviewResponse response = service.review(request());
+
+        assertTrue(response.repaired());
+        assertEquals("unknown", response.severity());
+        assertEquals(2, gateway.systems.size());
+        assertTrue(response.evidence().isEmpty());
+        assertTrue(response.resultJson().contains("\"severity\":\"unknown\""),
+                () -> "resultJson was: " + response.resultJson());
+    }
+
+    @Test
+    void requiredEvidenceAcceptsAQuoteOnTheRepairPass() {
+        properties.getReview().setEvidenceRequired(true);
+        gateway.replies.add(reply(validReview()));
+        gateway.replies.add(reply(validReviewWithEvidence("int x = 1;")));
+
+        ReviewResponse response = service.review(request());
+
+        assertTrue(response.repaired());
+        assertEquals("low", response.severity());
+        assertEquals(1, response.evidence().size());
+    }
+
+    @Test
+    void requiredEvidenceAlsoMarksAnOtherwiseInvalidVerdictUnknown() {
+        properties.getReview().setEvidenceRequired(true);
+        gateway.replies.add(reply(invalidReview()));
+        gateway.replies.add(reply(invalidReview()));
+
+        ReviewResponse response = service.review(request());
+
+        assertEquals("unknown", response.severity());
+        assertFalse(response.approved());
+        assertTrue(response.evidence().isEmpty());
+    }
+
     private ReviewRequest request() {
         return new ReviewRequest("req-1", "trace-1", 42L, "code", "Calculator",
                 "```java\nint x = 1;\n```", List.of("int x = 1;"),
@@ -93,6 +148,20 @@ class ReviewServiceTest {
                 + "\"codeQuality\":\"Clean structure and readable naming throughout the implementation\","
                 + "\"securityConcerns\":\"No injection or unsafe cast was found in this code\","
                 + "\"optimizationSuggestions\":\"Extract the division logic into a helper and add unit tests\"}";
+    }
+
+    private static String validReviewWithEvidence(String quote) {
+        return "{\"score\":8,\"severity\":\"low\","
+                + "\"codeQuality\":\"Clean structure and readable naming throughout the implementation\","
+                + "\"securityConcerns\":\"No injection or unsafe cast was found in this code\","
+                + "\"optimizationSuggestions\":\"Extract the division logic into a helper and add unit tests\","
+                + "\"evidence\":[\"" + quote + "\"]}";
+    }
+
+    private static String invalidReview() {
+        return "{\"score\":8,\"severity\":\"low\",\"codeQuality\":\"\","
+                + "\"securityConcerns\":\"none\",\"optimizationSuggestions\":\"\","
+                + "\"evidence\":[]}";
     }
 
     private static ModelGateway.ModelReply reply(String content) {

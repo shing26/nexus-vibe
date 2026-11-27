@@ -151,7 +151,7 @@ class ServiceReviewerTest {
     void nonsenseVerdictShouldBeRejectedByTheJavaGate() {
         AiServiceClient.ReviewResponse nonsense = new AiServiceClient.ReviewResponse(
                 5, "low", "EVALUATE", "none", "", false, "{}", "m",
-                new AiServiceClient.Usage(1, 1), 1, false);
+                new AiServiceClient.Usage(1, 1), 1, false, List.of(), 0);
         when(client.review(any())).thenReturn(nonsense);
 
         Reviewer.Verdict verdict = reviewer.review(post("code", "Loop", "```java\nint x = 1;\n```"));
@@ -168,7 +168,7 @@ class ServiceReviewerTest {
                 "No security findings in this snippet.",
                 "Extract the loop body into a small helper method.",
                 approved, resultJson, "test-model",
-                new AiServiceClient.Usage(100, 20), 12, false);
+                new AiServiceClient.Usage(100, 20), 12, false, List.of(), 0);
     }
 
     private static VibePost post(String type, String title, String content) {

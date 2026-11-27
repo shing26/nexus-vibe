@@ -17,10 +17,12 @@ class ReviewSchemaTest {
         for (OutputSchema schema : List.of(ReviewSchema.CODE_REVIEW, ReviewSchema.PROMPT_REVIEW)) {
             assertEquals(false, schema.schema().get("additionalProperties"));
             assertEquals(
-                    List.of("score", "severity", "codeQuality", "securityConcerns", "optimizationSuggestions"),
+                    List.of("score", "severity", "codeQuality", "securityConcerns",
+                            "optimizationSuggestions", "evidence"),
                     schema.schema().get("required"));
             Map<?, ?> properties = (Map<?, ?>) schema.schema().get("properties");
             assertTrue(properties.containsKey("score"));
+            assertTrue(properties.containsKey("evidence"));
             assertTrue(schema.strict());
         }
     }

@@ -63,12 +63,21 @@ public final class ReviewSchema {
         properties.put("optimizationSuggestions", Map.of(
                 "type", "string",
                 "description", "Multi-sentence concrete suggestions for improvement"));
+        properties.put("evidence", Map.of(
+                "type", "array",
+                "maxItems", 5,
+                "description", "Up to five short verbatim quotes copied from the submitted "
+                        + "content; empty when no quote supports the verdict",
+                "items", Map.of(
+                        "type", "string",
+                        "description", "At least 10 characters, copied exactly from the content")));
 
         Map<String, Object> schema = new LinkedHashMap<>();
         schema.put("type", "object");
         schema.put("additionalProperties", false);
         schema.put("required",
-                List.of("score", "severity", "codeQuality", "securityConcerns", "optimizationSuggestions"));
+                List.of("score", "severity", "codeQuality", "securityConcerns",
+                        "optimizationSuggestions", "evidence"));
         schema.put("properties", properties);
         return schema;
     }
