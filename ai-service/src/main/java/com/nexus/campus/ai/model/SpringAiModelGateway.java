@@ -32,9 +32,10 @@ public class SpringAiModelGateway implements ModelGateway {
                 .baseUrl(properties.getLlm().getBaseUrl())
                 .defaultHeader("Accept", "application/json")
                 .defaultHeader("Authorization", "Bearer " + properties.getLlm().getApiKey())
-                // Must finish inside AiServiceClient's 2-second /readyz read
-                // timeout; a 5-second probe made a cold health check false-down.
-                .requestFactory(requestFactory(Duration.ofSeconds(1)))
+                // Connect + read must finish inside AiServiceClient's 2-second
+                // /readyz timeout; 750 ms per phase leaves headroom for a cold
+                // probe without turning the five-minute cache false-down.
+                .requestFactory(requestFactory(Duration.ofMillis(750)))
                 .build();
     }
 
