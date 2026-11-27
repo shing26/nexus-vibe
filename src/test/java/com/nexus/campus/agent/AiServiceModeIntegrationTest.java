@@ -146,8 +146,7 @@ class AiServiceModeIntegrationTest {
                 "No security concerns were found in this snippet.",
                 "Extract the loop body into a helper and add a boundary test.",
                 true, "{\"score\":8}", "test-model",
-                new AiServiceClient.Usage(100, 20), 10, false, List.of(), 0))
-                .when(client).review(any());
+                new AiServiceClient.Usage(100, 20), 10, false)).when(client).review(any());
         stored.setAiReviewed(AiReviewStatus.FAILED.getCode());
         when(vibePostMapper.selectStaleAiReviewPosts(eq(AiReviewStatus.FAILED.getCode()), any(), anyInt(), anyInt()))
                 .thenReturn(List.of(stored));

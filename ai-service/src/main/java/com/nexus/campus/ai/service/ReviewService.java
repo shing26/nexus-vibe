@@ -141,10 +141,6 @@ public class ReviewService {
         if (!properties.getReview().isEvidenceRequired() || !response.evidence().isEmpty()) {
             return response;
         }
-        if (!ReviewValidator.isValid(
-                response.score(), response.severity(), response.quality(), response.suggestions())) {
-            return response;
-        }
         return new ReviewResponse(
                 response.score(), "unknown", response.quality(), response.security(),
                 response.suggestions(), false, invalidResultJson(response.resultJson()),

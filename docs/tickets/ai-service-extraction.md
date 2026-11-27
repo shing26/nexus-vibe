@@ -176,7 +176,7 @@ downgrade and acceptance on the repair pass. The live run
 (`benchmark/eval/baseline-2026-11-28-evidence.json`, prompt `eb5421e62edc`)
 accepted 27 quotes, rejected 29, had 15/20 cases with evidence and one 504
 timeout; the analysis is in
-`docs/research/ai-service-evidence-2026-11-28.md`. `ai-service` is now **81
+`docs/research/ai-service-evidence-2026-11-28.md`. `ai-service` is now **82
 tests**.
 
 ## Scope

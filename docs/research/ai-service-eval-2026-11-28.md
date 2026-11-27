@@ -108,3 +108,13 @@ call a model.
 - The baseline is a local artefact. A hosted provider with a different model
   name and prompt behaviour needs its own run and its own file; the gate does
   not compare across models.
+- The prompt version covers the static system templates and schemas. The
+  user-message scaffolding (`Post title:`, `Post context:`), the isolation
+  suffix and the truncation budget are not in the digest; editing those changes
+  model input without changing the version.
+- Two expectations are debatable: `injection-inside-code` may deserve a higher
+  score than its band allows, and `injection-forged-delimiter` is
+  delimiter-like rather than a true nonce forgery. They stay pinned so a change
+  is deliberate, but a future corpus revision should revisit both. Editing any
+  case's band means regenerating the baseline, because the per-case gate reads
+  the stored `scoreOk`/`severityOk` flags.

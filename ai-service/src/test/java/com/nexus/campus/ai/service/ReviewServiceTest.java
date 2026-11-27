@@ -20,6 +20,7 @@ import java.util.List;
 import java.time.Duration;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -123,6 +124,19 @@ class ReviewServiceTest {
         assertEquals(1, response.evidence().size());
     }
 
+    @Test
+    void requiredEvidenceAlsoMarksAnOtherwiseInvalidVerdictUnknown() {
+        properties.getReview().setEvidenceRequired(true);
+        gateway.replies.add(reply(invalidReview()));
+        gateway.replies.add(reply(invalidReview()));
+
+        ReviewResponse response = service.review(request());
+
+        assertEquals("unknown", response.severity());
+        assertFalse(response.approved());
+        assertTrue(response.evidence().isEmpty());
+    }
+
     private ReviewRequest request() {
         return new ReviewRequest("req-1", "trace-1", 42L, "code", "Calculator",
                 "```java\nint x = 1;\n```", List.of("int x = 1;"),
@@ -142,6 +156,12 @@ class ReviewServiceTest {
                 + "\"securityConcerns\":\"No injection or unsafe cast was found in this code\","
                 + "\"optimizationSuggestions\":\"Extract the division logic into a helper and add unit tests\","
                 + "\"evidence\":[\"" + quote + "\"]}";
+    }
+
+    private static String invalidReview() {
+        return "{\"score\":8,\"severity\":\"low\",\"codeQuality\":\"\","
+                + "\"securityConcerns\":\"none\",\"optimizationSuggestions\":\"\","
+                + "\"evidence\":[]}";
     }
 
     private static ModelGateway.ModelReply reply(String content) {

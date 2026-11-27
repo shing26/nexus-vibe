@@ -163,7 +163,7 @@ Modified:
   baseline (`benchmark/eval/baseline-2026-11-28-evidence.json`) has 15/20 cases
   with evidence, 27 accepted and 29 rejected quotes, and one 504 timeout;
   documented in `docs/research/ai-service-evidence-2026-11-28.md`. `ai-service`
-  now has 81 tests.
+  now has 82 tests.
 
 ## Verification commands
 
