@@ -144,4 +144,27 @@ class ProviderCircuitBreakerTest {
         breaker.onSuccess(current);
         assertFalse(breaker.isOpen());
     }
+
+    @Test
+    void permitValuesAreNotReusedAfterACloseAndReopen() throws InterruptedException {
+        breaker.onFailure(breaker.beforeCall());
+        breaker.onFailure(breaker.beforeCall());
+        Thread.sleep(1_100L);
+        long abandoned = breaker.beforeCall();
+
+        Thread.sleep(1_100L);
+        long second = breaker.beforeCall();
+        breaker.onFailure(second);
+
+        Thread.sleep(1_100L);
+        long current = breaker.beforeCall();
+        assertTrue(current > second, "a permit value must never be reused");
+
+        breaker.onSuccess(abandoned);
+        assertTrue(breaker.isOpen(), "the abandoned permit must not close the circuit");
+        assertThrows(AiServiceException.class, breaker::beforeCall);
+
+        breaker.onSuccess(current);
+        assertFalse(breaker.isOpen());
+    }
 }

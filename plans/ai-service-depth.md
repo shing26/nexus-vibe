@@ -148,7 +148,7 @@ Modified:
 
 ## Progress
 
-- **A — capability parity:** implemented on `codex/ai-service-depth-a`. 66 ai-service
+- **A — capability parity:** implemented on `codex/ai-service-depth-a`. 67 ai-service
   tests; live dedup evidence recorded in the ticket.
 - **B — measurement:** pending.
 - **C — evidence anchoring:** pending.

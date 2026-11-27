@@ -26,7 +26,10 @@ public class ProviderCircuitBreaker {
 
     private int consecutiveFailures;
     private long openUntil;
-    private long probeGeneration;
+    /** Monotonic, never reset: a permit value must not be reused after a close. */
+    private long nextPermit;
+    /** The permit allowed to report, or {@code 0} when no probe is in flight. */
+    private long currentPermit;
     private long probeDeadline;
 
     public ProviderCircuitBreaker(AiServiceProperties properties, MeterRegistry meters) {
@@ -50,12 +53,12 @@ public class ProviderCircuitBreaker {
         if (now < openUntil) {
             throw openError();
         }
-        if (probeGeneration != 0 && now < probeDeadline) {
+        if (currentPermit != 0 && now < probeDeadline) {
             throw openError();
         }
-        probeGeneration++;
+        currentPermit = ++nextPermit;
         probeDeadline = now + probeLeaseMillis;
-        return probeGeneration;
+        return currentPermit;
     }
 
     public synchronized void onSuccess(long permit) {
@@ -64,7 +67,7 @@ public class ProviderCircuitBreaker {
         }
         consecutiveFailures = 0;
         openUntil = 0;
-        probeGeneration = 0;
+        currentPermit = 0;
         probeDeadline = 0;
     }
 
@@ -74,7 +77,7 @@ public class ProviderCircuitBreaker {
         }
         long now = System.currentTimeMillis();
         if (permit != 0) {
-            probeGeneration = 0;
+            currentPermit = 0;
             probeDeadline = 0;
             consecutiveFailures++;
             openUntil = now + openMillis;
@@ -87,7 +90,7 @@ public class ProviderCircuitBreaker {
     }
 
     public synchronized boolean isOpen() {
-        return (openUntil > 0 && System.currentTimeMillis() < openUntil) || probeGeneration != 0;
+        return (openUntil > 0 && System.currentTimeMillis() < openUntil) || currentPermit != 0;
     }
 
     synchronized int consecutiveFailures() {
@@ -100,8 +103,8 @@ public class ProviderCircuitBreaker {
      */
     private boolean owns(long permit) {
         return permit != 0
-                ? permit == probeGeneration
-                : probeGeneration == 0 && openUntil == 0;
+                ? permit == currentPermit
+                : currentPermit == 0 && openUntil == 0;
     }
 
     private static AiServiceException openError() {

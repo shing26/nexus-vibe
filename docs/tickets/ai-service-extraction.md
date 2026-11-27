@@ -9,7 +9,7 @@ Verification record (independent verifier, not the implementer):
   docs-only follow-up. Earlier independent verification bound `c18ead7`; the only later
   code delta is the health probe from 1 s to 750 ms per phase.
 - `mvn -B test` → 602 tests, 0 failures, coverage floor met.
-- `mvn -B -f ai-service/pom.xml test` → 66 tests, 0 failures (after increment A of ADR-0025).
+- `mvn -B -f ai-service/pom.xml test` → 67 tests, 0 failures (after increment A of ADR-0025).
 - `git status --short` before and after verification: empty.
 - Both compose renders checked: base `AI_MODE=service`, `ai` no ports / 512 MiB, `app`
   key empty, `ai` key non-empty and matching the app's service key; `AI_LLM_ENDPOINT`
@@ -103,7 +103,7 @@ Live evidence on the local stack (temporary container built from the branch jar,
 at `ollama:11434`): the first `POST /v1/reviews` took 24.4 s and returned `score=5`,
 `severity=medium`, `repaired=false`; the identical second call took **17 ms**, and
 `/metrics` showed `ai.provider.calls{outcome="success"}=1` with
-`ai.review.dedup{outcome="hit"}=1` and `{outcome="miss"}=1`. `ai-service` now has 66
+`ai.review.dedup{outcome="hit"}=1` and `{outcome="miss"}=1`. `ai-service` now has 67
 tests, 0 failures.
 
 ## Scope
@@ -151,7 +151,7 @@ implemented test mapping:
 ## Files
 
 - `ai-service/**` — application, prompts, provider adapter, retry, repair, controllers,
-  auth and trace filters, Dockerfile, OpenAPI, 66 tests.
+  auth and trace filters, Dockerfile, OpenAPI, 67 tests.
 - `src/main/java/com/nexus/campus/agent/{AiServiceClient,ServiceReviewer,SafetyClassifier,LlmSafetyClassifier,ServiceSafetyClassifier,LlmHealthProbe,VerdictRenderer}.java`
 - `src/main/java/com/nexus/campus/config/{AiModeConfig,CampusAiProperties,ReviewPolicyConfig}.java`
 - `src/main/resources/application.yml`, `application-prod.yml`
