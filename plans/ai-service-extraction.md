@@ -597,8 +597,10 @@ process; that is the seam-level equivalent of the demo path. Added to Allowed pa
 The two-axis review of PR #62 found five gaps. Four are closed here; the fifth is
 recorded as a limitation rather than silently claimed.
 
-- **Rollback no longer waits for `ai`.** The overlay drops the base file's
-  `depends_on: ai` with `!reset`, so the documented
+- **Rollback no longer waits for `ai`.** The overlay replaces the base file's
+  `app.depends_on` with `!override`, listing only `db`, `redis`, `elasticsearch` and
+  `ollama`; `!reset` would have removed the whole map, including the database and
+  caches the rollback still needs. With the explicit list, the documented
   `docker compose -f docker-compose.yml -f docker-compose.direct.yml up -d app`
   starts the application even when `ai` is the unhealthy dependency being rolled back
   from.

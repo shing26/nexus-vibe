@@ -36,15 +36,28 @@ Smoke evidence, measured after pre-warming the local `qwen2.5:3b` model:
   `severity=low`, `approved=false`, `repaired=false`, 288 prompt tokens / 98 completion
   tokens, and 14.6 s provider latency (15.4 s wall time).
 - The same endpoint without `X-AI-Service-Key` returned HTTP 401.
-- `https://qualifier-discuss-marry.ngrok-free.dev/` returned 200; the authenticated
-  `/api/posts` route returned 401, so the public front door and auth boundary are live.
+- `https://qualifier-discuss-marry.ngrok-free.dev/` returned 200 with the SPA document;
+  `/api/posts` returned 401 and `/actuator/health` returned 200, so the public front
+  door and auth boundary are live. The public checks send
+  `ngrok-skip-browser-warning: true`; without it ngrok answers 200 with its own
+  warning page, which would look like a working site.
 - Runtime config: `AI_MODE=service`, `SPRING_PROFILES_ACTIVE=prod`,
   `AI_LLM_ENDPOINT=http://ollama:11434/v1`, `AI_LLM_TIMEOUT=30s`, app provider key empty,
   `CAMPUS_AI_MENTION_ENABLED=false`.
 
-This smoke uses the local Ollama provider, not the hosted production model. Cold-start
-latency remains a measured P2: with a cold model, 30 s per attempt can be tight; the
-smoke pre-warmed the model rather than changing the production timeout budget.
+This smoke uses the local Ollama provider, not the hosted production model. Cold start
+was measured rather than assumed: after `ollama stop qwen2.5:3b`, a call with the
+application's real budget (`AI_SERVICE_READ_TIMEOUT` 120 s minus 5 s) exhausted the
+first 30 s provider attempt, the retry succeeded, and the request returned 200 with a
+45 s wall time (44.5 s provider latency). A warm call with the same payload returned
+200 in 12 s.
+
+So cold start is slow but not a failure under the current three-attempt budget: two
+attempts (90.5 s with backoff) fit inside 115 s. It stays a P2 because it spends the
+retry and takes 45 s; raising `AI_LLM_TIMEOUT` to 45 s with one attempt, or pinning the
+model with `OLLAMA_KEEP_ALIVE=-1` plus a startup warm-up, are the two ways to remove
+that wait. Neither is applied here: the first is an `.env` change that would diverge
+from the committed 30 s default, and the second needs a compose change and a PR.
 
 ## Scope
 
