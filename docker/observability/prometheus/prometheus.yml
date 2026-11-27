@@ -20,6 +20,15 @@ scrape_configs:
         labels:
           service: backend
 
+  # The inference service's own meters. It is scraped over nexus-net only and
+  # has no host port, same as every other monitoring target.
+  - job_name: nexus-ai
+    metrics_path: /metrics
+    static_configs:
+      - targets: ["ai:8000"]
+        labels:
+          service: ai-inference
+
   - job_name: prometheus
     static_configs:
       - targets: ["localhost:9090"]

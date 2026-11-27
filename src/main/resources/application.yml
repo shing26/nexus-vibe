@@ -150,6 +150,14 @@ campus:
     audit-required-level: 2
 
   ai:
+    # direct: the application calls the provider through LlmClient. service:
+    # the application sends semantic input to the internal AI service.
+    mode: ${AI_MODE:direct}
+    service:
+      url: ${AI_SERVICE_URL:http://localhost:8000}
+      api-key: ${AI_SERVICE_KEY:}
+      connect-timeout: ${AI_SERVICE_CONNECT_TIMEOUT:5s}
+      read-timeout: ${AI_SERVICE_READ_TIMEOUT:65s}
     review:
       enabled: true
       # Lease-based claim (ADR-0005): how long a claimed review stays locked

@@ -34,6 +34,21 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "campus.ai")
 public class CampusAiProperties {
 
+    public enum Mode {
+        DIRECT,
+        SERVICE
+    }
+
+    /**
+     * DIRECT keeps the application as the model caller; SERVICE sends semantic
+     * input to the internal inference service. The default is DIRECT so unit
+     * tests and a missing service stay safe.
+     */
+    private Mode mode = Mode.DIRECT;
+
+    @Valid
+    private final Service service = new Service();
+
     @Valid
     private final Review review = new Review();
 
@@ -48,6 +63,26 @@ public class CampusAiProperties {
 
     @Valid
     private final Llm llm = new Llm();
+
+    @AssertTrue(message = "campus.ai.service.url must be set when campus.ai.mode=service")
+    public boolean isServiceUrlPresentWhenNeeded() {
+        return mode != Mode.SERVICE
+                || (service.getUrl() != null && !service.getUrl().isBlank());
+    }
+
+    @Getter
+    @Setter
+    public static class Service {
+
+        private String url = "http://localhost:8000";
+
+        /** Optional shared key; blank means the local, keyless setup. */
+        private String apiKey = "";
+
+        private Duration connectTimeout = Duration.ofSeconds(5);
+
+        private Duration readTimeout = Duration.ofSeconds(65);
+    }
 
     @Getter
     @Setter

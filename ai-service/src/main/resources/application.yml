@@ -1,0 +1,36 @@
+server:
+  port: 8000
+
+spring:
+  application:
+    name: nexus-ai-service
+  jackson:
+    default-property-inclusion: non_null
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+
+ai-service:
+  llm:
+    base-url: ${LLM_ENDPOINT:http://localhost:11434/v1}
+    api-key: ${LLM_API_KEY:ollama}
+    model: ${LLM_MODEL:qwen2.5:3b}
+    timeout: ${LLM_TIMEOUT:30s}
+    max-attempts: ${AI_LLM_MAX_ATTEMPTS:3}
+    retry-backoff-ms: ${AI_LLM_RETRY_BACKOFF_MS:500}
+    health-cache-seconds: ${AI_HEALTH_CACHE_SECONDS:60}
+  service:
+    api-key: ${AI_SERVICE_KEY:}
+    max-context-tokens: ${AI_MAX_CONTEXT_TOKENS:12000}
+
+logging:
+  level:
+    com.nexus.campus.ai: INFO
+    org.springframework.ai: INFO

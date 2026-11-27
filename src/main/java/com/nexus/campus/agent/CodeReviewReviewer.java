@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.nexus.campus.config.CampusAiProperties;
 import com.nexus.campus.entity.VibePost;
-import com.nexus.campus.util.ContentSanitizer;
 import lombok.extern.slf4j.Slf4j;
 
 import java.util.ArrayList;
@@ -188,30 +187,7 @@ public class CodeReviewReviewer extends AbstractLlmReviewer {
 
     @Override
     protected String renderBody(Verdict verdict) {
-        // LLM output is untrusted content: sanitize through the same whitelist
-        // as user comments (this path bypasses the request XSS filter).
-        String quality = ContentSanitizer.clean(verdict.quality);
-        String security = ContentSanitizer.clean(verdict.security);
-        String suggestions = ContentSanitizer.clean(verdict.suggestions);
-
-        StringBuilder sb = new StringBuilder();
-        sb.append("**Overall Score**: ").append(verdict.score).append("/10\n\n");
-        sb.append("**Severity**: ").append(verdict.severity).append("\n\n");
-        sb.append("**Verdict**: ").append(verdict.approved ? "Approved" : "Needs Attention").append("\n\n");
-
-        if (quality != null && !quality.isBlank()) {
-            sb.append("### Code Quality\n").append(quality).append("\n\n");
-        }
-        if (security != null && !security.isBlank()) {
-            sb.append("### Security\n").append(security).append("\n\n");
-        }
-        if (suggestions != null && !suggestions.isBlank()) {
-            sb.append("### Suggestions\n").append(suggestions).append("\n");
-        }
-        sb.append("\n---\n*Score guide: 9-10 production-ready · 7-8 solid, minor issues · "
-                  + "5-6 functional with notable gaps · 3-4 significant problems · 0-2 broken/unsafe. "
-                  + "Edited posts are re-reviewed automatically; the latest score wins.*\n");
-        return sb.toString();
+        return VerdictRenderer.renderCode(verdict);
     }
 
     /**

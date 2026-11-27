@@ -1,0 +1,51 @@
+name: AI service
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - "ai-service/**"
+      - ".github/workflows/ai-service.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "ai-service/**"
+      - ".github/workflows/ai-service.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  ai-service:
+    name: Build and test the inference service
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-service
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # Independent build: the service targets Java 21 on Boot 3.5, while the
+      # application stays on 3.3/bytecode 18. Sharing a JDK version in CI would
+      # hide the moment those two contracts drift.
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: "temurin"
+          cache: maven
+          cache-dependency-path: ai-service/pom.xml
+
+      # OpenApiContractTest is part of this run: it parses the committed
+      # openapi/ai-service.yaml and fails when a controller DTO and the
+      # document disagree.
+      - name: Run tests
+        run: mvn -B test
+
+      # The image is the deployable half. Building it here is the only place a
+      # broken Dockerfile (missing curl for the compose healthcheck, for
+      # example) is caught before a deployment.
+      - name: Build image
+        run: docker build -t nexus-ai-service:ci .
+
