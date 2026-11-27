@@ -50,14 +50,16 @@ public class SafetyService {
         long deadline = started + properties.getLlm().maxBudgetMillis() * 1_000_000L;
         PromptFactory.Prompt prompt = prompts.safety(request.text(), request.surface());
         ModelGateway.ModelReply reply = caller.complete(
-                prompt.system(), prompt.user(), 0.0, remainingMillis(deadline));
+                prompt.system(), prompt.user(), 0.0, ReviewSchema.SAFETY,
+                context(request), remainingMillis(deadline));
         JsonRepair.ParseResult parsed = JsonRepair.parse(reply.content());
         JsonNode node = parsed.ok() ? parsed.node() : null;
 
         if (parseClass(node) == null) {
             reply = caller.complete(prompt.system()
                     + "\n\nReturn only one of the four exact class names in the classification field.",
-                    prompt.user(), 0.0, remainingMillis(deadline));
+                    prompt.user(), 0.0, ReviewSchema.SAFETY,
+                    context(request), remainingMillis(deadline));
             parsed = JsonRepair.parse(reply.content());
             node = parsed.ok() ? parsed.node() : null;
         }
@@ -76,6 +78,11 @@ public class SafetyService {
                 reason.isBlank() ? List.of() : List.of(reason),
                 node.toString(), properties.getLlm().getModel(),
                 Math.max(0L, (System.nanoTime() - started) / 1_000_000L));
+    }
+
+    private static RetryingModelCaller.CallContext context(SafetyRequest request) {
+        return new RetryingModelCaller.CallContext(
+                request.requestId(), request.traceId(), "safety");
     }
 
     private static String parseClass(JsonNode node) {

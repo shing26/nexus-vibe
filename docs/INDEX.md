@@ -43,6 +43,8 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0021](adr/0021-content-is-stored-raw-and-escaped-at-egress.md) | Content is stored raw and escaped at egress |
 | [0022](adr/0022-reopening-scope-for-the-self-demonstrating-community.md) | The scope reopens for a self-demonstrating community - ADR-0009's freeze is superseded |
 | [0023](adr/0023-the-console-palette-and-a-dark-default.md) | The console palette and a dark default - supersedes ADR-0020's accent clause and system-following theme |
+| [0024](adr/0024-ai-inference-moves-behind-a-service.md) | Model-facing inference moves behind an internal Java service; Java keeps the policy |
+| [0025](adr/0025-deepen-the-inference-service.md) | Deepen the service where it is thinner than the direct path: structured output, dedup, breaker, archive, evaluation, evidence |
 
 ## Measurements — `docs/research/`
 

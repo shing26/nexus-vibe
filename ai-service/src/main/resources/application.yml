@@ -31,9 +31,21 @@ ai-service:
     max-attempts: ${AI_LLM_MAX_ATTEMPTS:3}
     retry-backoff-ms: ${AI_LLM_RETRY_BACKOFF_MS:500}
     health-cache-seconds: ${AI_HEALTH_CACHE_SECONDS:60}
+    # Restores the direct path's provider-enforced output. json_object is the fallback
+    # for providers without native schema support; none keeps the prompt-only behaviour.
+    response-format: ${AI_LLM_RESPONSE_FORMAT:json_schema}
+    breaker-failures: ${AI_LLM_BREAKER_FAILURES:5}
+    breaker-open-seconds: ${AI_LLM_BREAKER_OPEN_SECONDS:30}
+    # Opt-in JSONL archive of every provider attempt. Blank = off; the operator owns
+    # rotation and a container without a writable mount must still start.
+    archive: ${AI_CALL_ARCHIVE:}
   service:
     api-key: ${AI_SERVICE_KEY:}
     max-context-tokens: ${AI_MAX_CONTEXT_TOKENS:12000}
+  review:
+    # Content-addressed dedup: in-flight coalescing plus a bounded valid-result cache.
+    cache-ttl: ${AI_REVIEW_CACHE_TTL:10m}
+    cache-max-entries: ${AI_REVIEW_CACHE_MAX_ENTRIES:500}
 
 logging:
   level:

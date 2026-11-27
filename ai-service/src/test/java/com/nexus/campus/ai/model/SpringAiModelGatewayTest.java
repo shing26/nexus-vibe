@@ -4,12 +4,17 @@ import com.nexus.campus.ai.config.AiServiceProperties;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.Test;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.openai.OpenAiChatOptions;
+import org.springframework.ai.openai.api.ResponseFormat;
 import org.springframework.web.client.RestClient;
+import com.nexus.campus.ai.service.ReviewSchema;
 
 import java.net.InetSocketAddress;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.Mockito.mock;
 
@@ -37,5 +42,36 @@ class SpringAiModelGatewayTest {
         } finally {
             server.stop(0);
         }
+    }
+
+    @Test
+    void theDefaultModeSendsAStrictProviderSchema() {
+        AiServiceProperties properties = new AiServiceProperties();
+        SpringAiModelGateway gateway = new SpringAiModelGateway(
+                mock(ChatClient.class), properties, RestClient.builder());
+
+        OpenAiChatOptions options = gateway.options(0.2, ReviewSchema.CODE_REVIEW);
+
+        assertEquals("qwen2.5:3b", options.getModel());
+        assertEquals(0.2, options.getTemperature());
+        ResponseFormat format = options.getResponseFormat();
+        assertNotNull(format);
+        assertEquals(ResponseFormat.Type.JSON_SCHEMA, format.getType());
+        assertEquals("code_review", format.getJsonSchema().getName());
+        assertEquals(true, format.getJsonSchema().getStrict());
+    }
+
+    @Test
+    void jsonObjectModeDropsTheSchemaAndNoneDisablesTheFormat() {
+        AiServiceProperties properties = new AiServiceProperties();
+        SpringAiModelGateway gateway = new SpringAiModelGateway(
+                mock(ChatClient.class), properties, RestClient.builder());
+
+        properties.getLlm().setResponseFormat("json_object");
+        OpenAiChatOptions jsonObject = gateway.options(0.2, ReviewSchema.CODE_REVIEW);
+        assertEquals(ResponseFormat.Type.JSON_OBJECT, jsonObject.getResponseFormat().getType());
+
+        properties.getLlm().setResponseFormat("none");
+        assertNull(gateway.options(0.2, ReviewSchema.CODE_REVIEW).getResponseFormat());
     }
 }

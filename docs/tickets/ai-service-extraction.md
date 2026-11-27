@@ -9,7 +9,7 @@ Verification record (independent verifier, not the implementer):
   docs-only follow-up. Earlier independent verification bound `c18ead7`; the only later
   code delta is the health probe from 1 s to 750 ms per phase.
 - `mvn -B test` → 602 tests, 0 failures, coverage floor met.
-- `mvn -B -f ai-service/pom.xml test` → 41 tests, 0 failures.
+- `mvn -B -f ai-service/pom.xml test` → 62 tests, 0 failures (after increment A of ADR-0025).
 - `git status --short` before and after verification: empty.
 - Both compose renders checked: base `AI_MODE=service`, `ai` no ports / 512 MiB, `app`
   key empty, `ai` key non-empty and matching the app's service key; `AI_LLM_ENDPOINT`
@@ -77,6 +77,32 @@ characters and sends all three (1,826 vs 2,729 lines). Criterion #3 is PASS on t
 basis; the payload difference is pinned by the baseline and left as a follow-up,
 because making the service enforce a total budget is a behaviour change.
 
+## Increment A — capability parity (2026-11-28)
+
+ADR-0025's first increment restores what the extraction dropped and stops duplicate
+spend:
+
+- **Provider-enforced output.** `AI_LLM_RESPONSE_FORMAT` selects `json_schema`
+  (default), `json_object` or `none`. The service owns the code, prompt and safety
+  schemas and sends them as `response_format`; the application request contract did not
+  change. Ollama accepted `json_schema` on this stack.
+- **Content-addressed deduplication.** The key is a SHA-256 of kind, title, content,
+  snippets, model and prompt version; `requestId` is not used because the application
+  mints a new trace id per dispatch. Concurrent duplicates coalesce, valid responses are
+  cached for 10 minutes, and errors or invalid verdicts are never cached.
+- **Circuit breaker.** Five consecutive provider failures open the breaker for 30
+  seconds; the next call fails fast with 503 and `model_unavailable` instead of consuming
+  the caller's budget. A single half-open probe closes it on success.
+- **Call archive.** One JSONL line per provider attempt when `AI_CALL_ARCHIVE` names a
+  file; an unwritable path is logged and does not fail the review.
+
+Live evidence on the local stack (temporary container built from the branch jar, pointed
+at `ollama:11434`): the first `POST /v1/reviews` took 24.4 s and returned `score=5`,
+`severity=medium`, `repaired=false`; the identical second call took **17 ms**, and
+`/metrics` showed `ai.provider.calls{outcome="success"}=1` with
+`ai.review.dedup{outcome="hit"}=1` and `{outcome="miss"}=1`. `ai-service` now has 62
+tests, 0 failures.
+
 ## Scope
 
 Move the model-facing half of the AI pipeline into an independent Java 21 / Spring Boot
@@ -122,7 +148,7 @@ implemented test mapping:
 ## Files
 
 - `ai-service/**` — application, prompts, provider adapter, retry, repair, controllers,
-  auth and trace filters, Dockerfile, OpenAPI, 41 tests.
+  auth and trace filters, Dockerfile, OpenAPI, 62 tests.
 - `src/main/java/com/nexus/campus/agent/{AiServiceClient,ServiceReviewer,SafetyClassifier,LlmSafetyClassifier,ServiceSafetyClassifier,LlmHealthProbe,VerdictRenderer}.java`
 - `src/main/java/com/nexus/campus/config/{AiModeConfig,CampusAiProperties,ReviewPolicyConfig}.java`
 - `src/main/resources/application.yml`, `application-prod.yml`
