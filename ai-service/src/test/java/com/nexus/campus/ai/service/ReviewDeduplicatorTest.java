@@ -99,7 +99,8 @@ class ReviewDeduplicatorTest {
     void anInvalidResponseIsNotStored() {
         AtomicInteger calls = new AtomicInteger();
         ReviewResponse invalid = new ReviewResponse(
-                8, "low", "", "", "", true, "{}", "m", new ReviewResponse.Usage(1, 1), 1, false);
+                8, "low", "", "", "", true, "{}", "m", new ReviewResponse.Usage(1, 1), 1, false,
+                List.of(), 0);
 
         dedup.run("k", () -> {
             calls.incrementAndGet();
@@ -152,6 +153,6 @@ class ReviewDeduplicatorTest {
                 "Clean structure and readable naming throughout the implementation",
                 "No injection or unsafe cast was found in this code",
                 "Extract the division logic into a helper and add unit tests",
-                true, "{}", "m", new ReviewResponse.Usage(10, 5), 10, false);
+                true, "{}", "m", new ReviewResponse.Usage(10, 5), 10, false, List.of(), 0);
     }
 }

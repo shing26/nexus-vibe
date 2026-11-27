@@ -157,7 +157,13 @@ Modified:
   `benchmark/eval/baseline-2026-11-28.json` (score agreement 0.85, severity 0.40,
   safety class 0.9167), documented in
   `docs/research/ai-service-eval-2026-11-28.md`.
-- **C — evidence anchoring:** pending.
+- **C — evidence anchoring:** implemented on `codex/ai-service-depth-c`. Prompt
+  version `eb5421e62edc`; accepted quotes carry 1-based line numbers, rejected
+  quotes are counted; `AI_EVIDENCE_REQUIRED` defaults to `false`. The measured
+  baseline (`benchmark/eval/baseline-2026-11-28-evidence.json`) has 15/20 cases
+  with evidence, 27 accepted and 29 rejected quotes, and one 504 timeout;
+  documented in `docs/research/ai-service-evidence-2026-11-28.md`. `ai-service`
+  now has 81 tests.
 
 ## Verification commands
 

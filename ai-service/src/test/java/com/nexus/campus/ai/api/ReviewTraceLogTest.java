@@ -52,7 +52,8 @@ class ReviewTraceLogTest {
             ReviewService reviews = mock(ReviewService.class);
             when(reviews.review(any())).thenReturn(new ReviewResponse(
                     8, "low", "readable", "no issues", "add a test", true,
-                    "{}", "test-model", new ReviewResponse.Usage(1, 1), 1, false));
+                    "{}", "test-model", new ReviewResponse.Usage(1, 1), 1, false,
+                    List.of(), 0));
             PromptFactory prompts = new PromptFactory(new AiServiceProperties());
             ReviewController controller = new ReviewController(
                     reviews, mock(SafetyService.class), prompts);

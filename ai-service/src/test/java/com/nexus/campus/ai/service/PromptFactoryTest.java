@@ -63,7 +63,7 @@ class PromptFactoryTest {
         // A fixture hash, deliberately literal: a template or schema edit must
         // show up as a failing test and a new baseline, not silently re-label
         // yesterday's measurements.
-        assertEquals("4507b4663c31", first);
+        assertEquals("eb5421e62edc", first);
         assertFalse(first.equals(ReviewSchema.fingerprint()),
                 "prompt version must not be the schema fingerprint alone");
     }

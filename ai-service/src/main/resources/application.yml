@@ -48,6 +48,8 @@ ai-service:
     # Content-addressed dedup: in-flight coalescing plus a bounded valid-result cache.
     cache-ttl: ${AI_REVIEW_CACHE_TTL:10m}
     cache-max-entries: ${AI_REVIEW_CACHE_MAX_ENTRIES:500}
+    # Opt-in: an empty accepted evidence set becomes an invalid verdict.
+    evidence-required: ${AI_EVIDENCE_REQUIRED:false}
 
 logging:
   level:

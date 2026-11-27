@@ -151,6 +151,34 @@ is 0.85; `injection-forged-delimiter` was the one safety miss. The baseline is c
 as `benchmark/eval/baseline-2026-11-28.json`. The harness tests are now **38 Python
 tests**, in addition to the 69 ai-service and 602 application tests.
 
+## Increment C — evidence anchoring (2026-11-28)
+
+The third increment makes the model's claims checkable:
+
+- **Verifier.** `EvidenceExtractor` matches each quote against the submitted
+  content, then each snippet, after collapsing whitespace runs to one space. It
+  rejects blank, shorter-than-10-character, duplicate and unmatched quotes,
+  caps the accepted set at five, and returns the source's own text with 1-based
+  `startLine`/`endLine`.
+- **Contract.** `ReviewResponse` carries `evidence: [{quote,startLine,endLine}]`
+  and `evidenceRejected: int`; `resultJson` carries the same verified objects so
+  they persist with the verdict. The application `AiServiceClient` record and
+  the OpenAPI document are updated, and the two contract tests pin the names.
+- **Policy.** `AI_EVIDENCE_REQUIRED` defaults to `false`. When true, an
+  otherwise-valid verdict with no accepted quote is returned with severity
+  `unknown`, which the application's `ReviewValidity` already rejects. Evidence
+  is not rendered into the comment body.
+
+Acceptance evidence: `EvidenceExtractorTest` covers a real quote on the correct
+line, a reflowed multi-line quote, fabricated/short/duplicate rejection, snippet
+matching and the five-quote cap; `ReviewServiceTest` covers the required-empty
+downgrade and acceptance on the repair pass. The live run
+(`benchmark/eval/baseline-2026-11-28-evidence.json`, prompt `eb5421e62edc`)
+accepted 27 quotes, rejected 29, had 15/20 cases with evidence and one 504
+timeout; the analysis is in
+`docs/research/ai-service-evidence-2026-11-28.md`. `ai-service` is now **81
+tests**.
+
 ## Scope
 
 Move the model-facing half of the AI pipeline into an independent Java 21 / Spring Boot

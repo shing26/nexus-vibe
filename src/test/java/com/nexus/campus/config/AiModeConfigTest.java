@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.context.annotation.AnnotationConfigApplicationContext;
 import org.springframework.core.env.MapPropertySource;
 
+import java.util.List;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -52,7 +53,8 @@ class AiModeConfigTest {
             when(serviceClient.review(any())).thenReturn(new AiServiceClient.ReviewResponse(
                     8, "low", "A sufficiently detailed quality analysis.",
                     "No security concerns were found.", "Extract a helper method.",
-                    true, "{}", "test-model", new AiServiceClient.Usage(1, 1), 1, false));
+                    true, "{}", "test-model", new AiServiceClient.Usage(1, 1), 1, false,
+                    List.of(), 0));
             VibePost post = new VibePost();
             post.setId(1L);
             post.setPostType("code");

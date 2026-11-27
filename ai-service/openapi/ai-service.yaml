@@ -171,7 +171,7 @@ components:
           type: integer
     ReviewResponse:
       type: object
-      required: [score, severity, quality, security, suggestions, approved, resultJson, model, usage, latencyMs]
+      required: [score, severity, quality, security, suggestions, approved, resultJson, model, usage, latencyMs, evidence, evidenceRejected]
       properties:
         score:
           type: integer
@@ -197,6 +197,27 @@ components:
           format: int64
         repaired:
           type: boolean
+        evidence:
+          type: array
+          maxItems: 5
+          description: Quotes found verbatim in the submitted content, with 1-based line numbers
+          items:
+            $ref: '#/components/schemas/Evidence'
+        evidenceRejected:
+          type: integer
+          description: Quotes the model supplied that were short, duplicate or not found in the source
+    Evidence:
+      type: object
+      required: [quote, startLine, endLine]
+      properties:
+        quote:
+          type: string
+        startLine:
+          type: integer
+          minimum: 1
+        endLine:
+          type: integer
+          minimum: 1
     Usage:
       type: object
       properties:

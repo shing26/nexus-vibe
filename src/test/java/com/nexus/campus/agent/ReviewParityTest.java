@@ -9,6 +9,8 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -124,7 +126,7 @@ class ReviewParityTest {
                             + "\"securityConcerns\":\"none\",\"optimizationSuggestions\":\"\"}");
         when(serviceClient.review(any())).thenReturn(new AiServiceClient.ReviewResponse(
                 5, "low", "EVALUATE", "none", "", true, "{}", "m",
-                new AiServiceClient.Usage(1, 1), 1, false));
+                new AiServiceClient.Usage(1, 1), 1, false, List.of(), 0));
 
         Reviewer.Verdict direct = direct(post).review(post);
         Reviewer.Verdict viaService = service.review(post);
@@ -166,6 +168,6 @@ class ReviewParityTest {
         return new AiServiceClient.ReviewResponse(
                 score, severity, QUALITY, SECURITY, SUGGESTIONS,
                 score >= 5 && !"critical".equals(severity), "{}", "test-model",
-                new AiServiceClient.Usage(100, 20), 10, false);
+                new AiServiceClient.Usage(100, 20), 10, false, List.of(), 0);
     }
 }

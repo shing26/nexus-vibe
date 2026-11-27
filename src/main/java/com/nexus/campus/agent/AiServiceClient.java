@@ -216,10 +216,15 @@ public class AiServiceClient implements LlmHealthProbe {
                                  String model,
                                  Usage usage,
                                  long latencyMs,
-                                 boolean repaired) {
+                                 boolean repaired,
+                                 List<Evidence> evidence,
+                                 int evidenceRejected) {
     }
 
     public record Usage(int promptTokens, int completionTokens) {
+    }
+
+    public record Evidence(String quote, int startLine, int endLine) {
     }
 
     public record SafetyRequest(String requestId,

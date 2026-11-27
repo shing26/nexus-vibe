@@ -16,6 +16,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.util.List;
+
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.mockito.ArgumentMatchers.any;
@@ -88,7 +90,7 @@ class AiServiceFailureMappingTest {
                 "No security concerns were found in this snippet.",
                 "Extract the loop body into a helper and add a boundary test.",
                 true, "{\"score\":8}", "test-model",
-                new AiServiceClient.Usage(100, 20), 10, false));
+                new AiServiceClient.Usage(100, 20), 10, false, List.of(), 0));
 
         reviewService.reviewPost(post(), reviewer, 10L, true, 2);
 
