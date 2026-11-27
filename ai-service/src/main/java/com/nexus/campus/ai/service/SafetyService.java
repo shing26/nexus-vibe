@@ -47,15 +47,17 @@ public class SafetyService {
 
     public SafetyResponse classify(SafetyRequest request) {
         long started = System.nanoTime();
+        long deadline = started + properties.getLlm().maxBudgetMillis() * 1_000_000L;
         PromptFactory.Prompt prompt = prompts.safety(request.text(), request.surface());
-        ModelGateway.ModelReply reply = caller.complete(prompt.system(), prompt.user(), 0.0);
+        ModelGateway.ModelReply reply = caller.complete(
+                prompt.system(), prompt.user(), 0.0, remainingMillis(deadline));
         JsonRepair.ParseResult parsed = JsonRepair.parse(reply.content());
         JsonNode node = parsed.ok() ? parsed.node() : null;
 
         if (parseClass(node) == null) {
             reply = caller.complete(prompt.system()
                     + "\n\nReturn only one of the four exact class names in the classification field.",
-                    prompt.user(), 0.0);
+                    prompt.user(), 0.0, remainingMillis(deadline));
             parsed = JsonRepair.parse(reply.content());
             node = parsed.ok() ? parsed.node() : null;
         }
@@ -83,5 +85,9 @@ public class SafetyService {
         String value = node.path("classification").asText("")
                 .trim().toLowerCase(Locale.ROOT);
         return CLASSES.contains(value) ? value : null;
+    }
+
+    private static long remainingMillis(long deadline) {
+        return Math.max(1L, (deadline - System.nanoTime()) / 1_000_000L);
     }
 }

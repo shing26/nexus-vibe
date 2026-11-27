@@ -215,9 +215,12 @@ that measurement, and the review prompt does not change until the eval shows a g
 - `docker-compose.yml` uses `AI_MODE=${AI_MODE:-service}` so local and demo runs show the
   boundary without a second compose file.
 - Production starts on the direct overlay (`docker-compose.direct.yml`) until P0 passes
-  verification. The flip is `AI_MODE=service` in `.env` plus `docker compose up -d app`;
-  rollback is the overlay command. The base compose blanks the app's provider key, so a
-  lone `AI_MODE=direct` is not a valid rollback (A5).
+  verification. The flip is `AI_MODE=service`, `AI_SERVICE_PROFILE=prod` and a non-blank
+  `AI_SERVICE_KEY` in `.env`, plus `docker compose up -d app`; rollback is the overlay
+  command. The base compose blanks the app's provider key, so a lone `AI_MODE=direct` is
+  not a valid rollback (A5). Production also sets `CAMPUS_AI_MENTION_ENABLED=false` for
+  the flip: mention replies are a chat surface outside P0 and have no service endpoint
+  yet (A8).
 - No code change is involved in either direction.
 
 ## Deployment and health
@@ -259,6 +262,7 @@ New:
 
 Modified:
 
+- `CONTEXT.md` (the `AI Inference Service` and `Policy Owner` terms; see A8)
 - `src/main/java/com/nexus/campus/agent/LlmClient.java` (implements `LlmHealthProbe`)
 - `src/main/java/com/nexus/campus/agent/LlmHealthCache.java` (depends on the interface)
 - `src/main/java/com/nexus/campus/agent/PromptIsolation.java` (idempotent neutralization,
@@ -587,6 +591,40 @@ output showed a trace id in a log line. Added two tests:
 The two tests live in different Maven projects, so they share the literal id rather than a
 process; that is the seam-level equivalent of the demo path. Added to Allowed paths:
 `ai-service/src/test/java/com/nexus/campus/ai/api/ReviewTraceLogTest.java`.
+
+### A8 — 2026-11-27 — review fixes before merge
+
+The two-axis review of PR #62 found five gaps. Four are closed here; the fifth is
+recorded as a limitation rather than silently claimed.
+
+- **Rollback no longer waits for `ai`.** The overlay drops the base file's
+  `depends_on: ai` with `!reset`, so the documented
+  `docker compose -f docker-compose.yml -f docker-compose.direct.yml up -d app`
+  starts the application even when `ai` is the unhealthy dependency being rolled back
+  from.
+- **A blank service key now fails startup by default.** `ai` defaults to
+  `SPRING_PROFILES_ACTIVE=prod` instead of `local`, `.env.example` ships a non-blank
+  local/demo key shared by both containers, and the production flip names
+  `AI_SERVICE_PROFILE=prod` and a real `AI_SERVICE_KEY`. A copied environment can no
+  longer ship an unauthenticated `/v1/*` on `nexus-net`.
+- **The application deadline exceeds the service's retry budget.** The read timeout
+  moves from 65 s to 120 s (still below the 240 s lease). The service now enforces the
+  request's `budget.timeoutMs` (falling back to
+  `maxAttempts * llm.timeout + backoffs`) and refuses to start an attempt that cannot
+  finish before it, so a slow provider returns one failure to the application instead of
+  triggering a duplicate review.
+- **`CONTEXT.md` is on the Allowed paths.** It was already modified for the two new
+  terms; the list now says so.
+- **Mention replies are explicitly out of P0.** `@ai-agent` is a chat surface; the
+  service exposes review and safety only. In production service mode the application has
+  no provider key, so the flip requires `CAMPUS_AI_MENTION_ENABLED=false` until a chat
+  endpoint is argued for in a separate plan. The local/demo stack still runs against
+  keyless Ollama, so mentions stay enabled there.
+- **Parity evidence is layered, not a single live comparison.** The application test
+  compares direct mode against the typed service response and the shared renderer; the
+  service's own `ReviewServiceTest` pins model JSON to response fields. Prompt-text drift
+  between `AbstractLlmReviewer` and `PromptFactory` is still not measured by a test, and
+  is recorded as a limitation rather than claimed as parity.
 
 ## Freeze checklist
 

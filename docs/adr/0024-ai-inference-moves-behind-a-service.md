@@ -67,7 +67,10 @@ so that Java still decides what a failure means.
 7. **The AI service is the only model caller in production service mode.** The model
    credential is injected into the `ai` container, not into the application container.
    Rollback to direct mode is an explicit compose change that re-injects the key and
-   restarts the application, so it cannot happen silently at runtime.
+   restarts the application, so it cannot happen silently at runtime. The one surface
+   outside this boundary is the `@ai-agent` mention reply, which is chat: production
+   sets `CAMPUS_AI_MENTION_ENABLED=false` on the flip until a separate plan adds a chat
+   endpoint. The local/demo stack keeps it enabled against keyless Ollama.
 8. **The service is internal-only and its health is split.** It publishes no host port
    and gets no nginx route. `/healthz` answers process liveness only; `/readyz` answers a
    cached provider probe. `AiServiceClient.isHealthy()` consumes `/readyz`, and the
@@ -112,6 +115,9 @@ so that Java still decides what a failure means.
 - In production service mode the model credential is removed from the application
   container. Rollback to direct then requires a compose change and restart, which is a
   visible operational step rather than a config toggle.
+- A blank shared key is a startup failure: the AI service defaults to the `prod`
+  profile, and `.env.example` ships a non-blank local/demo value that both containers
+  share. A copied environment cannot expose an unauthenticated `/v1/*` on `nexus-net`.
 - README's "one compose file, two seams" line and the test counts change in the same
   commit that lands P0.
 

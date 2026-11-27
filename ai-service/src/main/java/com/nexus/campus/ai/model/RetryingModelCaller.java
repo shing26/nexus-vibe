@@ -20,9 +20,23 @@ public class RetryingModelCaller {
         this.properties = properties;
     }
 
-    public ModelGateway.ModelReply complete(String system, String user, double temperature) {
+    /**
+     * Runs the provider ladder inside a caller-supplied budget. The budget is
+     * the application's deadline minus a safety margin: starting an attempt
+     * that cannot finish before it would make the application time out and
+     * re-dispatch the same review, which is exactly the duplication the
+     * boundary is meant to prevent.
+     */
+    public ModelGateway.ModelReply complete(String system, String user, double temperature,
+                                            long budgetMillis) {
         int maxAttempts = properties.getLlm().getMaxAttempts();
+        long perAttemptMillis = properties.getLlm().getTimeout().toMillis();
+        long deadline = System.nanoTime() + Math.max(0L, budgetMillis) * 1_000_000L;
         for (int attempt = 1; ; attempt++) {
+            if (System.nanoTime() >= deadline) {
+                throw new AiServiceException("model_timeout", false, 504,
+                        "inference budget exhausted before attempt " + attempt);
+            }
             try {
                 return gateway.complete(system, user, temperature);
             } catch (AiServiceException e) {
@@ -31,7 +45,13 @@ public class RetryingModelCaller {
                 }
                 log.warn("Provider attempt {}/{} failed ({}), retrying",
                         attempt, maxAttempts, e.getCode());
-                sleep(properties.getLlm().getRetryBackoffMs() * attempt);
+                long backoff = properties.getLlm().getRetryBackoffMs() * attempt;
+                long remainingMillis = (deadline - System.nanoTime()) / 1_000_000L;
+                if (remainingMillis <= backoff + perAttemptMillis) {
+                    throw new AiServiceException("model_timeout", false, 504,
+                            "inference budget cannot fit another provider attempt");
+                }
+                sleep(backoff);
             }
         }
     }

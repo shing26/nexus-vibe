@@ -55,9 +55,13 @@ public class ReviewService {
         long started = System.nanoTime();
         PromptFactory.Prompt prompt = prompts.review(request);
         boolean repaired = false;
+        long budgetMillis = request.budget() != null && request.budget().timeoutMs() > 0
+                ? request.budget().timeoutMs()
+                : properties.getLlm().maxBudgetMillis();
+        long deadline = started + budgetMillis * 1_000_000L;
 
         ModelGateway.ModelReply reply = caller.complete(
-                prompt.system(), prompt.user(), REVIEW_TEMPERATURE);
+                prompt.system(), prompt.user(), REVIEW_TEMPERATURE, remainingMillis(deadline));
         JsonRepair.ParseResult parsed = JsonRepair.parse(reply.content());
         ReviewResponse response = parsed.ok() ? map(parsed.node(), reply, prompt.kind()) : null;
 
@@ -73,7 +77,8 @@ public class ReviewService {
                 retrySystem = prompts.repairSystemPrompt();
                 retryUser = prompts.repairUserContent(parsed.error(), reply.content());
             }
-            reply = caller.complete(retrySystem, retryUser, REPAIR_TEMPERATURE);
+            reply = caller.complete(retrySystem, retryUser, REPAIR_TEMPERATURE,
+                    remainingMillis(deadline));
             parsed = JsonRepair.parse(reply.content());
             response = parsed.ok() ? map(parsed.node(), reply, prompt.kind()) : null;
         }
@@ -111,5 +116,9 @@ public class ReviewService {
                 node.toString(), properties.getLlm().getModel(),
                 new ReviewResponse.Usage(reply.promptTokens(), reply.completionTokens()),
                 0L, false);
+    }
+
+    private static long remainingMillis(long deadline) {
+        return Math.max(1L, (deadline - System.nanoTime()) / 1_000_000L);
     }
 }

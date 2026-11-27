@@ -106,7 +106,8 @@ class ServiceReviewerTest {
         assertEquals(42L, request.postId());
         assertEquals(List.of("int x = 1;"), request.snippets());
         assertEquals(properties.getReview().getMaxContextTokens(), request.budget().maxContextTokens());
-        assertEquals(60_000, request.budget().timeoutMs());
+        assertEquals(properties.getService().getReadTimeout().toMillis() - 5_000,
+                request.budget().timeoutMs());
         assertTrue(request.title().contains("[neutralized:"));
         assertTrue(request.content().contains("[neutralized:"));
         assertEquals(1, occurrences(request.content(), "[neutralized:"));

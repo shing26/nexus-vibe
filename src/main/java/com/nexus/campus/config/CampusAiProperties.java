@@ -81,7 +81,12 @@ public class CampusAiProperties {
 
         private Duration connectTimeout = Duration.ofSeconds(5);
 
-        private Duration readTimeout = Duration.ofSeconds(65);
+        /**
+         * The AI service's worst case (three provider attempts plus backoff)
+         * must fit inside this, or the application times out while the service
+         * is still retrying and reconciliation duplicates the review.
+         */
+        private Duration readTimeout = Duration.ofSeconds(120);
     }
 
     @Getter

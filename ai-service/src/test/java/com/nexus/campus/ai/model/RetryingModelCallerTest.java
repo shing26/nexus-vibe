@@ -17,6 +17,9 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
  */
 class RetryingModelCallerTest {
 
+    /** Three 30 s attempts plus backoff, with headroom. */
+    private static final long BUDGET_MILLIS = 120_000L;
+
     private final AiServiceProperties properties = new AiServiceProperties();
     private RecordingGateway gateway;
     private RetryingModelCaller caller;
@@ -34,7 +37,7 @@ class RetryingModelCallerTest {
         gateway.failures.add(new AiServiceException("model_unavailable", true, 502, "down"));
         gateway.failures.add(new AiServiceException("model_timeout", true, 504, "slow"));
 
-        ModelGateway.ModelReply reply = caller.complete("s", "u", 0.2);
+        ModelGateway.ModelReply reply = caller.complete("s", "u", 0.2, BUDGET_MILLIS);
 
         assertEquals("ok", reply.content());
         assertEquals(3, gateway.calls);
@@ -44,7 +47,7 @@ class RetryingModelCallerTest {
     void alwaysFailingStopsAtTheConfiguredBudget() {
         gateway.alwaysFail = new AiServiceException("model_unavailable", true, 502, "down");
 
-        assertThrows(AiServiceException.class, () -> caller.complete("s", "u", 0.2));
+        assertThrows(AiServiceException.class, () -> caller.complete("s", "u", 0.2, BUDGET_MILLIS));
         assertEquals(3, gateway.calls);
     }
 
@@ -52,8 +55,28 @@ class RetryingModelCallerTest {
     void aNonRetryableFailureIsNotRetried() {
         gateway.alwaysFail = new AiServiceException("model_rejected", false, 400, "bad request");
 
-        assertThrows(AiServiceException.class, () -> caller.complete("s", "u", 0.2));
+        assertThrows(AiServiceException.class, () -> caller.complete("s", "u", 0.2, BUDGET_MILLIS));
         assertEquals(1, gateway.calls);
+    }
+
+    @Test
+    void aBudgetThatCannotFitAnotherAttemptReturnsTimeoutInsteadOfRetrying() {
+        gateway.alwaysFail = new AiServiceException("model_timeout", true, 504, "slow");
+
+        AiServiceException error = assertThrows(AiServiceException.class,
+                () -> caller.complete("s", "u", 0.2, 1_000L));
+
+        assertEquals("model_timeout", error.getCode());
+        assertEquals(1, gateway.calls);
+    }
+
+    @Test
+    void anExhaustedBudgetMakesNoProviderCall() {
+        AiServiceException error = assertThrows(AiServiceException.class,
+                () -> caller.complete("s", "u", 0.2, 0L));
+
+        assertEquals("model_timeout", error.getCode());
+        assertEquals(0, gateway.calls);
     }
 
     private static final class RecordingGateway implements ModelGateway {

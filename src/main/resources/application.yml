@@ -157,7 +157,9 @@ campus:
       url: ${AI_SERVICE_URL:http://localhost:8000}
       api-key: ${AI_SERVICE_KEY:}
       connect-timeout: ${AI_SERVICE_CONNECT_TIMEOUT:5s}
-      read-timeout: ${AI_SERVICE_READ_TIMEOUT:65s}
+      # Must exceed the service's worst case (3 attempts x LLM_TIMEOUT + backoff)
+      # and stay well below the 240 s review lease.
+      read-timeout: ${AI_SERVICE_READ_TIMEOUT:120s}
     review:
       enabled: true
       # Lease-based claim (ADR-0005): how long a claimed review stays locked

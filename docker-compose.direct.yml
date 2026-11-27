@@ -9,6 +9,9 @@
 # no code change. Flip back by running plain `docker compose up -d app`.
 services:
   app:
+    # The rollback must not wait for (or start) the thing being rolled back
+    # from: drop the base file's `depends_on: ai` entirely.
+    depends_on: !reset []
     environment:
       AI_MODE: direct
       LLM_API_KEY: ${LLM_API_KEY:-}

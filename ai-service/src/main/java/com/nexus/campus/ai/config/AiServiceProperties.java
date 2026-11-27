@@ -55,6 +55,18 @@ public class AiServiceProperties {
         public boolean isTimeoutPositive() {
             return timeout != null && !timeout.isZero() && !timeout.isNegative();
         }
+
+        /**
+         * Worst-case wall time for one logical call: every attempt consumes
+         * the per-attempt timeout, plus the linear backoff between attempts.
+         * The application's read timeout must exceed this or the least
+         * retryable provider outage turns into a duplicate review.
+         */
+        public long maxBudgetMillis() {
+            long perAttempt = timeout.toMillis();
+            long backoffs = retryBackoffMs * (long) maxAttempts * (maxAttempts - 1) / 2;
+            return perAttempt * maxAttempts + backoffs;
+        }
     }
 
     @Getter
