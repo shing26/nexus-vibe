@@ -1,0 +1,43 @@
+name: AI eval
+
+# The golden set is only worth keeping if a malformed case fails before a run
+# and a regression fails after one. The second half needs a provider credential,
+# so CI does not call a model: it validates the corpora and tests the metric
+# maths against a local stub. The baseline run is a documented local or nightly
+# act (docs/research/ai-service-eval-2026-11-28.md).
+on:
+  push:
+    branches: [master]
+    paths:
+      - "benchmark/eval/**"
+      - "scripts/ai_eval.py"
+      - "scripts/test_ai_eval.py"
+      - ".github/workflows/ai-eval.yml"
+  pull_request:
+    branches: [master]
+    paths:
+      - "benchmark/eval/**"
+      - "scripts/ai_eval.py"
+      - "scripts/test_ai_eval.py"
+      - ".github/workflows/ai-eval.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  harness:
+    name: Validate the golden set and the gate
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      # Includes test_committed_corpora_are_valid, which validates every case in
+      # both JSON files, and the stub-server tests for the regression gate.
+      - name: Run harness tests
+        run: python -m unittest discover -s scripts -p "test_ai_eval.py" -v

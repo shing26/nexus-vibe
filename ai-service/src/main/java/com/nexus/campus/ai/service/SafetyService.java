@@ -80,9 +80,9 @@ public class SafetyService {
                 Math.max(0L, (System.nanoTime() - started) / 1_000_000L));
     }
 
-    private static RetryingModelCaller.CallContext context(SafetyRequest request) {
+    private RetryingModelCaller.CallContext context(SafetyRequest request) {
         return new RetryingModelCaller.CallContext(
-                request.requestId(), request.traceId(), "safety");
+                request.requestId(), request.traceId(), "safety", prompts.version());
     }
 
     private static String parseClass(JsonNode node) {

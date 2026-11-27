@@ -101,6 +101,7 @@ public class RetryingModelCaller {
                     context.requestId(),
                     context.traceId(),
                     context.kind(),
+                    context.promptVersion(),
                     attempt,
                     properties.getLlm().getModel(),
                     temperature,
@@ -131,6 +132,6 @@ public class RetryingModelCaller {
         return Math.max(0L, (deadline - System.nanoTime() + 999_999L) / 1_000_000L);
     }
 
-    public record CallContext(String requestId, String traceId, String kind) {
+    public record CallContext(String requestId, String traceId, String kind, String promptVersion) {
     }
 }

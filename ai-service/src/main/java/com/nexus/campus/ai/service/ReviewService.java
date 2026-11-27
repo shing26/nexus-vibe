@@ -116,9 +116,9 @@ public class ReviewService {
                 repaired);
     }
 
-    private static RetryingModelCaller.CallContext context(ReviewRequest request) {
+    private RetryingModelCaller.CallContext context(ReviewRequest request) {
         return new RetryingModelCaller.CallContext(
-                request.requestId(), request.traceId(), request.kind());
+                request.requestId(), request.traceId(), request.kind(), prompts.version());
     }
 
     private ReviewResponse map(JsonNode node, ModelGateway.ModelReply reply, String kind) {

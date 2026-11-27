@@ -41,7 +41,7 @@ class FileCallArchiveTest {
     }
 
     private static CallArchive.Record record(String outcome, int promptTokens, int completionTokens) {
-        return new CallArchive.Record("2026-11-28T00:00:00Z", "req-1", "trace-1", "code", 1,
+        return new CallArchive.Record("2026-11-28T00:00:00Z", "req-1", "trace-1", "code", "prompt-v1", 1,
                 "qwen2.5:3b", 0.2, 5, outcome, null, promptTokens, completionTokens,
                 "system text", "user text", "response text");
     }

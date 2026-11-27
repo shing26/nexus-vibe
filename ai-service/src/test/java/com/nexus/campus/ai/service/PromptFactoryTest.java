@@ -60,8 +60,10 @@ class PromptFactoryTest {
         String second = factory().version();
 
         assertEquals(first, second);
-        assertEquals(12, first.length());
-        assertFalse(first.isBlank());
+        // A fixture hash, deliberately literal: a template or schema edit must
+        // show up as a failing test and a new baseline, not silently re-label
+        // yesterday's measurements.
+        assertEquals("4507b4663c31", first);
         assertFalse(first.equals(ReviewSchema.fingerprint()),
                 "prompt version must not be the schema fingerprint alone");
     }

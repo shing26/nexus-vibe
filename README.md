@@ -606,7 +606,8 @@ call-site scan, and the crash reporter (one
 report per unique crash, five per window, oversized fields truncated, a failed fetch
 swallowed, an unhandled rejection and a boundary error each reported with the component
 stack), and the error boundary layering (a broken route's section boundary contains it while the layout shell stays mounted, the outer boundary never fires, one crash report sent, and the section fallback names what failed). The alert bridge carries
-**28** Python tests.
+**28** Python tests; the AI eval harness carries **29** more that validate both
+corpora and the regression maths against a stub server, with no model call.
 
 Coverage is a gate, not a report: `pom.xml` pins `jacoco.line.minimum` to 0.70 for the
 whole bundle (first measured 74.27%; the 2026-10-14 run measured 74.83% - 3,018 of 4,033
@@ -626,6 +627,7 @@ cd frontend && npm run build  # tsc strict, zero @ts-ignore
 cd frontend && npm run lint   # oxlint
 cd frontend && npm run test   # 175
 cd docker/observability/alert-bridge && python -m unittest -v test_alert_bridge   # 28
+python -m unittest discover -s scripts -p "test_ai_eval.py"                        # 29
 ```
 
 CI (`.github/workflows/maven.yml`) runs all of the above plus the `app` and `web` image
