@@ -72,8 +72,9 @@ Two examples from the baseline:
 
 - `hardcoded-secret` produced two quotes, `String password = "hunter2";` on
   line 2 and `DriverManager.getConnection(url, "admin", password);` on line 3.
-- `null-dereference` produced two accepted and three rejected quotes; the two
-  accepted spans are the dereference and the missing guard.
+- `null-dereference` produced two accepted and three rejected quotes. The eval
+  report stores counts, not the accepted text (the call archive stores the raw
+  model output), so this note can name the counts but not the spans.
 
 The score and severity agreement fell from the B run's 0.85 / 0.40 to 0.70 /
 0.25. The evidence instruction changes the output shape, and the model spent
@@ -95,6 +96,9 @@ why the baseline is a separate file rather than an edit to the B baseline.
   used, so a client must not assume every span indexes the post.
 - The title is not searched. The contract says content or snippets, and the
   title is metadata the model may legitimately quote in prose.
+- The committed baseline records `evidenceCount` and `evidenceRejected`, not
+  the accepted quote text. Inspecting the spans requires the call archive or a
+  fresh request; the report alone cannot show what was quoted.
 - Evidence does not influence approval, status or the rendered comment body.
   It is attached to `resultJson` for persistence and study.
 - Four of twenty cases would fail if `AI_EVIDENCE_REQUIRED=true` were enabled
