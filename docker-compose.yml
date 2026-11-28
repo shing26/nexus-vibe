@@ -122,6 +122,10 @@ services:
     # under it. Pulling a 7-8B model here is the wrong way to find that out; raise the VM
     # allocation in Docker Desktop first, then this number.
     mem_limit: 3g
+    environment:
+      # Keep the loaded model resident between reviews. -1 means "until the
+      # server restarts"; the ollama-warmup sidecar reloads it after a restart.
+      OLLAMA_KEEP_ALIVE: "${OLLAMA_KEEP_ALIVE:--1}"
     volumes:
       - ollama-data:/root/.ollama
     networks:
@@ -132,6 +136,38 @@ services:
       timeout: 5s
       retries: 5
       start_period: 20s
+
+  # The CPU model takes about a minute to load. Without a warmup, the first
+  # review after an Ollama restart spends its whole first attempt loading and
+  # only the retry succeeds. This sidecar keeps `ollama ps` non-empty: it polls
+  # once a minute and reloads the model after a restart. It is local-only; a
+  # hosted-provider deployment should omit this service.
+  ollama-warmup:
+    image: ollama/ollama:latest
+    container_name: nexus-ollama-warmup
+    restart: unless-stopped
+    logging: *default-logging
+    depends_on:
+      ollama:
+        condition: service_healthy
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:3b}
+      WARMUP_POLL_SECONDS: ${WARMUP_POLL_SECONDS:-60}
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        while true; do
+          if ! ollama ps 2>/dev/null | grep -q "${LLM_MODEL:-qwen2.5:3b}"; then
+            echo "warming ${LLM_MODEL:-qwen2.5:3b}"
+            ollama run "${LLM_MODEL:-qwen2.5:3b}" "OK" >/dev/null 2>&1 || true
+            echo "warmup attempt finished"
+          fi
+          sleep "${WARMUP_POLL_SECONDS:-60}"
+        done
+    mem_limit: 128m
+    networks:
+      - nexus-net
 
   ai:
     build:
