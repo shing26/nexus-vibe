@@ -176,8 +176,42 @@ downgrade and acceptance on the repair pass. The live run
 (`benchmark/eval/baseline-2026-11-28-evidence.json`, prompt `eb5421e62edc`)
 accepted 27 quotes, rejected 29, had 15/20 cases with evidence and one 504
 timeout; the analysis is in
-`docs/research/ai-service-evidence-2026-11-28.md`. `ai-service` is now **82
+`docs/research/ai-service-evidence-2026-11-28.md`. `ai-service` is now **83
 tests**.
+
+## Increment D0/D1 — warm start and quality recovery (2026-11-28)
+
+ADR-0026 and frozen contract `plans/ai-service-depth-2.md`. D0 and D1 are
+separate PRs; D2/D3 are not opened in this round.
+
+**D0 — warm provider.** `docker-compose.yml` sets `OLLAMA_KEEP_ALIVE=-1` and
+adds the `ollama-warmup` sidecar; `.env.example` documents both controls. The
+rendered configuration was verified without a daemon:
+
+```powershell
+docker compose -p nexus-vibe --project-directory D:\Nexus-Campus `
+  -f D:\Nexus-Campus-deploy\docker-compose.yml config --format json
+```
+
+It renders `OLLAMA_KEEP_ALIVE: "-1"`, `ollama-warmup` with
+`OLLAMA_HOST=http://ollama:11434`, `LLM_MODEL=qwen2.5:3b`,
+`WARMUP_POLL_SECONDS=60`, a 128 MiB limit, and the `ollama ps`/`ollama run`
+loop. **The live acceptance is blocked, not passed**: Docker Desktop on this
+machine crashes while starting its `dockerInference` and
+`docker-secrets-engine` unix sockets (`The file cannot be accessed by the
+system`). A directory rename plus a full stop/start did not recover it. The
+container-level check (`ollama stop`, restart warmup, wait for `warming`, three
+200s, six-minute idle check) remains for a host where Docker starts.
+
+**D1 — quality recovery.** Prompt `c2992c58aed9` met the frozen targets:
+score 0.90 (target 0.85), severity 0.90 (target 0.55), 17/20 cases with
+accepted evidence (target 15/20), invalid 0.00 (target <= 0.05), and 1
+case regression against C (target <= 1). The run is
+`benchmark/eval/baseline-2026-11-28-quality.json`; the method, the five prompt
+iterations and the two remaining case misses are in
+`docs/research/ai-service-quality-2026-11-28.md`. The service suite is **83
+tests**. Evidence enforcement stays off because 3/20 cases still have no accepted
+quote; that is D2's call.
 
 ## Scope
 

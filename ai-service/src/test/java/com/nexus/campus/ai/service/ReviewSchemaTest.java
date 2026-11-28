@@ -17,14 +17,21 @@ class ReviewSchemaTest {
         for (OutputSchema schema : List.of(ReviewSchema.CODE_REVIEW, ReviewSchema.PROMPT_REVIEW)) {
             assertEquals(false, schema.schema().get("additionalProperties"));
             assertEquals(
-                    List.of("score", "severity", "codeQuality", "securityConcerns",
+                    List.of("severity", "score", "codeQuality", "securityConcerns",
                             "optimizationSuggestions", "evidence"),
                     schema.schema().get("required"));
             Map<?, ?> properties = (Map<?, ?>) schema.schema().get("properties");
             assertTrue(properties.containsKey("score"));
             assertTrue(properties.containsKey("evidence"));
+            assertTrue(((Map<?, ?>) properties.get("score")).get("description").toString()
+                    .contains("Higher is better; this is not a risk score"));
+            assertTrue(((Map<?, ?>) properties.get("severity")).get("description").toString()
+                    .contains("Risk of the most serious finding"));
             assertTrue(schema.strict());
         }
+        assertTrue(((Map<?, ?>) ((Map<?, ?>) ReviewSchema.PROMPT_REVIEW.schema()
+                .get("properties")).get("severity")).get("description").toString()
+                .contains("executes untrusted instructions"));
     }
 
     @Test

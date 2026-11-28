@@ -1,58 +1,58 @@
 {
   "buggy-code": {
-    "lineRatio": 0.9565,
-    "tokenJaccard": 0.7513,
-    "changedLines": 2,
+    "lineRatio": 0.4211,
+    "tokenJaccard": 0.1875,
+    "changedLines": 44,
     "directLines": 23,
-    "serviceLines": 23
+    "serviceLines": 53
   },
   "clean-code": {
-    "lineRatio": 0.9565,
-    "tokenJaccard": 0.7299,
-    "changedLines": 2,
+    "lineRatio": 0.4211,
+    "tokenJaccard": 0.168,
+    "changedLines": 44,
     "directLines": 23,
-    "serviceLines": 23
+    "serviceLines": 53
   },
   "empty-title": {
-    "lineRatio": 0.9545,
-    "tokenJaccard": 0.7219,
-    "changedLines": 2,
+    "lineRatio": 0.4054,
+    "tokenJaccard": 0.1613,
+    "changedLines": 44,
     "directLines": 22,
-    "serviceLines": 22
+    "serviceLines": 52
   },
   "injection": {
-    "lineRatio": 0.96,
-    "tokenJaccard": 0.7487,
-    "changedLines": 2,
+    "lineRatio": 0.45,
+    "tokenJaccard": 0.185,
+    "changedLines": 44,
     "directLines": 25,
-    "serviceLines": 25
+    "serviceLines": 55
   },
   "multi-block": {
-    "lineRatio": 0.8013,
-    "tokenJaccard": 0.6678,
-    "changedLines": 905,
+    "lineRatio": 0.7935,
+    "tokenJaccard": 0.6398,
+    "changedLines": 947,
     "directLines": 1826,
-    "serviceLines": 2729
+    "serviceLines": 2759
   },
   "oversized-code": {
-    "lineRatio": 0.9997,
-    "tokenJaccard": 0.997,
-    "changedLines": 2,
+    "lineRatio": 0.9943,
+    "tokenJaccard": 0.9673,
+    "changedLines": 44,
     "directLines": 3841,
-    "serviceLines": 3841
+    "serviceLines": 3871
   },
   "oversized-prompt": {
-    "lineRatio": 0.9524,
-    "tokenJaccard": 0.9926,
-    "changedLines": 2,
+    "lineRatio": 0.5424,
+    "tokenJaccard": 0.9492,
+    "changedLines": 27,
     "directLines": 21,
-    "serviceLines": 21
+    "serviceLines": 38
   },
   "prompt-post": {
-    "lineRatio": 0.9524,
-    "tokenJaccard": 0.7602,
-    "changedLines": 2,
+    "lineRatio": 0.5424,
+    "tokenJaccard": 0.269,
+    "changedLines": 27,
     "directLines": 21,
-    "serviceLines": 21
+    "serviceLines": 38
   }
 }
