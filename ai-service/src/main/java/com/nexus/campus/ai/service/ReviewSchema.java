@@ -20,10 +20,27 @@ public final class ReviewSchema {
             .configure(SerializationFeature.ORDER_MAP_ENTRIES_BY_KEYS, true);
 
     public static final OutputSchema CODE_REVIEW = new OutputSchema(
-            "code_review", review("overall code quality", "security vulnerabilities, risks or concerns found"),
+            "code_review", review(
+                    "overall code quality",
+                    "security vulnerabilities, risks or concerns found",
+                    "Risk of the most serious finding, classified before score: critical = "
+                            + "RCE, injection, auth bypass or committed production secret; high "
+                            + "= XSS, SSRF, hardcoded credential, path traversal, shared-state "
+                            + "race, out-of-bounds write or unsafe deserialization; medium = "
+                            + "null dereference, resource leak, swallowed error, mutable default, "
+                            + "regex backtracking, serial I/O or loose equality; low = style, "
+                            + "naming, missing tests or none"),
             true);
     public static final OutputSchema PROMPT_REVIEW = new OutputSchema(
-            "prompt_review", review("overall prompt quality", "ways the prompt could be misused or leak context"),
+            "prompt_review", review(
+                    "overall prompt quality",
+                    "ways the prompt could be misused or leak context",
+                    "Risk of the most serious finding, classified before score: critical = "
+                            + "executes untrusted instructions, exfiltrates secrets or bypasses "
+                            + "authorization; high = easy jailbreak, context leak or untrusted "
+                            + "input into a sensitive action; medium = task exists but input or "
+                            + "output contract is missing or ambiguous, or no failure rule; low "
+                            + "= style, wording or no finding"),
             true);
     public static final OutputSchema SAFETY = new OutputSchema(
             "safety_classification", safety(), true);
@@ -46,13 +63,18 @@ public final class ReviewSchema {
         }
     }
 
-    private static Map<String, Object> review(String qualityDescription, String securityDescription) {
+    private static Map<String, Object> review(String qualityDescription, String securityDescription,
+                                              String severityDescription) {
         Map<String, Object> properties = new LinkedHashMap<>();
+        properties.put("severity", Map.of(
+                "type", "string", "enum", List.of("low", "medium", "high", "critical"),
+                "description", severityDescription));
         properties.put("score", Map.of(
                 "type", "integer", "minimum", 0, "maximum", 10,
-                "description", "Overall score from 0 (worst) to 10 (best)"));
-        properties.put("severity", Map.of(
-                "type", "string", "enum", List.of("low", "medium", "high", "critical")));
+                "description", "Overall quality: 9-10 clean, 7-8 low-risk only, 5-6 one "
+                        + "medium finding, 3-4 high or several medium, 0-2 critical. A high "
+                        + "or critical finding caps score at 4; a medium finding caps it at 7. "
+                        + "Higher is better; this is not a risk score"));
         properties.put("codeQuality", Map.of(
                 "type", "string",
                 "description", "Multi-sentence observations about " + qualityDescription));
@@ -76,7 +98,7 @@ public final class ReviewSchema {
         schema.put("type", "object");
         schema.put("additionalProperties", false);
         schema.put("required",
-                List.of("score", "severity", "codeQuality", "securityConcerns",
+                List.of("severity", "score", "codeQuality", "securityConcerns",
                         "optimizationSuggestions", "evidence"));
         schema.put("properties", properties);
         return schema;

@@ -47,6 +47,32 @@ class PromptFactoryTest {
     }
 
     @Test
+    void theReviewPromptDefinesScoreDirectionAndSeverityRubric() {
+        PromptFactory.Prompt code = factory().review(new ReviewRequest(
+                "req-3", "trace-3", 44L, "code", "Code",
+                "```java\nint x = 1;\n```", List.of(), null));
+        PromptFactory.Prompt prompt = factory().review(new ReviewRequest(
+                "req-4", "trace-4", 45L, "prompt", "Prompt",
+                "You are a helpful assistant", List.of(), null));
+
+        assertTrue(code.system().contains(
+                "Before you score, run these concrete checks on the submitted code"));
+        assertTrue(code.system().contains(
+                "A high or critical finding caps score at 4"));
+        assertTrue(code.system().contains("SQL built by string concatenation -> critical, 2"));
+        assertTrue(code.system().contains(
+                "i <= n writing a[i] -> high, 3"));
+        assertTrue(code.system().contains(
+                "a typed function that validates its input and raises on bad values -> low, 9"));
+        assertTrue(prompt.system().contains(
+                "Before you score, check the prompt in this order"));
+        assertTrue(prompt.system().contains(
+                "A prompt that only says 'summarize this article' -> medium, 5"));
+        assertTrue(prompt.system().contains(
+                "explicit output format, one input variable"));
+    }
+
+    @Test
     void safetyPromptWrapsTheContent() {
         PromptFactory.Prompt prompt = factory().safety("hello", "post");
         assertEquals("safety", prompt.kind());
@@ -63,7 +89,7 @@ class PromptFactoryTest {
         // A fixture hash, deliberately literal: a template or schema edit must
         // show up as a failing test and a new baseline, not silently re-label
         // yesterday's measurements.
-        assertEquals("eb5421e62edc", first);
+        assertEquals("c2992c58aed9", first);
         assertFalse(first.equals(ReviewSchema.fingerprint()),
                 "prompt version must not be the schema fingerprint alone");
     }

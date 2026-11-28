@@ -35,7 +35,7 @@ The service-side test builds its request the way `ServiceReviewer` does —
 neutralized title and content, fenced blocks sent as `snippets` — rather than
 calling `PromptFactory` with a synthetic shape.
 
-## Result
+## Result — increment C (before D1)
 
 | fixture | lines (direct/service) | line similarity | token Jaccard | changed lines |
 |---|---|---|---|---|
@@ -49,6 +49,10 @@ calling `PromptFactory` with a synthetic shape.
 | prompt-post | 21/21 | 0.9524 (95.2%) | 0.8555 | 2 |
 
 Mean line similarity: 0.9417.
+
+These numbers were produced by prompt `eb5421e62edc` (increment C). The D1
+service prompt deliberately changes the same service-side text and is measured
+separately below.
 
 ## What the numbers say
 
@@ -105,3 +109,28 @@ sentence.
   production.
 - It records the `multi-block` difference; it does not establish that the
   difference is harmless for any particular model or context window.
+
+## D1 rerun (prompt `c2992c58aed9`)
+
+The D1 prompt is intentionally service-only: `CodeReviewReviewer` and
+`PromptReviewReviewer` still use the direct-path wording. The parity baseline was
+therefore regenerated, not treated as a failure. The direct path was not
+changed to match the new service rubric.
+
+The same three commands produced:
+
+| fixture | lines (direct/service) | line similarity | token Jaccard | changed lines |
+|---|---|---|---|---|
+| buggy-code | 23/53 | 0.4211 | 0.1875 | 44 |
+| clean-code | 23/53 | 0.4211 | 0.1680 | 44 |
+| empty-title | 22/52 | 0.4054 | 0.1613 | 44 |
+| injection | 25/55 | 0.4500 | 0.1850 | 44 |
+| multi-block | 1826/2759 | 0.7935 | 0.6398 | 947 |
+| oversized-code | 3841/3871 | 0.9943 | 0.9673 | 44 |
+| oversized-prompt | 21/38 | 0.5424 | 0.9492 | 27 |
+| prompt-post | 21/38 | 0.5424 | 0.2690 | 27 |
+
+Mean line similarity is 0.5713. The drop is the expected consequence of adding
+the D1 checks, score bands and examples to one side only. The baseline now
+records the accepted drift; a future change to either builder that widens any
+fixture by more than 0.005 still fails CI.
