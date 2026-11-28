@@ -45,6 +45,7 @@ Numbered, append-only. A reversed decision gets a new ADR, not an edit.
 | [0023](adr/0023-the-console-palette-and-a-dark-default.md) | The console palette and a dark default - supersedes ADR-0020's accent clause and system-following theme |
 | [0024](adr/0024-ai-inference-moves-behind-a-service.md) | Model-facing inference moves behind an internal Java service; Java keeps the policy |
 | [0025](adr/0025-deepen-the-inference-service.md) | Deepen the service where it is thinner than the direct path: structured output, dedup, breaker, archive, evaluation, evidence |
+| [0026](adr/0026-recover-review-quality-before-enforcing-evidence.md) | Recover verdict quality before enforcing evidence; warm the local provider first |
 
 ## Measurements — `docs/research/`
 
