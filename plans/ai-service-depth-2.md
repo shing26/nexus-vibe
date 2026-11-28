@@ -129,7 +129,7 @@ mvn -B -q "-Djacoco.skip=true" "-Dtest=PromptTextCorpusTest" test
 mvn -B -q -f ai-service/pom.xml "-Dtest=PromptTextCorpusTest" test
 python scripts/prompt_parity.py
 docker compose -p nexus-vibe --project-directory D:\Nexus-Campus \
-  -f D:\Nexus-Campus-deploy\docker-compose.yml config
+  -f "$PWD/docker-compose.yml" config
 ```
 
 The live D1 run is:

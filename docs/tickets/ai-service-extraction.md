@@ -190,7 +190,7 @@ rendered configuration was verified without a daemon:
 
 ```powershell
 docker compose -p nexus-vibe --project-directory D:\Nexus-Campus `
-  -f D:\Nexus-Campus-deploy\docker-compose.yml config --format json
+  -f "$PWD/docker-compose.yml" config --format json
 ```
 
 It renders `OLLAMA_KEEP_ALIVE: "-1"`, `ollama-warmup` with
