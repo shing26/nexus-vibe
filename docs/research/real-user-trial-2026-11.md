@@ -19,14 +19,32 @@ block, and `ai_review_log` carries a `code-review-agent` row for it.
 
 ## Invitation copy (sent verbatim to every participant)
 
-> 帮我测个东西，大概 10 分钟：
->
-> 1. 打开 <https://qualifier-discuss-marry.ngrok-free.dev>，注册一个账号。
-> 2. 发一篇帖子，正文里贴一段你自己写过的代码（什么语言都行，随便一段）。
-> 3. 发完等一两分钟，回到帖子页面，看 AI 给它的评审——分数、严重度、逐条发现。
->
-> 然后把这一路的感受用你自己的话发给我：卡住的地方、觉得奇怪的、觉得
-> 好的、觉得多余的，都算。原话最好——我会一字不改地记下来，只用来改东西。
+The block below is the message, ready to paste. It is reproduced here exactly
+as sent, so the wording every participant saw stays part of the record.
+
+```text
+帮我做个小测试，大概 10 分钟，全程只用浏览器：
+
+1. 打开 https://qualifier-discuss-marry.ngrok-free.dev
+   （如果先看到 ngrok 的提示页，点一下 "Visit Site" 就行）
+2. 注册一个账号（用户名随意，别用真实姓名）
+3. 发一篇帖子，正文里贴一段你自己写过的代码，语言不限，几行就够
+4. 等 1–2 分钟，回到这篇帖子，看「AI 评审」给出的分数、严重度和逐条建议
+
+这是个 AI 开发者社区的作品集项目，我想验证三件事：
+注册顺不顺、发帖卡不卡、AI 评审读不读得懂。
+
+做完把感受用你自己的话回我就行：哪里卡住、哪里看不懂、
+哪里觉得多余、哪里觉得还行。原话最好——我会一字不改地记进项目记录，
+不写你的名字，只记日期和原话。中途不想继续随时停，没关系。
+```
+
+Follow-up used when someone says they can start later (also sent verbatim):
+
+```text
+不急，你方便的时候做就行，全程 10 分钟左右。
+做完把原话发我；做不完或者卡住了也直接说，卡住本身就是我要的数据。
+```
 
 ## Verbatim feedback (unedited)
 
@@ -39,12 +57,15 @@ participant's date; no translation, no summarising, no softening.
 
 ## Usage measurement (run on this machine, read-only)
 
-Baseline: **not yet taken.** The first measurement below was attempted on
-2026-11-19 but Docker Desktop's engine was unreachable from the shell
-(HTTP 500 on the engine pipe), so no number exists yet — this file records
-the attempt rather than inventing the count. Run the command at kickoff and
-again whenever a participant completes, and paste the output here with the
-date.
+Baseline: **taken 2026-11-24**, on this machine, against the running stack
+(image `nexus-vibe-app:20261123-01`), with the command below. The first
+attempt on 2026-11-19 failed because Docker Desktop's engine was unreachable
+from the shell (HTTP 500 on the engine pipe); that attempt is kept here as
+history. Run the command again whenever a participant completes.
+
+| Date | registered_users | human_code_posts | human_code_reviews |
+|---|---|---|---|
+| 2026-11-24 | 23 | 18 | 25 |
 
 ```powershell
 docker compose exec -T db sh -c 'mysql -u"$MYSQL_USER" -p"$MYSQL_PASSWORD" nexus_campus -e "$0"' "
@@ -60,8 +81,18 @@ SELECT
 ```
 
 Exclusions: user 999 is the AI agent account; post `900000000000000001` is the
-curated showcase recording. Everything else in these counts is a real
-registration and a real post.
+curated showcase recording.
+
+**Read the numbers with this caveat, measured on the same day.** The three
+counts above are not 23 independent people and 18 outsider posts. They include
+the eight seeded demo accounts (`data.sql`: `admin`, `shing`, `alice`, `bob`,
+`testuser`, `eve`, `charlie`, `AiAgent`) and the QA probe accounts earlier
+verification rounds created (`nimtest…`, `deploycheck…`, `pubcheck…`,
+`showcaserec…`, `releasecheck…`, `verifyc…`, `verifyr…`). Excluding the seed
+set and every probe prefix leaves **2 outsider accounts** (`shing426`,
+2026-11-14; `reviewer1`, 2026-11-22), with **0 code posts and 0 reviews**. In
+journey terms the trial stands at **0 of 3–5**. The rows are listed by account
+and date in the query output, not estimated.
 
 ## What this trial cannot prove
 
