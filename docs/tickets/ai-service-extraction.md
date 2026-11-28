@@ -1,6 +1,7 @@
 # AI service extraction (P0)
 
-Status: **verified and deployed on the local/demo stack as `20261127-02` — 16 PASS; PR #63.**
+Status: **verified and deployed on the local/demo stack as `20261128-01` — 16 PASS;
+PRs #63/#67/#68/#69.**
 Contract: `plans/ai-service-extraction.md`. Decision: ADR-0024.
 
 Verification record (independent verifier, not the implementer):
@@ -58,6 +59,7 @@ retry and takes 45 s; raising `AI_LLM_TIMEOUT` to 45 s with one attempt, or pinn
 model with `OLLAMA_KEEP_ALIVE=-1` plus a startup warm-up, are the two ways to remove
 that wait. Neither is applied here: the first is an `.env` change that would diverge
 from the committed 30 s default, and the second needs a compose change and a PR.
+The 2026-11-28 release later moved the pair to 60 s / 200 s; see the smoke section below.
 
 ## Prompt-drift measurement (2026-11-28)
 
@@ -178,6 +180,28 @@ accepted 27 quotes, rejected 29, had 15/20 cases with evidence and one 504
 timeout; the analysis is in
 `docs/research/ai-service-evidence-2026-11-28.md`. `ai-service` is now **82
 tests**.
+
+## Deployment smoke (2026-11-28, `20261128-01`)
+
+Release `20261128-01` was built from `master` `e96c706` and now serves the local/demo
+stack. The full evidence — image ids, hash equality, health, public entry, dedup and
+cold-start numbers — is in `docs/plans/pre-deployment-checklist.md` →
+「发布与运维记录（2026-11-28）」. The short version:
+
+- App / AI / web images `20261128-01`, revision `e96c706`; `app` and `ai` healthy,
+  `deps` (db/es/llm/redis) all UP, `/readyz` ready. `llm: UP` is the app's real probe
+  of `http://ai:8000/readyz`, which itself probes the provider.
+- A warm live review returned 200 in 53.1 s with prompt version `eb5421e62edc`, one
+  accepted quote at line 2 and `evidenceRejected=0`. Replaying the same body hit the
+  content-addressed cache in 0.03 s (`dedup{outcome="hit"}=1`).
+- Raising `AI_LLM_TIMEOUT` to 60 s without also raising the app read timeout broke
+  the documented `timeout × 3 + backoff < read timeout` invariant: a cold start
+  returned 504 after one 60 s attempt. Setting `AI_SERVICE_READ_TIMEOUT=200s` (still
+  below the 240 s lease) restored the ladder; a forced-cold run then returned 200 in
+  89.0 s (60 s failed attempt, 28.2 s success).
+- `AI_EVIDENCE_REQUIRED` stayed `false`. A second live review rejected all five model
+  quotes (`evidenceRejected=5`, `evidence=[]`) but was still accepted, which is the
+  documented rollout default, not a regression.
 
 ## Scope
 

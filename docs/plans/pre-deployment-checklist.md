@@ -429,3 +429,86 @@
       `/actuator/health/deps` 公面 404 收敛未破。
 - [x] 回滚目标：宿主机保留 `20261102-01`、`20261114-01`、`20261115-01` 三个 tag 的镜像
       （最近两个 tag 纪律之上多留一个，不删）。
+
+## 发布与运维记录（2026-11-28，`20261128-01`）
+
+- [x] 代码基线：`master` `e96c706`，含 #66（两份 prompt 的漂移测量）、#67（结构化输出 +
+      内容寻址去重 + 熔断/归档）、#68（版本化 golden set + eval harness）、#69
+      （evidence anchoring）。合并前记录：三份独立 Verifier PASS，CI 七项检查全绿；
+      本机 `mvn -B test` 602、`ai-service` 82、eval harness 38。本轮只发布，未改代码，
+      因此没有重跑这三套测试。
+- [x] 发布 tag：`APP_TAG=20261128-01`，`GIT_REVISION=e96c706`；`.env` 从
+      `20261127-02`/`8daefc7` 更新。运行时另改两项 AI 配置：`AI_LLM_TIMEOUT=60s`
+      （本机 CPU 热路径实测 20–53 s，30 s 必然超时），并新增
+      `AI_SERVICE_READ_TIMEOUT=200s`。后者是 `.env.example` 写明的
+      `AI_LLM_TIMEOUT × 3 + backoff < AI_SERVICE_READ_TIMEOUT` 不变量：60 s × 3 = 180 s，
+      停在默认 120 s 时服务只容得下一次尝试，冷启动必 504。200 s 仍低于 240 s 的评审 lease。
+- [x] 构建路径：本机 `docker compose build` 仍因容器内 Maven/npm 镜像不可达失败
+      （AGENTS.md 记录的环境故障，CI 是 Docker 构建权威）。沿用宿主机产物 +
+      `scratch/release-20261128` 的运行时层装配：以三个 `20261127-02` 镜像为底座，
+      `COPY` 新产物并写入标签，`nexus-ai` 重新 `USER 10001`。
+      - `nexus-vibe-app:20261128-01` → `sha256:651c1f2fc255…`
+        （label `version=20261128-01`，`revision=e96c706`）
+      - `nexus-vibe-web:20261128-01` → `sha256:f4dcd809cb55…`
+      - `nexus-ai-service:20261128-01` → `sha256:a84f344574e3…`
+      宿主产物与镜像内文件 SHA256 一致：app `05be0bda…f8f60`、ai `3471b1dc…3ba1506`、
+      web `42fb21bd…2df132`。标签由构建参数写入，不是供应链证明；`e96c706` 的构建权威是 CI。
+- [x] 切换：`docker compose -p nexus-vibe --project-directory D:\Nexus-Campus
+      -f D:\Nexus-Campus-deploy\docker-compose.yml up -d --no-build app ai web`；
+      db/redis/es/ollama 未重建。补上 200 s 读超时后单独 recreate 了一次 `app`（约 25 s 恢复）。
+- [x] 运行时健康：10 容器 Up；`app`/`ai` healthy；`/actuator/health` → UP
+      （groups `deps`/`servable`），`deps` 的 db / elasticsearch / llm / redis 全 UP；
+      `nexus-ai:/readyz` → `{"status":"ready"}`。`llm: UP` 由应用侧 `AiServiceClient` 经
+      compose 网络探测 `http://ai:8000/readyz` 得出，而 `/readyz` 又要求 provider probe
+      通过，所以这一条覆盖 app → ai → ollama 三跳。
+- [x] 公网入口（ngrok）：`/` 200 / 0.96 s；`/api/v1/posts?page=1&size=1` 200
+      （app 重启后首探 2.12 s，37 帖）；带 `Origin` 的响应回显
+      `Access-Control-Allow-Origin: https://qualifier-discuss-marry.ngrok-free.dev`；
+      `/api/v1/status/capabilities` → `{"data":[]}`。浏览器 UA 会先看到 ngrok 的
+      `ERR_NGROK_6024` 提示页，curl 不会；不是站点故障。
+- [x] AI 服务实调（容器内直连 `:8000`，带 `X-AI-Service-Key`；所有 200 响应均为
+      `X-Prompt-Version: eb5421e62edc`）：
+      - 热路径：200 / 53.1 s，score 2 / low，`evidence` 1 条
+        `String password = "hunter2";`，`startLine=2,endLine=2`，`evidenceRejected=0`，
+        `repaired=false`。
+      - 同 body 重放：0.03 s 返回同一 payload（含原始 `latencyMs=53111`），
+        `ai_review_dedup_total{outcome="hit"}=1`。
+      - 冷启动 + 旧 120 s 读超时：60.3 s 后 504 `model_timeout`；Ollama 侧同一请求
+        1m0s→500。
+      - 冷启动 + 200 s 读超时（`ollama stop qwen2.5:3b` 后实测）：第一次 60 s 500，
+        第二次 28.2 s 200，服务 89.0 s 返回 200。重试阶梯在冷启动下能自愈，前提是预算
+        容得下第二次尝试。
+      - 另一内容热路径：200 / 20.7 s，score 8 / high，`evidenceRejected=5`、
+        `evidence=[]`（模型给的 5 条引文全部未通过原文校验被丢弃）。同一响应
+        `approved=true` 与 high 不一致，属单样本模型质量问题，不是服务回归；
+        `AI_EVIDENCE_REQUIRED=false` 是当前默认，空证据 verdict 仍会被接受。
+      - 指标终值：`ai_provider_calls_total` success 3 / error 3；
+        `ai_review_requests_total` success 3 / error 0 / invalid 0；dedup hit 1 / miss 5。
+        504 记在 provider 计数器，不在 `ai.review.requests{outcome="error"}`——观测口径的
+        已知缺口。
+- [x] 回滚目标：宿主机保留 `nexus-vibe-app:20261127-02`（`c45ff8809308`）、
+      `nexus-vibe-web:20261127-02`（`416b9c4d0570`）、
+      `nexus-ai-service:20261127-02`（`56c274369840`）。回滚 = `.env` 改回
+      `APP_TAG=20261127-02` / `GIT_REVISION=8daefc7`（200 s/60 s 可保留），同样命令
+      加 `--no-build`；按 runbook 连探两次，不以 health 变绿为准。
+- [x] 证据绑定：记录时生产镜像对应 `e96c706`；`D:\Nexus-Campus` 的
+      `git status --short` 仍有 22 个既有无关改动，本轮未改代码、未动它们。
+
+### 这次 smoke 不能证明什么
+
+- 没有在线重跑 20 例 golden set；`docs/research/ai-service-evidence-2026-11-28.md`
+  的基线来自另一时间、另一个临时容器。
+- 只有一个模型（`qwen2.5:3b`）和 CPU 推理。冷启动首次尝试在这台机器上稳定超过 60 s；
+  现在靠第二次尝试自愈，但单次评审从发起到有结果可能接近 2 分钟（不含 reconcile 的
+  10 分钟窗口）。
+- 没有通过应用公网接口触发一次真实评审（没有 force-review 端点）；app → service 的证据
+  是 `llm: UP` 的健康探测，不是一次完整的评审写入与评论渲染。
+- `approved` 与 severity 的一致性没有被服务校验；本次 8/high/approved=true 是一个反例
+  样本，检测它属于 eval harness 的职责，不属于运行时 gate。
+
+### 后续
+
+- 给 Ollama 设 `OLLAMA_KEEP_ALIVE=-1` 或启动预热，消除冷启动首次超时；否则低流量时段的
+  每次 reconcile 仍要先付一次 60 s 失败。
+- `ai.review.requests{outcome="error"}` 补上 `model_timeout`，让 504 在评审口径可见。
+- 在 `AI_EVIDENCE_REQUIRED=true` 下跑一次完整基线，再决定是否把证据设为必填。
