@@ -201,17 +201,25 @@ machine crashes while starting its `dockerInference` and
 `docker-secrets-engine` unix sockets (`The file cannot be accessed by the
 system`). A directory rename plus a full stop/start did not recover it. The
 container-level check (`ollama stop`, restart warmup, wait for `warming`, three
-200s, six-minute idle check) remains for a host where Docker starts.
+**distinct** 200s, the Ollama-restart race observation, six-minute idle check)
+remains for a host where Docker starts. Distinct payloads keep the content cache
+from making a replay look warm.
 
 **D1 — quality recovery.** Prompt `c2992c58aed9` met the frozen targets:
 score 0.90 (target 0.85), severity 0.90 (target 0.55), 17/20 cases with
 accepted evidence (target 15/20), invalid 0.00 (target <= 0.05), and 1
 case regression against C (target <= 1). The run is
-`benchmark/eval/baseline-2026-11-28-quality.json`; the method, the five prompt
-iterations and the two remaining case misses are in
+`benchmark/eval/baseline-2026-11-28-quality.json`; the method, the eight prompt
+iterations (including three rejected band-alignment runs), and the two remaining
+case misses are in
 `docs/research/ai-service-quality-2026-11-28.md`. The service suite is **83
 tests**. Evidence enforcement stays off because 3/20 cases still have no accepted
 quote; that is D2's call.
+
+The accepted prompt has a known textual debt: its score bands say medium 5-6 and
+high 3-4, while examples use medium 4 and high 2. The later alignment runs either
+missed the score target or exceeded the case-regression gate, so v5 is kept as the
+measured baseline rather than replacing it with a better-looking aggregate.
 
 ## Scope
 

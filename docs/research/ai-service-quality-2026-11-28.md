@@ -59,6 +59,19 @@ was not selected by rerunning v5 until a threshold was crossed.
 | `9dae4b15c632` | 0.60 | 0.55 | 17/20 | 0.00 | score bands helped severe cases but over-penalized clean snippets |
 | `ba32804b7d82` | 0.75 | 0.70 | 15/20 | 0.00 | explicit checks and separate prompt schema; five misses |
 | `c2992c58aed9` | **0.90** | **0.90** | **17/20** | **0.00** | accepted baseline; 18 rejected quotes, 0.25 repair rate |
+| `d64557faa97c` | 0.85 | 0.85 | 16/20 | 0.00 | band-alignment attempt; 3 case regressions vs C, rejected |
+| `2cca78e20299` | 0.75 | 0.80 | 16/20 | 0.00 | narrower band fix; score target missed, rejected |
+| `a749e690c9b2` | 0.85 | 0.85 | 17/20 | 0.00 | minimal band alignment; 3 case regressions vs C, rejected |
+
+The last three runs are recorded as rejected, not folded into the baseline. They
+tried to make the score bands match the examples: v6 and v8 met the aggregate
+targets but regressed three cases against C; v7 fell below the score target. The
+accepted v5 still has a textual inconsistency: its bands say medium 5-6 and high
+3-4, while examples use medium 4 and high 2. Fixing that with this 20-case set
+moved the verdicts in both directions, which is evidence of corpus sensitivity,
+not a free cleanup. A durable fix needs a held-out set or a stronger model and is
+left as a follow-up; keeping v6-v8 because one aggregate number looked better
+would violate the per-case gate.
 
 ## What changed in the accepted prompt
 
@@ -122,6 +135,10 @@ so turning enforcement on now would turn 15% of otherwise-valid verdicts into
 - `repairRate` is 0.25, so five responses needed the JSON repair pass. The
   repair path is covered by existing tests, but the prompt's malformed-output
   rate is a second cost that this quality table does not price.
+- The accepted prompt's score bands and examples are not textually consistent
+  (medium 5-6 versus examples at 4; high 3-4 versus examples at 2). The v6-v8
+  attempts to align them were rejected by the case-regression gate. This is a
+  prompt-design debt, not a measurement ambiguity.
 - D0's live container acceptance is separate. The compose rendering is in the
   ticket; Docker Desktop on this machine could not start, so the sidecar was
   not observed running.

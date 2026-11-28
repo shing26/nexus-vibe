@@ -73,7 +73,7 @@ Each of these names the command or script that produced its numbers. Reproduce b
 | [prompt-parity-2026-11-28](research/prompt-parity-2026-11-28.md) | Direct-mode and AI-service prompts compared on eight fixtures: seven differ only in the schema sentence, one multi-block payload differs, and the baseline gates further drift |
 | [ai-service-eval-2026-11-28](research/ai-service-eval-2026-11-28.md) | First golden-set baseline for the service: 20 review and 12 safety cases, score agreement 0.85 but severity 0.40 because the local 3B model never rates anything high, plus the regression gate and what the set cannot prove |
 | [ai-service-evidence-2026-11-28](research/ai-service-evidence-2026-11-28.md) | Evidence anchoring measured: 15/20 cases supply an accepted quote, 27 quotes accepted and 29 rejected, 1 timeout, and the reasons a rejected count is not a relevance score |
-| [ai-service-quality-2026-11-28](research/ai-service-quality-2026-11-28.md) | D1 prompt recovery: five runs, the accepted prompt at score 0.90 / severity 0.90 / evidence 17/20, one regression against C, and why evidence enforcement still waits |
+| [ai-service-quality-2026-11-28](research/ai-service-quality-2026-11-28.md) | D1 prompt recovery: eight runs, the accepted prompt at score 0.90 / severity 0.90 / evidence 17/20, one regression against C, three rejected band-alignment runs and why evidence enforcement still waits |
 
 ## Work items — `docs/tickets/`
 
