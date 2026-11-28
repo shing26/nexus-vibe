@@ -50,10 +50,18 @@ committed baselines leave two facts that the next round has to answer:
    service, and its `OLLAMA_HOST`/`LLM_MODEL` environment.
 2. The sidecar's `ollama ps` check is the only warmup path; it does not touch the
    review request, the breaker, the archive or the review metrics.
-3. Live: `ollama stop qwen2.5:3b`, restart `ollama-warmup`, wait for the `warming`
-   log and a non-empty `ollama ps`, then three consecutive `/v1/reviews` return 200,
-   none is a 504, and the three-sample p95 is below 60 s.
+3. Live, model-unload path: `ollama stop qwen2.5:3b` while the Ollama server stays
+   up, restart `ollama-warmup`, wait for the `warming` log and a non-empty `ollama ps`,
+   then send three **distinct** review payloads. All three return 200, none is a 504,
+   and the three-sample p95 is below 60 s. Distinct payloads are required so the
+   content cache cannot make a replay look warm.
 4. After six minutes idle, `ollama ps` still lists the model (keep-alive effective).
+5. Restart the `ollama` service and immediately send one distinct review, without
+   waiting for the next warmup poll. Record whether that request cold-starts. The
+   sidecar is eventually consistent: it bounds the detection window to
+   `WARMUP_POLL_SECONDS` (default 60) and does not claim to eliminate a review that
+   arrives before the next check. This observation is required; it is not a green
+   substitute for item 3.
 
 ## D1 — review quality recovery
 
@@ -117,7 +125,9 @@ rejected prompt.
 mvn -B -f ai-service/pom.xml test
 mvn -B test
 python scripts/test_ai_eval.py
-python scripts/prompt_parity.py --check
+mvn -B -q "-Djacoco.skip=true" "-Dtest=PromptTextCorpusTest" test
+mvn -B -q -f ai-service/pom.xml "-Dtest=PromptTextCorpusTest" test
+python scripts/prompt_parity.py
 docker compose -p nexus-vibe --project-directory D:\Nexus-Campus \
   -f D:\Nexus-Campus-deploy\docker-compose.yml config
 ```
